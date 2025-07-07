@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "netgill",
+    "slug": "project-netgill",
+    "scheme": "netgill",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.lee_gwang_hee.netgill"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "net-gil-app-rbn1bz"
+      },
+      "googleClientId": "77528205997-2nsauv3k7qv1e9t0eplup0b08kdueuqn.apps.googleusercontent.com",
+      "googleIosClientId": "77528205997-noat8n09igimrfiupeq6blato0g8n3sg.apps.googleusercontent.com",
+      "googleAndroidClientId": "77528205997-g4b1uqnee3m075u7s9vgtbcj1ajoa2ke.apps.googleusercontent.com"
+    },
+    "owner": "lee_gwang_hee",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/net-gil-app-rbn1bz"
+    },
+    "jsEngine": "hermes"
+  }
+}
