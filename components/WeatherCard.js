@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { WEATHER_CONFIG } from '../config/weather';
+import weatherAlertService from '../services/weatherAlertService';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -21,7 +22,7 @@ const COLORS = {
   SECONDARY: '#666666',
 };
 
-const WeatherCard = () => {
+const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
   const [weather, setWeather] = useState(null);
   const [forecast, setForecast] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -95,14 +96,69 @@ const WeatherCard = () => {
           longitude
         });
         
-        const address = addresses[0];
-        const locationName = '현재 내위치';
+        if (addresses && addresses.length > 0) {
+          const address = addresses[0];
+          // 동과 도로명 정보를 조합하여 주소 생성
+          let locationName = '';
+          
+          // 동 정보 추출 (name에서 동 정보 가져오기)
+          let dongName = '';
+          let roadName = '';
+          
+          // name에서 동 정보 추출 (예: "역삼동" 형태)
+          if (address.name) {
+            if (address.name.includes('동')) {
+              dongName = address.name;
+            } else if (address.name.includes('가')) {
+              dongName = address.name;
+            }
+          }
+          
+          // street에서 도로명 추출 (예: "강남대로" 형태)
+          // street에 동 정보가 포함되어 있지 않은 경우만 도로명으로 사용
+          if (address.street) {
+            const streetText = address.street;
+            // street에 동 정보가 포함되어 있지 않은 경우만 도로명으로 사용
+            if (!streetText.includes('동') && !streetText.includes('가')) {
+              roadName = streetText;
+            } else if (!dongName) {
+              // 동 정보가 아직 없고 street에 동 정보가 있는 경우
+              if (streetText.includes('동')) {
+                dongName = streetText;
+              } else if (streetText.includes('가')) {
+                dongName = streetText;
+              }
+            }
+          }
+          
+          // 동과 도로명 조합 (중복 제거)
+          if (dongName && roadName) {
+            // "현재위치 - 역삼동 강남대로" 형태로 표시
+            locationName = `현재위치 - ${dongName} ${roadName}`;
+          } else if (dongName) {
+            // 동만 있는 경우
+            locationName = `현재위치 - ${dongName}`;
+          } else if (roadName) {
+            // 도로명만 있는 경우
+            locationName = `현재위치 - ${roadName}`;
+          } else {
+            // 주소 정보가 없는 경우
+            locationName = '현재위치';
+          }
 
-        setLocation({
-          latitude,
-          longitude,
-          name: locationName
-        });
+          setLocation({
+            latitude,
+            longitude,
+            name: locationName
+          });
+        } else {
+          // 주소 변환 결과가 없는 경우
+          setLocation({
+            latitude,
+            longitude,
+            name: '현재위치'
+          });
+        }
 
         return { latitude, longitude };
       } catch (geocodeError) {
@@ -110,7 +166,7 @@ const WeatherCard = () => {
         setLocation({
           latitude,
           longitude,
-          name: '현재 내위치'
+          name: '현재위치'
         });
         return { latitude, longitude };
       }
@@ -162,14 +218,24 @@ const WeatherCard = () => {
       const forecastData = await forecastResponse.json();
       
       // 현재 날씨 설정
-      setWeather({
+      const currentWeather = {
         temperature: Math.round(currentData.main.temp),
         feelsLike: Math.round(currentData.main.feels_like),
         humidity: currentData.main.humidity,
         description: getWeatherDescription(currentData.weather[0].id),
+        condition: currentData.weather[0].main.toLowerCase(), // 날씨 조건 추가
         icon: getWeatherIcon(currentData.weather[0].id),
         windSpeed: Math.round(currentData.wind.speed),
-      });
+        rainVolume: currentData.rain ? currentData.rain['1h'] || 0 : 0, // 현재 강수량 추가
+        precipitationProbability: Math.round((forecastData.list[0]?.pop || 0) * 100), // 강수확률 추가
+      };
+
+      setWeather(currentWeather);
+      
+      // 부모 컴포넌트에 날씨 데이터 전달
+      if (onWeatherDataUpdate) {
+        onWeatherDataUpdate(currentWeather);
+      }
 
       // 향후 6시간의 예보 데이터 처리 (2시간 간격으로 4개)
       const next6Hours = forecastData.list.slice(0, 6).map(item => ({
@@ -183,6 +249,31 @@ const WeatherCard = () => {
       const next4Hours = [next6Hours[0], next6Hours[1], next6Hours[2], next6Hours[3]];
 
       setForecast(next4Hours);
+
+      // 날씨 알림 확인
+      const alerts = await weatherAlertService.checkAllAlerts(currentWeather, {
+        latitude,
+        longitude,
+        name: location.name
+      });
+
+      // 알림이 있으면 표시
+      if (alerts.length > 0) {
+        alerts.forEach(alert => {
+          Alert.alert(
+            alert.title,
+            alert.message,
+            [
+              { text: '확인', style: 'default' },
+              { text: '알림 설정', onPress: () => {
+                // 알림 설정 화면으로 이동하는 로직 추가 가능
+                console.log('알림 설정으로 이동');
+              }}
+            ]
+          );
+        });
+      }
+
     } catch (err) {
       console.error('날씨 데이터 가져오기 실패:', err);
       setError(err.message);
@@ -206,6 +297,14 @@ const WeatherCard = () => {
     
     return () => clearInterval(interval);
   }, []);
+
+  // 새로고침 시 날씨 데이터 다시 가져오기
+  useEffect(() => {
+    if (isRefreshing) {
+      console.log('🌤️ 날씨 데이터 새로고침 시작');
+      fetchWeather();
+    }
+  }, [isRefreshing]);
 
   if (loading) {
     return (
@@ -309,6 +408,7 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT,
     marginLeft: 6,
     fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
   },
   weatherInfo: {
     flexDirection: 'row',
@@ -328,11 +428,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: COLORS.TEXT,
+    fontFamily: 'Pretendard-Bold',
   },
   description: {
     fontSize: 14,
     color: COLORS.SECONDARY,
     marginTop: 2,
+    fontFamily: 'Pretendard',
   },
   forecastContainer: {
     flex: 1,
@@ -367,6 +469,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.TEXT,
     marginTop: 12,
+    fontFamily: 'Pretendard',
   },
   loadingContainer: {
     flexDirection: 'row',

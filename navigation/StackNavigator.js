@@ -4,16 +4,26 @@ import { useAuth } from '../contexts/AuthContext';
 
 import SplashScreen from '../screens/SplashScreen';
 import LoginScreen from '../screens/LoginScreen';
-import SignupScreen from '../screens/SignupScreen';
+import PhoneAuthScreen from '../screens/PhoneAuthScreen';
+import VerificationScreen from '../screens/VerificationScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ChatScreen from '../screens/ChatScreen';
+import NotificationScreen from '../screens/NotificationScreen';
+import SearchScreen from '../screens/SearchScreen';
 
 import OnboardingScreen from '../screens/OnboardingScreen';
+import HelpCenterScreen from '../screens/HelpCenterScreen';
 
 const Stack = createStackNavigator();
 
 const StackNavigator = () => {
-  const { user, initializing, error } = useAuth();
+  const { user, initializing, error, onboardingCompleted } = useAuth();
+  
+  console.log('🧭 StackNavigator 상태:', { 
+    user: user ? user.uid : null, 
+    initializing, 
+    onboardingCompleted 
+  });
 
 
 
@@ -81,9 +91,7 @@ const StackNavigator = () => {
         },
       }}
     >
-      {user ? (
-        // 로그인된 사용자 - 홈 화면과 채팅 화면 표시
-        <>
+      {/* 모든 화면을 항상 등록하되, 초기 화면만 조건에 따라 결정 */}
           <Stack.Screen 
             name="Home" 
             component={HomeScreen}
@@ -107,10 +115,23 @@ const StackNavigator = () => {
               cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
             }}
           />
-        </>
-      ) : (
-        // 로그인되지 않은 사용자 - 인증 화면들 표시
-        <>
+          <Stack.Screen 
+            name="Notification" 
+            component={NotificationScreen}
+            options={{
+              headerShown: true,
+              title: '알림',
+              cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+            }}
+          />
+          <Stack.Screen 
+            name="Search" 
+            component={SearchScreen}
+            options={{
+              headerShown: false,
+              cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+            }}
+          />
           <Stack.Screen 
             name="Login" 
             component={LoginScreen}
@@ -119,23 +140,30 @@ const StackNavigator = () => {
             }}
           />
           <Stack.Screen 
-            name="Signup" 
-            component={SignupScreen}
+        name="PhoneAuth" 
+        component={PhoneAuthScreen}
             options={{
-              animationTypeForReplace: 'push',
+          title: '휴대폰 인증',
+              cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+            }}
+          />
+
+          <Stack.Screen 
+        name="Verification" 
+        component={VerificationScreen}
+            options={{
+          title: '인증번호 확인',
               cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
             }}
           />
           <Stack.Screen 
-            name="Onboarding" 
-            component={OnboardingScreen}
+            name="HelpCenter" 
+            component={HelpCenterScreen}
             options={{
               headerShown: false,
               cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
             }}
           />
-        </>
-      )}
     </Stack.Navigator>
   );
 };

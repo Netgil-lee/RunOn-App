@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
+import { useCommunity } from '../contexts/CommunityContext';
 import ScheduleCard from '../components/ScheduleCard';
 
 
@@ -26,12 +28,45 @@ const COLORS = {
   SECONDARY: '#666666',
 };
 
-const CommunityScreen = ({ navigation }) => {
+const CommunityScreen = ({ navigation, route }) => {
   const { user } = useAuth();
   const { allEvents, chatRooms, joinEvent } = useEvents();
-
-
+  const { hasChatNotification, hasBoardNotification, notifications, markNotificationAsRead, handleChatTabClick, handleChatRoomClick, handleBoardTabClick } = useCommunity();
   
+  // 디버깅: 알림 상태 확인
+  useEffect(() => {
+    console.log('🔍 CommunityScreen - hasChatNotification:', hasChatNotification);
+    console.log('🔍 CommunityScreen - hasBoardNotification:', hasBoardNotification);
+    console.log('🔍 CommunityScreen - notifications count:', notifications.length);
+    console.log('🔍 CommunityScreen - unread chat notifications:', notifications.filter(n => n.type === 'message' && !n.isRead).length);
+    console.log('🔍 CommunityScreen - unread board notifications:', notifications.filter(n => (n.type === 'like' || n.type === 'comment') && !n.isRead).length);
+  }, [hasChatNotification, hasBoardNotification, notifications]);
+
+  // 특정 채팅방의 읽지 않은 알림 개수 계산
+  const getUnreadCountForChatRoom = (chatRoomId) => {
+    // chatRoomId를 문자열로 변환하여 비교
+    const chatRoomIdStr = chatRoomId.toString();
+    const unreadCount = notifications.filter(n => 
+      n.type === 'message' && 
+      n.chatId === chatRoomIdStr && 
+      !n.isRead
+    ).length;
+    
+    console.log(`🔍 getUnreadCountForChatRoom(${chatRoomId}):`, {
+      chatRoomId,
+      chatRoomIdType: typeof chatRoomId,
+      chatRoomIdStr,
+      totalNotifications: notifications.length,
+      messageNotifications: notifications.filter(n => n.type === 'message').length,
+      matchingNotifications: notifications.filter(n => 
+        n.type === 'message' && 
+        n.chatId === chatRoomIdStr
+      ).length,
+      unreadCount
+    });
+    
+    return unreadCount;
+  };
   // 검색 및 필터 상태
   const [searchText, setSearchText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -41,38 +76,71 @@ const CommunityScreen = ({ navigation }) => {
   
   // 탭 상태
   const [activeTab, setActiveTab] = useState('모임'); // '모임', '채팅', '게시판'
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      title: '한강 러닝 후기 공유합니다!',
-      content: '어제 한강공원에서 5km 뛰었는데 정말 좋았어요. 날씨도 좋고...',
-      author: '러닝매니아',
-      createdAt: '2024-01-15',
-      likes: 12,
-      comments: 3,
-      category: '후기'
-    },
-    {
-      id: 2,
-      title: '초보자 러닝 팁 질문드려요',
-      content: '러닝을 시작한지 한 달 정도 됐는데, 무릎이 아픈 경우가 있어서...',
-      author: '초보러너',
-      createdAt: '2024-01-14',
-      likes: 8,
-      comments: 7,
-      category: '질문'
-    },
-    {
-      id: 3,
-      title: '러닝화 추천 부탁드립니다',
-      content: '발볼이 넓은 편인데 어떤 러닝화가 좋을까요?',
-      author: '발넓이',
-      createdAt: '2024-01-13',
-      likes: 15,
-      comments: 12,
-      category: '추천'
+  
+  // route.params에서 activeTab을 받아서 설정
+  useEffect(() => {
+    if (route.params?.activeTab) {
+      setActiveTab(route.params.activeTab);
+      // 채팅 탭으로 이동하는 경우 슬라이딩 애니메이션 실행
+      if (route.params.activeTab === '채팅') {
+        Animated.timing(slideAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }).start();
+      }
     }
-  ]);
+  }, [route.params?.activeTab]);
+  
+  // 슬라이딩 애니메이션 값
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  
+  // 게시판 카테고리 필터 상태
+  const [selectedPostCategory, setSelectedPostCategory] = useState('전체');
+  
+
+
+  const { posts } = useCommunity();
+  const 자유게시판글 = Array.isArray(posts) ? posts : [];
+
+  // 카테고리를 한글로 변환하는 함수
+  const getCategoryName = (categoryId) => {
+    const categoryMap = {
+      'free': '자유 토크',
+      'tips': '러닝 팁',
+      'review': '모임 후기',
+      'question': '질문 답변',
+      'course': '코스 추천',
+      'gear': '러닝 용품',
+    };
+    return categoryMap[categoryId] || categoryId;
+  };
+  
+  // 카테고리별 게시글 필터링
+  const getFilteredPosts = () => {
+    if (selectedPostCategory !== '전체') {
+      // 한글 카테고리명을 영어 ID로 변환
+      const categoryIdMap = {
+        '자유토크': 'free',
+        '러닝 팁': 'tips',
+        '모임 후기': 'review',
+        '질문답변': 'question',
+        '코스 추천': 'course',
+        '러닝 용품': 'gear',
+      };
+      
+      const categoryId = categoryIdMap[selectedPostCategory];
+      
+      if (categoryId) {
+        return 자유게시판글.filter(post => post.category === categoryId);
+      }
+    }
+    
+    return 자유게시판글;
+  };
+
+  // 필터링된 게시글 표시
+  const displayPosts = getFilteredPosts();
   
 
 
@@ -113,8 +181,6 @@ const CommunityScreen = ({ navigation }) => {
 
   // 필터링된 이벤트 가져오기
   const getFilteredEvents = () => {
-
-    
     return allEvents.filter(event => {
       // 검색어 필터 - 해시태그 검색 개선
       let matchesSearch = !searchText;
@@ -191,15 +257,27 @@ const CommunityScreen = ({ navigation }) => {
 
   // 게시글 핸들러
   const handlePostPress = (post) => {
-    Alert.alert(post.title, post.content);
+    navigation.navigate('PostDetail', { post });
   };
 
   const handleCreatePost = () => {
-    Alert.alert('게시글 작성', '게시글 작성 기능이 곧 추가됩니다!');
+    navigation.navigate('PostCreate');
   };
+
+  // 내가 작성한 게시글 필터링
+  const getMyPosts = () => {
+    return 자유게시판글.filter(post => post.author === user?.displayName || post.author === '나');
+  };
+
+  // 내가 작성한 게시글과 전체 게시글 분리
+  const myPosts = getMyPosts();
+  const otherPosts = displayPosts.filter(post => 
+    !myPosts.some(myPost => myPost.id === post.id)
+  );
 
   // 채팅 핸들러
   const handleChatRoomPress = (chatRoom) => {
+    handleChatRoomClick(chatRoom.id); // 채팅방 클릭 시 알림 해제
     navigation.navigate('Chat', { chatRoom });
   };
 
@@ -215,36 +293,88 @@ const CommunityScreen = ({ navigation }) => {
       >
         {/* 헤더 섹션 */}
         <View style={styles.headerSection}>
-        <Text style={styles.title}>커뮤니티</Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>커뮤니티</Text>
+          </View>
           <Text style={styles.subtitle}>러너들과 함께 소통하고 달려보세요</Text>
         </View>
 
         {/* 탭 선택 */}
         <View style={styles.tabContainer}>
           <TouchableOpacity 
-            style={[styles.tab, activeTab === '모임' && styles.activeTab]}
-            onPress={() => setActiveTab('모임')}
+            style={styles.tab}
+            onPress={() => {
+              setActiveTab('모임');
+              Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: false,
+              }).start();
+            }}
           >
             <Text style={[styles.tabText, activeTab === '모임' && styles.activeTabText]}>
               러닝모임
             </Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.tab, activeTab === '채팅' && styles.activeTab]}
-            onPress={() => setActiveTab('채팅')}
+            style={styles.tab}
+            onPress={() => {
+              setActiveTab('채팅');
+              handleChatTabClick(); // 채팅 탭 클릭 시 알림 해제
+              Animated.timing(slideAnim, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: false,
+              }).start();
+            }}
           >
-            <Text style={[styles.tabText, activeTab === '채팅' && styles.activeTabText]}>
-              채팅
-            </Text>
+            <View style={styles.tabTextContainer}>
+              <Text style={[styles.tabText, activeTab === '채팅' && styles.activeTabText]}>
+                채팅
+              </Text>
+              {hasChatNotification && (
+                <View style={styles.chatNotificationBadge} />
+              )}
+            </View>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.tab, activeTab === '게시판' && styles.activeTab]}
-            onPress={() => setActiveTab('게시판')}
+            style={styles.tab}
+            onPress={() => {
+              setActiveTab('게시판');
+              handleBoardTabClick(); // 자유게시판 탭 클릭 시 알림 해제
+              Animated.timing(slideAnim, {
+                toValue: 2,
+                duration: 300,
+                useNativeDriver: false,
+              }).start();
+            }}
           >
-            <Text style={[styles.tabText, activeTab === '게시판' && styles.activeTabText]}>
-              자유게시판
-            </Text>
+            <View style={styles.tabTextContainer}>
+              <Text style={[styles.tabText, activeTab === '게시판' && styles.activeTabText]}>
+                자유게시판
+              </Text>
+              {hasBoardNotification && (
+                <View style={styles.chatNotificationBadge} />
+              )}
+            </View>
           </TouchableOpacity>
+          
+          {/* 슬라이딩 박스 */}
+          <Animated.View 
+            style={[
+              styles.slidingBox,
+              {
+                transform: [
+                  {
+                    translateX: slideAnim.interpolate({
+                      inputRange: [0, 1, 2],
+                      outputRange: [0, 125, 255]
+                    })
+                  }
+                ]
+              }
+            ]}
+          />
         </View>
 
         {/* 러닝 모임 탭 */}
@@ -306,14 +436,23 @@ const CommunityScreen = ({ navigation }) => {
             {/* 러닝 일정 섹션 */}
             {getFilteredEvents().length > 0 ? (
               <View style={styles.eventsSection}>
-                {getFilteredEvents().map((event) => (
+                {getFilteredEvents().map((event) => {
+                  // 내가 만든 모임인지 확인
+                  const isCreatedByMe = event.isCreatedByUser || 
+                    event.organizer === user?.displayName || 
+                    event.organizer === user?.email?.split('@')[0] ||
+                    event.organizer === '나';
+                  
+                  return (
                   <ScheduleCard
                     key={event.id}
                     event={event}
                     onJoinPress={handleJoinEvent}
                     onPress={handleEventPress}
+                      showJoinButton={!isCreatedByMe} // 내가 만든 모임이면 참여하기 버튼 숨김
                   />
-                ))}
+                  );
+                })}
               </View>
             ) : (
               <View style={styles.emptyState}>
@@ -358,11 +497,16 @@ const CommunityScreen = ({ navigation }) => {
                             </View>
                             <View style={styles.chatRoomMeta}>
                               <Text style={styles.chatRoomTime}>{chatRoom.lastMessageTime}</Text>
-                              {chatRoom.unreadCount > 0 && (
-                                <View style={styles.unreadBadge}>
-                                  <Text style={styles.unreadCount}>{chatRoom.unreadCount}</Text>
-                                </View>
-                              )}
+                              {(() => {
+                                const unreadCount = getUnreadCountForChatRoom(chatRoom.id);
+                                return unreadCount > 0 ? (
+                                  <View style={styles.unreadBadge}>
+                                    <Text style={styles.unreadCount}>
+                                      {unreadCount >= 3 ? '+3' : unreadCount}
+                                    </Text>
+                                  </View>
+                                ) : null;
+                              })()}
                             </View>
                           </View>
                           
@@ -406,11 +550,16 @@ const CommunityScreen = ({ navigation }) => {
                             </View>
                             <View style={styles.chatRoomMeta}>
                               <Text style={styles.chatRoomTime}>{chatRoom.lastMessageTime}</Text>
-                              {chatRoom.unreadCount > 0 && (
-                                <View style={styles.unreadBadge}>
-                                  <Text style={styles.unreadCount}>{chatRoom.unreadCount}</Text>
-                                </View>
-                              )}
+                              {(() => {
+                                const unreadCount = getUnreadCountForChatRoom(chatRoom.id);
+                                return unreadCount > 0 ? (
+                                  <View style={styles.unreadBadge}>
+                                    <Text style={styles.unreadCount}>
+                                      {unreadCount >= 3 ? '+3' : unreadCount}
+                                    </Text>
+                                  </View>
+                                ) : null;
+                              })()}
                             </View>
                           </View>
                           
@@ -454,39 +603,141 @@ const CommunityScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
+            {/* 카테고리 검색 바 */}
+            <View style={styles.categorySearchSection}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categorySearchContainer}
+              >
+                {['전체', '자유 토크', '러닝 팁', '모임 후기', '질문 답변', '코스 추천', '러닝 용품'].map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[
+                      styles.categorySearchItem,
+                      selectedPostCategory === category && styles.categorySearchItemActive
+                    ]}
+                    onPress={() => setSelectedPostCategory(category)}
+                  >
+                    <Text style={[
+                      styles.categorySearchText,
+                      selectedPostCategory === category && styles.categorySearchTextActive
+                    ]}>
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
             {/* 게시글 목록 */}
             <View style={styles.postsSection}>
-              {posts.map((post) => (
-                <TouchableOpacity 
-                  key={post.id} 
-                  style={styles.postCard}
-                  onPress={() => handlePostPress(post)}
-                >
-                  <View style={styles.postHeader}>
-                    <View style={styles.postCategory}>
-                      <Text style={styles.postCategoryText}>{post.category}</Text>
-                    </View>
-                    <Text style={styles.postDate}>{post.createdAt}</Text>
+              {/* 내가 작성한 게시글 섹션 */}
+              {myPosts.length > 0 && (
+                <>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>내가 작성한 게시글</Text>
+                    <Text style={styles.sectionSubtitle}>{myPosts.length}개</Text>
                   </View>
-                  <Text style={styles.postTitle}>{post.title}</Text>
-                  <Text style={styles.postContent} numberOfLines={2}>
-                    {post.content}
+                  {myPosts.map((post) => (
+                    <TouchableOpacity 
+                      key={`my-${post.id}`} 
+                      style={[styles.postCard, styles.myPostCard]}
+                      onPress={() => handlePostPress(post)}
+                    >
+                      <View style={styles.postHeader}>
+                        <View style={styles.postCategory}>
+                          <Text style={styles.postCategoryText}>{getCategoryName(post.category)}</Text>
+                        </View>
+                        <Text style={styles.postDate}>
+                          {post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR') : ''}
+                        </Text>
+                      </View>
+                      <Text style={styles.postTitle}>{post.title}</Text>
+                      <Text style={styles.postContent} numberOfLines={2}>
+                        {post.content}
+                      </Text>
+                      <View style={styles.postFooter}>
+                        <Text style={styles.postAuthor}>by {post.author}</Text>
+                        <View style={styles.postStats}>
+                          <View style={styles.postStat}>
+                            <Ionicons name="heart" size={14} color={COLORS.PRIMARY} />
+                            <Text style={styles.postStatText}>{Array.isArray(post.likes) ? post.likes.length : 0}</Text>
+                          </View>
+                          <View style={styles.postStat}>
+                            <Ionicons name="chatbubble" size={14} color={COLORS.SECONDARY} />
+                            <Text style={styles.postStatText}>{Array.isArray(post.comments) ? post.comments.length : 0}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                  
+                  {/* 구분선 */}
+                  {otherPosts.length > 0 && (
+                    <View style={styles.divider} />
+                  )}
+                </>
+              )}
+
+              {/* 전체 게시글 섹션 */}
+              {otherPosts.length > 0 && (
+                <>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>전체 게시글</Text>
+                  </View>
+                  {otherPosts.map((post) => (
+                    <TouchableOpacity 
+                      key={post.id} 
+                      style={styles.postCard}
+                      onPress={() => handlePostPress(post)}
+                    >
+                      <View style={styles.postHeader}>
+                        <View style={styles.postCategory}>
+                          <Text style={styles.postCategoryText}>{getCategoryName(post.category)}</Text>
+                        </View>
+                        <Text style={styles.postDate}>
+                          {post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR') : ''}
+                        </Text>
+                      </View>
+                      <Text style={styles.postTitle}>{post.title}</Text>
+                      <Text style={styles.postContent} numberOfLines={2}>
+                        {post.content}
+                      </Text>
+                      <View style={styles.postFooter}>
+                        <Text style={styles.postAuthor}>by {post.author}</Text>
+                        <View style={styles.postStats}>
+                          <View style={styles.postStat}>
+                            <Ionicons name="heart" size={14} color={COLORS.PRIMARY} />
+                            <Text style={styles.postStatText}>{Array.isArray(post.likes) ? post.likes.length : 0}</Text>
+                          </View>
+                          <View style={styles.postStat}>
+                            <Ionicons name="chatbubble" size={14} color={COLORS.SECONDARY} />
+                            <Text style={styles.postStatText}>{Array.isArray(post.comments) ? post.comments.length : 0}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+
+              {/* 빈 상태 */}
+              {myPosts.length === 0 && otherPosts.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Ionicons name="document-text-outline" size={60} color={COLORS.SECONDARY} />
+                  <Text style={styles.emptyTitle}>
+                    {selectedPostCategory !== '전체' 
+                      ? `${selectedPostCategory} 카테고리의 게시글이 없어요` 
+                      : '아직 작성된 게시글이 없어요'}
                   </Text>
-                  <View style={styles.postFooter}>
-                    <Text style={styles.postAuthor}>by {post.author}</Text>
-                    <View style={styles.postStats}>
-                      <View style={styles.postStat}>
-                        <Ionicons name="heart" size={14} color={COLORS.PRIMARY} />
-                        <Text style={styles.postStatText}>{post.likes}</Text>
-                      </View>
-                      <View style={styles.postStat}>
-                        <Ionicons name="chatbubble" size={14} color={COLORS.SECONDARY} />
-                        <Text style={styles.postStatText}>{post.comments}</Text>
-                      </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                  <Text style={styles.emptySubtitle}>
+                    {selectedPostCategory !== '전체'
+                      ? '다른 카테고리를 선택하거나 첫 번째 게시글을 작성해보세요!'
+                      : '새 글 작성 버튼을 눌러 첫 번째 게시글을 작성해보세요!'}
+                  </Text>
+                </View>
+              )}
             </View>
           </>
         )}
@@ -619,15 +870,28 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
   },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: COLORS.TEXT,
-    marginBottom: 8,
+    fontFamily: 'Pretendard-Bold',
+  },
+  notificationBadge: {
+    width: 10,
+    height: 10,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 5,
+    marginLeft: 8,
   },
   subtitle: {
     fontSize: 16,
     color: COLORS.SECONDARY,
+    fontFamily: 'Pretendard-Regular',
   },
   eventsSection: {
     paddingBottom: 20,
@@ -646,12 +910,14 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT,
     marginBottom: 8,
     textAlign: 'center',
+    fontFamily: 'Pretendard-SemiBold',
   },
   emptySubtitle: {
     fontSize: 16,
     color: COLORS.SECONDARY,
     textAlign: 'center',
     lineHeight: 24,
+    fontFamily: 'Pretendard-Regular',
   },
   bottomSpacing: {
     height: 100, // BottomTab 네비게이션을 위한 여백
@@ -665,23 +931,50 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.SURFACE,
     borderRadius: 12,
     padding: 4,
+    position: 'relative',
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
     borderRadius: 8,
-  },
-  activeTab: {
-    backgroundColor: COLORS.PRIMARY,
+    zIndex: 2,
   },
   tabText: {
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.SECONDARY,
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  tabTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+    paddingRight: 8,
+  },
+  chatNotificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF0022',
+    zIndex: 10,
   },
   activeTabText: {
     color: '#000000',
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  slidingBox: {
+    position: 'absolute',
+    top: 2.5,
+    left: 4,
+    width: 127,
+    height: 42.5,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 8,
+    zIndex: 1,
   },
   
   // 검색 및 필터 스타일
@@ -694,7 +987,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.SURFACE,
     borderRadius: 12,
-    paddingHorizontal: 0,
+    paddingHorizontal: 4,
     paddingVertical: 12,
     gap: 12,
   },
@@ -702,6 +995,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: COLORS.TEXT,
+    fontFamily: 'Pretendard-Regular',
   },
   filterButton: {
     padding: 4,
@@ -725,6 +1019,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.PRIMARY,
     fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
   },
   resetFiltersButton: {
     paddingHorizontal: 12,
@@ -742,6 +1037,36 @@ const styles = StyleSheet.create({
   createPostSection: {
     paddingHorizontal: 16,
     marginBottom: 16,
+  },
+  categorySearchSection: {
+    marginBottom: 16,
+  },
+  categorySearchContainer: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  categorySearchItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: COLORS.SURFACE,
+    borderWidth: 1,
+    borderColor: COLORS.SURFACE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categorySearchItemActive: {
+    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: COLORS.PRIMARY,
+  },
+  categorySearchText: {
+    fontSize: 14,
+    color: COLORS.SECONDARY,
+    fontWeight: '500',
+  },
+  categorySearchTextActive: {
+    color: COLORS.PRIMARY,
+    fontWeight: '600',
   },
   createPostButton: {
     flexDirection: 'row',
@@ -823,6 +1148,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.SECONDARY,
   },
+  myPostCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.PRIMARY,
+  },
   
   // 채팅 스타일
   chatSection: {
@@ -832,11 +1161,19 @@ const styles = StyleSheet.create({
   sectionHeader: {
     paddingVertical: 16,
     paddingHorizontal: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.TEXT,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: COLORS.SECONDARY,
+    fontWeight: '500',
   },
   divider: {
     height: 1,

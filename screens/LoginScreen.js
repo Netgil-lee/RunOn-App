@@ -10,35 +10,33 @@ import {
   SafeAreaView,
   Keyboard,
   TouchableWithoutFeedback,
-  Image,
   Platform,
   Animated,
   Easing,
+  Image,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../contexts/NetworkContext';
-
-// 이미지 import 수정
-const googleLogo = require('@assets/google-logo.png');
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
 const LoginScreen = ({ navigation }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [localError, setLocalError] = useState(null);
-  const [errorType, setErrorType] = useState(null); // 'email' | 'google' | 'network'
-  const { signIn, signInWithGoogle, error: authError, clearError } = useAuth();
+  const [errorType, setErrorType] = useState(null); // 'phone' | 'verification' | 'network'
+  const [showPhoneInput, setShowPhoneInput] = useState(false); // 휴대폰번호 입력 화면 표시 여부
+  const { sendPhoneVerification, verifyPhoneCode, setConfirmationResult, confirmationResult, setTestUser, error: authError, clearError } = useAuth();
   const { isOnline } = useNetwork();
 
   // 애니메이션 refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const phoneInputAnim = useRef(new Animated.Value(0)).current;
   const errorTimeoutRef = useRef(null);
 
   // 진입 애니메이션
   useEffect(() => {
-
-    
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -57,23 +55,41 @@ const LoginScreen = ({ navigation }) => {
     });
   }, [fadeAnim, slideAnim]);
 
+  // 휴대폰번호 입력 화면 애니메이션
+  useEffect(() => {
+    if (showPhoneInput) {
+      Animated.timing(phoneInputAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.quad),
+      }).start();
+    } else {
+      phoneInputAnim.setValue(0);
+    }
+  }, [showPhoneInput, phoneInputAnim]);
+
   // 에러 처리 - AuthContext의 에러와 로컬 에러 통합
   useEffect(() => {
     if (authError) {
-  
       setLocalError(authError);
-      setErrorType('email'); // AuthContext 에러는 주로 이메일 로그인 관련
+      setErrorType('verification'); // AuthContext 에러는 주로 인증 관련
       showErrorAnimation();
-      
-      // 에러 발생 시 확실히 LoginScreen에 머물도록
       setIsLoading(false);
-      
     } else if (!authError && localError) {
-      // AuthContext 에러가 클리어되면 로컬 에러도 클리어
-      
       handleClearError();
     }
   }, [authError]);
+
+  // 컴포넌트 마운트 시 초기 상태 리셋
+  useEffect(() => {
+    // 로그인 화면 진입 시 항상 첫 화면으로 리셋
+    setShowPhoneInput(false);
+    setPhoneNumber('');
+    setLocalError(null);
+    setErrorType(null);
+    setIsLoading(false);
+  }, []);
 
   // 컴포넌트 언마운트 시 타이머 정리
   useEffect(() => {
@@ -84,37 +100,46 @@ const LoginScreen = ({ navigation }) => {
     };
   }, []);
 
-  // 에러 표시 (자동 숨김 타이머 제거)
+  // 휴대폰번호 포맷팅 (010-1234-5678)
+  const formatPhoneNumber = (value) => {
+    const numbers = value.replace(/[^\d]/g, '');
+    if (numbers.length <= 3) return numbers;
+    if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
+    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
+  };
+
+  // 유효성 검사
+  const validatePhoneNumber = (phone) => {
+    const phoneRegex = /^010-\d{4}-\d{4}$/;
+    return phoneRegex.test(phone);
+  };
+
+  const handlePhoneNumberChange = (value) => {
+    const formatted = formatPhoneNumber(value);
+    setPhoneNumber(formatted);
+    if (errorType === 'phone') {
+      handleClearError();
+    }
+  };
+
+  // 에러 표시
   const showErrorAnimation = () => {
-    // 기존 타이머가 있다면 제거
     if (errorTimeoutRef.current) {
       clearTimeout(errorTimeoutRef.current);
     }
-
-    // 자동 숨김 타이머 제거 - 확인 버튼을 눌러야만 사라짐
-    
   };
-
-  // 숨김 애니메이션 삭제 - 즉시 사라지도록 변경
 
   // 에러 해제 함수
   const handleClearError = () => {
-    
-    
-    // 자동 숨김 타이머 제거
     if (errorTimeoutRef.current) {
       clearTimeout(errorTimeoutRef.current);
       errorTimeoutRef.current = null;
-      
     }
-
-    // 즉시 에러 상태 클리어 (애니메이션 없이)
     setLocalError(null);
     setErrorType(null);
     if (clearError) {
       clearError();
     }
-    
   };
 
   // 사용자 친화적 에러 메시지 변환
@@ -133,60 +158,41 @@ const LoginScreen = ({ navigation }) => {
       };
     }
 
-    // 이메일 로그인 관련 에러
-    if (type === 'email') {
-      if (errorString.includes('invalid-email') || errorString.includes('유효하지 않은 이메일') || errorString.includes('이메일 주소')) {
+    // 휴대폰번호 관련 에러
+    if (type === 'phone') {
+      if (errorString.includes('기존 회원이 아닙')) {
         return {
-          title: '이메일 확인',
-          message: '올바른 이메일 주소를 입력해주세요.',
-          icon: '📧',
-          actionText: '확인'
-        };
-      }
-      if (errorString.includes('wrong-password') || errorString.includes('잘못된 비밀번호') || errorString.includes('비밀번호')) {
-        return {
-          title: '비밀번호 확인',
-          message: '비밀번호가 올바르지 않습니다.',
-          icon: '🔒',
-          actionText: '확인'
-        };
-      }
-      if (errorString.includes('user-not-found') || errorString.includes('존재하지 않는 계정') || errorString.includes('계정')) {
-        return {
-          title: '계정을 찾을 수 없음',
-          message: '등록되지 않은 이메일입니다. 회원가입을 해주세요.',
-          icon: '👤',
+          title: '기존 회원이 아닙니다',
+          message: '입력하신 휴대폰번호로 가입된 계정이 없습니다.',
+          icon: '📱',
           actionText: '회원가입하기'
         };
       }
-      if (errorString.includes('too-many-requests') || errorString.includes('너무 많은 요청')) {
+      if (errorString.includes('휴대폰번호') || errorString.includes('올바른')) {
         return {
-          title: '잠시 후 다시 시도',
-          message: '너무 많은 로그인 시도가 있었습니다. 잠시 후 다시 시도해주세요.',
-          icon: '⏰',
-          actionText: '확인'
-        };
-      }
-      if (errorString.includes('email-already-in-use') || errorString.includes('이미 사용 중인 이메일')) {
-        return {
-          title: '이미 가입된 계정',
-          message: '이미 가입된 이메일입니다. 로그인을 시도해주세요.',
-          icon: '👤',
+          title: '휴대폰번호 확인',
+          message: '올바른 휴대폰번호 형식을 입력해주세요.',
+          icon: '📱',
           actionText: '확인'
         };
       }
     }
 
-    // Google 로그인 관련 에러
-    if (type === 'google') {
-      if (errorString.includes('popup-closed') || errorString.includes('취소')) {
-        return null; // 사용자 취소는 에러로 표시하지 않음
-      }
-      if (errorString.includes('oauth') || errorString.includes('authorization')) {
+    // 인증번호 관련 에러
+    if (type === 'verification') {
+      if (errorString.includes('인증번호') || errorString.includes('올바르지 않')) {
         return {
-          title: 'Google 로그인 문제',
-          message: 'Google 로그인에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요.',
-          icon: '🔐',
+          title: '인증번호 확인',
+          message: '인증번호를 다시 확인해주세요.',
+          icon: '🔢',
+          actionText: '확인'
+        };
+      }
+      if (errorString.includes('만료') || errorString.includes('세션')) {
+        return {
+          title: '인증 세션 만료',
+          message: '인증 세션이 만료되었습니다. 다시 시도해주세요.',
+          icon: '⏰',
           actionText: '확인'
         };
       }
@@ -201,8 +207,40 @@ const LoginScreen = ({ navigation }) => {
     };
   };
 
+  // 1단계: 휴대폰번호 확인 및 기존 회원 여부 확인
+  const checkExistingUser = async (phoneNumber) => {
+    try {
+      // 테스트 모드 확인
+      if (phoneNumber === '010-0000-0000') {
+        return true; // 테스트 번호는 항상 기존 회원으로 처리
+      }
+
+      // 실제 구현에서는 Firestore에서 해당 휴대폰번호로 가입된 사용자를 찾아야 합니다
+      // 현재는 인증번호 확인 단계에서 실제 사용자 여부를 판단하도록 처리
+      
+      // 임시로 모든 유효한 휴대폰번호를 허용 (실제로는 데이터베이스 조회 필요)
+      return true;
+    } catch (error) {
+      console.error('기존 회원 확인 중 오류:', error);
+      return false;
+    }
+  };
+
+  // 로그인 버튼 클릭 시 휴대폰번호 입력 화면 표시
+  const handleLoginButtonClick = () => {
+    setShowPhoneInput(true);
+    handleClearError();
+  };
+
+  // 뒤로가기 버튼 클릭 시 첫 화면으로 돌아가기
+  const handleBackButtonClick = () => {
+    setShowPhoneInput(false);
+    setPhoneNumber('');
+    handleClearError();
+  };
+
+  // 로그인 처리
   const handleLogin = async () => {
-    // 기존 에러 클리어
     handleClearError();
 
     if (!isOnline) {
@@ -212,116 +250,72 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    if (!email || !password) {
-      setErrorType('email');
-      setLocalError('이메일과 비밀번호를 모두 입력해주세요.');
+    if (!phoneNumber) {
+      setErrorType('phone');
+      setLocalError('휴대폰번호를 입력해주세요.');
+      showErrorAnimation();
+      return;
+    }
+
+    if (!validatePhoneNumber(phoneNumber)) {
+      setErrorType('phone');
+      setLocalError('올바른 휴대폰번호 형식이 아닙니다.');
       showErrorAnimation();
       return;
     }
 
     try {
       setIsLoading(true);
-      const result = await signIn(email, password);
-      
-      if (result) {
 
-        // 성공 시 입력 필드 초기화
-        setEmail('');
-        setPassword('');
-        handleClearError();
+      // 1단계: 기존 회원 여부 확인
+      const isExistingUser = await checkExistingUser(phoneNumber);
+      
+      if (!isExistingUser) {
+        setErrorType('phone');
+        setLocalError('기존 회원이 아닙니다. 회원가입을 먼저 해주세요.');
+        showErrorAnimation();
+        return;
       }
+
+      // 2단계: 인증번호 발송
+      const confirmationResult = await sendPhoneVerification(phoneNumber);
+      setConfirmationResult(confirmationResult);
+      
+      // VerificationScreen으로 이동
+      navigation.navigate('Verification', { 
+        phoneNumber: phoneNumber,
+        isLogin: true // 로그인 모드임을 표시
+      });
       
     } catch (error) {
-      
-      
-      // 에러 발생 시 반드시 LoginScreen에 머물도록 처리
-      setIsLoading(false); // 로딩 상태를 먼저 해제
-      setErrorType('email');
+      setIsLoading(false);
+      setErrorType('verification');
       setLocalError(error.message || '로그인 중 오류가 발생했습니다.');
       showErrorAnimation();
-      
-      // LoginScreen에 머물도록 명시적으로 처리
-      
-      return; // 여기서 함수 종료
     } finally {
-      // try 블록에서 성공한 경우에만 로딩 해제
       if (!localError) {
         setIsLoading(false);
       }
     }
   };
 
-  const handleGoogleLogin = async () => {
-    // 기존 에러 클리어
+  // 회원가입으로 이동
+  const handleSignup = () => {
     handleClearError();
-
-    if (!isOnline) {
-      setErrorType('network');
-      setLocalError('인터넷 연결을 확인해주세요.');
-      showErrorAnimation();
-      return;
-    }
-
-
-
-    try {
-      setIsLoading(true);
-      const result = await signInWithGoogle();
-      
-      if (result === null || result === undefined) {
-        // 사용자가 로그인을 취소한 경우
-
-        return;
-      }
-      
-      // 성공적으로 로그인한 경우, AuthContext의 user 상태가 변경되어 자동으로 Home으로 이동
-      
-      handleClearError();
-      
-    } catch (error) {
-      // 실제 에러가 발생한 경우만 처리
-      
-      
-      // 사용자 취소와 관련된 에러는 조용히 처리
-      if (error.message && (
-        error.message.includes('취소') || 
-        error.message.includes('cancel') ||
-        error.message.includes('사용자가') ||
-        error.message.includes('User cancelled') ||
-        error.message.includes('popup-closed-by-user')
-      )) {
-
-        return;
-      }
-      
-      // 실제 에러인 경우 표시
-      setErrorType('google');
-      setLocalError(error.message);
-      showErrorAnimation();
-      
-      if (error.message && error.message.includes('직접 AuthSession 실패')) {
-
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    navigation.navigate('VerificationIntro');
   };
 
   // 에러 액션 처리
   const handleErrorAction = () => {
     const errorInfo = getFriendlyErrorMessage(localError, errorType);
     
-    
-    
     if (errorInfo?.actionText === '회원가입하기') {
-      handleClearError(); // 에러 클리어 후 이동
+      handleClearError();
       setTimeout(() => {
-        navigation.navigate('Signup');
+        navigation.navigate('PhoneAuth');
       }, 100);
     } else {
-      // "확인" 버튼을 누르면 에러 메시지가 사라짐
       handleClearError();
-      
     }
   };
 
@@ -330,6 +324,16 @@ const LoginScreen = ({ navigation }) => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <SafeAreaView style={styles.container}>
+        {/* 뒤로가기 버튼 */}
+        {showPhoneInput && (
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={handleBackButtonClick}
+          >
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+        )}
+
         <Animated.View 
           style={[
             styles.content,
@@ -339,116 +343,119 @@ const LoginScreen = ({ navigation }) => {
             }
           ]}
         >
-          <Text style={styles.title}>NetGill</Text>
-          <Text style={styles.subtitle}>너와 나의 러닝 커뮤니티</Text>
+          {!showPhoneInput ? (
+            // 첫 화면: 로고와 버튼들
+            <>
+              {/* 앱 이름 - 상단 */}
+              <View style={styles.appNameContainer}>
+                <Text style={styles.appName}>NetGill</Text>
+              </View>
 
-          {/* 에러 표시 영역 */}
-          {errorInfo && localError && (
-            <View style={styles.errorContainer}>
-              <View style={styles.errorContent}>
-                <Text style={styles.errorIcon}>{errorInfo.icon}</Text>
-                <View style={styles.errorTextContainer}>
-                  <Text style={styles.errorTitle}>{errorInfo.title}</Text>
-                  <Text style={styles.errorMessage}>{errorInfo.message}</Text>
+              {/* 중앙 영역 */}
+              <View style={styles.centerContainer}>
+                {/* 로고 이미지가 들어갈 공간 */}
+                <View style={styles.logoPlaceholder}>
+                  <Text style={styles.logoPlaceholderText}>브랜드 로고 또는 이미지</Text>
+                </View>
+                
+                {/* 서브 타이틀 */}
+                <View style={styles.subtitleContainer}>
+                  <Text style={styles.subtitle}>너와 나의{'\n'}러닝커뮤니티</Text>
                 </View>
               </View>
-              <TouchableOpacity 
-                style={styles.errorActionButton}
-                onPress={handleErrorAction}
+
+              {/* 힌트 문구 */}
+              <View style={styles.hintContainer}>
+                <Text style={styles.hintText}>가입 시 이용약관 및 개인정보 취급방침에 동의하게 됩니다.</Text>
+              </View>
+
+              {/* 버튼들 */}
+              <View style={styles.buttonContainer}>
+                {/* 시작하기 버튼 */}
+                <TouchableOpacity
+                  style={styles.signupButton}
+                  onPress={handleSignup}
+                >
+                  <Text style={styles.signupButtonText}>시작하기</Text>
+                </TouchableOpacity>
+
+                {/* 로그인 버튼 */}
+                <TouchableOpacity
+                  style={styles.loginButton}
+                  onPress={handleLoginButtonClick}
+                >
+                  <Text style={styles.loginButtonText}>로그인</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            // 두 번째 화면: 휴대폰번호 입력
+            <>
+              <Text style={styles.title}>로그인</Text>
+              <Text style={styles.subtitle}>가입 시 사용한 휴대폰번호를 입력하세요</Text>
+
+              {/* 에러 표시 영역 */}
+              {errorInfo && localError && (
+                <View style={styles.errorContainer}>
+                  <View style={styles.errorContent}>
+                    <Text style={styles.errorIcon}>{errorInfo.icon}</Text>
+                    <View style={styles.errorTextContainer}>
+                      <Text style={styles.errorTitle}>{errorInfo.title}</Text>
+                      <Text style={styles.errorMessage}>{errorInfo.message}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.errorActionButton}
+                    onPress={handleErrorAction}
+                  >
+                    <Text style={styles.errorActionText}>{errorInfo.actionText}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <Animated.View 
+                style={[
+                  styles.inputContainer,
+                  {
+                    opacity: phoneInputAnim,
+                    transform: [{ translateY: phoneInputAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0]
+                    })}]
+                  }
+                ]}
               >
-                <Text style={styles.errorActionText}>{errorInfo.actionText}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={[
-                styles.input,
-                errorType === 'email' && styles.inputError
-              ]}
-              placeholder="이메일"
-              placeholderTextColor="#666"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                if (errorType === 'email') {
-                  handleClearError();
-                }
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              editable={!isLoading}
-            />
-            <TextInput
-              style={[
-                styles.input,
-                errorType === 'email' && styles.inputError
-              ]}
-              placeholder="비밀번호"
-              placeholderTextColor="#666"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                if (errorType === 'email') {
-                  handleClearError();
-                }
-              }}
-              secureTextEntry
-              autoComplete="password"
-              editable={!isLoading}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.disabledButton]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.loginButtonText}>로그인</Text>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>또는</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.googleButton, isLoading && styles.disabledButton]}
-            onPress={handleGoogleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#000" />
-            ) : (
-              <>
-                <Image
-                  source={googleLogo}
-                  style={styles.googleLogo}
-                  resizeMode="contain"
+                <Text style={styles.label}>휴대폰번호를 입력해주세요</Text>
+                
+                <TextInput
+                  style={[
+                    styles.input,
+                    errorType === 'phone' && styles.inputError
+                  ]}
+                  placeholder="010-0000-0000"
+                  placeholderTextColor="#666"
+                  value={phoneNumber}
+                  onChangeText={handlePhoneNumberChange}
+                  keyboardType="phone-pad"
+                  maxLength={13}
+                  editable={!isLoading}
                 />
-                <Text style={styles.googleButtonText}>Google로 로그인</Text>
-              </>
-            )}
-          </TouchableOpacity>
+              </Animated.View>
 
-          <TouchableOpacity
-            style={styles.signupLink}
-            onPress={() => navigation.navigate('Signup')}
-            disabled={isLoading}
-          >
-            <Text style={styles.signupText}>
-              계정이 없으신가요? <Text style={styles.signupTextBold}>회원가입</Text>
-            </Text>
-          </TouchableOpacity>
-
-
+              {/* 로그인 버튼 */}
+              <TouchableOpacity
+                style={[styles.loginButton, isLoading && styles.disabledButton]}
+                onPress={handleLogin}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={styles.loginButtonText}>로그인</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </Animated.View>
       </SafeAreaView>
     </TouchableWithoutFeedback>
@@ -460,10 +467,77 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
     flex: 1,
     padding: 20,
     justifyContent: 'center',
+  },
+  appNameContainer: {
+    alignItems: 'center',
+    marginTop: 60,
+    marginBottom: 40,
+  },
+  appName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    fontFamily: 'Pretendard-Bold',
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoPlaceholder: {
+    width: 200,
+    height: 200,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 30,
+  },
+  logoPlaceholderText: {
+    color: '#666',
+    fontSize: 14,
+    textAlign: 'center',
+    fontFamily: 'Pretendard-Regular',
+    lineHeight: 20,
+  },
+  subtitleContainer: {
+    alignItems: 'center',
+  },
+  subtitle: {
+    fontSize: 18,
+    color: '#fff',
+    textAlign: 'center',
+    fontFamily: 'Pretendard-Regular',
+    lineHeight: 26,
+  },
+  hintContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+    paddingHorizontal: 20,
+  },
+  hintText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    fontFamily: 'Pretendard-Regular',
+    lineHeight: 20,
+  },
+  buttonContainer: {
+    paddingBottom: 50,
   },
   title: {
     fontSize: 42,
@@ -471,12 +545,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
     marginBottom: 10,
+    fontFamily: 'Pretendard-Bold',
   },
   subtitle: {
     fontSize: 16,
     color: '#fff',
     textAlign: 'center',
     marginBottom: 40,
+    fontFamily: 'Pretendard-Regular',
   },
   // 에러 관련 스타일
   errorContainer: {
@@ -505,13 +581,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
+    fontFamily: 'Pretendard-SemiBold',
   },
   errorMessage: {
     color: '#fff',
     fontSize: 14,
     lineHeight: 20,
+    fontFamily: 'Pretendard-Regular',
   },
-
   errorActionButton: {
     backgroundColor: '#ff6b6b',
     paddingVertical: 12,
@@ -522,26 +599,49 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
   },
   inputContainer: {
     marginBottom: 20,
+  },
+  label: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 8,
+    fontFamily: 'Pretendard-SemiBold',
   },
   input: {
     backgroundColor: '#1a1a1a',
     borderRadius: 8,
     padding: 15,
-    marginBottom: 15,
     color: '#fff',
     fontSize: 16,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: '#333',
+    fontFamily: 'Pretendard-Regular',
   },
   inputError: {
     borderColor: '#ff6b6b',
     backgroundColor: '#2a1f1f',
   },
-  loginButton: {
+  signupButton: {
     backgroundColor: '#3AF8FF',
+    borderRadius: 8,
+    padding: 15,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  signupButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  loginButton: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#3AF8FF',
     borderRadius: 8,
     padding: 15,
     alignItems: 'center',
@@ -551,67 +651,10 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   loginButtonText: {
-    color: '#fff',
+    color: '#3AF8FF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#333',
-  },
-  dividerText: {
-    color: '#666',
-    marginHorizontal: 10,
-  },
-  googleButton: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 15,
-    alignItems: 'center',
-    marginBottom: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  googleLogo: {
-    width: 24,
-    height: 24,
-    marginRight: 10,
-  },
-  googleButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  signupLink: {
-    alignItems: 'center',
-  },
-  signupText: {
-    color: '#666',
-    fontSize: 14,
-  },
-  signupTextBold: {
-    color: '#3AF8FF',
-    fontWeight: '600',
-  },
-  testButton: {
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#3AF8FF',
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  testButtonText: {
-    color: '#3AF8FF',
-    fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'Pretendard-SemiBold',
   },
 });
 

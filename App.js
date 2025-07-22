@@ -4,18 +4,34 @@ import { Platform, StyleSheet, Text, View, StatusBar } from 'react-native';
 import * as Network from 'expo-network';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
+import * as Font from 'expo-font';
 
 import AppNavigator from './navigation/AppNavigator';
 import firebaseService from './config/firebase';
 import { AuthProvider } from './contexts/AuthContext';
 import { NetworkProvider } from './contexts/NetworkContext';
 import { EventProvider } from './contexts/EventContext';
+import { CommunityProvider } from './contexts/CommunityContext';
+import { NotificationSettingsProvider } from './contexts/NotificationSettingsContext';
 
 SplashScreen.preventAutoHideAsync();
+
+// 전역 폰트 설정 - 간단한 방법
+const originalTextRender = Text.render;
+Text.render = function (...args) {
+  const origin = originalTextRender.call(this, ...args);
+  return React.cloneElement(origin, {
+    style: [
+      { fontFamily: 'Pretendard-Regular' },
+      origin.props.style
+    ]
+  });
+};
 
 export default function App() {
   const [isFirebaseInitialized, setIsFirebaseInitialized] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
 
   useEffect(() => {
     initializeAppLogic();
@@ -26,10 +42,23 @@ export default function App() {
       const networkStatus = await Network.getNetworkStateAsync();
       setIsOnline(networkStatus.isConnected);
 
+      // 폰트 로딩
+      await Font.loadAsync({
+        'Pretendard': require('./assets/fonts/Pretendard-Regular.otf'),
+        'Pretendard-Medium': require('./assets/fonts/Pretendard-Medium.otf'),
+        'Pretendard-Bold': require('./assets/fonts/Pretendard-Bold.otf'),
+        'Pretendard-SemiBold': require('./assets/fonts/Pretendard-SemiBold.otf'),
+      });
+      setFontsLoaded(true);
+      console.log('✅ Pretendard 폰트 로딩 완료');
+
       await initializeFirebase();
       
     } catch (error) {
       console.warn('앱 초기화 중 에러 발생:', error);
+      if (error.message.includes('font')) {
+        console.error('❌ 폰트 로딩 실패:', error.message);
+      }
     }
   };
 
@@ -67,7 +96,7 @@ export default function App() {
     );
   }
 
-  if (!isFirebaseInitialized && Platform.OS !== 'web') {
+  if (!fontsLoaded || (!isFirebaseInitialized && Platform.OS !== 'web')) {
     return (
       <>
         <StatusBar 
@@ -92,9 +121,13 @@ export default function App() {
       <NavigationContainer>
         <NetworkProvider>
           <AuthProvider>
+            <NotificationSettingsProvider>
             <EventProvider>
+                <CommunityProvider>
               <AppNavigator />
+                </CommunityProvider>
             </EventProvider>
+            </NotificationSettingsProvider>
           </AuthProvider>
         </NetworkProvider>
       </NavigationContainer>

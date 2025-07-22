@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, updateDoc, getFirestore } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getFirestore, getDoc } from 'firebase/firestore';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthViewModel } from '../viewmodels/AuthViewModel';
@@ -25,6 +25,9 @@ const defaultContextValue = {
   signInWithGoogle: async () => {},
   logout: async () => {},
   resetPassword: async () => {},
+  sendPhoneVerification: async () => {},
+  verifyPhoneCode: async () => {},
+  carrierAuth: async () => {},
 };
 
 // AuthContext 생성
@@ -35,6 +38,9 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [initializing, setInitializing] = useState(true);
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+  const [testUserProfile, setTestUserProfile] = useState(null); // 테스트 모드 사용자 프로필 데이터
   const { isOnline, error: networkError } = useNetwork();
   const authViewModel = useAuthViewModel();
 
@@ -55,9 +61,43 @@ export const AuthProvider = ({ children }) => {
     
     // Firebase 인증 상태 모니터링
     const unsubscribeAuth = onAuthStateChanged(auth, 
-      (user) => {
-        const handleAuthChange = () => {
+      async (user) => {
+        console.log('🔐 AuthContext: Firebase 인증 상태 변경', { 
+          user: !!user, 
+          uid: user?.uid,
+          email: user?.email 
+        });
+        
+        const handleAuthChange = async () => {
+          // 새로 로그인한 사용자의 경우 초기 커뮤니티 통계 설정
+          if (user) {
+            console.log('🔐 AuthContext: 로그인된 사용자 발견', user.uid);
+            try {
+              const db = getFirestore();
+              const userRef = doc(db, 'users', user.uid);
+              const userSnap = await getDoc(userRef);
+              
+              // 사용자 문서가 없거나 communityStats가 없는 경우 초기화
+              if (!userSnap.exists() || !userSnap.data().communityStats) {
+                await setDoc(userRef, {
+                  communityStats: {
+                    totalParticipated: 0,
+                    thisMonthParticipated: 0,
+                    hostedEvents: 0,
+                    averageMannerScore: 5.0, // 초기값 5.0
+                    mannerScoreCount: 0,
+                    receivedTags: {}
+                  }
+                }, { merge: true });
+              }
+            } catch (error) {
+              console.error('초기 커뮤니티 통계 설정 실패:', error);
+            }
+          } else {
+            console.log('🔐 AuthContext: 로그인된 사용자 없음');
+          }
     
+          console.log('🔐 AuthContext: 사용자 상태 설정', { user: !!user, uid: user?.uid });
           setUser(user);
           setInitializing(false);
           
@@ -136,6 +176,13 @@ export const AuthProvider = ({ children }) => {
       throw new Error('로그인된 사용자가 없습니다.');
     }
 
+    // 테스트 모드 확인
+    if (user.uid === 'test-user-id') {
+      console.log('🧪 테스트 모드: 로컬 프로필 데이터 저장');
+      setTestUserProfile(profileData);
+      return; // 테스트 모드에서는 Firestore 저장 건너뛰기
+    }
+
     try {
       const db = getFirestore();
       const userRef = doc(db, 'users', user.uid);
@@ -155,24 +202,87 @@ export const AuthProvider = ({ children }) => {
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
-  
+      console.log('✅ 프로필 업데이트 완료');
     } catch (error) {
       console.error('❌ 프로필 업데이트 실패:', error);
       throw error;
     }
   };
 
+  // 테스트 모드 사용자 설정 함수
+  const setTestUser = (testUser) => {
+    console.log('🧪 테스트 모드: 사용자 상태 설정', testUser);
+    setUser(testUser);
+    setInitializing(false);
+    setOnboardingCompleted(false); // 테스트 모드 사용자는 온보딩 미완료 상태
+    console.log('🧪 테스트 모드: onboardingCompleted = false로 설정됨');
+  };
+
+  // 로그아웃 함수 래핑 (테스트 모드 처리 포함)
+  const handleLogout = async () => {
+    try {
+      console.log('🚪 로그아웃 시작', { userUid: user?.uid, isTestUser: user?.uid === 'test-user-id' });
+      
+      // 테스트 모드 사용자인 경우 상태만 초기화
+      if (user?.uid === 'test-user-id') {
+        console.log('🧪 테스트 모드: 로그아웃 상태 초기화');
+        setUser(null);
+        setTestUserProfile(null);
+        setOnboardingCompleted(false);
+        setConfirmationResult(null);
+        console.log('✅ 테스트 모드 로그아웃 완료');
+        return;
+      }
+      
+      // 실제 사용자인 경우 AuthViewModel의 logout 호출
+      console.log('🔐 실제 사용자: Firebase 로그아웃 실행');
+      await authViewModel.logout();
+      
+      // 로그아웃 후 상태 초기화 (순서 중요)
+      console.log('🔄 로그아웃 후 상태 초기화 시작');
+      setConfirmationResult(null);
+      setTestUserProfile(null);
+      setOnboardingCompleted(false);
+      setUser(null); // 마지막에 user를 null로 설정하여 네비게이션 트리거
+      console.log('✅ 로그아웃 완료 및 상태 초기화');
+    } catch (error) {
+      console.error('❌ 로그아웃 처리 중 오류:', error);
+      // 에러가 발생해도 상태는 초기화
+      setUser(null);
+      setTestUserProfile(null);
+      setOnboardingCompleted(false);
+      setConfirmationResult(null);
+      throw error;
+    }
+  };
+
+  // 컨텍스트 값 생성 시 로그 추가
+  console.log('🔐 AuthContext: 컨텍스트 값 생성', { 
+    user: !!user, 
+    userUid: user?.uid,
+    initializing,
+    onboardingCompleted 
+  });
+
   const value = {
     user,
     signIn: authViewModel.signIn,
     signUp: authViewModel.signUp,
-    signInWithGoogle: authViewModel.signInWithGoogle,
-    logout: authViewModel.logout,
+    logout: handleLogout,
     resetPassword: authViewModel.resetPassword,
+    sendPhoneVerification: authViewModel.sendPhoneVerification,
+    verifyPhoneCode: authViewModel.verifyPhoneCode,
+    carrierAuth: authViewModel.carrierAuth,
     updateUserProfile,
     loading: authViewModel.loading,
     error: authViewModel.error,
     initializing,
+    confirmationResult,
+    setConfirmationResult,
+    setTestUser,
+    onboardingCompleted,
+    setOnboardingCompleted,
+    testUserProfile, // 테스트 모드 사용자 프로필 데이터 추가
     clearError: () => authViewModel.setError(null)
   };
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
   getTimeTitle,
   getStyleTitle
 } from '../constants/onboardingOptions';
+import evaluationService from '../services/evaluationService';
 
 const COLORS = {
   PRIMARY: '#3AF8FF',
@@ -37,6 +38,13 @@ const COLORS = {
 
 const ParticipantScreen = ({ route, navigation }) => {
   const { participant } = route.params;
+  const [communityStats, setCommunityStats] = useState({
+    totalParticipated: 0,
+    thisMonth: 0,
+    hostedEvents: 0,
+    mannerScore: 5.0, // 초기값 5.0
+    tags: [],
+  });
 
   const getLevelInfo = (level) => {
     const levelMap = {
@@ -46,6 +54,38 @@ const ParticipantScreen = ({ route, navigation }) => {
     };
     return levelMap[level] || { title: '미설정', subtitle: '레벨 미설정' };
   };
+
+  // 참여자의 커뮤니티 통계 가져오기
+  useEffect(() => {
+    const fetchCommunityStats = async () => {
+      if (!participant?.id) return;
+      
+      try {
+        const stats = await evaluationService.getUserCommunityStats(participant.id);
+        
+        // 태그를 형식에 맞게 변환
+        const formattedTags = Object.entries(stats.receivedTags || {})
+          .map(([tag, count]) => `[${count} #${tag}]`)
+          .sort((a, b) => {
+            const countA = parseInt(a.match(/\[(\d+)/)[1]);
+            const countB = parseInt(b.match(/\[(\d+)/)[1]);
+            return countB - countA; // 내림차순 정렬
+          });
+
+        setCommunityStats({
+          totalParticipated: stats.totalParticipated || 0,
+          thisMonth: stats.thisMonthParticipated || 0,
+          hostedEvents: stats.hostedEvents || 0,
+          mannerScore: stats.averageMannerScore || 5.0, // 기본값 5.0
+          tags: formattedTags,
+        });
+      } catch (error) {
+        console.error('커뮤니티 통계 로딩 오류:', error);
+      }
+    };
+
+    fetchCommunityStats();
+  }, [participant?.id]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -95,22 +135,29 @@ const ParticipantScreen = ({ route, navigation }) => {
               <View style={styles.activityItemGrid}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="heart" size={22} color="#FF0073" style={{ marginRight: 2 }} />
-                  <Text style={styles.activityNumPrimary}>{participant.mannerScore}</Text>
+                  <Text style={styles.activityNumPrimary}>{communityStats.mannerScore}</Text>
                 </View>
                 <Text style={styles.activityLabel}>러닝 매너</Text>
               </View>
               <View style={styles.activityItemGrid}>
-                <Text style={styles.activityNumWhite}>{participant.totalParticipated}</Text>
+                <Text style={styles.activityNumWhite}>{communityStats.totalParticipated}</Text>
                 <Text style={styles.activityLabel}>총 참여</Text>
               </View>
               <View style={styles.activityItemGrid}>
-                <Text style={styles.activityNumWhite}>{participant.thisMonth}</Text>
+                <Text style={styles.activityNumWhite}>{communityStats.thisMonth}</Text>
                 <Text style={styles.activityLabel}>이번 달</Text>
               </View>
               <View style={styles.activityItemGrid}>
-                <Text style={styles.activityNumWhite}>{participant.hostedEvents}</Text>
+                <Text style={styles.activityNumWhite}>{communityStats.hostedEvents}</Text>
                 <Text style={styles.activityLabel}>주최 모임</Text>
               </View>
+            </View>
+            <View style={styles.tagRow}>
+              {communityStats.tags.map((tag, i) => (
+                <View key={i} style={styles.tagOutline}> 
+                  <Text style={styles.tagTextOutline}>{tag}</Text>
+                </View>
+              ))}
             </View>
           </View>
         )}

@@ -141,11 +141,13 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: 8,
     letterSpacing: 2,
+    fontFamily: 'Pretendard-Bold',
   },
   subtitle: {
     fontSize: 16,
     color: '#ffffff',
     letterSpacing: 1,
+    fontFamily: 'Pretendard-Regular',
   },
   progressContainer: {
     position: 'absolute',

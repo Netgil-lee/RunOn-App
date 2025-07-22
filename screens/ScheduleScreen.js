@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Platform,
   Keyboard,
   SafeAreaView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -34,23 +35,73 @@ const COLORS = {
 
 
 
-const ScheduleScreen = ({ navigation }) => {
+const ScheduleScreen = ({ navigation, route }) => {
   const { user } = useAuth();
-  const { userCreatedEvents, userJoinedEvents, endedEvents, addEvent, updateEvent, deleteEvent, joinEvent } = useEvents();
+  const { 
+    userCreatedEvents, 
+    userJoinedEvents, 
+    endedEvents, 
+    addEvent, 
+    updateEvent, 
+    deleteEvent, 
+    joinEvent, 
+    addMeetingNotification, 
+    createTestMeetingNotification, 
+    createEndedMeetingNotification, 
+    hasRatingNotification, 
+    hasRatingNotificationForEvent, 
+    hasRatingNotificationForEndedEventsOption,
+    createRatingNotificationForEvent, 
+    createEndedEventWithRatingNotification,
+    handleEndedEventsOptionClick,
+    handleEndedEventCardClick
+  } = useEvents();
   
+  // route 파라미터에서 화면 표시 여부 확인
+  const showEndedEventsFromRoute = route?.params?.showEndedEvents;
+  const showMyCreatedFromRoute = route?.params?.showMyCreated;
+  const showMyJoinedFromRoute = route?.params?.showMyJoined;
 
-
-  // 탭이 포커스될 때마다 메인 화면으로 리셋
+  // 탭이 포커스될 때마다 메인 화면으로 리셋 (새 모임 만들기 생성 중이 아닐 때만)
   useFocusEffect(
     React.useCallback(() => {
-      setShowCreateFlow(false);
-      setShowMyCreated(false);
-      setShowMyJoined(false);
-      setShowEndedEvents(false);
-      setEditingEvent(null);
-      setShowLocationDetail(false);
-    }, [])
+      // 새 모임 만들기 생성 플로우 중이 아닐 때만 메인 화면으로 리셋
+      if (!showCreateFlow) {
+        console.log('🔄 ScheduleScreen 포커스됨 - 메인 화면으로 리셋');
+        setShowMyCreated(false);
+        setShowMyJoined(false);
+        setShowEndedEvents(false);
+      } else {
+        console.log('🔄 ScheduleScreen 포커스됨 - 새 모임 생성 중이므로 상태 유지');
+      }
+    }, [showCreateFlow])
   );
+
+  // route 파라미터에 따라 적절한 화면 표시
+  useEffect(() => {
+    console.log('🔄 ScheduleScreen useEffect 실행');
+    console.log('📋 showEndedEventsFromRoute:', showEndedEventsFromRoute);
+    console.log('📋 showMyCreatedFromRoute:', showMyCreatedFromRoute);
+    console.log('📋 showMyJoinedFromRoute:', showMyJoinedFromRoute);
+    console.log('📋 route.params:', route.params);
+    
+    if (showEndedEventsFromRoute) {
+      console.log('✅ 종료된 모임 화면 표시');
+      setShowEndedEvents(true);
+      // route 파라미터 초기화
+      navigation.setParams({ showEndedEvents: undefined });
+    } else if (showMyCreatedFromRoute) {
+      console.log('✅ 내가 만든 모임 화면 표시');
+      setShowMyCreated(true);
+      // route 파라미터 초기화
+      navigation.setParams({ showMyCreated: undefined });
+    } else if (showMyJoinedFromRoute) {
+      console.log('✅ 내가 참여한 모임 화면 표시');
+      setShowMyJoined(true);
+      // route 파라미터 초기화
+      navigation.setParams({ showMyJoined: undefined });
+    }
+  }, [showEndedEventsFromRoute, showMyCreatedFromRoute, showMyJoinedFromRoute, navigation]);
 
   const [showCreateFlow, setShowCreateFlow] = useState(false);
   const [showMyCreated, setShowMyCreated] = useState(false);
@@ -114,7 +165,12 @@ const ScheduleScreen = ({ navigation }) => {
           text: '삭제',
           style: 'destructive',
           onPress: () => {
+            // 삭제할 모임 찾기
+            const eventToDelete = userCreatedEvents.find(event => event.id === eventId);
+            
+            // 모임 삭제 (EventContext에서 알림 생성 포함)
             deleteEvent(eventId);
+            
             Alert.alert(
               '삭제 완료',
               '모임과 관련 채팅방이 삭제되었습니다.',
@@ -141,14 +197,25 @@ const ScheduleScreen = ({ navigation }) => {
   };
 
   const handleViewEndedEvents = () => {
+    // 종료된 모임 옵션카드 클릭 처리
+    handleEndedEventsOptionClick();
     setShowEndedEvents(true);
   };
 
   const handleEventPress = (event, currentScreen) => {
+    // 종료된 모임 카드 클릭 시 알림 처리
+    if (currentScreen === 'endedEvents') {
+      handleEndedEventCardClick(event.id);
+    }
+    
+    // 내가 만든 모임인지 확인
+    const isCreatedByMe = currentScreen === 'myCreated' || event.isCreatedByUser;
+    
     navigation.navigate('EventDetail', { 
       event, 
       isJoined: userJoinedEvents.some(e => e.id === event.id), 
-      currentScreen 
+      currentScreen,
+      isCreatedByMe
     });
   };
 
@@ -175,6 +242,34 @@ const ScheduleScreen = ({ navigation }) => {
     navigation.navigate('Participant', { participant });
   };
 
+  // 테스트용 모임 알림 생성 함수
+  const handleTestNotification = (type) => {
+    console.log('🧪 ScheduleScreen - 모임 알림 테스트:', type);
+    createTestMeetingNotification(type);
+    Alert.alert('테스트 알림', `${type} 알림이 생성되었습니다.`);
+  };
+
+  // 종료된 모임 알림 테스트 함수
+  const handleEndedMeetingNotification = (type) => {
+    console.log('🧪 ScheduleScreen - 종료된 모임 알림 테스트:', type);
+    createEndedMeetingNotification(type);
+    Alert.alert('종료된 모임 알림', `${type} 알림이 생성되었습니다.`);
+  };
+
+  // 특정 종료된 모임에 대한 러닝매너점수 알림 테스트 함수
+  const handleSpecificEventRatingNotification = (eventId) => {
+    console.log('🧪 ScheduleScreen - 특정 모임 러닝매너점수 알림 테스트:', eventId);
+    createRatingNotificationForEvent(eventId);
+    Alert.alert('특정 모임 알림', `ID ${eventId} 모임에 대한 러닝매너점수 알림이 생성되었습니다.`);
+  };
+
+  // 종료된 모임 생성 + rating 알림 생성 테스트 함수
+  const handleCreateEndedEventWithRating = (testNumber) => {
+    console.log('🧪 ScheduleScreen - 종료된 모임 생성 + rating 알림 테스트:', testNumber);
+    createEndedEventWithRatingNotification(testNumber);
+    Alert.alert('테스트 완료', `종료된 모임 ${testNumber}과 러닝매너점수 알림이 생성되었습니다!`);
+  };
+
 
 
   // 모임 생성 플로우 화면
@@ -188,7 +283,7 @@ const ScheduleScreen = ({ navigation }) => {
     );
   }
 
-  // 내가 생성한 모임 화면
+  // 내가 만든 모임 화면
   if (showMyCreated) {
     return (
       <SafeAreaView style={styles.container}>
@@ -196,7 +291,7 @@ const ScheduleScreen = ({ navigation }) => {
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
             <Ionicons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>내가 생성한 모임</Text>
+          <Text style={styles.headerTitle}>내가 만든 모임</Text>
           <View style={styles.headerRight} />
         </View>
 
@@ -311,6 +406,7 @@ const ScheduleScreen = ({ navigation }) => {
                   cardIndex={index}
                   showJoinButton={false} // 종료된 모임에서는 버튼 숨김
                   isEnded={true}
+                  hasRatingNotification={hasRatingNotificationForEvent(event.id)}
                 />
               ))}
             </View>
@@ -330,17 +426,17 @@ const ScheduleScreen = ({ navigation }) => {
       >
         {/* 헤더 섹션 */}
         <View style={styles.headerSection}>
-          <Text style={styles.title}>일정</Text>
+          <Text style={styles.title}>모임</Text>
           <Text style={styles.subtitle}>러닝 모임을 만들고 관리해보세요</Text>
         </View>
 
-        {/* 새 모임 추가 */}
+        {/* 새 모임 만들기 */}
         <TouchableOpacity style={styles.mainOptionCard} onPress={handleCreateEvent}>
           <View style={styles.optionIconContainer}>
             <Ionicons name="add-circle" size={48} color={COLORS.PRIMARY} />
           </View>
           <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>새 모임 추가</Text>
+            <Text style={styles.optionTitle}>새 모임 만들기</Text>
             <Text style={styles.optionSubtitle}>
               새로운 러닝 모임을 생성하고 다른 사람들과 함께 달려보세요
             </Text>
@@ -365,13 +461,13 @@ const ScheduleScreen = ({ navigation }) => {
           <Ionicons name="chevron-forward" size={24} color="#666666" />
         </TouchableOpacity>
 
-        {/* 내가 생성한 모임 */}
+        {/* 내가 만든 모임 */}
         <TouchableOpacity style={styles.mainOptionCard} onPress={handleViewMyCreated}>
           <View style={styles.optionIconContainer}>
             <Ionicons name="create" size={48} color="#ffffff" />
           </View>
           <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>내가 생성한 모임</Text>
+            <Text style={styles.optionTitle}>내가 만든 모임</Text>
             <Text style={styles.optionSubtitle}>
               내가 만든 러닝 모임들을 관리하고 참여자를 확인하세요
             </Text>
@@ -384,6 +480,9 @@ const ScheduleScreen = ({ navigation }) => {
 
         {/* 종료된 모임 */}
         <TouchableOpacity style={styles.mainOptionCard} onPress={handleViewEndedEvents}>
+          {hasRatingNotificationForEndedEventsOption() && (
+            <View style={styles.cardTopNotificationBadge} />
+          )}
           <View style={styles.optionIconContainer}>
             <Ionicons name="checkmark-circle" size={48} color="#FFEA00" />
           </View>
@@ -396,7 +495,9 @@ const ScheduleScreen = ({ navigation }) => {
               <Text style={styles.optionBadgeText}>{endedEvents.length}개</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={24} color="#666666" />
+          <View style={styles.optionRightContainer}>
+            <Ionicons name="chevron-forward" size={24} color="#666666" />
+          </View>
         </TouchableOpacity>
 
         {/* 추가 정보 섹션 */}
@@ -415,12 +516,37 @@ const ScheduleScreen = ({ navigation }) => {
             <Text style={styles.infoText}>날씨나 상황 변경 시 참여자들에게 미리 알려주세요</Text>
           </View>
         </View>
+
+        {/* 테스트 알림 섹션 (개발용) */}
+        <View style={styles.infoSection}>
+          <Text style={styles.infoTitle}>🧪 종료된 모임 생성 + 알림 테스트</Text>
+          <View style={styles.testButtonContainer}>
+            <TouchableOpacity 
+              style={styles.testButton} 
+              onPress={() => handleCreateEndedEventWithRating(1)}
+            >
+              <Text style={styles.testButtonText}>rating 알림 1</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.testButton} 
+              onPress={() => handleCreateEndedEventWithRating(2)}
+            >
+              <Text style={styles.testButtonText}>rating 알림 2</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.testButton} 
+              onPress={() => handleCreateEndedEventWithRating(3)}
+            >
+              <Text style={styles.testButtonText}>rating 알림 3</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false, showOrganizerInfo = false, cardIndex, showJoinButton = true, isEnded = false }) => {
+const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false, showOrganizerInfo = false, cardIndex, showJoinButton = true, isEnded = false, hasRatingNotification = false }) => {
   const [showActionModal, setShowActionModal] = useState(false);
   const [buttonLayout, setButtonLayout] = useState(null);
   const [cardLayout, setCardLayout] = useState(null);
@@ -443,7 +569,12 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
     const hashtags = hashtagString
       .split(/\s+/) // 공백으로 분리
       .filter(tag => tag.startsWith('#') && tag.length > 1) // #으로 시작하고 길이가 1보다 큰 것만
-      .map(tag => tag.replace(/[^#\w가-힣]/g, '')) // 특수문자 제거 (한글, 영문, 숫자, # 만 허용)
+      .map(tag => {
+        // 모든 #을 제거하고 하나의 #만 추가
+        const cleanTag = tag.replace(/[^#\w가-힣]/g, ''); // 특수문자 제거 (한글, 영문, 숫자, # 만 허용)
+        const tagWithoutHash = cleanTag.replace(/^#+/, ''); // 앞의 모든 # 제거
+        return `#${tagWithoutHash}`; // 하나의 #만 추가
+      })
       .slice(0, 5); // 최대 5개까지만
     
     return hashtags;
@@ -535,6 +666,9 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
         setCardLayout({ x, y, width, height });
       }}
     >
+      {hasRatingNotification && (
+        <View style={styles.cardTopNotificationBadge} />
+      )}
       {/* 제목과 난이도, 메뉴 버튼 */}
       <View style={styles.titleRow}>
         <View style={styles.titleWithDifficulty}>
@@ -550,28 +684,30 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
             </View>
           )}
         </View>
-        {isCreatedByMe && !isEnded ? (
-          <TouchableOpacity 
-            onPress={() => {
-              setIsButtonPressed(true);
-              setShowActionModal(true);
-            }} 
-            style={styles.actionButton}
-            onLayout={(event) => {
-              const { x, y, width, height } = event.nativeEvent.layout;
-              setButtonLayout({ x, y, width, height });
-              // 모달 위치 계산
-              event.target.measure((fx, fy, width, height, px, py) => {
-                setModalPosition({
-                  top: py + height + 8,
-                  right: 16,
+        <View style={styles.titleRightSection}>
+          {isCreatedByMe && !isEnded ? (
+            <TouchableOpacity 
+              onPress={() => {
+                setIsButtonPressed(true);
+                setShowActionModal(true);
+              }} 
+              style={styles.actionButton}
+              onLayout={(event) => {
+                const { x, y, width, height } = event.nativeEvent.layout;
+                setButtonLayout({ x, y, width, height });
+                // 모달 위치 계산
+                event.target.measure((fx, fy, width, height, px, py) => {
+                  setModalPosition({
+                    top: py + height + 8,
+                    right: 16,
+                  });
                 });
-              });
-            }}
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        ) : null}
+              }}
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
       {/* 위치와 날짜/시간을 한 줄로 배치 */}
@@ -624,7 +760,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
             </Text>
           </View>
           <Text style={styles.organizerName}>
-            {showOrganizerInfo && event.organizer ? event.organizer : '내가 생성한 모임'}
+            {showOrganizerInfo && event.organizer ? event.organizer : '내가 만든 모임'}
           </Text>
         </View>
 
@@ -740,9 +876,14 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     return editingEvent?.maxPace || '';
   });
   const [difficulty, setDifficulty] = useState(editingEvent?.difficulty || '');
-  const [isPublic, setIsPublic] = useState(editingEvent?.isPublic || false);
+  const [isPublic, setIsPublic] = useState(editingEvent?.isPublic || true); // 기본값을 true로 변경
   const [hashtags, setHashtags] = useState(editingEvent?.hashtags || '');
-  const [maxParticipants, setMaxParticipants] = useState(editingEvent?.maxParticipants || '');
+  const [maxParticipants, setMaxParticipants] = useState(() => {
+    if (editingEvent?.maxParticipants) {
+      return editingEvent.maxParticipants.toString();
+    }
+    return '';
+  });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   
@@ -764,6 +905,10 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [inputLayout, setInputLayout] = useState(null);
   const [customLocationInputLayout, setCustomLocationInputLayout] = useState(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  
+  // 코스 사진 모달 관련 상태
+  const [showCoursePhotoModal, setShowCoursePhotoModal] = useState(false);
+  const [selectedCoursePhoto, setSelectedCoursePhoto] = useState(null);
 
 
 
@@ -835,17 +980,33 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
   // 편집 모드 초기화
   useEffect(() => {
-    if (editingEvent?.location) {
-      // 기존 장소가 한강공원인지 강변인지 판단
-      const hanRiverPark = hanRiverParks.find(park => park.name === editingEvent.location);
-      const riverSide = riverSides.find(river => river.name === editingEvent.location);
+    if (editingEvent) {
+      // 장소 관련 데이터 초기화
+      if (editingEvent.location) {
+        // 기존 장소가 한강공원인지 강변인지 판단
+        const hanRiverPark = hanRiverParks.find(park => park.name === editingEvent.location);
+        const riverSide = riverSides.find(river => river.name === editingEvent.location);
+        
+        if (hanRiverPark) {
+          setSelectedLocationType('hanriver');
+          setSelectedLocation(hanRiverPark.id);
+          setSelectedLocationData(hanRiverPark);
+        } else if (riverSide) {
+          setSelectedLocationType('riverside');
+          setSelectedLocation(riverSide.id);
+          setSelectedLocationData(riverSide);
+        }
+      }
       
-      if (hanRiverPark) {
-        setSelectedLocationType('hanriver');
-        setSelectedLocation(hanRiverPark.id);
-      } else if (riverSide) {
-        setSelectedLocationType('riverside');
-        setSelectedLocation(riverSide.id);
+      // 상세 위치 관련 데이터 초기화
+      if (editingEvent.customLocation) {
+        setCustomLocation(editingEvent.customLocation);
+        setHasCustomMarker(true);
+      }
+      
+      if (editingEvent.customMarkerCoords) {
+        setCustomMarkerCoords(editingEvent.customMarkerCoords);
+        setHasCustomMarker(true);
       }
     }
   }, [editingEvent]);
@@ -921,7 +1082,43 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     { id: 'hongje', name: '홍제천', lat: 37.5680, lng: 126.9170, distance: '7.8km', description: '서대문구 도심하천', color: '#E17055' },
   ];
 
-  // 강변 이미지 생성 함수 (임시 그라데이션)
+  // 강변 이미지 소스 매핑 (정적 require만 사용)
+  const riversideImages = {
+    danghyeon: require('../assets/images/riverside/danghyeon.png'),
+    dorim: require('../assets/images/riverside/dorim.png'),
+    bulgwang: require('../assets/images/riverside/bulgwang.png'),
+    seongnae: require('../assets/images/riverside/seongnae.png'),
+    anyang: require('../assets/images/riverside/anyang.png'),
+    yangjae: require('../assets/images/riverside/yangjae.png'),
+    jungnang: require('../assets/images/riverside/jungnang.png'),
+    jeongneung: require('../assets/images/riverside/jeongneung.png'),
+    cheonggyecheon: require('../assets/images/riverside/cheonggyecheon.png'),
+    tan: require('../assets/images/riverside/tan.png'),
+    hongje: require('../assets/images/riverside/hongje.png'),
+  };
+
+  // 강변 이미지 소스 가져오기 함수
+  const getRiversideImageSource = (id) => {
+    console.log('🖼️ 이미지 소스 요청:', id);
+    
+    if (riversideImages[id]) {
+      console.log('✅ 이미지 로드 성공:', id);
+      return riversideImages[id];
+    } else {
+      console.log(`❌ 이미지를 찾을 수 없습니다: ${id}`);
+      // 기본 이미지가 있다면 사용
+      try {
+        const defaultImage = require('../assets/images/riverside/default.png');
+        console.log('🔄 기본 이미지 사용');
+        return defaultImage;
+      } catch (defaultError) {
+        console.log('❌ 기본 이미지도 없음');
+        return null;
+      }
+    }
+  };
+
+  // 강변 이미지 생성 함수 (임시 그라데이션) - 기존 호환성 유지
   const getRiverImage = (riverColor) => {
     return {
       background: `linear-gradient(135deg, ${riverColor}40, ${riverColor}80)`,
@@ -1049,8 +1246,19 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     
     if (numbers.length === 0) return '';
     
-    // 이미 포맷팅된 형태라면 그대로 반환
-    if (value.includes("'") && value.includes('"')) {
+    // 5자리 이상 숫자는 입력 제한 (비현실적인 페이스)
+    if (numbers.length >= 5) {
+      return previousValue || '';
+    }
+    
+    // 6001 이상의 숫자는 입력 제한 (100분 1초 이상은 비현실적)
+    const numericValue = parseInt(numbers);
+    if (numericValue >= 6001) {
+      return previousValue || '';
+    }
+    
+    // 이미 올바른 포맷팅된 형태라면 그대로 반환 (예: 5'30", 10'15")
+    if (/^\d+'\d+"$/.test(value)) {
       return value;
     }
     
@@ -1066,15 +1274,19 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       
       return `${minutes}'${validSeconds}"`;
     } else if (numbers.length === 4) {
-      // 1030 -> 10'30"
+      // 1010 -> 10'10"
       const minutes = numbers.slice(0, 2);
       const seconds = numbers.slice(2);
+      
+      // 분이 99를 초과하면 99로 제한
+      const minutesNum = parseInt(minutes);
+      const validMinutes = minutesNum > 99 ? '99' : minutes;
       
       // 초가 59를 초과하면 59로 제한
       const secondsNum = parseInt(seconds);
       const validSeconds = secondsNum > 59 ? '59' : seconds.padStart(2, '0');
       
-      return `${minutes}'${validSeconds}"`;
+      return `${validMinutes}'${validSeconds}"`;
     }
     
     // 그 외의 경우는 원본 반환
@@ -1132,10 +1344,10 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   };
 
   // 커스텀 마커 변경 핸들러
-  const handleCustomMarkerChange = (hasMarker, coords) => {
+  const handleCustomMarkerChange = useCallback((hasMarker, coords) => {
     setHasCustomMarker(hasMarker);
     setCustomMarkerCoords(coords);
-  };
+  }, []);
 
   // 장소 선택 렌더링 (인라인 드롭다운 방식)
   const renderLocationSelection = () => (
@@ -1269,35 +1481,38 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       {/* 3단계: 선택된 장소 정보 및 지도 */}
       {selectedLocationData && (
         <View style={styles.selectedLocationSection}>
-          <View style={styles.selectedLocationCard}>
-            <View style={styles.selectedLocationInfo}>
-              <Text style={styles.selectedLocationName}>{selectedLocationData.name}</Text>
-              <Text style={styles.selectedLocationDescription}>
-                {selectedLocationType === 'hanriver' ? '한강공원' : selectedLocationData.description}
-              </Text>
-              <Text style={styles.selectedLocationDistance}>코스 길이: {selectedLocationData.distance}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.coursePhotoButton}
-              onPress={() => {
-                Alert.alert('코스 사진', '코스 사진 기능은 곧 업데이트 예정입니다.');
-              }}
-            >
-              <Ionicons name="camera" size={18} color={COLORS.PRIMARY} />
-              <Text style={styles.coursePhotoButtonText}>코스 사진</Text>
-            </TouchableOpacity>
-          </View>
+                      {selectedLocationType === 'riverside' && (
+              <View style={styles.coursePhotoSection}>
+                <TouchableOpacity
+                  style={styles.coursePhotoButton}
+                  onPress={() => {
+                    console.log('📸 코스 사진 버튼 클릭됨');
+                    console.log('📍 selectedLocationData:', selectedLocationData);
+                    if (selectedLocationData) {
+                      setSelectedCoursePhoto(selectedLocationData);
+                      setShowCoursePhotoModal(true);
+                      console.log('✅ 모달 상태 설정 완료');
+                    } else {
+                      console.log('❌ selectedLocationData가 없음');
+                    }
+                  }}
+                >
+                  <View style={styles.coursePhotoButtonContent}>
+                    <View style={styles.coursePhotoIconContainer}>
+                      <Ionicons name="camera" size={20} color={COLORS.PRIMARY} />
+                    </View>
+                    <View style={styles.coursePhotoTextContainer}>
+                      <Text style={styles.coursePhotoButtonTitle}>코스 사진</Text>
+                      <Text style={styles.coursePhotoButtonSubtitle}>러닝 코스 사진을 확인해보세요</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#666666" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            )}
           
           {/* 카카오맵 표시 - 상태 변경 격리 */}
-          <React.Fragment>
-          <InlineKakaoMapComponent 
-            selectedLocation={selectedLocationData}
-            locationType={selectedLocationType}
-            onCustomMarkerChange={handleCustomMarkerChange}
-            hasCustomMarker={hasCustomMarker}
-            customMarkerCoords={customMarkerCoords}
-          />
-          </React.Fragment>
+          {memoizedInlineMap}
           
           {/* 상세 위치 입력칸 */}
           {hasCustomMarker && (
@@ -1417,12 +1632,56 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     </Modal>
   );
 
+  // 코스 사진 모달 렌더링
+  const renderCoursePhotoModal = () => (
+    <Modal visible={showCoursePhotoModal} transparent animationType="slide">
+      <View style={styles.coursePhotoModalOverlay}>
+        <View style={styles.coursePhotoModalContainer}>
+          <View style={styles.coursePhotoModalHeader}>
+            <TouchableOpacity onPress={() => setShowCoursePhotoModal(false)}>
+              <Text style={styles.coursePhotoModalCancelText}>닫기</Text>
+            </TouchableOpacity>
+            <Text style={styles.coursePhotoModalTitle}>
+              {selectedCoursePhoto?.name || '코스 사진'}
+            </Text>
+            <View style={{ width: 50 }} />
+          </View>
+          <View style={styles.coursePhotoModalContent}>
+            {selectedCoursePhoto ? (
+              (() => {
+                const imageSource = getRiversideImageSource(selectedCoursePhoto.id);
+                console.log('🖼️ 모달에서 이미지 소스:', imageSource);
+                return imageSource ? (
+                  <Image
+                    source={imageSource}
+                    style={styles.coursePhotoImageOnly}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={styles.coursePhotoError}>
+                    <Ionicons name="image-outline" size={48} color="#666666" />
+                    <Text style={styles.coursePhotoErrorText}>이미지를 찾을 수 없습니다</Text>
+                    <Text style={styles.coursePhotoErrorSubtext}>assets/images/riverside/{selectedCoursePhoto.id}.png</Text>
+                  </View>
+                );
+              })()
+            ) : (
+              <View style={styles.coursePhotoLoading}>
+                <Text style={styles.coursePhotoLoadingText}>이미지를 불러오는 중...</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   // 인라인 카카오맵 컴포넌트를 별도로 분리하여 격리
   const InlineKakaoMapComponent = React.memo(({ selectedLocation, locationType, onCustomMarkerChange, hasCustomMarker, customMarkerCoords }) => {
     // WebView 재렌더링 방지를 위한 안정적인 key 생성
     const stableKey = React.useMemo(() => {
-      if (!selectedLocation) return 'no-location';
-      return `${selectedLocation.id}-${selectedLocation.name}-${locationType}`;
+      if (!selectedLocation) return 'no-location-no-boundary-v24';
+      return `${selectedLocation.id}-${selectedLocation.name}-${locationType}-no-boundary-v24`;
     }, [selectedLocation?.id, selectedLocation?.name, locationType]);
 
     // 커스텀 마커 상태를 문자열로 변환하여 비교 최적화
@@ -1526,6 +1785,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                 var customInfoWindow = null;
                 var currentMapCenter = null;
                 var currentMapLevel = 4;
+                
+
                 
                 function waitForKakaoSDK() {
                     if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
@@ -1634,26 +1895,28 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                         // 지도 클릭 이벤트 (상세 위치 설정)
                         kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
                             var latlng = mouseEvent.latLng;
-    
+                            var clickLat = latlng.getLat();
+                            var clickLng = latlng.getLng();
+                            
+                            // 디버그 로그
+                            if (window.ReactNativeWebView) {
+                                window.ReactNativeWebView.postMessage('LOG: INFO - 지도 클릭: ' + clickLat + ', ' + clickLng);
+                            }
                             
                             // 기존 커스텀 마커 제거
                             if (customMarker) {
                                 customMarker.setMap(null);
-  
                             }
                             if (customInfoWindow) {
                                 customInfoWindow.close();
-                                
                             }
                             
                             // 새 커스텀 마커 생성
-                            
                             customMarker = new kakao.maps.Marker({
                                 position: latlng,
                                 image: customMarkerImage,
                                 map: map
                             });
-                            
                             
                             // 커스텀 정보창 생성
                             var customInfoContent = '<div class="custom-info-window">상세 위치</div>';
@@ -1665,7 +1928,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                             
                             // 커스텀 정보창 표시
                             customInfoWindow.open(map, customMarker);
-                            
                             
                             // 커스텀 마커 클릭 이벤트
                             kakao.maps.event.addListener(customMarker, 'click', function() {
@@ -1749,6 +2011,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         // 지도 로딩 완료
               } else if (data.startsWith('inlineMapError')) {
         console.error('인라인 지도 로딩 실패:', data);
+
               } else if (data.startsWith('customMarkerAdded:')) {
                 const coords = data.replace('customMarkerAdded:', '');
                 const [lat, lng] = coords.split(',');
@@ -1812,6 +2075,23 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     
     return shouldNotRerender;
   });
+
+  // 인라인 지도 컴포넌트 메모이제이션
+  const memoizedInlineMap = useMemo(() => (
+    <React.Fragment>
+      <View style={styles.mapGuideSection}>
+        <Text style={styles.mapGuideText}>지도를 클릭하여 상세한 모임장소를 정하세요!</Text>
+      </View>
+      <InlineKakaoMapComponent 
+        key={`map-${selectedLocationData?.id}-${selectedLocationType}`}
+        selectedLocation={selectedLocationData}
+        locationType={selectedLocationType}
+        onCustomMarkerChange={handleCustomMarkerChange}
+        hasCustomMarker={hasCustomMarker}
+        customMarkerCoords={customMarkerCoords}
+      />
+    </React.Fragment>
+  ), [selectedLocationData?.id, selectedLocationType, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange]);
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
@@ -1956,6 +2236,9 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
       {/* 카카오맵 모달 */}
       {showMapModal && renderKakaoMapModal()}
+      
+      {/* 코스 사진 모달 */}
+      {showCoursePhotoModal && renderCoursePhotoModal()}
     </View>
   );
 
@@ -2035,33 +2318,40 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     </View>
   );
 
-  // 해시태그 자동 변환 함수
-  const convertToHashtags = (text) => {
-    if (!text.trim()) return '';
-    
-    // 이미 #으로 시작하는 경우 그대로 반환
-    if (text.trim().startsWith('#')) {
-      return text;
+  // 해시태그 관련 상태 추가
+  const [hashtagInput, setHashtagInput] = useState('');
+
+  // 해시태그 추가 (직접 입력용)
+  const addHashtag = (tag) => {
+    // 모든 #과 공백을 제거하여 깨끗한 태그 생성
+    const cleanTag = tag.replace(/[#\s]/g, '');
+    if (cleanTag && cleanTag.length <= 20 && hashtags.split(' ').filter(t => t.trim()).length < 3) {
+      const currentTags = hashtags.split(' ').filter(t => t.trim());
+      // 이미 존재하는지 확인 (cleanTag로 비교)
+      const existingTags = currentTags.map(t => t.replace(/^#+/, '')); // 기존 태그에서 # 제거
+      if (!existingTags.includes(cleanTag)) {
+        const newTags = [...currentTags, `#${cleanTag}`];
+        setHashtags(newTags.join(' '));
+      }
+    } else if (hashtags.split(' ').filter(t => t.trim()).length >= 3) {
+      Alert.alert('해시태그 제한', '해시태그는 최대 3개까지 입력할 수 있습니다.');
     }
-    
-    // 공백으로 구분된 단어들을 해시태그로 변환
-    return text
-      .trim()
-      .split(/\s+/)
-      .filter(word => word.length > 0)
-      .map(word => `#${word}`)
-      .join(' ');
+    setHashtagInput('');
   };
 
-  // 해시태그 입력 처리
-  const handleHashtagChange = (text) => {
-    setHashtags(text);
+  // 해시태그 삭제
+  const removeHashtag = (tagToRemove) => {
+    const currentTags = hashtags.split(' ').filter(t => t.trim());
+    const newTags = currentTags.filter(tag => tag !== `#${tagToRemove}`);
+    setHashtags(newTags.join(' '));
   };
 
-  // 해시태그 입력 완료 시 자동 변환
-  const handleHashtagBlur = () => {
-    const convertedHashtags = convertToHashtags(hashtags);
-    setHashtags(convertedHashtags);
+  // 해시태그 키 입력 처리
+  const handleHashtagKeyPress = (e) => {
+    if (e.nativeEvent.key === 'Enter' || e.nativeEvent.key === ' ') {
+      e.preventDefault();
+      addHashtag(hashtagInput.trim());
+    }
   };
 
   const renderStep4 = () => (
@@ -2094,19 +2384,31 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>해시태그</Text>
-        <TextInput
-          style={styles.textInput}
-          value={hashtags}
-          onChangeText={handleHashtagChange}
-          onBlur={handleHashtagBlur}
-          placeholder="러닝 초보 환영 (자동으로 #러닝 #초보 #환영으로 변환됩니다)"
-          placeholderTextColor="#666666"
-          returnKeyType="done"
-          blurOnSubmit={true}
-        />
-        <Text style={[styles.inputHint, { fontSize: 15 }]}>
-          단어를 입력하면 자동으로 해시태그로 변환됩니다.{'\n'}(예: 러닝 초보 → #러닝 #초보)
-        </Text>
+        <View style={styles.hashtagContainer}>
+          <TextInput
+            style={styles.hashtagInput}
+            placeholder="해시태그를 입력하세요 (엔터로 추가)"
+            placeholderTextColor="#666666"
+            value={hashtagInput}
+            onChangeText={setHashtagInput}
+            onSubmitEditing={() => addHashtag(hashtagInput.trim())}
+            maxLength={20}
+          />
+        </View>
+        
+        {/* 선택된 해시태그들 */}
+        {hashtags.split(' ').filter(t => t.trim()).length > 0 && (
+          <View style={styles.selectedTags}>
+            {hashtags.split(' ').filter(t => t.trim()).map((tag, index) => (
+              <View key={index} style={styles.selectedTag}>
+                <Text style={styles.selectedTagText}>{tag}</Text>
+                <TouchableOpacity onPress={() => removeHashtag(tag.replace('#', ''))}>
+                  <Ionicons name="close" size={16} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
 
@@ -2253,12 +2555,14 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT,
     marginTop: 20,
     marginBottom: 8,
+    fontFamily: 'Pretendard-Bold',
   },
   emptySubtitle: {
     fontSize: 16,
     color: COLORS.SECONDARY,
     textAlign: 'center',
     marginBottom: 32,
+    fontFamily: 'Pretendard-Regular',
   },
   createButton: {
     backgroundColor: COLORS.PRIMARY,
@@ -2273,6 +2577,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#000000',
+    fontFamily: 'Pretendard-SemiBold',
   },
   eventsList: {
     paddingVertical: 20,
@@ -2284,12 +2589,14 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 12,
     padding: 16,
+    position: 'relative',
   },
   eventTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#ffffff',
     flex: 1,
+    fontFamily: 'Pretendard-SemiBold',
   },
   locationDateTimeRow: {
     flexDirection: 'row',
@@ -2309,6 +2616,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginLeft: 8,
     flexShrink: 1,
+    fontFamily: 'Pretendard-Regular',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -2340,6 +2648,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: 2,
     textAlign: 'center',
+    fontFamily: 'Pretendard-SemiBold',
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -2359,6 +2668,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.PRIMARY,
     fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
   },
   footer: {
     flexDirection: 'row',
@@ -2382,11 +2692,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: '#ffffff',
+    fontFamily: 'Pretendard-Bold',
   },
   organizerName: {
     fontSize: 15,
     color: '#ffffff',
     fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
   },
   rightSection: {
     flexDirection: 'row',
@@ -2397,6 +2709,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#ffffff',
     fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
   },
   titleRow: {
     flexDirection: 'row',
@@ -2419,6 +2732,7 @@ const styles = StyleSheet.create({
   difficultyText: {
     fontSize: 12,
     fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
   },
   actionButton: {
     padding: 12,
@@ -2460,6 +2774,7 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 28,
     letterSpacing: -0.5,
+    fontFamily: 'Pretendard-Bold',
   },
   eventTitleContainer: {
     flex: 1,
@@ -2469,6 +2784,7 @@ const styles = StyleSheet.create({
     color: '#999999',
     marginTop: 4,
     fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
   },
   
   // 난이도 배지 (헤더용)
@@ -2491,6 +2807,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
     textAlign: 'center',
+    fontFamily: 'Pretendard-Bold',
   },
   
 
@@ -2547,6 +2864,7 @@ const styles = StyleSheet.create({
     width: 50,
     textAlign: 'left',
     marginBottom: 2,
+    fontFamily: 'Pretendard-Bold',
   },
   eventDetailText: {
     fontSize: 17,
@@ -2554,6 +2872,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     lineHeight: 22,
+    fontFamily: 'Pretendard-SemiBold',
   },
   
   // 모집 현황 스타일
@@ -2577,6 +2896,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
+    fontFamily: 'Pretendard-SemiBold',
   },
   
   // 하단 배지 섹션
@@ -2600,6 +2920,7 @@ const styles = StyleSheet.create({
   hashtagText: {
     fontSize: 12,
     fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
     color: COLORS.PRIMARY,
   },
   publicBadge: {
@@ -3459,10 +3780,10 @@ const styles = StyleSheet.create({
   
   // 구체적 장소 선택 스타일
   specificLocationContainer: {
-    marginBottom: 16,
+    marginBottom: 8,
   },
   specificLocationLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.TEXT,
     marginBottom: 8,
@@ -3535,7 +3856,7 @@ const styles = StyleSheet.create({
   
   // 선택된 장소 섹션 스타일
   selectedLocationSection: {
-    marginTop: 8,
+    marginTop: 0,
   },
   selectedLocationCard: {
     backgroundColor: COLORS.SURFACE,
@@ -3553,19 +3874,55 @@ const styles = StyleSheet.create({
     color: COLORS.PRIMARY,
     fontWeight: '500',
   },
+  coursePhotoSection: {
+    marginBottom: 8,
+  },
   coursePhotoButton: {
-    backgroundColor: COLORS.PRIMARY + '20',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#333333',
+    overflow: 'hidden',
+  },
+  coursePhotoButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    gap: 10,
   },
-  coursePhotoButtonText: {
-    fontSize: 12,
+  coursePhotoIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.PRIMARY + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coursePhotoTextContainer: {
+    flex: 1,
+  },
+  coursePhotoButtonTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+    marginBottom: 2,
+  },
+  coursePhotoButtonSubtitle: {
+    fontSize: 13,
+    color: COLORS.TEXT,
+    lineHeight: 16,
+  },
+  
+  // 지도 안내 문구 스타일
+  mapGuideSection: {
+    marginBottom: 8,
+  },
+  mapGuideText: {
+    fontSize: 18,
     fontWeight: '600',
     color: COLORS.PRIMARY,
+    textAlign: 'left',
   },
   
   // 인라인 카카오맵 스타일
@@ -3670,6 +4027,41 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
+  // 해시태그 관련 스타일
+  hashtagContainer: {
+    position: 'relative',
+  },
+  hashtagInput: {
+    backgroundColor: COLORS.SURFACE,
+    borderWidth: 1,
+    borderColor: '#333333',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    fontSize: 16,
+    color: COLORS.TEXT,
+  },
+  selectedTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  selectedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 20,
+  },
+  selectedTagText: {
+    fontSize: 14,
+    color: '#000000',
+    marginRight: 6,
+    fontWeight: '500',
+  },
+
   // 메인 옵션 카드 스타일
   mainOptionCard: {
     backgroundColor: COLORS.CARD,
@@ -3687,6 +4079,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     minHeight: 104,
+    position: 'relative',
   },
   optionIconContainer: {
     marginRight: 16,
@@ -3735,7 +4128,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: COLORS.SECONDARY,
-    lineHeight: 15,
+    lineHeight: 22,
   },
 
   // 헤더 스타일
@@ -3772,8 +4165,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD,
     borderRadius: 16,
     padding: 20,
-    marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   infoTitle: {
     fontSize: 16,
@@ -3792,6 +4184,28 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginLeft: 8,
     flex: 1,
+  },
+
+  // 테스트 버튼 스타일
+  testButtonContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  testButton: {
+    flex: 1,
+    backgroundColor: COLORS.PRIMARY + '20',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY,
+    alignItems: 'center',
+  },
+  testButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.PRIMARY,
   },
 
   // 업데이트된 이벤트 카드 스타일
@@ -3890,6 +4304,168 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#333333',
     marginHorizontal: 20,
+  },
+  
+  // 알림 표시 스타일
+  notificationBadge: {
+    width: 10,
+    height: 10,
+    backgroundColor: '#FF0022',
+    borderRadius: 5,
+    marginLeft: 8,
+  },
+  cardNotificationBadge: {
+    width: 8,
+    height: 8,
+    backgroundColor: '#FF0022',
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  cardTopNotificationBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    backgroundColor: '#FF0022',
+    borderRadius: 4,
+    zIndex: 1,
+  },
+  titleRightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  optionRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  coursePhotoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coursePhotoModalContainer: {
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 16,
+    width: '95%',
+    maxWidth: 500,
+    alignSelf: 'center',
+    overflow: 'hidden',
+  },
+  coursePhotoModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  coursePhotoModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.TEXT,
+    textAlign: 'center',
+    flex: 1,
+  },
+  coursePhotoModalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666666',
+  },
+  coursePhotoModalContent: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coursePhotoImageContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  coursePhotoImage: {
+    width: 220,
+    height: 120,
+    borderRadius: 16,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  coursePhotoImageText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  coursePhotoImageSubtext: {
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.7,
+  },
+  coursePhotoInfo: {
+    alignItems: 'center',
+  },
+  coursePhotoName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.TEXT,
+    marginBottom: 4,
+  },
+  coursePhotoDescription: {
+    fontSize: 14,
+    color: COLORS.SECONDARY,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  coursePhotoDistance: {
+    fontSize: 14,
+    color: COLORS.PRIMARY,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  coursePhotoFeatures: {
+    marginTop: 8,
+    alignItems: 'flex-start',
+  },
+  coursePhotoFeature: {
+    fontSize: 13,
+    color: COLORS.TEXT,
+    marginBottom: 2,
+  },
+  coursePhotoLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 120,
+  },
+  coursePhotoLoadingText: {
+    color: COLORS.SECONDARY,
+    fontSize: 15,
+  },
+  coursePhotoImageOnly: {
+    width: '100%',
+    height: 300,
+    borderRadius: 12,
+    backgroundColor: '#222',
+  },
+  coursePhotoError: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 300,
+    backgroundColor: '#222',
+    borderRadius: 12,
+  },
+  coursePhotoErrorText: {
+    color: '#666666',
+    fontSize: 16,
+    marginTop: 12,
+    fontWeight: '500',
+  },
+  coursePhotoErrorSubtext: {
+    color: '#444444',
+    fontSize: 12,
+    marginTop: 4,
+    fontFamily: 'monospace',
   },
 });
 

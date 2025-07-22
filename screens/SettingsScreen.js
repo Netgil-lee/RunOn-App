@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -34,15 +35,10 @@ const COLORS = {
 };
 
 const SettingsScreen = ({ navigation }) => {
-  const { signOut } = useAuth();
+  const { logout } = useAuth();
+  const { settings, toggleSetting, updateSetting } = useNotificationSettings();
   
-  const [settings, setSettings] = useState({
-    notifications: {
-      meetingReminder: true,
-      newMember: true,
-      weatherAlert: true,
-      safetyAlert: true
-    },
+  const [otherSettings, setOtherSettings] = useState({
     privacy: {
       profileVisibility: 'public',
       locationSharing: true,
@@ -60,8 +56,8 @@ const SettingsScreen = ({ navigation }) => {
     }
   });
 
-  const toggleSetting = (category, key) => {
-    setSettings(prev => ({
+  const toggleOtherSetting = (category, key) => {
+    setOtherSettings(prev => ({
       ...prev,
       [category]: {
         ...prev[category],
@@ -70,8 +66,8 @@ const SettingsScreen = ({ navigation }) => {
     }));
   };
 
-  const updateSetting = (category, key, value) => {
-    setSettings(prev => ({
+  const updateOtherSetting = (category, key, value) => {
+    setOtherSettings(prev => ({
       ...prev,
       [category]: {
         ...prev[category],
@@ -80,7 +76,7 @@ const SettingsScreen = ({ navigation }) => {
     }));
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     Alert.alert(
       '로그아웃',
       '정말 로그아웃하시겠습니까?',
@@ -89,7 +85,17 @@ const SettingsScreen = ({ navigation }) => {
         { 
           text: '로그아웃', 
           style: 'destructive',
-          onPress: () => signOut()
+          onPress: async () => {
+            try {
+              console.log('🚪 SettingsScreen: 로그아웃 시작');
+              await logout();
+              console.log('✅ SettingsScreen: 로그아웃 완료');
+              // 로그아웃 성공 시 별도 알림 없이 자동으로 로그인 화면으로 이동
+            } catch (error) {
+              console.error('❌ SettingsScreen: 로그아웃 실패', error);
+              Alert.alert('로그아웃 실패', '로그아웃 중 오류가 발생했습니다. 다시 시도해주세요.');
+            }
+          }
         }
       ]
     );
@@ -159,7 +165,7 @@ const SettingsScreen = ({ navigation }) => {
             style={styles.backButton} 
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="chevron-back" size={24} color={COLORS.WHITE} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.WHITE} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>설정</Text>
           <View style={styles.headerSpacer} />
@@ -178,6 +184,18 @@ const SettingsScreen = ({ navigation }) => {
         <SectionTitle title="알림 설정" />
         <View style={styles.section}>
           <SettingItem
+            icon="megaphone-outline"
+            title="소식 알림"
+            subtitle="새로운 기능, 이벤트 등 소식 알림을 받습니다."
+            onPress={() => toggleSetting('notifications', 'newsNotification')}
+            showArrow={false}
+          >
+            <ToggleSwitch 
+              enabled={settings.notifications.newsNotification}
+              onToggle={() => toggleSetting('notifications', 'newsNotification')}
+            />
+          </SettingItem>
+          <SettingItem
             icon="notifications-outline"
             title="모임 알림"
             subtitle="러닝 모임 관련 알림을 받습니다"
@@ -191,8 +209,8 @@ const SettingsScreen = ({ navigation }) => {
           </SettingItem>
           <SettingItem
             icon="people-outline"
-            title="새 멤버 알림"
-            subtitle="새로운 멤버 가입 알림을 받습니다"
+            title="커뮤니티 알림"
+            subtitle="채팅, 작성한 글의 좋아요와 댓글 알림을 받습니다."
             onPress={() => toggleSetting('notifications', 'newMember')}
             showArrow={false}
           >
@@ -204,7 +222,7 @@ const SettingsScreen = ({ navigation }) => {
           <SettingItem
             icon="cloud-outline"
             title="날씨 알림"
-            subtitle="러닝에 영향을 주는 날씨 변화 알림"
+            subtitle="러닝에 영향을 주는 날씨 변화 알림을 받습니다."
             onPress={() => toggleSetting('notifications', 'weatherAlert')}
             showArrow={false}
           >
@@ -216,7 +234,7 @@ const SettingsScreen = ({ navigation }) => {
           <SettingItem
             icon="shield-checkmark-outline"
             title="안전 알림"
-            subtitle="한강 주변 안전 관련 알림"
+            subtitle="한강 주변 안전 관련 알림을 받습니다."
             onPress={() => toggleSetting('notifications', 'safetyAlert')}
             showArrow={false}
           >
@@ -227,47 +245,6 @@ const SettingsScreen = ({ navigation }) => {
           </SettingItem>
         </View>
 
-        {/* 러닝 & 매칭 */}
-        <SectionTitle title="러닝 & 매칭" />
-        <View style={styles.section}>
-          <SettingItem
-            icon="location-outline"
-            title="코스 매칭 설정"
-            subtitle={`현재: ${settings.matching.maxDistance}km`}
-            onPress={() => Alert.alert('코스 매칭', '코스 매칭 설정 기능이 곧 추가됩니다.')}
-          />
-          <SettingItem
-            icon="flash-outline"
-            title="레벨 매칭 범위"
-            subtitle={`현재: ${settings.matching.levelRange === 'all' ? '전체 레벨' : settings.matching.levelRange}`}
-            onPress={() => Alert.alert('레벨 매칭', '레벨 매칭 설정 기능이 곧 추가됩니다.')}
-          />
-
-        </View>
-
-        {/* 개인정보 & 보안 */}
-        <SectionTitle title="개인정보 & 보안" />
-        <View style={styles.section}>
-          <SettingItem
-            icon="eye-outline"
-            title="프로필 공개 범위"
-            subtitle={`현재: ${settings.privacy.profileVisibility === 'public' ? '전체 공개' : '친구만'}`}
-            onPress={() => Alert.alert('프로필 공개', '프로필 공개 설정 기능이 곧 추가됩니다.')}
-          />
-          <SettingItem
-            icon="call-outline"
-            title="긴급 연락처"
-            subtitle="러닝 중 긴급 상황 시 연락할 수 있는 번호"
-            onPress={() => Alert.alert('긴급 연락처', '긴급 연락처 설정 기능이 곧 추가됩니다.')}
-          />
-          <SettingItem
-            icon="trash-outline"
-            title="차단 관리"
-            subtitle="차단한 사용자 목록을 관리합니다"
-            onPress={() => Alert.alert('차단 관리', '차단 관리 기능이 곧 추가됩니다.')}
-          />
-        </View>
-
 
 
         {/* 앱 */}
@@ -275,9 +252,9 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.section}>
           <SettingItem
             icon="help-circle-outline"
-            title="도움말 센터"
-            subtitle="자주 묻는 질문과 사용법 가이드"
-            onPress={() => Alert.alert('도움말 센터', '도움말 센터가 곧 추가됩니다.')}
+            title="앱 사용 가이드"
+            subtitle="자주 묻는 질문과 사용법 안내"
+            onPress={() => navigation.navigate('AppGuide')}
           />
           <SettingItem
             icon="call-outline"
@@ -364,6 +341,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '600',
     color: COLORS.WHITE,
+    fontFamily: 'Pretendard-SemiBold',
   },
   headerSpacer: {
     width: 44,
@@ -384,6 +362,7 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY_400,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    fontFamily: 'Pretendard-SemiBold',
   },
   section: {
     backgroundColor: COLORS.CARD,
@@ -419,10 +398,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: COLORS.WHITE,
     marginBottom: 2,
+    fontFamily: 'Pretendard-Medium',
   },
   settingSubtitle: {
     fontSize: 14,
     color: COLORS.GRAY_400,
+    fontFamily: 'Pretendard-Regular',
   },
   settingItemRight: {
     flexDirection: 'row',
@@ -432,6 +413,7 @@ const styles = StyleSheet.create({
     color: COLORS.RED_600,
     fontSize: 16,
     fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
   },
   bottomSpacing: {
     height: 100,

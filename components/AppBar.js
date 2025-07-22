@@ -16,15 +16,17 @@ const COLORS = {
   SURFACE: '#1F1F24',
 };
 
-const AppBar = ({ user, onProfilePress, onNotificationPress, onSettingsPress, hideProfile }) => {
+const AppBar = ({ user, onProfilePress, onNotificationPress, onSettingsPress, onSearchPress, hideProfile, title, unreadCount = 0 }) => {
   const displayName = user?.displayName || user?.email?.split('@')[0] || '사용자';
   
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* 왼쪽: 프로필 사진 + 로고 */}
+        {/* 왼쪽: 제목 또는 프로필 사진 + 로고 */}
         <View style={styles.leftSection}>
-          {!hideProfile && (
+          {title ? (
+            <Text style={styles.title}>{title}</Text>
+          ) : !hideProfile ? (
             <>
               <TouchableOpacity style={styles.profileButton} onPress={onProfilePress}>
                 {user?.photoURL ? (
@@ -37,13 +39,19 @@ const AppBar = ({ user, onProfilePress, onNotificationPress, onSettingsPress, hi
               </TouchableOpacity>
               <Text style={styles.logo}>{displayName}</Text>
             </>
-          )}
+          ) : null}
         </View>
 
-        {/* 오른쪽: 알림, 설정 */}
+        {/* 오른쪽: 검색, 알림, 설정 */}
         <View style={styles.rightSection}>
+          <TouchableOpacity style={styles.iconButton} onPress={onSearchPress}>
+            <Ionicons name="search-outline" size={22} color="#ffffff" />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
             <Ionicons name="notifications-outline" size={22} color="#ffffff" />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge} />
+            )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={onSettingsPress}>
             <Ionicons name="settings-outline" size={22} color="#ffffff" />
@@ -64,7 +72,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
   },
   leftSection: {
     flexDirection: 'row',
@@ -98,6 +106,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
     letterSpacing: 2,
+    fontFamily: 'Pretendard-Bold',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#ffffff',
+    fontFamily: 'Pretendard-SemiBold',
   },
   iconButton: {
     width: 44,
@@ -105,6 +120,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 2,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FF0022',
+    borderRadius: 10,
+    minWidth: 1,
+    height: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationCount: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });
 

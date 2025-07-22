@@ -8,11 +8,11 @@ import {
   Alert,
   StyleSheet,
   Image,
-  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import evaluationService from '../services/evaluationService';
 
 const COLORS = {
   PRIMARY: '#3AF8FF',
@@ -31,6 +31,7 @@ const COLORS = {
 const RunningMeetingReview = ({ route, navigation }) => {
   const { event, participants: eventParticipants } = route.params;
   const { user } = useAuth();
+
   
   // 호스트가 현재 사용자인지 확인
   const isCurrentUserHost = user && (
@@ -40,7 +41,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
     event.isCreatedByUser
   );
   
-  // 호스트를 제외한 참가자 목록 (호스트는 자신을 평가할 수 없음)
+  // 호스트를 제외한 참여자 목록 (호스트는 자신을 평가할 수 없음)
   const [participants] = useState(() => {
     if (!eventParticipants) return [];
     
@@ -81,7 +82,8 @@ const RunningMeetingReview = ({ route, navigation }) => {
   // 평가 완료 여부 확인
   const isEvaluationComplete = (participantId) => {
     const evaluation = evaluations[participantId];
-    return evaluation && evaluation.mannerScore > 0 && evaluation.selectedTags && evaluation.selectedTags.length > 0;
+    // 매너점수(하트평가)를 선택하면 평가 완료로 간주 (카드 펼침 상태와 무관)
+    return evaluation && evaluation.mannerScore > 0;
   };
 
   // 전체 완료 여부 확인
@@ -103,7 +105,6 @@ const RunningMeetingReview = ({ route, navigation }) => {
         ...prev[participantId],
         mannerScore: score,
         selectedTags: prev[participantId]?.selectedTags || [],
-        comment: prev[participantId]?.comment || '',
         isExpanded: prev[participantId]?.isExpanded || false
       }
     }));
@@ -124,26 +125,13 @@ const RunningMeetingReview = ({ route, navigation }) => {
           ...current,
           selectedTags: newTags,
           mannerScore: current.mannerScore || 0,
-          comment: current.comment || '',
           isExpanded: current.isExpanded || false
         }
       };
     });
   };
 
-  // 코멘트 설정
-  const setComment = (participantId, comment) => {
-    setEvaluations(prev => ({
-      ...prev,
-      [participantId]: {
-        ...prev[participantId],
-        comment: comment.slice(0, 30), // 30자 제한
-        selectedTags: prev[participantId]?.selectedTags || [],
-        mannerScore: prev[participantId]?.mannerScore || 0,
-        isExpanded: prev[participantId]?.isExpanded || false
-      }
-    }));
-  };
+
 
   // 접기/펴기 토글
   const toggleExpanded = (participantId) => {
@@ -153,21 +141,25 @@ const RunningMeetingReview = ({ route, navigation }) => {
         ...prev[participantId],
         isExpanded: !prev[participantId]?.isExpanded,
         selectedTags: prev[participantId]?.selectedTags || [],
-        mannerScore: prev[participantId]?.mannerScore || 0,
-        comment: prev[participantId]?.comment || ''
+        mannerScore: prev[participantId]?.mannerScore || 0
       }
     }));
   };
 
   // 제출 처리
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!isAllComplete()) {
-      Alert.alert('평가 미완료', '모든 참가자의 평가를 완료해주세요.');
+      Alert.alert('평가 미완료', '모든 참여자의 평가를 완료해주세요.');
       return;
     }
 
-    // 평가 결과 콘솔 출력 (개발용)
-    console.log('평가 결과:', evaluations);
+    try {
+      // 평가 결과를 Firebase에 저장
+      await evaluationService.saveEvaluationResults(
+        event.id || 'temp_meeting_id', // 실제 모임 ID로 교체 필요
+        evaluations,
+        user.uid
+      );
     
     Alert.alert(
       '평가 완료',
@@ -179,6 +171,18 @@ const RunningMeetingReview = ({ route, navigation }) => {
         }
       ]
     );
+    } catch (error) {
+      console.error('평가 저장 실패:', error);
+      Alert.alert(
+        '저장 실패',
+        '평가 저장 중 오류가 발생했습니다. 다시 시도해주세요.',
+        [
+          {
+            text: '확인'
+          }
+        ]
+      );
+    }
   };
 
   // 하트 컴포넌트
@@ -215,7 +219,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
   const TagSelector = ({ participantId, selectedTags, onTagToggle }) => {
     return (
       <View style={styles.tagContainer}>
-        <Text style={styles.tagTitle}>어떤 점이 좋았나요? (1개 이상 선택)</Text>
+        <Text style={styles.tagTitle}>어떤 점이 좋았나요? (선택사항)</Text>
         <View style={styles.tagGrid}>
           {tagOptions.map((tag) => (
             <TouchableOpacity
@@ -246,31 +250,9 @@ const RunningMeetingReview = ({ route, navigation }) => {
     );
   };
 
-  // 코멘트 입력 컴포넌트
-  const CommentInput = ({ participantId, comment, onCommentChange }) => {
-    return (
-      <View style={styles.commentContainer}>
-        <Text style={styles.commentTitle}>추가 코멘트 (선택사항)</Text>
-        <View style={styles.commentInputContainer}>
-          <TextInput
-            style={styles.commentInput}
-            value={comment}
-            onChangeText={(text) => onCommentChange(text)}
-            placeholder="함께 달려서 즐거웠어요!"
-            placeholderTextColor={COLORS.SECONDARY}
-            multiline
-            numberOfLines={2}
-            maxLength={30}
-          />
-          <Text style={styles.commentCount}>
-            {comment.length}/30
-          </Text>
-        </View>
-      </View>
-    );
-  };
 
-  // 참가자 평가 컴포넌트
+
+  // 참여여자 평가 컴포넌트
   const ParticipantEvaluation = ({ participant }) => {
     const evaluation = evaluations[participant.id] || {};
     const isComplete = isEvaluationComplete(participant.id);
@@ -341,13 +323,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
               />
             </View>
 
-            <View style={styles.evaluationSection}>
-              <CommentInput
-                participantId={participant.id}
-                comment={evaluation.comment || ''}
-                onCommentChange={(comment) => setComment(participant.id, comment)}
-              />
-            </View>
+
           </View>
         )}
       </View>
@@ -368,7 +344,13 @@ const RunningMeetingReview = ({ route, navigation }) => {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="never"
+        keyboardDismissMode="none"
+      >
         {/* 모임 정보 카드 */}
         <View style={styles.eventCard}>
           <Text style={styles.eventTitle}>{event.title}</Text>
@@ -410,11 +392,11 @@ const RunningMeetingReview = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* 참가자 목록 */}
+        {/* 참여자 목록 */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
-            <Text style={styles.sectionTitle}>참가자 평가</Text>
+            <Text style={styles.sectionTitle}>참여자 평가</Text>
           </View>
           {participants.map(participant => (
             <ParticipantEvaluation key={participant.id} participant={participant} />
@@ -489,6 +471,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  scrollContent: {
+    paddingBottom: 100, // 하단 버튼을 위한 여백
   },
   eventCard: {
     backgroundColor: COLORS.CARD,
@@ -728,41 +713,23 @@ const styles = StyleSheet.create({
   },
   tagCheck: {
     marginLeft: 'auto',
+    fontSize: 14,
   },
   tagCount: {
     fontSize: 14,
     color: COLORS.SECONDARY,
   },
-  commentContainer: {
-    gap: 8,
-  },
-  commentTitle: {
-    fontSize: 16,
-    color: COLORS.TEXT,
-  },
-  commentInputContainer: {
-    position: 'relative',
-  },
-  commentInput: {
-    backgroundColor: COLORS.SURFACE,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    color: COLORS.TEXT,
-    textAlignVertical: 'top',
-    minHeight: 80,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-  },
-  commentCount: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    fontSize: 12,
-    color: COLORS.SECONDARY,
-  },
+
   bottomActions: {
-    padding: 16,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingTop: 12,
+    paddingBottom: 22,
+    backgroundColor: COLORS.BACKGROUND,
     borderTopWidth: 0.25,
     borderTopColor: COLORS.BORDER,
     gap: 8,

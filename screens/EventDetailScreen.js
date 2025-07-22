@@ -26,18 +26,18 @@ const COLORS = {
 };
 
 const EventDetailScreen = ({ route, navigation }) => {
-  const { event, isJoined = false } = route.params;
+  const { event, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe } = route.params;
   const [isJoinedState, setIsJoinedState] = useState(isJoined);
   const { user } = useAuth();
   const { endEvent } = useEvents();
   
-  // 내가 생성한 일정인지 확인
-  const isCreatedByMe = user && (
+  // 내가 생성한 일정인지 확인 (route 파라미터 우선, 없으면 기존 로직 사용)
+  const isCreatedByMe = routeIsCreatedByMe !== undefined ? routeIsCreatedByMe : (user && (
     user.displayName === event.organizer || 
     user.email?.split('@')[0] === event.organizer ||
     event.organizer === '나' ||
     event.isCreatedByUser
-  );
+  ));
 
   // 종료된 모임 여부 확인
   const isEnded = event.status === 'ended';
@@ -79,15 +79,18 @@ const EventDetailScreen = ({ route, navigation }) => {
       // 내가 생성한 일정인 경우 종료하기
       Alert.alert(
         '모임 종료',
-        `"${event.title}" 모임을 종료하시겠습니까?\n\n종료된 모임은 종료된 모임 목록에서 확인할 수 있습니다.`,
+        `"${event.title}" 모임을 종료하시겠습니까?\n\n종료된 모임은 '종료된 모임'에서\n확인할 수 있습니다.`,
         [
           { text: '취소', style: 'cancel' },
           { 
             text: '종료하기', 
             style: 'destructive',
             onPress: () => {
+              // 모임 종료 (EventContext에서 알림 생성 포함)
               endEvent(event.id);
-              Alert.alert('종료 완료', '모임이 종료되었습니다.');
+              Alert.alert('종료 완료', '모임이 종료되었습니다.\n러닝매너를 작성해보세요!');
+              
+              // 단순히 뒤로가기만 수행
               navigation.goBack();
             }
           },
@@ -384,7 +387,6 @@ const EventDetailScreen = ({ route, navigation }) => {
                   
               } catch (error) {
                   sendMessage('🚨 지도 로딩 오류: ' + error.message);
-                  console.error('지도 로딩 오류:', error);
               }
           </script>
       </body>
@@ -405,7 +407,11 @@ const EventDetailScreen = ({ route, navigation }) => {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 65 }}
+      >
         {/* 이벤트 제목 */}
         <View style={styles.titleSection}>
           <View style={styles.titleRow}>
@@ -440,9 +446,7 @@ const EventDetailScreen = ({ route, navigation }) => {
               scrollEnabled={false}
               showsHorizontalScrollIndicator={false}
               showsVerticalScrollIndicator={false}
-              onError={(error) => {
-                console.error('🚨 WebView 오류:', error);
-              }}
+
             />
           </View>
 
@@ -487,6 +491,17 @@ const EventDetailScreen = ({ route, navigation }) => {
               <Text style={styles.difficultyText}>{event.difficulty}</Text>
             </View>
           </View>
+
+          {/* 해시태그를 러닝 정보 카드 내부로 이동 */}
+          {event.hashtags && parseHashtags(event.hashtags).length > 0 && (
+            <View style={styles.hashtagContainer}>
+              {parseHashtags(event.hashtags).map((tag, index) => (
+                <View key={index} style={styles.hashtagBadge}>
+                  <Text style={styles.hashtagText}>#{tag}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* 참여자 정보 */}
@@ -516,19 +531,7 @@ const EventDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* 해시태그 */}
-        {event.hashtags && parseHashtags(event.hashtags).length > 0 && (
-          <View style={styles.hashtagSection}>
-            <Text style={styles.sectionTitle}>태그</Text>
-            <View style={styles.hashtagContainer}>
-              {parseHashtags(event.hashtags).map((tag, index) => (
-                <View key={index} style={styles.hashtagBadge}>
-                  <Text style={styles.hashtagText}>#{tag}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
+
       </ScrollView>
 
       {/* 하단 버튼 */}
@@ -706,18 +709,19 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   infoLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.SECONDARY,
     marginBottom: 4,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: COLORS.TEXT,
   },
   infoDetailValue: {
-    fontSize: 14,
-    color: COLORS.SECONDARY,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.PRIMARY,
     marginTop: 4,
   },
   inlineMapContainer: {
@@ -736,7 +740,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: COLORS.TEXT,
     marginBottom: 16,
@@ -750,7 +754,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.SECONDARY,
     marginBottom: 4,
   },
@@ -767,6 +771,7 @@ const styles = StyleSheet.create({
   difficultyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 16,
   },
   difficultyLabel: {
     fontSize: 16,
@@ -882,7 +887,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   bottomActions: {
-    padding: 16,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.BACKGROUND,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 22,
     borderTopWidth: 0.25,
     borderTopColor: '#333333',
   },

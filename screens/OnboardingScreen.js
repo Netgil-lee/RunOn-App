@@ -48,6 +48,8 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const OnboardingScreen = ({ onComplete, navigation, route }) => {
   const isFromSignup = route?.params?.isFromSignup || false;
+  const isCarrierVerified = route?.params?.isCarrierVerified || false;
+  const carrierUserInfo = route?.params?.userInfo || null;
   const [currentStep, setCurrentStep] = useState(1);
   const scrollViewRef = useRef(null);
   const bioInputRef = useRef(null);
@@ -66,9 +68,15 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
     runningStyles: [],
     favoriteSeasons: [],
     currentGoals: [], // 단일 선택에서 배열로 변경
+    // 통신사 본인인증 정보
+    birthDate: carrierUserInfo?.birthDate || '',
+    gender: carrierUserInfo?.gender || '',
+    age: carrierUserInfo?.age || '',
+    carrierVerified: isCarrierVerified,
+    carrierVerifiedAt: carrierUserInfo?.carrierVerifiedAt || '',
   });
 
-  const { user, updateUserProfile } = useAuth();
+  const { user, updateUserProfile, setOnboardingCompleted } = useAuth();
 
   // 키보드 이벤트 리스너 추가
   useEffect(() => {
@@ -224,11 +232,55 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
     };
     
     try {
+      // 테스트 모드 확인
+      if (user?.uid === 'test-user-id') {
+        console.log('🧪 테스트 모드: 온보딩 완료 처리');
+        
+        // 테스트 모드에서도 프로필 데이터 저장
+        if (updateUserProfile) {
+          await updateUserProfile({
+            displayName: formData.nickname,
+            bio: formData.bio,
+            profileImage: formData.profileImage,
+            // 통신사 본인인증 정보
+            birthDate: formData.birthDate,
+            gender: formData.gender,
+            age: formData.age,
+            carrierVerified: formData.carrierVerified,
+            carrierVerifiedAt: formData.carrierVerifiedAt,
+            runningProfile: {
+              level: formData.runningLevel,
+              pace: formData.averagePace,
+              preferredCourses: formData.preferredCourses,
+              preferredTimes: formData.preferredTimes,
+              runningStyles: formData.runningStyles,
+              favoriteSeasons: formData.favoriteSeasons,
+              currentGoals: finalData.currentGoals,
+            },
+            onboardingCompleted: true,
+            onboardingCompletedAt: new Date().toISOString(),
+          });
+        }
+        
+        setOnboardingCompleted(true);
+        setShowWelcome(true);
+        setTimeout(() => {
+          navigation.navigate('AppIntro');
+        }, 1500);
+        return;
+      }
+      
       if (user && updateUserProfile) {
         await updateUserProfile({
           displayName: formData.nickname,
           bio: formData.bio,
           profileImage: formData.profileImage,
+          // 통신사 본인인증 정보
+          birthDate: formData.birthDate,
+          gender: formData.gender,
+          age: formData.age,
+          carrierVerified: formData.carrierVerified,
+          carrierVerifiedAt: formData.carrierVerifiedAt,
           runningProfile: {
             level: formData.runningLevel,
             pace: formData.averagePace,
@@ -242,12 +294,13 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
           onboardingCompletedAt: new Date().toISOString(),
         });
       }
+      
+      // 온보딩 완료 상태 설정
+      setOnboardingCompleted(true);
+      
       setShowWelcome(true);
       setTimeout(() => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Main' }],
-        });
+        navigation.navigate('AppIntro');
       }, 1500);
     } catch (error) {
       console.error('온보딩 완료 처리 중 오류:', error);
@@ -272,6 +325,8 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>반가워요! 🎉</Text>
       <Text style={styles.stepSubtitle}>기본 정보를 입력해주세요</Text>
+
+
 
       {/* 프로필 사진 */}
       <View style={styles.profileImageSection}>
@@ -522,6 +577,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
+
 
   // 1단계: 프로필 사진 및 기본 정보
   profileImageSection: {

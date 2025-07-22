@@ -15,6 +15,24 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "fonts": [
+      {
+        "asset": "./assets/fonts/Pretendard-Regular.otf",
+        "family": "Pretendard"
+      },
+      {
+        "asset": "./assets/fonts/Pretendard-Medium.otf",
+        "family": "Pretendard-Medium"
+      },
+      {
+        "asset": "./assets/fonts/Pretendard-Bold.otf",
+        "family": "Pretendard-Bold"
+      },
+      {
+        "asset": "./assets/fonts/Pretendard-SemiBold.otf",
+        "family": "Pretendard-SemiBold"
+      }
+    ],
     "ios": {
       "supportsTablet": true
     },
@@ -29,19 +47,16 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "eas": {
-        "projectId": "net-gil-app-rbn1bz"
-      },
       "googleClientId": "77528205997-2nsauv3k7qv1e9t0eplup0b08kdueuqn.apps.googleusercontent.com",
       "googleIosClientId": "77528205997-noat8n09igimrfiupeq6blato0g8n3sg.apps.googleusercontent.com",
-      "googleAndroidClientId": "77528205997-g4b1uqnee3m075u7s9vgtbcj1ajoa2ke.apps.googleusercontent.com"
+      "googleAndroidClientId": "77528205997-g4b1uqnee3m075u7s9vgtbcj1ajoa2ke.apps.googleusercontent.com",
+      "eas": {
+        "projectId": "273b0704-8f81-4eea-851c-fb2484d4e0f5"
+      }
     },
     "owner": "lee_gwang_hee",
     "runtimeVersion": {
       "policy": "sdkVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/net-gil-app-rbn1bz"
     },
     "jsEngine": "hermes"
   }

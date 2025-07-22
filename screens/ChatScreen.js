@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useEvents } from '../contexts/EventContext';
 
 // NetGill 디자인 시스템 색상
 const COLORS = {
@@ -27,8 +28,9 @@ const COLORS = {
 };
 
 const ChatScreen = ({ route, navigation }) => {
-  const { chatRoom } = route.params;
+  const { chatRoom, returnToCommunity } = route.params;
   const { user } = useAuth();
+  const { addChatMessage, handleChatRoomClick } = useEvents();
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -72,8 +74,34 @@ const ChatScreen = ({ route, navigation }) => {
       headerTitleStyle: {
         fontWeight: 'bold',
       },
+      // 뒤로가기 버튼 클릭 시 CommunityTab으로 이동
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => {
+            if (returnToCommunity) {
+              // CommunityTab으로 이동
+              navigation.navigate('Main', { 
+                screen: 'CommunityTab',
+                params: { activeTab: '채팅' }
+              });
+            } else {
+              // 기본 뒤로가기
+              navigation.goBack();
+            }
+          }}
+          style={{ marginLeft: 16 }}
+        >
+          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+        </TouchableOpacity>
+      ),
     });
-  }, [navigation, chatRoom]);
+  }, [navigation, chatRoom, returnToCommunity]);
+
+  // 채팅방 진입 시 알림 해제 (한 번만 실행)
+  useEffect(() => {
+    handleChatRoomClick(chatRoom.id);
+    console.log(`✅ ChatScreen 진입 - 채팅방 ${chatRoom.id} 알림 해제`);
+  }, [chatRoom.id]); // chatRoom.id만 의존성으로 사용
 
   const sendMessage = () => {
     if (newMessage.trim()) {

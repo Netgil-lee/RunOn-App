@@ -30,3 +30,42 @@ export const setWeatherApiKey = (apiKey) => {
 export const getWeatherApiKey = () => {
   return WEATHER_CONFIG.API_KEY;
 }; 
+
+// 날씨 알림 설정
+export const WEATHER_ALERT_CONFIG = {
+  // 기온 알림 임계값
+  TEMPERATURE: {
+    HIGH: 35, // 고온 경고 (35도 이상)
+    LOW: -10, // 저온 경고 (-10도 이하)
+  },
+  
+  // 강수량 알림 임계값 (mm/h)
+  RAIN: {
+    LIGHT: 5,    // 가벼운 비 (5mm/h 이상)
+    MODERATE: 15, // 보통 비 (15mm/h 이상)
+    HEAVY: 30,   // 강한 비 (30mm/h 이상)
+  },
+  
+  // 바람 알림 임계값 (m/s)
+  WIND: {
+    STRONG: 10, // 강풍 (10m/s 이상)
+  },
+  
+  // 습도 알림 임계값 (%)
+  HUMIDITY: {
+    HIGH: 90, // 고습도 (90% 이상)
+  },
+  
+  // 미세먼지 알림 임계값 (PM10, μg/m³)
+  AIR_QUALITY: {
+    MODERATE: 55,  // 보통 (55 이상)
+    UNHEALTHY: 150, // 나쁨 (150 이상)
+    VERY_UNHEALTHY: 250, // 매우 나쁨 (250 이상)
+  },
+  
+  // 한강 범람 위험 임계값
+  FLOOD_RISK: {
+    RAIN_THRESHOLD: 50, // 시간당 강수량 (mm/h)
+    RIVER_LEVEL_THRESHOLD: 8.5, // 한강 수위 (m)
+  }
+}; 

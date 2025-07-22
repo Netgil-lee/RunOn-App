@@ -1,0 +1,1071 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  SafeAreaView,
+  Keyboard,
+  Animated,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { useEvents } from '../contexts/EventContext';
+import { useAuth } from '../contexts/AuthContext';
+
+// NetGill 디자인 시스템 - 홈화면과 동일한 색상 팔레트
+const COLORS = {
+  PRIMARY: '#3AF8FF',
+  BACKGROUND: '#000000',
+  SURFACE: '#1F1F24',
+  CARD: '#171719',
+  TEXT: '#ffffff',
+  SECONDARY: '#666666',
+};
+
+const SearchScreen = ({ navigation }) => {
+  const { user } = useAuth();
+  const { userCreatedEvents, userJoinedEvents, endedEvents } = useEvents();
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'events', 'posts'
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [showRecentSearches, setShowRecentSearches] = useState(true);
+  
+  const searchInputRef = useRef(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // 자유게시판 게시글 데이터 (실제로는 API에서 가져올 데이터)
+  const communityPosts = [
+    {
+      id: 'post_1',
+      type: 'post',
+      title: '뚝섬한강공원 러닝 후기',
+      content: '오늘 뚝섬한강공원에서 10km 러닝을 했는데 정말 좋았어요! 아침 6시에 시작해서 일출을 보면서 뛰었는데, 경치가 정말 아름다웠습니다. 특히 뚝섬한강공원의 자전거도로가 러닝하기에 최적이었어요.',
+      author: '김러너',
+      authorAvatar: null,
+      createdAt: '2024-01-20',
+      updatedAt: '2024-01-20',
+      likes: 15,
+      comments: 8,
+      hashtags: '#뚝섬한강공원 #러닝후기 #모닝러닝 #일출',
+      category: '후기',
+      isPublic: true
+    },
+    {
+      id: 'post_2',
+      type: 'post',
+      title: '반포한강공원 무지개분수 러닝 코스 추천',
+      content: '반포한강공원에서 무지개분수를 보면서 러닝하는 코스를 추천드려요! 5km 코스로 적당하고, 특히 저녁에 가면 무지개분수가 켜져서 정말 아름다워요. 러닝 초보자도 쉽게 따라할 수 있는 코스입니다.',
+      author: '이러닝',
+      authorAvatar: null,
+      createdAt: '2024-01-19',
+      updatedAt: '2024-01-19',
+      likes: 23,
+      comments: 12,
+      hashtags: '#반포한강공원 #무지개분수 #러닝코스 #초보자추천',
+      category: '코스추천',
+      isPublic: true
+    },
+    {
+      id: 'post_3',
+      type: 'post',
+      title: '청계천 러닝 팁 공유',
+      content: '청계천에서 러닝할 때 주의할 점들을 공유해드려요. 청계천은 도심 속이라 접근성이 좋지만, 사람이 많을 때는 조심해야 해요. 특히 주말 오후에는 산책객이 많아서 러닝하기 어려울 수 있어요.',
+      author: '박조깅',
+      authorAvatar: null,
+      createdAt: '2024-01-18',
+      updatedAt: '2024-01-18',
+      likes: 18,
+      comments: 6,
+      hashtags: '#청계천 #러닝팁 #도심러닝 #주의사항',
+      category: '팁',
+      isPublic: true
+    },
+    {
+      id: 'post_4',
+      type: 'post',
+      title: '양재천 생태공원 러닝 경험',
+      content: '양재천 생태공원에서 러닝을 해봤는데, 자연이 정말 잘 보존되어 있어서 좋았어요. 새소리도 들리고, 공기도 깨끗해서 러닝하기 최적이었습니다. 특히 아침 일찍 가면 사람도 적고 조용해서 더 좋아요.',
+      author: '최자연',
+      authorAvatar: null,
+      createdAt: '2024-01-17',
+      updatedAt: '2024-01-17',
+      likes: 31,
+      comments: 15,
+      hashtags: '#양재천 #생태공원 #자연러닝 #아침러닝',
+      category: '후기',
+      isPublic: true
+    },
+    {
+      id: 'post_5',
+      type: 'post',
+      title: '잠실한강공원 야간 러닝',
+      content: '잠실한강공원에서 야간 러닝을 해봤는데, 야경이 정말 아름다워요! 특히 잠실타워의 불빛이 한강에 비치면서 러닝하는 기분이 정말 좋았습니다. 야간 러닝할 때는 반사재가 있는 러닝복을 입는 것을 추천해요.',
+      author: '정야간',
+      authorAvatar: null,
+      createdAt: '2024-01-16',
+      updatedAt: '2024-01-16',
+      likes: 27,
+      comments: 9,
+      hashtags: '#잠실한강공원 #야간러닝 #야경 #잠실타워',
+      category: '후기',
+      isPublic: true
+    },
+    {
+      id: 'post_6',
+      type: 'post',
+      title: '중랑천 벚꽃 코스 러닝',
+      content: '중랑천 벚꽃 코스에서 러닝을 했는데, 벚꽃이 만개해서 정말 아름다웠어요! 8km 코스로 적당하고, 벚꽃나무가 줄지어 있어서 러닝하면서 꽃구경도 할 수 있어요. 봄에 꼭 가보시길 추천드려요.',
+      author: '한봄',
+      authorAvatar: null,
+      createdAt: '2024-01-15',
+      updatedAt: '2024-01-15',
+      likes: 42,
+      comments: 18,
+      hashtags: '#중랑천 #벚꽃 #봄러닝 #꽃구경',
+      category: '코스추천',
+      isPublic: true
+    }
+  ];
+
+  // 화면 포커스 시 검색바 자동 포커스
+  useFocusEffect(
+    React.useCallback(() => {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    }, [])
+  );
+
+  // 애니메이션 효과
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  // 모든 모임 데이터 통합
+  const allEvents = [
+    ...userCreatedEvents,
+    ...userJoinedEvents,
+    ...endedEvents,
+  ];
+
+  // 검색 실행
+  const performSearch = (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    
+    // 검색어를 소문자로 변환
+    const searchTerm = query.toLowerCase().trim();
+    
+    // 모임 검색 결과
+    const eventResults = allEvents.filter(event => {
+      // 제목 검색
+      const titleMatch = event.title?.toLowerCase().includes(searchTerm);
+      
+      // 태그 검색
+      const hashtags = event.hashtags?.toLowerCase() || '';
+      const tagMatch = hashtags.includes(searchTerm);
+      
+      // 장소 검색 (한강공원, 강변)
+      const locationMatch = event.location?.toLowerCase().includes(searchTerm);
+      
+      // 상세 위치 검색
+      const customLocationMatch = event.customLocation?.toLowerCase().includes(searchTerm);
+      
+      // 모임 유형 검색
+      const typeMatch = event.type?.toLowerCase().includes(searchTerm);
+      
+      return titleMatch || tagMatch || locationMatch || customLocationMatch || typeMatch;
+    }).map(event => ({ ...event, resultType: 'event' }));
+
+    // 게시글 검색 결과
+    const postResults = communityPosts.filter(post => {
+      // 제목 검색
+      const titleMatch = post.title?.toLowerCase().includes(searchTerm);
+      
+      // 내용 검색
+      const contentMatch = post.content?.toLowerCase().includes(searchTerm);
+      
+      // 태그 검색
+      const hashtags = post.hashtags?.toLowerCase() || '';
+      const tagMatch = hashtags.includes(searchTerm);
+      
+      // 카테고리 검색
+      const categoryMatch = post.category?.toLowerCase().includes(searchTerm);
+      
+      // 작성자 검색
+      const authorMatch = post.author?.toLowerCase().includes(searchTerm);
+      
+      return titleMatch || contentMatch || tagMatch || categoryMatch || authorMatch;
+    }).map(post => ({ ...post, resultType: 'post' }));
+
+    // 모든 결과를 저장 (탭 필터링은 별도로 처리)
+    const allResults = [...eventResults, ...postResults];
+    setSearchResults(allResults);
+    setIsSearching(false);
+    
+    // 최근 검색어에 추가
+    if (query.trim() && !recentSearches.includes(query.trim())) {
+      const newRecentSearches = [query.trim(), ...recentSearches.slice(0, 4)];
+      setRecentSearches(newRecentSearches);
+    }
+  };
+
+  // 현재 탭에 따른 필터링된 결과 계산
+  const getFilteredResults = () => {
+    if (activeTab === 'all') {
+      return searchResults;
+    } else if (activeTab === 'events') {
+      return searchResults.filter(item => item.resultType === 'event');
+    } else if (activeTab === 'posts') {
+      return searchResults.filter(item => item.resultType === 'post');
+    }
+    return searchResults;
+  };
+
+  // 탭 변경 핸들러
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    // performSearch를 다시 호출하지 않음 - 이미 검색된 결과에서 필터링만 함
+  };
+
+  // 검색어 변경 시 실시간 검색
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim()) {
+        performSearch(searchQuery);
+        setShowRecentSearches(false);
+      } else {
+        setSearchResults([]);
+        setShowRecentSearches(true);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  // 검색어 제출
+  const handleSearchSubmit = () => {
+    Keyboard.dismiss();
+    performSearch(searchQuery);
+    setShowRecentSearches(false);
+  };
+
+  // 최근 검색어 클릭
+  const handleRecentSearchClick = (searchTerm) => {
+    setSearchQuery(searchTerm);
+    performSearch(searchTerm);
+    setShowRecentSearches(false);
+  };
+
+  // 검색어 삭제
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowRecentSearches(true);
+    searchInputRef.current?.focus();
+  };
+
+  // 검색 결과 카드 렌더링
+  const renderSearchResult = (item, index) => {
+    // 게시글인 경우
+    if (item.resultType === 'post') {
+      return renderPostResult(item, index);
+    }
+    
+    // 모임인 경우 (기존 로직)
+    return renderEventResult(item, index);
+  };
+
+  // 게시글 검색 결과 렌더링
+  const renderPostResult = (post, index) => {
+    const parseHashtags = (hashtagString) => {
+      if (!hashtagString || !hashtagString.trim()) return [];
+      
+      const hashtags = hashtagString
+        .split(/\s+/)
+        .filter(tag => tag.startsWith('#') && tag.length > 1)
+        .map(tag => {
+          const cleanTag = tag.replace(/[^#\w가-힣]/g, '');
+          const tagWithoutHash = cleanTag.replace(/^#+/, '');
+          return `#${tagWithoutHash}`;
+        })
+        .slice(0, 3);
+      
+      return hashtags;
+    };
+
+    const formatDate = (dateString) => {
+      if (!dateString) return '';
+      
+      try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffTime = Math.abs(now - date);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 1) return '어제';
+        if (diffDays <= 7) return `${diffDays}일 전`;
+        
+        return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+      } catch (error) {
+        return dateString;
+      }
+    };
+
+    return (
+      <TouchableOpacity
+        key={post.id || index}
+        style={styles.searchResultCard}
+        onPress={() => {
+          // 게시글 상세 화면으로 이동 (PostDetailScreen이 있다고 가정)
+          navigation.navigate('PostDetail', { post });
+        }}
+      >
+        {/* 제목과 카테고리 */}
+        <View style={styles.resultTitleRow}>
+          <View style={styles.resultTitleWithDifficulty}>
+            <Text style={styles.resultTitle}>{post.title}</Text>
+            <View style={styles.postCategoryBadge}>
+              <Text style={styles.postCategoryText}>{post.category}</Text>
+            </View>
+          </View>
+          <View style={styles.resultTypeBadge}>
+            <Text style={styles.resultTypeText}>게시글</Text>
+          </View>
+        </View>
+
+        {/* 내용 미리보기 */}
+        <Text style={styles.postContentPreview} numberOfLines={2}>
+          {post.content}
+        </Text>
+
+        {/* 태그들 */}
+        {post.hashtags && parseHashtags(post.hashtags).length > 0 && (
+          <View style={styles.resultTagsContainer}>
+            {parseHashtags(post.hashtags).map((hashtag, tagIndex) => (
+              <View key={tagIndex} style={styles.resultTag}>
+                <Text style={styles.resultTagText}>{hashtag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* 하단 정보 */}
+        <View style={styles.resultFooter}>
+          <View style={styles.resultOrganizerInfo}>
+            <View style={styles.resultOrganizerAvatar}>
+              <Text style={styles.resultOrganizerAvatarText}>
+                {post.author ? post.author.charAt(0) : '작'}
+              </Text>
+            </View>
+            <Text style={styles.resultOrganizerName}>
+              {post.author || '작성자'}
+            </Text>
+            <Text style={styles.postDateText}>
+              {formatDate(post.createdAt)}
+            </Text>
+          </View>
+
+          <View style={styles.resultRightSection}>
+            <View style={styles.postStats}>
+              <Ionicons name="heart-outline" size={14} color={COLORS.SECONDARY} />
+              <Text style={styles.postStatsText}>{post.likes}</Text>
+              <Ionicons name="chatbubble-outline" size={14} color={COLORS.SECONDARY} style={{ marginLeft: 8 }} />
+              <Text style={styles.postStatsText}>{post.comments}</Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // 모임 검색 결과 렌더링 (기존 함수명 변경)
+  const renderEventResult = (event, index) => {
+    const getDifficultyColor = (difficulty) => {
+      const colorMap = {
+        '초급': '#C9CD8F',
+        '중급': '#DAE26F',
+        '고급': '#EEFF00',
+      };
+      return colorMap[difficulty] || '#666666';
+    };
+
+    const parseHashtags = (hashtagString) => {
+      if (!hashtagString || !hashtagString.trim()) return [];
+      
+      const hashtags = hashtagString
+        .split(/\s+/)
+        .filter(tag => tag.startsWith('#') && tag.length > 1)
+        .map(tag => {
+          const cleanTag = tag.replace(/[^#\w가-힣]/g, '');
+          const tagWithoutHash = cleanTag.replace(/^#+/, '');
+          return `#${tagWithoutHash}`;
+        })
+        .slice(0, 3);
+      
+      return hashtags;
+    };
+
+    const formatDateWithoutYear = (dateString) => {
+      if (!dateString) return '';
+      
+      if (dateString.includes('(') && dateString.includes(')')) {
+        return dateString;
+      }
+      
+      try {
+        let date;
+        if (dateString.includes('년')) {
+          const cleaned = dateString.replace(/^\d{4}년\s*/, '');
+          const match = cleaned.match(/(\d{1,2})월\s*(\d{1,2})일/);
+          if (match) {
+            const month = parseInt(match[1]);
+            const day = parseInt(match[2]);
+            date = new Date(new Date().getFullYear(), month - 1, day);
+          }
+        } else {
+          date = new Date(dateString);
+        }
+        
+        if (date && !isNaN(date.getTime())) {
+          const month = date.getMonth() + 1;
+          const day = date.getDate();
+          const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+          return `${month}월 ${day}일 (${dayOfWeek})`;
+        }
+      } catch (error) {
+        // 날짜 파싱 오류
+      }
+      
+      return dateString.replace(/^\d{4}년\s*/, '');
+    };
+
+    return (
+      <TouchableOpacity
+        key={event.id || index}
+        style={styles.searchResultCard}
+        onPress={() => navigation.navigate('EventDetail', { 
+          event, 
+          isJoined: userJoinedEvents.some(e => e.id === event.id)
+        })}
+      >
+        {/* 제목과 난이도 */}
+        <View style={styles.resultTitleRow}>
+          <View style={styles.resultTitleWithDifficulty}>
+            <Text style={styles.resultTitle}>{event.title}</Text>
+            {event.difficulty && (
+              <View style={[styles.difficultyBadge, { 
+                backgroundColor: 'transparent',
+                borderWidth: 1,
+                borderColor: getDifficultyColor(event.difficulty),
+                marginLeft: 12
+              }]}> 
+                <Text style={[styles.difficultyText, { color: getDifficultyColor(event.difficulty) }]}>
+                  {event.difficulty}
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.resultTypeBadge}>
+            <Text style={styles.resultTypeText}>모임</Text>
+          </View>
+        </View>
+
+        {/* 위치와 날짜/시간 */}
+        <View style={styles.resultInfoRow}>
+          <View style={styles.resultInfoItem}>
+            <Ionicons name="location-outline" size={14} color={COLORS.PRIMARY} />
+            <Text style={styles.resultInfoText}>{event.location}</Text>
+          </View>
+          <View style={styles.resultInfoItem}>
+            <Ionicons name="time-outline" size={14} color={COLORS.PRIMARY} />
+            <Text style={styles.resultInfoText}>
+              {event.date ? formatDateWithoutYear(event.date) : '날짜 없음'} {event.time || '시간 없음'}
+            </Text>
+          </View>
+        </View>
+
+        {/* 거리/페이스 통계 */}
+        <View style={styles.resultStatsContainer}>
+          <View style={styles.resultStatItem}>
+            <Text style={styles.resultStatValue}>
+              {event.distance ? `${event.distance}km` : '5km'}
+            </Text>
+          </View>
+          <View style={styles.resultStatDivider} />
+          <View style={styles.resultStatItem}>
+            <Text style={styles.resultStatValue}>{event.pace || '6:00-7:00'}</Text>
+          </View>
+        </View>
+
+        {/* 태그들 */}
+        {event.hashtags && parseHashtags(event.hashtags).length > 0 && (
+          <View style={styles.resultTagsContainer}>
+            {parseHashtags(event.hashtags).map((hashtag, tagIndex) => (
+              <View key={tagIndex} style={styles.resultTag}>
+                <Text style={styles.resultTagText}>{hashtag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* 하단 정보 */}
+        <View style={styles.resultFooter}>
+          <View style={styles.resultOrganizerInfo}>
+            <View style={styles.resultOrganizerAvatar}>
+              <Text style={styles.resultOrganizerAvatarText}>
+                {event.organizer ? event.organizer.charAt(0) : '나'}
+              </Text>
+            </View>
+            <Text style={styles.resultOrganizerName}>
+              {event.organizer || '내가 만든 모임'}
+            </Text>
+          </View>
+
+          <View style={styles.resultRightSection}>
+            {(event.participants || event.maxParticipants) && (
+              <Text style={styles.resultParticipantInfo}>
+                참여자 {event.participants || 0}
+                {event.maxParticipants ? `/${event.maxParticipants}` : ' (제한 없음)'}
+              </Text>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // 추천 검색어
+  const suggestedSearches = [
+    { type: 'tag', text: '#러닝', icon: '🏃‍♀️' },
+    { type: 'tag', text: '#모닝러닝', icon: '🌅' },
+    { type: 'location', text: '뚝섬한강공원', icon: '🌉' },
+    { type: 'location', text: '반포한강공원', icon: '🌉' },
+    { type: 'location', text: '청계천', icon: '🏞️' },
+    { type: 'location', text: '양재천', icon: '🏞️' },
+    { type: 'category', text: '후기', icon: '📝' },
+    { type: 'category', text: '코스추천', icon: '🗺️' },
+    { type: 'category', text: '팁', icon: '💡' },
+  ];
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            onPress={() => navigation.goBack()} 
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+          </TouchableOpacity>
+          
+          {/* 검색바 */}
+          <View style={styles.searchContainer}>
+            <View style={styles.searchInputContainer}>
+              <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+              <TextInput
+                ref={searchInputRef}
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={handleSearchSubmit}
+                placeholder="태그, 한강공원, 강변, 후기, 코스추천으로 검색"
+                placeholderTextColor={COLORS.SECONDARY}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+                  <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* 검색 결과 또는 추천 */}
+        <ScrollView 
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {showRecentSearches ? (
+            // 최근 검색어 및 추천 검색어
+            <View style={styles.suggestionsContainer}>
+              {/* 최근 검색어 */}
+              {recentSearches.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>최근 검색어</Text>
+                  <View style={styles.recentSearchesContainer}>
+                    {recentSearches.map((search, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.recentSearchItem}
+                        onPress={() => handleRecentSearchClick(search)}
+                      >
+                        <Ionicons name="time-outline" size={16} color={COLORS.SECONDARY} />
+                        <Text style={styles.recentSearchText}>{search}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* 추천 검색어 */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>추천 검색어</Text>
+                <View style={styles.suggestedSearchesContainer}>
+                  {suggestedSearches.map((suggestion, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.suggestedSearchItem}
+                      onPress={() => handleRecentSearchClick(suggestion.text)}
+                    >
+                      <Text style={styles.suggestedSearchIcon}>{suggestion.icon}</Text>
+                      <Text style={styles.suggestedSearchText}>{suggestion.text}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          ) : (
+            // 검색 결과
+            <View style={styles.resultsContainer}>
+              {isSearching ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>검색 중...</Text>
+                </View>
+              ) : searchQuery.trim() ? (
+                <>
+                  {/* 검색 결과 탭 */}
+                  <View style={styles.tabContainer}>
+                    <TouchableOpacity
+                      style={[styles.tabButton, activeTab === 'all' && styles.activeTabButton]}
+                      onPress={() => handleTabChange('all')}
+                    >
+                      <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
+                        전체 ({searchResults.length})
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.tabButton, activeTab === 'events' && styles.activeTabButton]}
+                      onPress={() => handleTabChange('events')}
+                    >
+                      <Text style={[styles.tabText, activeTab === 'events' && styles.activeTabText]}>
+                        모임 ({searchResults.filter(item => item.resultType === 'event').length})
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.tabButton, activeTab === 'posts' && styles.activeTabButton]}
+                      onPress={() => handleTabChange('posts')}
+                    >
+                      <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>
+                        게시글 ({searchResults.filter(item => item.resultType === 'post').length})
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.resultsHeader}>
+                    <Text style={styles.resultsTitle}>
+                      "{searchQuery}" 검색 결과
+                    </Text>
+                    <Text style={styles.resultsCount}>
+                      {activeTab === 'all' && `${searchResults.length}개의 결과`}
+                      {activeTab === 'events' && `${searchResults.filter(item => item.resultType === 'event').length}개의 모임`}
+                      {activeTab === 'posts' && `${searchResults.filter(item => item.resultType === 'post').length}개의 게시글`}
+                    </Text>
+                  </View>
+                  
+                  {getFilteredResults().length > 0 ? (
+                    <View style={styles.resultsList}>
+                      {getFilteredResults().map((item, index) => renderSearchResult(item, index))}
+                    </View>
+                  ) : (
+                    <View style={styles.noResultsContainer}>
+                      <Ionicons name="search-outline" size={64} color={COLORS.SECONDARY} />
+                      <Text style={styles.noResultsTitle}>검색 결과가 없습니다</Text>
+                      <Text style={styles.noResultsSubtitle}>
+                        다른 키워드로 검색해보세요
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : null}
+            </View>
+          )}
+        </ScrollView>
+      </Animated.View>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.BACKGROUND,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomColor: '#333333',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 12,
+  },
+  searchContainer: {
+    flex: 1,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderColor: '#333333',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.TEXT,
+    paddingVertical: 4,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  content: {
+    flex: 1,
+  },
+  suggestionsContainer: {
+    padding: 16,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+    marginBottom: 12,
+  },
+  recentSearchesContainer: {
+    gap: 8,
+  },
+  recentSearchItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    gap: 12,
+  },
+  recentSearchText: {
+    fontSize: 15,
+    color: COLORS.TEXT,
+  },
+  suggestedSearchesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  suggestedSearchItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.PRIMARY + '20',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY + '40',
+    gap: 6,
+  },
+  suggestedSearchIcon: {
+    fontSize: 16,
+  },
+  suggestedSearchText: {
+    fontSize: 14,
+    color: COLORS.PRIMARY,
+    fontWeight: '500',
+  },
+  resultsContainer: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: COLORS.SECONDARY,
+  },
+  resultsHeader: {
+    padding: 16,
+    paddingTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  resultsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+    marginBottom: 4,
+  },
+  resultsCount: {
+    fontSize: 14,
+    color: COLORS.SECONDARY,
+  },
+  resultsList: {
+    padding: 16,
+    gap: 16,
+  },
+  searchResultCard: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 12,
+    padding: 16,
+    borderColor: '#333333',
+  },
+  resultTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  resultTitleWithDifficulty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  resultTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+    flex: 1,
+  },
+  difficultyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  difficultyText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  resultTypeBadge: {
+    backgroundColor: COLORS.PRIMARY + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY + '40',
+  },
+  resultTypeText: {
+    fontSize: 11,
+    color: COLORS.PRIMARY,
+    fontWeight: '600',
+  },
+  resultInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 16,
+    flexWrap: 'wrap',
+  },
+  resultInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  resultInfoText: {
+    fontSize: 14,
+    color: COLORS.TEXT,
+    marginLeft: 6,
+    flexShrink: 1,
+  },
+  resultStatsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    backgroundColor: '#1F1F24',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  resultStatItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultStatDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: '#333333',
+  },
+  resultStatValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+  },
+  resultTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 12,
+    gap: 6,
+  },
+  resultTag: {
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  resultTagText: {
+    fontSize: 12,
+    color: COLORS.PRIMARY,
+    fontWeight: '500',
+  },
+  resultFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  resultOrganizerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resultOrganizerAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#6B7280',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  resultOrganizerAvatarText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: COLORS.TEXT,
+  },
+  resultOrganizerName: {
+    fontSize: 14,
+    color: COLORS.TEXT,
+    fontWeight: '500',
+  },
+  resultRightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resultParticipantInfo: {
+    fontSize: 14,
+    color: COLORS.TEXT,
+    fontWeight: '500',
+  },
+  noResultsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  noResultsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noResultsSubtitle: {
+    fontSize: 14,
+    color: COLORS.SECONDARY,
+    textAlign: 'center',
+  },
+  postCategoryBadge: {
+    backgroundColor: COLORS.PRIMARY + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY + '40',
+  },
+  postCategoryText: {
+    fontSize: 11,
+    color: COLORS.PRIMARY,
+    fontWeight: '600',
+  },
+  postContentPreview: {
+    fontSize: 14,
+    color: COLORS.TEXT,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  postDateText: {
+    fontSize: 12,
+    color: COLORS.SECONDARY,
+    marginLeft: 8,
+  },
+  postStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  postStatsText: {
+    fontSize: 12,
+    color: COLORS.SECONDARY,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    paddingVertical: 4,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderColor: '#333333',
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  activeTabButton: {
+    backgroundColor: COLORS.PRIMARY + '20',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY + '40',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.SECONDARY,
+  },
+  activeTabText: {
+    color: COLORS.PRIMARY,
+  },
+});
+
+export default SearchScreen; 
