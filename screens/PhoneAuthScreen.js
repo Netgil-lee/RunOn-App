@@ -40,10 +40,22 @@ const PhoneAuthScreen = ({ navigation }) => {
   };
 
   const handleSendVerificationCode = async () => {
-    console.log('🚀 인증번호 발송 버튼 클릭됨');
+    console.log('🚀 인증번호 발송 버튼 클릭됨 (비활성화됨)');
     console.log('📱 입력된 휴대폰번호:', phoneNumber);
     console.log('🌐 온라인 상태:', isOnline);
     
+    // 테스트를 위해 핸드폰 인증 비활성화
+    Alert.alert(
+      '테스트 모드',
+      '현재 핸드폰 인증이 비활성화되어 있습니다.\n이메일로 회원가입을 진행해주세요.',
+      [
+        { text: '취소', style: 'cancel' },
+        { text: '이메일로 회원가입', onPress: () => navigation.navigate('EmailSignup') }
+      ]
+    );
+    
+    // 기존 코드는 주석 처리
+    /*
     if (!isOnline) {
       Alert.alert('오프라인 상태', '인터넷 연결을 확인해주세요.');
       return;
@@ -81,6 +93,11 @@ const PhoneAuthScreen = ({ navigation }) => {
     } finally {
       setIsLoading(false);
     }
+    */
+  };
+
+  const handleEmailSignup = () => {
+    navigation.navigate('EmailSignup');
   };
 
   const isButtonDisabled = !validatePhoneNumber(phoneNumber) || isLoading;
@@ -88,7 +105,7 @@ const PhoneAuthScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>NetGill</Text>
+        <Text style={styles.title}>RunOn</Text>
         <Text style={styles.subtitle}>너와 나의 러닝 커뮤니티</Text>
 
         <View style={styles.inputContainer}>
@@ -112,17 +129,20 @@ const PhoneAuthScreen = ({ navigation }) => {
         </View>
 
         <TouchableOpacity
-          style={[styles.sendButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.sendButton, styles.disabledButton]}
           onPress={handleSendVerificationCode}
-          disabled={isButtonDisabled}
+          disabled={true} // 항상 비활성화
         >
-          {isLoading ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={styles.sendButtonText}>인증번호 받기</Text>
-          )}
+          <Text style={styles.sendButtonText}>인증번호 받기 (비활성화)</Text>
         </TouchableOpacity>
 
+        {/* 이메일 회원가입 버튼 추가 */}
+        <TouchableOpacity
+          style={styles.emailSignupButton}
+          onPress={handleEmailSignup}
+        >
+          <Text style={styles.emailSignupButtonText}>이메일로 회원가입</Text>
+        </TouchableOpacity>
 
       </View>
     </SafeAreaView>
@@ -201,6 +221,19 @@ const styles = StyleSheet.create({
   },
   sendButtonText: {
     color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  emailSignupButton: {
+    backgroundColor: '#666',
+    borderRadius: 8,
+    padding: 15,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  emailSignupButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',

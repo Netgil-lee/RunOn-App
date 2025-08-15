@@ -42,3 +42,13 @@ firebase-config.js
 firebase-credentials.json
 firebase-debug.log
 firebase-debug.*.log
+
+# Android Keystore
+*.jks
+keystore.properties
+upload-keystore.jks*
+upload_cert.der
+
+# IDE
+.idea/
+*.iml

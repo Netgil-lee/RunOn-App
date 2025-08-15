@@ -129,7 +129,10 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true }) =>
         </View>
 
         <View style={styles.rightSection}>
-          <Text style={styles.participantInfo}>참여자 {event.participants}/{event.maxParticipants}</Text>
+          <Text style={styles.participantInfo}>
+            참여자 {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
+            {event.maxParticipants ? ` / ${event.maxParticipants}명` : ''}
+          </Text>
           {showJoinButton && (
             <TouchableOpacity 
               style={styles.joinButton} 

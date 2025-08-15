@@ -1,179 +1,110 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import firestoreService from '../services/firestoreService';
+import evaluationService from '../services/evaluationService';
+import { useAuth } from './AuthContext';
 
 const EventContext = createContext();
 
-export const useEvents = () => {
-  const context = useContext(EventContext);
-  if (!context) {
-    throw new Error('useEvents must be used within an EventProvider');
-  }
-  return context;
-};
+export const useEvents = () => useContext(EventContext);
 
 export const EventProvider = ({ children }) => {
-  // 홈화면과 일정탭에서 공유할 일정 데이터
-  const [allEvents, setAllEvents] = useState([
-    {
-      id: 3,
-      title: '한강 모닝런 모임',
-      type: '모닝러닝',
-      location: '여의도한강공원',
-      date: '1월 25일',
-      time: '오전 6:30',
-      distance: '5',
-      pace: '6:00-7:00',
-      difficulty: '초급',
-      organizer: '모닝러너',
-      participants: 4,
-      maxParticipants: 6, // 호스트 포함 최대 6명
-      isPublic: true,
-      hashtags: '#모닝런 #초급 #한강',
-      customMarkerCoords: { latitude: 37.5285, longitude: 126.9375 },
-      customLocation: '여의도한강공원 물빛광장 앞',
-      tags: ['모닝런', '초급', '한강']
-    },
-    {
-      id: 4,
-      title: '저녁 러닝 클럽',
-      type: '저녁러닝',
-      location: '올림픽공원',
-      date: '1월 26일',
-      time: '오후 7:00',
-      distance: '8',
-      pace: '5:30-6:30',
-      difficulty: '중급',
-      organizer: '러닝클럽',
-      participants: 5,
-      maxParticipants: 6, // 호스트 포함 최대 6명
-      isPublic: true,
-      hashtags: '#저녁런 #중급 #올림픽공원',
-      customMarkerCoords: { latitude: 37.5219, longitude: 127.1277 },
-      customLocation: '올림픽공원 평화의광장',
-      tags: ['저녁런', '중급', '올림픽공원']
-    },
-    {
-      id: 5,
-      title: '초보자 환영 러닝',
-      type: '소셜 러닝',
-      location: '반포한강공원',
-      date: '1월 27일',
-      time: '오전 9:00',
-      distance: '3',
-      pace: '7:00-8:00',
-      difficulty: '초급',
-      organizer: '초보러닝가이드',
-      participants: 3,
-      maxParticipants: 6, // 호스트 포함 최대 6명
-      isPublic: true,
-      hashtags: '#초보 #환영 #러닝',
-      customMarkerCoords: { latitude: 37.5172, longitude: 126.9881 },
-      customLocation: '반포한강공원 잠수교 아래',
-      tags: ['초보', '환영', '러닝']
-    }
-  ]);
-
-  // 사용자가 생성한 일정들
+  const { user } = useAuth();
+  
+  // 실제 Firebase 데이터로 초기화
+  const [allEvents, setAllEvents] = useState([]);
   const [userCreatedEvents, setUserCreatedEvents] = useState([]);
-
-  // 채팅방 데이터
-  const [chatRooms, setChatRooms] = useState([
-    {
-      id: 1,
-      eventId: 1,
-      title: '한강 새벽 러닝 모임 🌅',
-      lastMessage: '내일 오전 6시에 반포한강공원에서 만나요!',
-      lastMessageTime: '방금 전',
-      participants: 12,
-      unreadCount: 0,
-      type: '러닝모임',
-      isCreatedByUser: false
-    },
-    {
-      id: 2,
-      eventId: 2,
-      title: '주말 장거리 러닝 🏃‍♂️',
-      lastMessage: '15km 완주 화이팅!',
-      lastMessageTime: '2시간 전',
-      participants: 8,
-      unreadCount: 0,
-      type: '러닝모임',
-      isCreatedByUser: false
-    }
-  ]);
-
-
-
-  // 사용자가 참여한 일정들
-  const [userJoinedEvents, setUserJoinedEvents] = useState([
-    {
-      id: 1,
-      title: '한강 새벽 러닝 모임',
-      type: '그룹 러닝',
-      location: '반포한강공원',
-      date: '2024년 1월 15일',
-      time: '오전 6:00',
-      distance: '5',
-      pace: '6:00-7:00',
-      difficulty: '초급',
-      organizer: '박코치',
-      participants: 4,
-      maxParticipants: 6, // 호스트 포함 최대 6명
-      isPublic: true,
-      isJoined: true,
-      hashtags: '#새벽러닝 #초급자',
-      customMarkerCoords: { latitude: 37.5172, longitude: 126.9881 },
-      customLocation: '반포한강공원 세빛둥둥섬 앞 잔디밭',
-      isCreatedByUser: false
-    },
-    {
-      id: 2,
-      title: '주말 장거리 러닝',
-      type: '그룹 러닝',
-      location: '잠실한강공원',
-      date: '2024년 1월 20일',
-      time: '오전 7:00',
-      distance: '15',
-      pace: '5:00-6:00',
-      difficulty: '고급',
-      organizer: '이마라토너',
-      participants: 5,
-      maxParticipants: 6, // 호스트 포함 최대 6명
-      isPublic: true,
-      isJoined: true,
-      hashtags: '#장거리 #고급자',
-      customMarkerCoords: { latitude: 37.5219, longitude: 127.0747 },
-      customLocation: '잠실한강공원 자전거 대여소 옆 운동기구 앞',
-      isCreatedByUser: false
-    }
-  ]);
-
-  // 종료된 모임들
-  const [endedEvents, setEndedEvents] = useState([
-    {
-      id: 'ended_1',
-      title: '한강 새벽 러닝 모임',
-      type: '모닝러닝',
-      location: '반포한강공원',
-      date: '1월 15일 (월)',
-      time: '오전 6:00',
-      distance: '5',
-      pace: '6:00-7:00',
-      difficulty: '초급',
-      organizer: '박코치',
-      participants: 4,
-      maxParticipants: 6,
-      isPublic: true,
-      hashtags: '#새벽러닝 #초급자 #한강',
-      customMarkerCoords: { latitude: 37.5172, longitude: 126.9881 },
-      customLocation: '반포한강공원 세빛둥둥섬 앞 잔디밭',
-      status: 'ended',
-      isCreatedByUser: false,
-      endedDate: '2024-01-15'
-    }
-  ]);
-
-  // 모임 알림 데이터 (NotificationScreen과 공유)
+  const [userJoinedEvents, setUserJoinedEvents] = useState([]);
+  const [endedEvents, setEndedEvents] = useState([]);
+  const [chatRooms, setChatRooms] = useState([]);
   const [meetingNotifications, setMeetingNotifications] = useState([]);
+
+  // Firebase에서 실시간으로 이벤트 데이터 가져오기
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = firestoreService.onEventsSnapshot((snapshot) => {
+      const events = [];
+      snapshot.forEach((doc) => {
+        const eventData = doc.data();
+        console.log('🔍 EventContext - 원본 eventData:', eventData);
+        console.log('🔍 EventContext - eventData.date:', eventData.date, typeof eventData.date);
+        
+        // Firestore Timestamp 객체를 안전하게 처리
+        const processedEvent = {
+          id: doc.id,
+          ...eventData,
+          createdAt: eventData.createdAt?.toDate?.() || eventData.createdAt,
+          updatedAt: eventData.updatedAt?.toDate?.() || eventData.updatedAt,
+          date: eventData.date || null, // date 필드도 처리
+        };
+        
+        console.log('🔍 EventContext - processedEvent.date:', processedEvent.date, typeof processedEvent.date);
+        events.push(processedEvent);
+      });
+      setAllEvents(events);
+      
+      // 사용자가 생성한 이벤트 필터링
+      const userCreated = events.filter(event => event.organizerId === user.uid);
+      setUserCreatedEvents(userCreated);
+      
+      // 사용자가 참여한 이벤트 필터링 (생성자는 제외)
+      const userJoined = events.filter(event => 
+        event.participants && 
+        event.participants.includes(user.uid) && 
+        event.organizerId !== user.uid // 내가 만든 모임은 제외
+      );
+      setUserJoinedEvents(userJoined);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // 채팅방 데이터 실시간 가져오기
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = firestoreService.onChatRoomsSnapshot(user.uid, (snapshot) => {
+      const rooms = [];
+      snapshot.forEach((doc) => {
+        const roomData = doc.data();
+        // Firestore Timestamp 객체를 안전하게 처리
+        const processedRoom = {
+          id: doc.id,
+          ...roomData,
+          createdAt: roomData.createdAt?.toDate?.() || roomData.createdAt,
+          lastMessageTime: roomData.lastMessageTime?.toDate?.() || roomData.lastMessageTime,
+        };
+        rooms.push(processedRoom);
+      });
+      setChatRooms(rooms);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // 종료된 이벤트 가져오기
+  useEffect(() => {
+    if (!user) return;
+
+    // 종료된 이벤트는 별도 컬렉션에서 관리
+    const loadEndedEvents = async () => {
+      try {
+        // 여기서는 일반 이벤트 중 종료된 것들을 필터링하거나
+        // 별도의 endedEvents 컬렉션을 사용할 수 있습니다
+        setEndedEvents([]); // 임시로 빈 배열
+      } catch (error) {
+        console.error('종료된 이벤트 로딩 실패:', error);
+      }
+    };
+
+    loadEndedEvents();
+  }, [user]);
+
+  // 기존 하드코딩된 데이터 제거됨 - Firebase에서 실시간으로 가져옴
+
+
+
+  // 모임 알림 관련 상태
 
   // 알림 표시 상태 관리
   const [hasMeetingNotification, setHasMeetingNotification] = useState(false);
@@ -442,122 +373,136 @@ export const EventProvider = ({ children }) => {
     }
   };
 
-  // 새 일정 추가 (홈화면에도 반영)
-  const addEvent = (newEvent) => {
-    const eventWithId = {
-      ...newEvent,
-      id: Date.now(),
-      isCreatedByUser: true,
-      organizer: newEvent.organizer || '나', // 호스트 정보 추가
-      participants: 1, // 호스트(생성자) 1명으로 시작
-      maxParticipants: newEvent.maxParticipants ? newEvent.maxParticipants + 1 : null // 호스트 포함하여 최대 인원 설정
-    };
-
-    // 사용자 생성 일정에 추가
-    setUserCreatedEvents(prev => [...prev, eventWithId]);
-
-    // 공개 일정이면 전체 일정에도 추가 (홈화면에 표시)
-    if (eventWithId.isPublic) {
-      const homeEvent = {
-        ...eventWithId,
-        date: formatDateForHome(eventWithId.date),
-        organizer: eventWithId.organizer, // 실제 호스트 정보 사용
-        tags: parseHashtagsToArray(eventWithId.hashtags)
+  // 새 일정 추가 (Firestore에 저장)
+  const addEvent = async (newEvent) => {
+    try {
+      const eventData = {
+        ...newEvent,
+        organizerId: user.uid,
+        organizer: user.displayName || '익명',
+        createdBy: user.uid, // 모임 생성자 UID 추가
+        participants: [user.uid], // 호스트(생성자)를 참여자 배열에 포함
+        isCreatedByUser: true,
+        isPublic: newEvent.isPublic || true
       };
-      setAllEvents(prev => [...prev, homeEvent]);
+
+      const result = await firestoreService.createEvent(eventData);
+      
+      if (result.success) {
+        // 일정 생성 시 자동으로 채팅방 생성
+        await createChatRoomForEvent({ ...eventData, id: result.id });
+        
+        // 모임 생성자 통계 업데이트 (호스트로 카운트)
+        await evaluationService.incrementParticipationCount(user.uid, true);
+        
+        console.log('✅ 이벤트 생성 완료:', result.id);
+        return { ...eventData, id: result.id };
+      }
+    } catch (error) {
+      console.error('❌ 이벤트 생성 실패:', error);
+      throw error;
     }
-
-    // 일정 생성 시 자동으로 채팅방 생성
-    createChatRoomForEvent(eventWithId);
-
-    // 모임 생성 시 1시간 전 reminder 알림 스케줄링
-    scheduleReminderNotification(eventWithId);
-
-    return eventWithId;
   };
 
-  // 일정 참여 시 채팅방 입장
-  const joinEvent = (eventId) => {
-    // 참여한 일정 목록에 추가하는 로직은 나중에 구현
-    // 여기서는 채팅방 입장만 처리
-    joinChatRoom(eventId);
+  // 일정 참여
+  const joinEvent = async (eventId) => {
+    try {
+      const result = await firestoreService.joinEvent(eventId, user.uid);
+      if (result.success) {
+        console.log('✅ 이벤트 참여 완료:', eventId);
+        
+        // 모임 참여자 통계 업데이트 (일반 참여자로 카운트)
+        await evaluationService.incrementParticipationCount(user.uid, false);
+        
+        // 채팅방 참여도 자동으로 처리
+        await joinChatRoom(eventId);
+      }
+    } catch (error) {
+      console.error('❌ 이벤트 참여 실패:', error);
+      throw error;
+    }
   };
 
   // 채팅방 생성 (일정 생성 시 자동 호출)
-  const createChatRoomForEvent = (event) => {
-    const newChatRoom = {
-      id: event.id,
-      eventId: event.id,
-      title: `${event.title} 🏃‍♀️`,
-      lastMessage: '채팅방이 생성되었습니다. 러닝 모임에 대해 자유롭게 이야기해보세요!',
-      lastMessageTime: '방금 전',
-      participants: 1, // 생성자만 처음에 입장
-      unreadCount: 0,
-      type: '러닝모임',
-      isCreatedByUser: true
-    };
+  const createChatRoomForEvent = async (event) => {
+    try {
+      const chatRoomData = {
+        eventId: event.id,
+        title: `${event.title} 🏃‍♀️`,
+        lastMessage: '채팅방이 생성되었습니다. 러닝 모임에 대해 자유롭게 이야기해보세요!',
+        participants: [user.uid], // 생성자만 처음에 입장
+        unreadCount: 0,
+        type: '러닝모임',
+        isCreatedByUser: true
+      };
 
-    setChatRooms(prev => [...prev, newChatRoom]);
+      const result = await firestoreService.createChatRoom(chatRoomData);
+      if (result.success) {
+        console.log('✅ 채팅방 생성 완료:', result.id);
+      }
+    } catch (error) {
+      console.error('❌ 채팅방 생성 실패:', error);
+      throw error;
+    }
   };
 
   // 채팅방 입장 (일정 참여 시 자동 호출)
-  const joinChatRoom = (eventId) => {
-    setChatRooms(prev => 
-      prev.map(chatRoom => 
-        chatRoom.eventId === eventId 
-          ? { 
-              ...chatRoom, 
-              participants: chatRoom.participants + 1,
-              lastMessage: '새로운 멤버가 참여했습니다!',
-              lastMessageTime: '방금 전'
-            }
-          : chatRoom
-      )
-    );
+  const joinChatRoom = async (eventId) => {
+    try {
+      // 실제 구현에서는 채팅방에 사용자를 추가하는 로직 필요
+      console.log('✅ 채팅방 참여 완료:', eventId);
+    } catch (error) {
+      console.error('❌ 채팅방 참여 실패:', error);
+      throw error;
+    }
   };
 
   // 일정 수정
-  const updateEvent = (eventId, updatedEvent) => {
-    setUserCreatedEvents(prev => 
-      prev.map(event => 
-        event.id === eventId ? { ...event, ...updatedEvent } : event
-      )
-    );
-
-    // 홈화면 일정도 업데이트
-    if (updatedEvent.isPublic) {
-      const homeEvent = {
-        ...updatedEvent,
-        date: formatDateForHome(updatedEvent.date),
-        organizer: updatedEvent.organizer || '나', // 실제 호스트 정보 사용
-        tags: parseHashtagsToArray(updatedEvent.hashtags)
-      };
-      setAllEvents(prev => 
-        prev.map(event => 
-          event.id === eventId ? homeEvent : event
-        )
-      );
-    } else {
-      // 비공개로 변경된 경우 홈화면에서 제거
-      setAllEvents(prev => prev.filter(event => event.id !== eventId));
+  const updateEvent = async (eventId, updatedEvent) => {
+    try {
+      const result = await firestoreService.updateEvent(eventId, updatedEvent);
+      if (result.success) {
+        console.log('✅ 이벤트 수정 완료:', eventId);
+      }
+    } catch (error) {
+      console.error('❌ 이벤트 수정 실패:', error);
+      throw error;
     }
   };
 
   // 일정 삭제 (알림 생성 포함)
-  const deleteEvent = (eventId) => {
-    // 삭제할 모임 찾기
-    const eventToDelete = userCreatedEvents.find(event => event.id === eventId);
-    
-    if (eventToDelete) {
-      // 내가 만든 모임을 삭제하는 경우, 참여자들에게 cancel 알림 생성
-      addMeetingNotification('cancel', eventToDelete, true);
-    }
+  const deleteEvent = async (eventId) => {
+    try {
+      console.log('🔍 deleteEvent 호출됨 - eventId:', eventId);
+      
+      // 삭제할 모임 찾기
+      const eventToDelete = userCreatedEvents.find(event => event.id === eventId);
+      
+      if (eventToDelete) {
+        // 내가 만든 모임을 삭제하는 경우, 참여자들에게 cancel 알림 생성
+        addMeetingNotification('cancel', eventToDelete, true);
+        
+        // Firebase에서 실제 이벤트 삭제
+        await firestoreService.deleteEvent(eventId);
+        console.log('✅ Firebase에서 이벤트 삭제 완료');
+        
+        // Firebase에서 연결된 채팅방도 삭제
+        await firestoreService.deleteChatRoom(eventId);
+        console.log('✅ Firebase에서 채팅방 삭제 완료');
+      }
 
-    setUserCreatedEvents(prev => prev.filter(event => event.id !== eventId));
-    setAllEvents(prev => prev.filter(event => event.id !== eventId));
-    
-    // 연결된 채팅방도 삭제
-    setChatRooms(prev => prev.filter(chatRoom => chatRoom.eventId !== eventId));
+      // 로컬 상태 업데이트
+      setUserCreatedEvents(prev => prev.filter(event => event.id !== eventId));
+      setAllEvents(prev => prev.filter(event => event.id !== eventId));
+      
+      // 연결된 채팅방도 삭제
+      setChatRooms(prev => prev.filter(chatRoom => chatRoom.eventId !== eventId));
+      
+      console.log('✅ 로컬 상태 업데이트 완료');
+    } catch (error) {
+      console.error('❌ 이벤트 삭제 실패:', error);
+      throw error;
+    }
   };
 
   // 모임 종료 (알림 생성 포함)
@@ -626,37 +571,7 @@ export const EventProvider = ({ children }) => {
       .slice(0, 3);
   };
 
-  // 테스트용 모임 알림 생성 함수
-  const createTestMeetingNotification = (type) => {
-    const testEvent = {
-      id: 999,
-      title: '테스트 모임',
-      type: '테스트',
-      location: '테스트 장소',
-      date: '테스트 날짜',
-      time: '테스트 시간',
-      organizer: '테스트 호스트'
-    };
-    
-    addMeetingNotificationWithBadge(type, testEvent);
-  };
 
-  // 종료된 모임 알림 생성 함수
-  const createEndedMeetingNotification = (type) => {
-    const endedEvent = {
-      id: 888,
-      title: '종료된 테스트 모임',
-      type: '종료된 모임',
-      location: '한강공원',
-      date: '2024-01-15',
-      time: '오전 7:00',
-      organizer: '테스트 호스트',
-      endedAt: new Date().toISOString(),
-      status: 'ended'
-    };
-    
-    addMeetingNotificationWithBadge(type, endedEvent);
-  };
 
   // 특정 종료된 모임에 대한 러닝매너점수 알림 생성 함수
   const createRatingNotificationForEvent = (eventId) => {
@@ -703,55 +618,7 @@ export const EventProvider = ({ children }) => {
     }
   };
 
-  // 종료된 모임을 생성하고 바로 rating 알림을 생성하는 함수
-  const createEndedEventWithRatingNotification = (testNumber) => {
-    const eventId = 200 + testNumber;
-    
-    // 기존에 같은 ID의 종료된 모임이 있으면 제거
-    setEndedEvents(prev => prev.filter(event => event.id !== eventId));
-    
-    // 해당 모임의 기존 알림도 제거
-    setMeetingNotifications(prev => prev.filter(notification => 
-      !(notification.event && notification.event.id === eventId)
-    ));
-    
-    // 해당 모임의 클릭 상태만 초기화 (옵션카드 클릭 상태는 유지)
-    setClickedEndedEventIds(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(eventId);
-      return newSet;
-    });
-    
-    const newEndedEvent = {
-      id: eventId,
-      title: `테스트 종료된 모임 ${testNumber}`,
-      type: '테스트러닝',
-      location: '테스트 공원',
-      date: `2024-01-${15 + testNumber}`,
-      time: '오전 9:00',
-      distance: '5',
-      pace: "6:00-7:00",
-      difficulty: '초급',
-      organizer: '테스트유저',
-      participants: 4,
-      maxParticipants: 6,
-      isPublic: true,
-      hashtags: `#테스트${testNumber} #종료된모임`,
-      customMarkerCoords: { latitude: 37.5285, longitude: 126.9375 },
-      customLocation: '테스트 장소',
-      endedAt: new Date().toISOString(),
-      status: 'ended',
-      isCreatedByUser: false
-    };
 
-    // 종료된 모임 추가
-    setEndedEvents(prev => [...prev, newEndedEvent]);
-    
-    // 바로 해당 모임에 대한 rating 알림 생성
-    addMeetingNotificationWithBadge('rating', newEndedEvent);
-    
-    console.log(`✅ 종료된 모임 ${testNumber} 생성 및 러닝매너점수 알림 생성 완료`);
-  };
 
   // 채팅 탭 클릭 처리 함수
   const handleChatTabClick = () => {
@@ -781,16 +648,7 @@ export const EventProvider = ({ children }) => {
     console.log(`💬 채팅방 ${chatRoomId}에 메시지 추가됨: ${message}`);
   };
 
-  // 테스트용 채팅 알림 생성 함수
-  const createTestChatNotification = (chatRoomId) => {
-    const targetChatRoom = chatRooms.find(chatRoom => chatRoom.id === chatRoomId);
-    if (targetChatRoom) {
-      addChatMessage(chatRoomId, `테스트 메시지 ${Date.now()}`, '테스트 사용자');
-      console.log(`✅ 채팅방 ${chatRoomId}에 테스트 알림 생성됨`);
-    } else {
-      console.log(`❌ ID ${chatRoomId}에 해당하는 채팅방을 찾을 수 없음`);
-    }
-  };
+
 
   // 알림 변경 시 상태 업데이트
   useEffect(() => {
@@ -843,19 +701,15 @@ export const EventProvider = ({ children }) => {
     addMeetingNotificationWithBadge,
     hasMeetingNotification,
     hasRatingNotification,
-    createTestMeetingNotification,
     checkRatingNotifications,
     hasRatingNotificationForEvent,
     hasRatingNotificationForEndedEventsOption,
-    createEndedMeetingNotification,
     createRatingNotificationForEvent,
-    createEndedEventWithRatingNotification,
     handleEndedEventsOptionClick,
     handleEndedEventCardClick,
     handleChatTabClick,
     handleChatRoomClick,
-    addChatMessage,
-    createTestChatNotification
+    addChatMessage
   };
 
   return (

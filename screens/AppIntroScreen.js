@@ -13,9 +13,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
+import { useAuth } from '../contexts/AuthContext'; // AuthContext 추가
 // import * as Notifications from 'expo-notifications';
 
-// NetGill 디자인 시스템
+// Runon 디자인 시스템
 const COLORS = {
   PRIMARY: '#3AF8FF',
   BACKGROUND: '#000000',
@@ -43,6 +44,8 @@ const AppIntroScreen = ({ navigation }) => {
     settings,
     toggleSetting
   } = useNotificationSettings();
+  
+  const { completeOnboarding } = useAuth(); // AuthContext에서 completeOnboarding 가져오기
 
   // 알림 권한 확인
   useEffect(() => {
@@ -105,15 +108,19 @@ const AppIntroScreen = ({ navigation }) => {
   };
 
   // 다음 단계로 이동
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < 2) {
       setCurrentStep(currentStep + 1);
     } else {
-      // 홈화면으로 이동
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
+      // 앱 인트로 완료 - 온보딩 상태를 완료로 변경
+      try {
+        console.log('🎉 AppIntro 완료 - 온보딩 상태 업데이트');
+        await completeOnboarding();
+        // AuthContext의 상태 변경으로 자동으로 메인 화면으로 전환됨
+      } catch (error) {
+        console.error('❌ 온보딩 완료 처리 실패:', error);
+        Alert.alert('오류', '설정 저장 중 문제가 발생했습니다.');
+      }
     }
   };
 

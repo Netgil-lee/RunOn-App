@@ -167,7 +167,15 @@ const CommunityScreen = ({ navigation, route }) => {
   };
 
   const handleEventPress = (event) => {
-    navigation.navigate('EventDetail', { event, isJoined: false });
+    // Date 객체를 문자열로 직렬화
+    const serializedEvent = {
+      ...event,
+      createdAt: event.createdAt && typeof event.createdAt.toISOString === 'function' ? event.createdAt.toISOString() : event.createdAt,
+      date: event.date && typeof event.date.toISOString === 'function' ? event.date.toISOString() : event.date,
+      updatedAt: event.updatedAt && typeof event.updatedAt.toISOString === 'function' ? event.updatedAt.toISOString() : event.updatedAt
+    };
+    
+    navigation.navigate('EventDetail', { event: serializedEvent, isJoined: false });
   };
 
 
@@ -278,7 +286,16 @@ const CommunityScreen = ({ navigation, route }) => {
   // 채팅 핸들러
   const handleChatRoomPress = (chatRoom) => {
     handleChatRoomClick(chatRoom.id); // 채팅방 클릭 시 알림 해제
-    navigation.navigate('Chat', { chatRoom });
+    
+    // Date 객체를 문자열로 직렬화
+    const serializedChatRoom = {
+      ...chatRoom,
+      createdAt: chatRoom.createdAt && typeof chatRoom.createdAt.toISOString === 'function' ? chatRoom.createdAt.toISOString() : chatRoom.createdAt,
+      lastMessageTime: chatRoom.lastMessageTime && typeof chatRoom.lastMessageTime.toISOString === 'function' ? chatRoom.lastMessageTime.toISOString() : chatRoom.lastMessageTime,
+      updatedAt: chatRoom.updatedAt && typeof chatRoom.updatedAt.toISOString === 'function' ? chatRoom.updatedAt.toISOString() : chatRoom.updatedAt
+    };
+    
+    navigation.navigate('Chat', { chatRoom: serializedChatRoom });
   };
 
 
@@ -485,44 +502,46 @@ const CommunityScreen = ({ navigation, route }) => {
                       <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>내가 생성한 일정</Text>
                       </View>
-                      {chatRooms.filter(chatRoom => chatRoom.isCreatedByUser).map((chatRoom) => (
-                        <TouchableOpacity 
-                          key={chatRoom.id} 
-                          style={styles.chatRoomCard}
-                          onPress={() => handleChatRoomPress(chatRoom)}
-                        >
-                          <View style={styles.chatRoomHeader}>
-                            <View style={styles.chatRoomTitleContainer}>
-                              <Text style={styles.chatRoomTitle}>{chatRoom.title}</Text>
+                                            {chatRooms.filter(chatRoom => chatRoom.isCreatedByUser).map((chatRoom) => (
+                          <TouchableOpacity 
+                            key={chatRoom.id} 
+                            style={styles.chatRoomCard}
+                            onPress={() => handleChatRoomPress(chatRoom)}
+                          >
+                            <View style={styles.chatRoomHeader}>
+                              <View style={styles.chatRoomTitleContainer}>
+                                <Text style={styles.chatRoomTitle}>{chatRoom.title}</Text>
+                              </View>
+                              <View style={styles.chatRoomMeta}>
+                                <Text style={styles.chatRoomTime}>
+                                  {chatRoom.lastMessageTime ? (chatRoom.lastMessageTime instanceof Date ? chatRoom.lastMessageTime.toLocaleDateString('ko-KR') : chatRoom.lastMessageTime) : ''}
+                                </Text>
+                                {(() => {
+                                  const unreadCount = getUnreadCountForChatRoom(chatRoom.id);
+                                  return unreadCount > 0 ? (
+                                    <View style={styles.unreadBadge}>
+                                      <Text style={styles.unreadCount}>
+                                        {unreadCount >= 3 ? '+3' : unreadCount}
+                                      </Text>
+                                    </View>
+                                  ) : null;
+                                })()}
+                              </View>
                             </View>
-                            <View style={styles.chatRoomMeta}>
-                              <Text style={styles.chatRoomTime}>{chatRoom.lastMessageTime}</Text>
-                              {(() => {
-                                const unreadCount = getUnreadCountForChatRoom(chatRoom.id);
-                                return unreadCount > 0 ? (
-                                  <View style={styles.unreadBadge}>
-                                    <Text style={styles.unreadCount}>
-                                      {unreadCount >= 3 ? '+3' : unreadCount}
-                                    </Text>
-                                  </View>
-                                ) : null;
-                              })()}
+                            
+                            <Text style={styles.lastMessage} numberOfLines={1}>
+                              {chatRoom.lastMessage}
+                            </Text>
+                            
+                            <View style={styles.chatRoomFooter}>
+                              <View style={styles.participantsInfo}>
+                                <Ionicons name="people" size={14} color={COLORS.SECONDARY} />
+                                <Text style={styles.participantsCount}>{Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 1}명</Text>
+                              </View>
+                              <Ionicons name="chevron-forward" size={16} color={COLORS.SECONDARY} />
                             </View>
-                          </View>
-                          
-                          <Text style={styles.lastMessage} numberOfLines={1}>
-                            {chatRoom.lastMessage}
-                          </Text>
-                          
-                          <View style={styles.chatRoomFooter}>
-                            <View style={styles.participantsInfo}>
-                              <Ionicons name="people" size={14} color={COLORS.SECONDARY} />
-                              <Text style={styles.participantsCount}>{chatRoom.participants}명</Text>
-                            </View>
-                            <Ionicons name="chevron-forward" size={16} color={COLORS.SECONDARY} />
-                          </View>
-                        </TouchableOpacity>
-                      ))}
+                          </TouchableOpacity>
+                        ))}
                     </>
                   )}
 
@@ -549,7 +568,9 @@ const CommunityScreen = ({ navigation, route }) => {
                               <Text style={styles.chatRoomTitle}>{chatRoom.title}</Text>
                             </View>
                             <View style={styles.chatRoomMeta}>
-                              <Text style={styles.chatRoomTime}>{chatRoom.lastMessageTime}</Text>
+                              <Text style={styles.chatRoomTime}>
+                                {chatRoom.lastMessageTime ? (chatRoom.lastMessageTime instanceof Date ? chatRoom.lastMessageTime.toLocaleDateString('ko-KR') : chatRoom.lastMessageTime) : ''}
+                              </Text>
                               {(() => {
                                 const unreadCount = getUnreadCountForChatRoom(chatRoom.id);
                                 return unreadCount > 0 ? (
@@ -570,7 +591,7 @@ const CommunityScreen = ({ navigation, route }) => {
                           <View style={styles.chatRoomFooter}>
                             <View style={styles.participantsInfo}>
                               <Ionicons name="people" size={14} color={COLORS.SECONDARY} />
-                              <Text style={styles.participantsCount}>{chatRoom.participants}명</Text>
+                              <Text style={styles.participantsCount}>{Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 1}명</Text>
                             </View>
                             <Ionicons name="chevron-forward" size={16} color={COLORS.SECONDARY} />
                           </View>
@@ -650,7 +671,7 @@ const CommunityScreen = ({ navigation, route }) => {
                           <Text style={styles.postCategoryText}>{getCategoryName(post.category)}</Text>
                         </View>
                         <Text style={styles.postDate}>
-                          {post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR') : ''}
+                          {post.createdAt ? (post.createdAt instanceof Date ? post.createdAt.toLocaleDateString('ko-KR') : new Date(post.createdAt).toLocaleDateString('ko-KR')) : ''}
                         </Text>
                       </View>
                       <Text style={styles.postTitle}>{post.title}</Text>
@@ -697,7 +718,7 @@ const CommunityScreen = ({ navigation, route }) => {
                           <Text style={styles.postCategoryText}>{getCategoryName(post.category)}</Text>
                         </View>
                         <Text style={styles.postDate}>
-                          {post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR') : ''}
+                          {post.createdAt ? (post.createdAt instanceof Date ? post.createdAt.toLocaleDateString('ko-KR') : new Date(post.createdAt).toLocaleDateString('ko-KR')) : ''}
                         </Text>
                       </View>
                       <Text style={styles.postTitle}>{post.title}</Text>

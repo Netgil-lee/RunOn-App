@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, updateDoc, getFirestore, getDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getFirestore, getDoc, serverTimestamp } from 'firebase/firestore';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthViewModel } from '../viewmodels/AuthViewModel';
@@ -27,7 +27,7 @@ const defaultContextValue = {
   resetPassword: async () => {},
   sendPhoneVerification: async () => {},
   verifyPhoneCode: async () => {},
-  carrierAuth: async () => {},
+
 };
 
 // AuthContext 생성
@@ -40,9 +40,9 @@ export const AuthProvider = ({ children }) => {
   const [initializing, setInitializing] = useState(true);
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
-  const [testUserProfile, setTestUserProfile] = useState(null); // 테스트 모드 사용자 프로필 데이터
   const { isOnline, error: networkError } = useNetwork();
   const authViewModel = useAuthViewModel();
+
 
   
 
@@ -68,6 +68,8 @@ export const AuthProvider = ({ children }) => {
           email: user?.email 
         });
         
+
+        
         const handleAuthChange = async () => {
           // 새로 로그인한 사용자의 경우 초기 커뮤니티 통계 설정
           if (user) {
@@ -77,9 +79,14 @@ export const AuthProvider = ({ children }) => {
               const userRef = doc(db, 'users', user.uid);
               const userSnap = await getDoc(userRef);
               
-              // 사용자 문서가 없거나 communityStats가 없는 경우 초기화
-              if (!userSnap.exists() || !userSnap.data().communityStats) {
+              // 사용자 문서 확인 및 온보딩 상태 설정
+              if (!userSnap.exists()) {
+                // 사용자 문서가 없는 경우 - 새 사용자
                 await setDoc(userRef, {
+                  email: user.email,
+                  uid: user.uid,
+                  createdAt: serverTimestamp(),
+                  onboardingCompleted: false, // 새 사용자는 온보딩 미완료
                   communityStats: {
                     totalParticipated: 0,
                     thisMonthParticipated: 0,
@@ -89,45 +96,67 @@ export const AuthProvider = ({ children }) => {
                     receivedTags: {}
                   }
                 }, { merge: true });
+                
+                setOnboardingCompleted(false);
+                console.log('🔐 AuthContext: 새 사용자 문서 생성 - 온보딩 미완료');
+              } else {
+                // 기존 사용자 문서가 있는 경우
+                const userData = userSnap.data();
+                
+                // communityStats가 없는 경우에만 추가
+                if (!userData.communityStats) {
+                  await setDoc(userRef, {
+                    communityStats: {
+                      totalParticipated: 0,
+                      thisMonthParticipated: 0,
+                      hostedEvents: 0,
+                      averageMannerScore: 5.0,
+                      mannerScoreCount: 0,
+                      receivedTags: {}
+                    }
+                  }, { merge: true });
+                  console.log('🔐 AuthContext: communityStats 추가');
+                }
+                
+                // 온보딩 완료 상태 확인
+                const isOnboardingCompleted = userData.onboardingCompleted || false;
+                setOnboardingCompleted(isOnboardingCompleted);
+                console.log('🔐 AuthContext: 기존 사용자 - 온보딩 상태:', isOnboardingCompleted);
               }
             } catch (error) {
               console.error('초기 커뮤니티 통계 설정 실패:', error);
+              // 오류 발생 시 기본적으로 온보딩 미완료 상태로 설정
+              setOnboardingCompleted(false);
             }
           } else {
             console.log('🔐 AuthContext: 로그인된 사용자 없음');
+            // 사용자가 없으면 온보딩 상태를 false로 설정
+            setOnboardingCompleted(false);
           }
-    
-          console.log('🔐 AuthContext: 사용자 상태 설정', { user: !!user, uid: user?.uid });
-          setUser(user);
-          setInitializing(false);
           
+          // 최소 스플래시 시간 보장
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minSplashTime - elapsedTime);
+          
+          setTimeout(() => {
+            setUser(user);
+            setInitializing(false);
+            // onboardingCompleted 상태를 다시 확인하여 로그에 반영
+            console.log('🔐 AuthContext: 컨텍스트 값 생성', {
+              initializing: false,
+              onboardingCompleted: onboardingCompleted,
+              user: !!user,
+              userUid: user?.uid
+            });
+          }, remainingTime);
         };
-
-        // 최소 스플래시 시간을 보장
-        const elapsedTime = Date.now() - startTime;
-        const remainingTime = Math.max(0, minSplashTime - elapsedTime);
         
-        if (remainingTime > 0) {
-  
-          setTimeout(handleAuthChange, remainingTime);
-        } else {
-          handleAuthChange();
-        }
+        handleAuthChange();
       },
       (error) => {
-        console.error('Auth state change error:', error);
-        authViewModel.setError(error.message);
-        
-        // 에러가 발생해도 최소 스플래시 시간은 보장
-        const elapsedTime = Date.now() - startTime;
-        const remainingTime = Math.max(0, minSplashTime - elapsedTime);
-        
-        if (remainingTime > 0) {
-  
-          setTimeout(() => setInitializing(false), remainingTime);
-        } else {
-          setInitializing(false);
-        }
+        console.error('❌ AuthContext: Firebase 인증 상태 모니터링 오류:', error);
+        setUser(null);
+        setInitializing(false);
       }
     );
 
@@ -176,13 +205,6 @@ export const AuthProvider = ({ children }) => {
       throw new Error('로그인된 사용자가 없습니다.');
     }
 
-    // 테스트 모드 확인
-    if (user.uid === 'test-user-id') {
-      console.log('🧪 테스트 모드: 로컬 프로필 데이터 저장');
-      setTestUserProfile(profileData);
-      return; // 테스트 모드에서는 Firestore 저장 건너뛰기
-    }
-
     try {
       const db = getFirestore();
       const userRef = doc(db, 'users', user.uid);
@@ -209,85 +231,74 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 테스트 모드 사용자 설정 함수
-  const setTestUser = (testUser) => {
-    console.log('🧪 테스트 모드: 사용자 상태 설정', testUser);
-    setUser(testUser);
-    setInitializing(false);
-    setOnboardingCompleted(false); // 테스트 모드 사용자는 온보딩 미완료 상태
-    console.log('🧪 테스트 모드: onboardingCompleted = false로 설정됨');
-  };
-
-  // 로그아웃 함수 래핑 (테스트 모드 처리 포함)
+  // 로그아웃 함수
   const handleLogout = async () => {
     try {
-      console.log('🚪 로그아웃 시작', { userUid: user?.uid, isTestUser: user?.uid === 'test-user-id' });
+      console.log('🚪 로그아웃 시작', { userUid: user?.uid });
       
-      // 테스트 모드 사용자인 경우 상태만 초기화
-      if (user?.uid === 'test-user-id') {
-        console.log('🧪 테스트 모드: 로그아웃 상태 초기화');
-        setUser(null);
-        setTestUserProfile(null);
-        setOnboardingCompleted(false);
-        setConfirmationResult(null);
-        console.log('✅ 테스트 모드 로그아웃 완료');
-        return;
-      }
-      
-      // 실제 사용자인 경우 AuthViewModel의 logout 호출
-      console.log('🔐 실제 사용자: Firebase 로그아웃 실행');
+      // AuthViewModel의 logout 호출
+      console.log('🔐 Firebase 로그아웃 실행');
       await authViewModel.logout();
       
-      // 로그아웃 후 상태 초기화 (순서 중요)
+      // 로그아웃 후 상태 초기화
       console.log('🔄 로그아웃 후 상태 초기화 시작');
       setConfirmationResult(null);
-      setTestUserProfile(null);
       setOnboardingCompleted(false);
-      setUser(null); // 마지막에 user를 null로 설정하여 네비게이션 트리거
+      setUser(null);
       console.log('✅ 로그아웃 완료 및 상태 초기화');
     } catch (error) {
       console.error('❌ 로그아웃 처리 중 오류:', error);
       // 에러가 발생해도 상태는 초기화
       setUser(null);
-      setTestUserProfile(null);
       setOnboardingCompleted(false);
       setConfirmationResult(null);
       throw error;
     }
   };
 
-  // 컨텍스트 값 생성 시 로그 추가
-  console.log('🔐 AuthContext: 컨텍스트 값 생성', { 
-    user: !!user, 
-    userUid: user?.uid,
-    initializing,
-    onboardingCompleted 
-  });
+  // 온보딩 완료 처리
+  const completeOnboarding = async () => {
+    try {
+      if (user) {
+        const db = getFirestore();
+        const userRef = doc(db, 'users', user.uid);
+        
+        await updateDoc(userRef, {
+          onboardingCompleted: true,
+          onboardingCompletedAt: serverTimestamp()
+        });
+        
+        setOnboardingCompleted(true);
+        console.log('🔐 AuthContext: 온보딩 완료 상태로 업데이트');
+      }
+    } catch (error) {
+      console.error('온보딩 완료 처리 실패:', error);
+    }
+  };
 
-  const value = {
+  // 컨텍스트 값 생성
+  const contextValue = {
     user,
+    initializing,
+    loading: authViewModel.loading,
+    error: authViewModel.error,
     signIn: authViewModel.signIn,
     signUp: authViewModel.signUp,
-    logout: handleLogout,
+    signInWithGoogle: authViewModel.signInWithGoogle,
+    logout: authViewModel.logout,
     resetPassword: authViewModel.resetPassword,
     sendPhoneVerification: authViewModel.sendPhoneVerification,
     verifyPhoneCode: authViewModel.verifyPhoneCode,
-    carrierAuth: authViewModel.carrierAuth,
-    updateUserProfile,
-    loading: authViewModel.loading,
-    error: authViewModel.error,
-    initializing,
     confirmationResult,
     setConfirmationResult,
-    setTestUser,
     onboardingCompleted,
     setOnboardingCompleted,
-    testUserProfile, // 테스트 모드 사용자 프로필 데이터 추가
-    clearError: () => authViewModel.setError(null)
+    completeOnboarding,
+    updateUserProfile,
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

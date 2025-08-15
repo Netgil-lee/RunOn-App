@@ -118,7 +118,9 @@ const ParticipantScreen = ({ route, navigation }) => {
                   <Text style={styles.levelText}>{participant ? getLevelInfo(participant.level).title : '미설정'}</Text>
                 </View>
               </View>
-              <Text style={styles.joinDate}>가입일: {participant ? participant.joinDate : '미설정'}</Text>
+              <Text style={styles.joinDate}>
+                가입일: {participant ? (participant.joinDate instanceof Date ? participant.joinDate.toLocaleDateString('ko-KR') : participant.joinDate) : '미설정'}
+              </Text>
               <Text style={styles.bio}>{participant ? participant.bio : '자기소개가 없습니다.'}</Text>
             </View>
           </View>

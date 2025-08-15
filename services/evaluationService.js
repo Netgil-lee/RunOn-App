@@ -127,19 +127,27 @@ class EvaluationService {
   // 참여 모임 수 업데이트 (모임 참여 시 호출)
   async incrementParticipationCount(userId, isHost = false) {
     try {
+      console.log('📊 EvaluationService - 참여 카운트 업데이트 시작:', { userId, isHost });
+      
       const userRef = doc(this.db, 'users', userId);
       
       const updateData = {
-        'communityStats.totalParticipated': increment(1)
+        'communityStats.totalParticipated': increment(1),
+        'communityStats.thisMonthParticipated': increment(1) // 이번달 참여 카운트 증가
       };
 
       if (isHost) {
         updateData['communityStats.hostedEvents'] = increment(1);
+        // 모임 생성도 이번달 참여에 포함되므로 추가 증가
+        updateData['communityStats.thisMonthParticipated'] = increment(1);
       }
 
+      console.log('📊 EvaluationService - 업데이트 데이터:', updateData);
       await updateDoc(userRef, updateData);
+      
+      console.log('✅ EvaluationService - 참여 카운트 업데이트 완료');
     } catch (error) {
-      console.error('참여 수 업데이트 실패:', error);
+      console.error('❌ 참여 수 업데이트 실패:', error);
     }
   }
 }

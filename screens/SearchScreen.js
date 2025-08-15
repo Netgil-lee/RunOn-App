@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useEvents } from '../contexts/EventContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useCommunity } from '../contexts/CommunityContext';
+import MeetingCard from '../components/MeetingCard';
 
 // NetGill 디자인 시스템 - 홈화면과 동일한 색상 팔레트
 const COLORS = {
@@ -28,6 +30,7 @@ const COLORS = {
 const SearchScreen = ({ navigation }) => {
   const { user } = useAuth();
   const { userCreatedEvents, userJoinedEvents, endedEvents } = useEvents();
+  const { posts: communityPosts } = useCommunity(); // 실제 커뮤니티 데이터 사용
   
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -38,100 +41,6 @@ const SearchScreen = ({ navigation }) => {
   
   const searchInputRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  // 자유게시판 게시글 데이터 (실제로는 API에서 가져올 데이터)
-  const communityPosts = [
-    {
-      id: 'post_1',
-      type: 'post',
-      title: '뚝섬한강공원 러닝 후기',
-      content: '오늘 뚝섬한강공원에서 10km 러닝을 했는데 정말 좋았어요! 아침 6시에 시작해서 일출을 보면서 뛰었는데, 경치가 정말 아름다웠습니다. 특히 뚝섬한강공원의 자전거도로가 러닝하기에 최적이었어요.',
-      author: '김러너',
-      authorAvatar: null,
-      createdAt: '2024-01-20',
-      updatedAt: '2024-01-20',
-      likes: 15,
-      comments: 8,
-      hashtags: '#뚝섬한강공원 #러닝후기 #모닝러닝 #일출',
-      category: '후기',
-      isPublic: true
-    },
-    {
-      id: 'post_2',
-      type: 'post',
-      title: '반포한강공원 무지개분수 러닝 코스 추천',
-      content: '반포한강공원에서 무지개분수를 보면서 러닝하는 코스를 추천드려요! 5km 코스로 적당하고, 특히 저녁에 가면 무지개분수가 켜져서 정말 아름다워요. 러닝 초보자도 쉽게 따라할 수 있는 코스입니다.',
-      author: '이러닝',
-      authorAvatar: null,
-      createdAt: '2024-01-19',
-      updatedAt: '2024-01-19',
-      likes: 23,
-      comments: 12,
-      hashtags: '#반포한강공원 #무지개분수 #러닝코스 #초보자추천',
-      category: '코스추천',
-      isPublic: true
-    },
-    {
-      id: 'post_3',
-      type: 'post',
-      title: '청계천 러닝 팁 공유',
-      content: '청계천에서 러닝할 때 주의할 점들을 공유해드려요. 청계천은 도심 속이라 접근성이 좋지만, 사람이 많을 때는 조심해야 해요. 특히 주말 오후에는 산책객이 많아서 러닝하기 어려울 수 있어요.',
-      author: '박조깅',
-      authorAvatar: null,
-      createdAt: '2024-01-18',
-      updatedAt: '2024-01-18',
-      likes: 18,
-      comments: 6,
-      hashtags: '#청계천 #러닝팁 #도심러닝 #주의사항',
-      category: '팁',
-      isPublic: true
-    },
-    {
-      id: 'post_4',
-      type: 'post',
-      title: '양재천 생태공원 러닝 경험',
-      content: '양재천 생태공원에서 러닝을 해봤는데, 자연이 정말 잘 보존되어 있어서 좋았어요. 새소리도 들리고, 공기도 깨끗해서 러닝하기 최적이었습니다. 특히 아침 일찍 가면 사람도 적고 조용해서 더 좋아요.',
-      author: '최자연',
-      authorAvatar: null,
-      createdAt: '2024-01-17',
-      updatedAt: '2024-01-17',
-      likes: 31,
-      comments: 15,
-      hashtags: '#양재천 #생태공원 #자연러닝 #아침러닝',
-      category: '후기',
-      isPublic: true
-    },
-    {
-      id: 'post_5',
-      type: 'post',
-      title: '잠실한강공원 야간 러닝',
-      content: '잠실한강공원에서 야간 러닝을 해봤는데, 야경이 정말 아름다워요! 특히 잠실타워의 불빛이 한강에 비치면서 러닝하는 기분이 정말 좋았습니다. 야간 러닝할 때는 반사재가 있는 러닝복을 입는 것을 추천해요.',
-      author: '정야간',
-      authorAvatar: null,
-      createdAt: '2024-01-16',
-      updatedAt: '2024-01-16',
-      likes: 27,
-      comments: 9,
-      hashtags: '#잠실한강공원 #야간러닝 #야경 #잠실타워',
-      category: '후기',
-      isPublic: true
-    },
-    {
-      id: 'post_6',
-      type: 'post',
-      title: '중랑천 벚꽃 코스 러닝',
-      content: '중랑천 벚꽃 코스에서 러닝을 했는데, 벚꽃이 만개해서 정말 아름다웠어요! 8km 코스로 적당하고, 벚꽃나무가 줄지어 있어서 러닝하면서 꽃구경도 할 수 있어요. 봄에 꼭 가보시길 추천드려요.',
-      author: '한봄',
-      authorAvatar: null,
-      createdAt: '2024-01-15',
-      updatedAt: '2024-01-15',
-      likes: 42,
-      comments: 18,
-      hashtags: '#중랑천 #벚꽃 #봄러닝 #꽃구경',
-      category: '코스추천',
-      isPublic: true
-    }
-  ];
 
   // 화면 포커스 시 검색바 자동 포커스
   useFocusEffect(
@@ -459,10 +368,20 @@ const SearchScreen = ({ navigation }) => {
       <TouchableOpacity
         key={event.id || index}
         style={styles.searchResultCard}
-        onPress={() => navigation.navigate('EventDetail', { 
-          event, 
-          isJoined: userJoinedEvents.some(e => e.id === event.id)
-        })}
+        onPress={() => {
+          // Date 객체를 문자열로 변환하여 직렬화 문제 해결
+          const serializedEvent = {
+            ...event,
+            createdAt: event.createdAt && typeof event.createdAt.toISOString === 'function' ? event.createdAt.toISOString() : event.createdAt,
+            date: event.date && typeof event.date.toISOString === 'function' ? event.date.toISOString() : event.date,
+            updatedAt: event.updatedAt && typeof event.updatedAt.toISOString === 'function' ? event.updatedAt.toISOString() : event.updatedAt
+          };
+          
+          navigation.navigate('EventDetail', { 
+            event: serializedEvent, 
+            isJoined: userJoinedEvents.some(e => e.id === event.id)
+          });
+        }}
       >
         {/* 제목과 난이도 */}
         <View style={styles.resultTitleRow}>
@@ -540,7 +459,7 @@ const SearchScreen = ({ navigation }) => {
           <View style={styles.resultRightSection}>
             {(event.participants || event.maxParticipants) && (
               <Text style={styles.resultParticipantInfo}>
-                참여자 {event.participants || 0}
+                참여자 {Array.isArray(event.participants) ? event.participants.length : (event.participants || 0)}
                 {event.maxParticipants ? `/${event.maxParticipants}` : ' (제한 없음)'}
               </Text>
             )}

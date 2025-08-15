@@ -1,11 +1,9 @@
+import ENV from './environment';
+
 // 날씨 API 설정
 export const WEATHER_CONFIG = {
-  // OpenWeatherMap API 키
-  // 1. https://openweathermap.org/ 에서 무료 계정 생성
-  // 2. "My API keys"에서 API 키 확인
-  // 3. 아래에 실제 API 키를 입력하세요
-  // 4. API 키 활성화까지 2-3시간 소요될 수 있습니다
-  API_KEY: 'c1861b48c1786a9ff6a37560f3b8c63c',
+  // OpenWeatherMap API 키 (환경 변수에서 가져옴)
+  API_KEY: ENV.weatherApiKey,
   
   // 기본 위치 (서울 한강공원)
   DEFAULT_LOCATION: {
@@ -21,15 +19,20 @@ export const WEATHER_CONFIG = {
   UPDATE_INTERVAL: 30 * 60 * 1000,
 };
 
-// API 키 설정 함수
+// API 키 설정 함수 (개발 중에만 사용)
 export const setWeatherApiKey = (apiKey) => {
-  WEATHER_CONFIG.API_KEY = apiKey;
+  if (__DEV__) {
+    WEATHER_CONFIG.API_KEY = apiKey;
+    console.log('⚠️ 개발 모드에서만 API 키 변경 가능');
+  } else {
+    console.warn('⚠️ 프로덕션에서는 API 키를 변경할 수 없습니다.');
+  }
 };
 
 // API 키 가져오기 함수
 export const getWeatherApiKey = () => {
   return WEATHER_CONFIG.API_KEY;
-}; 
+};
 
 // 날씨 알림 설정
 export const WEATHER_ALERT_CONFIG = {

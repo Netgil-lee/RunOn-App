@@ -32,7 +32,7 @@ const HanRiverMap = ({ navigation }) => {
   // 슬라이딩 애니메이션 값
   const slideAnim = useRef(new Animated.Value(0)).current;
   
-  // NetGill 색상 시스템
+  // Runon 색상 시스템
   const COLORS = {
     PRIMARY: '#3AF8FF',
     BACKGROUND: '#000000',
@@ -70,7 +70,7 @@ const HanRiverMap = ({ navigation }) => {
         description: `${event.type} - ${event.distance}km ${event.pace} 페이스`,
         date: event.date,
         time: event.time,
-        participants: event.participants || 1,
+        participants: Array.isArray(event.participants) ? event.participants.length : (event.participants || 1),
         maxParticipants: event.maxParticipants || 6,
         distance: event.distance,
         pace: event.pace,
@@ -78,8 +78,8 @@ const HanRiverMap = ({ navigation }) => {
         hashtags: event.hashtags,
         organizer: event.organizer || '나',
         organizerLevel: '중급자 • 2년차', // 기본값
-        canJoin: (event.participants || 1) < (event.maxParticipants || 6),
-        status: (event.participants || 1) >= (event.maxParticipants || 6) ? 'full' : 'recruiting',
+        canJoin: (Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)) < (event.maxParticipants || 6),
+        status: (Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)) >= (event.maxParticipants || 6) ? 'full' : 'recruiting',
         customMarkerCoords: event.customMarkerCoords,
         customLocation: event.customLocation,
         isPublic: event.isPublic,
@@ -1008,8 +1008,17 @@ const HanRiverMap = ({ navigation }) => {
         style={styles.simpleMeetingCard}
         onPress={() => {
           const eventData = convertToEventDetailFormat(meeting);
+          
+          // Date 객체를 문자열로 직렬화
+          const serializedEventData = {
+            ...eventData,
+            createdAt: eventData.createdAt && typeof eventData.createdAt.toISOString === 'function' ? eventData.createdAt.toISOString() : eventData.createdAt,
+            date: eventData.date && typeof eventData.date.toISOString === 'function' ? eventData.date.toISOString() : eventData.date,
+            updatedAt: eventData.updatedAt && typeof eventData.updatedAt.toISOString === 'function' ? eventData.updatedAt.toISOString() : eventData.updatedAt
+          };
+          
           navigation.navigate('EventDetail', { 
-            event: eventData,
+            event: serializedEventData,
             isJoined: false,
             currentScreen: 'home'
           });
@@ -1029,7 +1038,7 @@ const HanRiverMap = ({ navigation }) => {
           <View style={styles.simpleMeetingInfoItem}>
             <Ionicons name="time-outline" size={16} color="#3AF8FF" />
             <Text style={styles.simpleMeetingInfoText}>
-              {meeting.date} {meeting.time}
+              {meeting.date ? (meeting.date instanceof Date ? meeting.date.toLocaleDateString('ko-KR') : meeting.date) : '날짜 없음'} {meeting.time || '시간 없음'}
             </Text>
           </View>
         </View>

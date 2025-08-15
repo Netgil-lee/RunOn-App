@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Switch,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -104,14 +105,29 @@ const SettingsScreen = ({ navigation }) => {
   const handleDeleteAccount = () => {
     Alert.alert(
       '계정 삭제',
-      '정말 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.',
+      '계정 삭제를 요청하시겠습니까? 이메일로 요청을 보내드리겠습니다.',
       [
         { text: '취소', style: 'cancel' },
         { 
-          text: '삭제', 
+          text: '요청하기', 
           style: 'destructive',
           onPress: () => {
-            Alert.alert('계정 삭제', '계정 삭제 기능이 곧 추가됩니다.');
+            // 사용자 정보 가져오기
+            const user = useAuth().user;
+            const userInfo = user ? `사용자 ID: ${user.uid}\n휴대폰번호: ${user.phoneNumber || '알 수 없음'}` : '사용자 정보를 가져올 수 없습니다.';
+            
+            // 이메일 링크 생성
+            const emailSubject = encodeURIComponent('RunOn 앱 계정 삭제 요청');
+            const emailBody = encodeURIComponent(
+              `안녕하세요,\n\nRunOn 앱에서 계정 삭제를 요청합니다.\n\n사용자 정보:\n${userInfo}\n\n요청 일시: ${new Date().toLocaleString('ko-KR')}\n\n계정 삭제를 확인합니다.\n\n감사합니다.`
+            );
+            
+                         const emailUrl = `mailto:dlrhdkgml12@gmail.com?subject=${emailSubject}&body=${emailBody}`;
+            
+                         // 이메일 앱 열기
+             Linking.openURL(emailUrl).catch(() => {
+               Alert.alert('오류', '이메일 앱을 열 수 없습니다. 수동으로 dlrhdkgml12@gmail.com으로 계정 삭제 요청을 보내주세요.');
+             });
           }
         }
       ]

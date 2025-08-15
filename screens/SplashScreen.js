@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Image } from 'react-native';
 import * as Progress from 'react-native-progress';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -105,7 +105,11 @@ const SplashScreen = ({ navigation }) => {
           },
         ]}
       >
-        <Text style={styles.title}>NetGill</Text>
+        <Image 
+          source={require('../assets/logo.png')} 
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
         <Text style={styles.subtitle}>너와 나의 러닝 커뮤니티</Text>
       </Animated.View>
 
@@ -133,21 +137,20 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 0,
   },
-  title: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 8,
-    letterSpacing: 2,
-    fontFamily: 'Pretendard-Bold',
+  logoImage: {
+    width: 250,
+    height: 65,
+    marginBottom: 0,
+    backgroundColor: 'transparent',
   },
   subtitle: {
     fontSize: 16,
     color: '#ffffff',
     letterSpacing: 1,
     fontFamily: 'Pretendard-Regular',
+    marginTop: 4,
   },
   progressContainer: {
     position: 'absolute',

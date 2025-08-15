@@ -14,9 +14,7 @@ const VerificationIntroScreen = ({ navigation }) => {
     navigation.navigate('PhoneAuth');
   };
 
-  const handleStartCarrierAuth = () => {
-    navigation.navigate('CarrierAuth');
-  };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -38,7 +36,7 @@ const VerificationIntroScreen = ({ navigation }) => {
           <View style={styles.introTextContainer}>
             <Text style={styles.introTitle}>본인인증을 완료하고</Text>
             <Text style={styles.introSubtitle}>검증된 회원만 만나세요</Text>
-            <Text style={styles.introDescription}>통신사 본인인증으로 더욱 안전하고 신뢰할 수 있는 인증을 진행합니다</Text>
+            <Text style={styles.introDescription}>SMS 인증으로 안전하고 신뢰할 수 있는 인증을 진행합니다</Text>
           </View>
         </View>
 
@@ -93,7 +91,7 @@ const VerificationIntroScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* 통신사 인증 */}
+          {/* SMS 인증 */}
           <View style={styles.methodItem}>
             <View style={styles.methodIconContainer}>
               <View style={styles.telecomIcon}>
@@ -116,16 +114,9 @@ const VerificationIntroScreen = ({ navigation }) => {
         <View style={styles.bottomButtonContainer}>
           <TouchableOpacity
             style={styles.verificationButton}
-            onPress={handleStartCarrierAuth}
-          >
-            <Text style={styles.verificationButtonText}>통신사 본인인증하기</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.alternativeButton}
             onPress={handleStartVerification}
           >
-            <Text style={styles.alternativeButtonText}>SMS 인증으로 진행</Text>
+            <Text style={styles.verificationButtonText}>SMS 인증하기</Text>
           </TouchableOpacity>
         </View>
     </SafeAreaView>

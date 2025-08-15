@@ -48,8 +48,7 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const OnboardingScreen = ({ onComplete, navigation, route }) => {
   const isFromSignup = route?.params?.isFromSignup || false;
-  const isCarrierVerified = route?.params?.isCarrierVerified || false;
-  const carrierUserInfo = route?.params?.userInfo || null;
+
   const [currentStep, setCurrentStep] = useState(1);
   const scrollViewRef = useRef(null);
   const bioInputRef = useRef(null);
@@ -61,6 +60,8 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
     profileImage: null,
     nickname: '',
     bio: '',
+    gender: '',
+    birthDate: '',
     runningLevel: '',
     averagePace: '',
     preferredCourses: [],
@@ -68,32 +69,37 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
     runningStyles: [],
     favoriteSeasons: [],
     currentGoals: [], // 단일 선택에서 배열로 변경
-    // 통신사 본인인증 정보
-    birthDate: carrierUserInfo?.birthDate || '',
-    gender: carrierUserInfo?.gender || '',
-    age: carrierUserInfo?.age || '',
-    carrierVerified: isCarrierVerified,
-    carrierVerifiedAt: carrierUserInfo?.carrierVerifiedAt || '',
+
   });
 
-  const { user, updateUserProfile, setOnboardingCompleted } = useAuth();
+  const { user, updateUserProfile, setOnboardingCompleted, completeOnboarding } = useAuth();
+
+  // 개발용 로그아웃 기능
+  const handleDevLogout = async () => {
+    try {
+      const { logout } = useAuth();
+      await logout();
+      console.log('🧪 개발용 로그아웃 완료');
+    } catch (error) {
+      console.error('로그아웃 실패:', error);
+    }
+  };
 
   // 키보드 이벤트 리스너 추가
   useEffect(() => {
     const keyboardDidShow = Keyboard.addListener('keyboardDidShow', (event) => {
       setKeyboardVisible(true);
       
-      // 키보드가 나타나면 자동으로 스크롤
+      // 키보드가 나타나면 입력칸이 가려지지 않도록 스크롤
       if (scrollViewRef.current && currentStep === 1) {
         setTimeout(() => {
-          // 1단계: 자기소개 입력칸으로 스크롤
           if (scrollViewRef.current) {
             scrollViewRef.current.scrollTo({
-              y: 100,
+              y: 300, // 더 아래로 스크롤하여 입력칸이 키보드 위에 위치하도록
               animated: true,
             });
           }
-        }, 10);
+        }, 100);
       }
     });
     
@@ -202,11 +208,52 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
     }
   };
 
+  // 생년월일을 나이로 계산하는 함수
+  const calculateAge = (birthDate) => {
+    if (!birthDate || birthDate.length !== 10) return null;
+    
+    try {
+      const [year, month, day] = birthDate.split('-').map(Number);
+      const birth = new Date(year, month - 1, day);
+      const today = new Date();
+      
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+      
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      
+      return age;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  // 생년월일 유효성 검사
+  const isValidBirthDate = (birthDate) => {
+    if (!birthDate || birthDate.length !== 10) return false;
+    
+    try {
+      const [year, month, day] = birthDate.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      
+      return date.getFullYear() === year && 
+             date.getMonth() === month - 1 && 
+             date.getDate() === day &&
+             year >= 1900 && year <= new Date().getFullYear();
+    } catch (error) {
+      return false;
+    }
+  };
+
   // 진행 가능 여부 확인
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return formData.nickname.trim().length > 0;
+        return formData.nickname.trim().length > 0 && 
+               formData.gender !== '' && 
+               isValidBirthDate(formData.birthDate);
       case 2:
         return formData.runningLevel !== '';
       case 3:
@@ -234,20 +281,18 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
     try {
       // 테스트 모드 확인
       if (user?.uid === 'test-user-id') {
-        console.log('🧪 테스트 모드: 온보딩 완료 처리');
+        console.log('🧪 테스트 모드: 온보딩 프로필 저장');
         
         // 테스트 모드에서도 프로필 데이터 저장
         if (updateUserProfile) {
+          const calculatedAge = calculateAge(formData.birthDate);
           await updateUserProfile({
             displayName: formData.nickname,
             bio: formData.bio,
             profileImage: formData.profileImage,
-            // 통신사 본인인증 정보
             birthDate: formData.birthDate,
             gender: formData.gender,
-            age: formData.age,
-            carrierVerified: formData.carrierVerified,
-            carrierVerifiedAt: formData.carrierVerifiedAt,
+            age: calculatedAge,
             runningProfile: {
               level: formData.runningLevel,
               pace: formData.averagePace,
@@ -257,12 +302,12 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
               favoriteSeasons: formData.favoriteSeasons,
               currentGoals: finalData.currentGoals,
             },
-            onboardingCompleted: true,
+            // onboardingCompleted는 AppIntroScreen에서 설정
             onboardingCompletedAt: new Date().toISOString(),
           });
         }
         
-        setOnboardingCompleted(true);
+        console.log('✅ 테스트 모드 프로필 저장 완료 - AppIntroScreen으로 이동');
         setShowWelcome(true);
         setTimeout(() => {
           navigation.navigate('AppIntro');
@@ -270,17 +315,16 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
         return;
       }
       
+      // 사용자 프로필 저장 (온보딩 완료 상태는 AppIntroScreen에서 처리)
       if (user && updateUserProfile) {
+        const calculatedAge = calculateAge(formData.birthDate);
         await updateUserProfile({
           displayName: formData.nickname,
           bio: formData.bio,
           profileImage: formData.profileImage,
-          // 통신사 본인인증 정보
           birthDate: formData.birthDate,
           gender: formData.gender,
-          age: formData.age,
-          carrierVerified: formData.carrierVerified,
-          carrierVerifiedAt: formData.carrierVerifiedAt,
+          age: calculatedAge,
           runningProfile: {
             level: formData.runningLevel,
             pace: formData.averagePace,
@@ -290,13 +334,12 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
             favoriteSeasons: formData.favoriteSeasons,
             currentGoals: finalData.currentGoals,
           },
-          onboardingCompleted: true,
+          // onboardingCompleted는 AppIntroScreen에서 설정
           onboardingCompletedAt: new Date().toISOString(),
         });
       }
       
-      // 온보딩 완료 상태 설정
-      setOnboardingCompleted(true);
+      console.log('✅ 온보딩 프로필 저장 완료 - AppIntroScreen으로 이동');
       
       setShowWelcome(true);
       setTimeout(() => {
@@ -326,8 +369,6 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
       <Text style={styles.stepTitle}>반가워요! 🎉</Text>
       <Text style={styles.stepSubtitle}>기본 정보를 입력해주세요</Text>
 
-
-
       {/* 프로필 사진 */}
       <View style={styles.profileImageSection}>
         <TouchableOpacity style={styles.profileImageButton} onPress={showImagePicker}>
@@ -341,6 +382,75 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
           )}
         </TouchableOpacity>
         <Text style={styles.profileImageHint}>프로필 사진을 추가해보세요 (선택사항)</Text>
+      </View>
+
+      {/* 성별 선택 */}
+      <View style={styles.inputSection}>
+        <Text style={[styles.inputLabel, { fontSize: 20 }]}>성별 *</Text>
+        <View style={styles.genderContainer}>
+          <TouchableOpacity
+            style={[
+              styles.genderButton,
+              formData.gender === 'male' && styles.genderButtonActive
+            ]}
+            onPress={() => setFormData(prev => ({ ...prev, gender: 'male' }))}
+          >
+            <Ionicons 
+              name="male" 
+              size={20} 
+              color={formData.gender === 'male' ? COLORS.TEXT : COLORS.TEXT_SECONDARY} 
+            />
+            <Text style={[
+              styles.genderText,
+              formData.gender === 'male' && styles.genderTextActive
+            ]}>남성</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.genderButton,
+              formData.gender === 'female' && styles.genderButtonActive
+            ]}
+            onPress={() => setFormData(prev => ({ ...prev, gender: 'female' }))}
+          >
+            <Ionicons 
+              name="female" 
+              size={20} 
+              color={formData.gender === 'female' ? COLORS.TEXT : COLORS.TEXT_SECONDARY} 
+            />
+            <Text style={[
+              styles.genderText,
+              formData.gender === 'female' && styles.genderTextActive
+            ]}>여성</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* 생년월일 입력 */}
+      <View style={styles.inputSection}>
+        <Text style={[styles.inputLabel, { fontSize: 20 }]}>생년월일 *</Text>
+        <TextInput
+          style={styles.birthDateInput}
+          value={formData.birthDate}
+          onChangeText={(text) => {
+            // 숫자만 입력받고 자동으로 하이픈 추가
+            const cleaned = text.replace(/[^0-9]/g, '');
+            let formatted = cleaned;
+            
+            if (cleaned.length >= 4) {
+              formatted = cleaned.slice(0, 4) + '-' + cleaned.slice(4);
+            }
+            if (cleaned.length >= 6) {
+              formatted = cleaned.slice(0, 4) + '-' + cleaned.slice(4, 6) + '-' + cleaned.slice(6);
+            }
+            
+            setFormData(prev => ({ ...prev, birthDate: formatted }));
+          }}
+          placeholder="YYYY-MM-DD (예: 1995-03-15)"
+          placeholderTextColor={COLORS.TEXT_SECONDARY}
+          keyboardType="numeric"
+          maxLength={10}
+        />
+        <Text style={styles.inputHint}>생년월일을 정확히 입력해주세요</Text>
       </View>
 
       {/* 닉네임/자기소개 입력 */}
@@ -417,7 +527,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
       <View style={styles.welcomeContainer}>
         <Text style={styles.welcomeEmoji}>🎉</Text>
         <Text style={styles.welcomeTitle}>환영합니다!</Text>
-        <Text style={styles.welcomeSubtitle}>NetGill과 함께 러닝을 시작해보세요.</Text>
+                        <Text style={styles.welcomeSubtitle}>RunOn과 함께 러닝을 시작해보세요.</Text>
       </View>
     );
   }
@@ -439,7 +549,9 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
             />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>프로필 설정</Text>
-          <Text style={styles.stepIndicator}>{currentStep}/7</Text>
+          <View style={styles.headerRight}>
+            <Text style={styles.stepIndicator}>{currentStep}/7</Text>
+          </View>
         </View>
 
         {/* 진행률 바 */}
@@ -538,6 +650,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: COLORS.PRIMARY,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  devLogoutButton: {
+    marginLeft: 10,
+  },
+  devLogoutText: {
+    fontSize: 20,
+  },
   progressContainer: {
     height: 4,
   },
@@ -601,9 +723,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.SURFACE,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.TEXT_SECONDARY,
-    borderStyle: 'dashed',
   },
   profileImageText: {
     fontSize: 12,
@@ -651,6 +770,53 @@ const styles = StyleSheet.create({
   selectedCard: {
     borderColor: COLORS.PRIMARY,
     backgroundColor: COLORS.PRIMARY + '20',
+  },
+
+  // 성별 및 나이 입력 스타일
+  inputSection: {
+    marginBottom: 24,
+  },
+  genderContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  genderButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#333333',
+    gap: 8,
+  },
+  genderButtonActive: {
+    borderColor: COLORS.PRIMARY,
+    backgroundColor: COLORS.PRIMARY + '20',
+  },
+  genderText: {
+    fontSize: 16,
+    color: COLORS.TEXT_SECONDARY,
+  },
+  genderTextActive: {
+    color: COLORS.TEXT,
+    fontWeight: '600',
+  },
+  birthDateInput: {
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    padding: 10,
+    fontSize: 16,
+    color: COLORS.TEXT,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  inputHint: {
+    fontSize: 16,
+    color: COLORS.TEXT_SECONDARY,
+    marginTop: 4,
   },
 
   // 하단 버튼

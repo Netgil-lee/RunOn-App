@@ -1,4 +1,4 @@
-package com.lee_gwang_hee.netgill
+package com.lee_gwang_hee.runon.v2
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

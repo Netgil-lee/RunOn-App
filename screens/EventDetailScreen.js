@@ -26,18 +26,86 @@ const COLORS = {
 };
 
 const EventDetailScreen = ({ route, navigation }) => {
-  const { event, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe } = route.params;
+  const { event: rawEvent, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe } = route.params;
   const [isJoinedState, setIsJoinedState] = useState(isJoined);
   const { user } = useAuth();
   const { endEvent } = useEvents();
   
-  // 내가 생성한 일정인지 확인 (route 파라미터 우선, 없으면 기존 로직 사용)
-  const isCreatedByMe = routeIsCreatedByMe !== undefined ? routeIsCreatedByMe : (user && (
+  // 디버깅을 위한 로그 추가
+  console.log('🔍 EventDetailScreen - rawEvent:', rawEvent);
+  console.log('🔍 EventDetailScreen - rawEvent.date:', rawEvent.date, typeof rawEvent.date);
+  console.log('🔍 EventDetailScreen - rawEvent.time:', rawEvent.time, typeof rawEvent.time);
+  
+  // 문자열로 받은 날짜를 Date 객체로 변환
+  const event = {
+    ...rawEvent,
+    createdAt: rawEvent.createdAt && rawEvent.createdAt !== 'null' ? new Date(rawEvent.createdAt) : null,
+    date: rawEvent.date && rawEvent.date !== 'null' ? new Date(rawEvent.date) : null,
+    updatedAt: rawEvent.updatedAt && rawEvent.updatedAt !== 'null' ? new Date(rawEvent.updatedAt) : null
+  };
+  
+  console.log('🔍 EventDetailScreen - processed event.date:', event.date, typeof event.date);
+  console.log('🔍 EventDetailScreen - processed event.time:', event.time, typeof event.time);
+  
+  // 날짜 포맷팅 함수 추가
+  const formatDate = (dateValue) => {
+    if (!dateValue) return '날짜 없음';
+    
+    try {
+      let date;
+      if (dateValue instanceof Date) {
+        date = dateValue;
+      } else if (typeof dateValue === 'string') {
+        // ISO 형식 문자열인 경우
+        if (dateValue.includes('T') || dateValue.includes('-')) {
+          date = new Date(dateValue);
+        } else {
+          // 한국어 형식인 경우 (예: "2024년 1월 18일")
+          const match = dateValue.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+          if (match) {
+            const year = parseInt(match[1]);
+            const month = parseInt(match[2]) - 1;
+            const day = parseInt(match[3]);
+            date = new Date(year, month, day);
+          } else {
+            return dateValue; // 파싱할 수 없는 경우 원본 반환
+          }
+        }
+      } else {
+        return '날짜 없음';
+      }
+      
+      if (date && !isNaN(date.getTime())) {
+        return date.toLocaleDateString('ko-KR');
+      } else {
+        return '날짜 없음';
+      }
+    } catch (error) {
+      console.error('날짜 파싱 오류:', error);
+      return '날짜 없음';
+    }
+  };
+  
+  // 내가 생성한 일정인지 확인 (route 파라미터 우선, 없으면 UID 비교 사용)
+  const isCreatedByMe = routeIsCreatedByMe !== undefined ? routeIsCreatedByMe : (user && event.createdBy && (
+    user.uid === event.createdBy ||
     user.displayName === event.organizer || 
     user.email?.split('@')[0] === event.organizer ||
     event.organizer === '나' ||
     event.isCreatedByUser
   ));
+
+  // 디버깅을 위한 로그 추가
+  console.log('🔍 EventDetailScreen - isCreatedByMe 확인:', {
+    routeIsCreatedByMe,
+    userUid: user?.uid,
+    eventCreatedBy: event.createdBy,
+    userDisplayName: user?.displayName,
+    eventOrganizer: event.organizer,
+    userEmail: user?.email?.split('@')[0],
+    eventIsCreatedByUser: event.isCreatedByUser,
+    isCreatedByMe
+  });
 
   // 종료된 모임 여부 확인
   const isEnded = event.status === 'ended';
@@ -153,7 +221,7 @@ const EventDetailScreen = ({ route, navigation }) => {
   const renderParticipantsList = () => {
     // 실제 일정의 호스트 정보를 사용하여 참여자 목록 생성
     const hostName = event.organizer || '알 수 없음';
-    const currentParticipants = event.participants || 1; // 현재 참여자 수 (기본값: 호스트 1명)
+    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1); // 현재 참여자 수 (기본값: 호스트 1명)
     
     // 호스트가 현재 사용자인지 확인
     const isCurrentUserHost = user && (
@@ -168,82 +236,29 @@ const EventDetailScreen = ({ route, navigation }) => {
       name: user.displayName || user.email?.split('@')[0] || '나',
       profileImage: user.photoURL || null,
       isHost: true,
-      level: '중급', // 실제 사용자 레벨 정보로 교체 필요
-      mannerScore: 4.8, // 실제 사용자 매너 점수로 교체 필요
-      totalParticipated: 25, // 실제 사용자 참여 횟수로 교체 필요
-      thisMonth: 6, // 실제 사용자 이번 달 참여 횟수로 교체 필요
-      hostedEvents: 3, // 실제 사용자 주최 모임 수로 교체 필요
-      joinDate: '2022.06.15', // 실제 사용자 가입일로 교체 필요
-      bio: '새벽 러닝의 매력을 알려드리는 코치입니다!' // 실제 사용자 자기소개로 교체 필요
+      level: '초급',
+      mannerScore: 5.0,
+      totalParticipated: 0,
+      thisMonth: 0,
+      hostedEvents: 0,
+      joinDate: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.'),
+      bio: '자기소개를 입력해주세요.'
     } : {
       id: 'participant_0',
       name: hostName,
       profileImage: null,
       isHost: true,
-      level: '중급',
-      mannerScore: 4.8,
-      totalParticipated: 25,
-      thisMonth: 6,
-      hostedEvents: 3,
-      joinDate: '2022.06.15',
-      bio: '새벽 러닝의 매력을 알려드리는 코치입니다!'
+      level: '초급',
+      mannerScore: 5.0,
+      totalParticipated: 0,
+      thisMonth: 0,
+      hostedEvents: 0,
+      joinDate: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.'),
+      bio: '자기소개를 입력해주세요.'
     };
 
-    // 추가 참여자들 (호스트 제외)
-    const additionalParticipants = [
-      {
-        id: 'participant_1',
-        name: '김새벽',
-        profileImage: null,
-        isHost: false,
-        level: '초급',
-        mannerScore: 4.6,
-        totalParticipated: 8,
-        thisMonth: 2,
-        hostedEvents: 0,
-        joinDate: '2023.08.20',
-        bio: '새벽 러닝을 시작한 지 3개월 된 초보입니다.'
-      },
-      {
-        id: 'participant_2',
-        name: '이모닝',
-        profileImage: null,
-        isHost: false,
-        level: '초급',
-        mannerScore: 4.7,
-        totalParticipated: 12,
-        thisMonth: 3,
-        hostedEvents: 0,
-        joinDate: '2023.05.10',
-        bio: '모닝 러닝으로 하루를 시작하는 것이 좋아요!'
-      },
-      {
-        id: 'participant_3',
-        name: '최한강',
-        profileImage: null,
-        isHost: false,
-        level: '중급',
-        mannerScore: 4.9,
-        totalParticipated: 18,
-        thisMonth: 4,
-        hostedEvents: 1,
-        joinDate: '2022.12.05',
-        bio: '한강에서의 러닝이 가장 좋아요!'
-      },
-      {
-        id: 'participant_4',
-        name: '정조깅',
-        profileImage: null,
-        isHost: false,
-        level: '초급',
-        mannerScore: 4.9,
-        totalParticipated: 15,
-        thisMonth: 3,
-        hostedEvents: 0,
-        joinDate: '2023.03.10',
-        bio: '조깅으로 건강을 챙기고 있는 초보 러너입니다.'
-      }
-    ];
+    // 추가 참여자들 (호스트 제외) - 빈 배열로 초기화
+    const additionalParticipants = [];
 
     // 실제 참여자 수에 맞춰 참여자 목록 생성 (호스트 + 추가 참여자들)
     const participants = [hostParticipant, ...additionalParticipants.slice(0, currentParticipants - 1)];
@@ -454,7 +469,9 @@ const EventDetailScreen = ({ route, navigation }) => {
             <Ionicons name="calendar" size={20} color={COLORS.ICON_DEFAULT} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>날짜</Text>
-              <Text style={styles.infoValue}>{event.date}</Text>
+              <Text style={styles.infoValue}>
+                {formatDate(event.date)}
+              </Text>
             </View>
           </View>
 
@@ -510,7 +527,7 @@ const EventDetailScreen = ({ route, navigation }) => {
           <View style={styles.participantsInfo}>
             <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
             <Text style={styles.participantsText}>
-              {event.participants || 1}명
+              {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
               {event.maxParticipants ? ` / ${event.maxParticipants}명` : ' (제한 없음)'}
             </Text>
             {event.maxParticipants && (
@@ -518,7 +535,7 @@ const EventDetailScreen = ({ route, navigation }) => {
                 <View 
                   style={[
                     styles.participantsProgress, 
-                    { width: `${Math.min((event.participants || 1) / event.maxParticipants, 1) * 100}%` }
+                    { width: `${Math.min((Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)) / event.maxParticipants, 1) * 100}%` }
                   ]} 
                 />
               </View>
@@ -542,7 +559,7 @@ const EventDetailScreen = ({ route, navigation }) => {
             onPress={() => {
               // 참여자 목록 데이터 생성
               const hostName = event.organizer || '알 수 없음';
-              const currentParticipants = event.participants || 1;
+              const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
               
               const isCurrentUserHost = user && (
                 user.displayName === hostName || 

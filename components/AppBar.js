@@ -16,29 +16,26 @@ const COLORS = {
   SURFACE: '#1F1F24',
 };
 
-const AppBar = ({ user, onProfilePress, onNotificationPress, onSettingsPress, onSearchPress, hideProfile, title, unreadCount = 0 }) => {
+const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettingsPress, onSearchPress, hideProfile, title, unreadCount = 0, transparent = false }) => {
   const displayName = user?.displayName || user?.email?.split('@')[0] || '사용자';
   
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* 왼쪽: 제목 또는 프로필 사진 + 로고 */}
+    <SafeAreaView style={[styles.safeArea, transparent && styles.transparentSafeArea]}>
+      <View style={[styles.container, transparent && styles.transparentContainer]}>
+        {/* 왼쪽: 제목 또는 프로필 사진 */}
         <View style={styles.leftSection}>
           {title ? (
             <Text style={styles.title}>{title}</Text>
           ) : !hideProfile ? (
-            <>
-              <TouchableOpacity style={styles.profileButton} onPress={onProfilePress}>
-                {user?.photoURL ? (
-                  <Image source={{ uri: user.photoURL }} style={styles.profileImage} />
-                ) : (
-                  <View style={styles.profilePlaceholder}>
-                    <Ionicons name="person" size={20} color="#ffffff" />
-                  </View>
-                )}
-              </TouchableOpacity>
-              <Text style={styles.logo}>{displayName}</Text>
-            </>
+            <TouchableOpacity style={styles.profileButton} onPress={onProfilePress}>
+              {(user?.photoURL || profile?.profileImage) ? (
+                <Image source={{ uri: user.photoURL || profile?.profileImage }} style={styles.profileImage} />
+              ) : (
+                <View style={styles.profilePlaceholder}>
+                  <Ionicons name="person" size={20} color="#ffffff" />
+                </View>
+              )}
+            </TouchableOpacity>
           ) : null}
         </View>
 
@@ -66,13 +63,19 @@ const styles = StyleSheet.create({
   safeArea: {
     backgroundColor: COLORS.SURFACE,
   },
+  transparentSafeArea: {
+    backgroundColor: 'transparent',
+  },
   container: {
     height: 56,
     backgroundColor: COLORS.SURFACE,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
+  },
+  transparentContainer: {
+    backgroundColor: 'transparent',
   },
   leftSection: {
     flexDirection: 'row',
@@ -87,7 +90,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     overflow: 'hidden',
-    marginRight: 12,
+    borderWidth: 0.5,
+    borderColor: '#ffffff',
   },
   profileImage: {
     width: '100%',

@@ -8,7 +8,7 @@ import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import LoginScreen from '../screens/LoginScreen';
 import PhoneAuthScreen from '../screens/PhoneAuthScreen';
-import CarrierAuthScreen from '../screens/CarrierAuthScreen';
+
 import VerificationScreen from '../screens/VerificationScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
@@ -28,6 +28,8 @@ import SearchScreen from '../screens/SearchScreen';
 import VerificationIntroScreen from '../screens/VerificationIntroScreen';
 import AppIntroScreen from '../screens/AppIntroScreen';
 import AppGuideScreen from '../screens/AppGuideScreen';
+import EmailSignupScreen from '../screens/EmailSignupScreen';
+import EmailLoginScreen from '../screens/EmailLoginScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -137,186 +139,68 @@ const AppNavigator = () => {
     onboardingCompleted 
   });
 
-  // 로그아웃 감지 및 로그인 화면 강제 이동
-  useEffect(() => {
-    if (!initializing && !user) {
-      console.log('🚪 AppNavigator: 사용자가 로그아웃됨 - 로그인 화면으로 이동');
-    }
-  }, [user, initializing]);
-
   if (initializing) {
     return <SplashScreen />;
   }
 
-  // 초기 화면 결정
-  let initialRouteName = 'Login';
-  if (user && onboardingCompleted) {
-    initialRouteName = 'Main';
-    console.log('🧭 AppNavigator: 홈 화면으로 이동');
-  } else if (user && !onboardingCompleted) {
-    initialRouteName = 'Onboarding';
-    console.log('🧭 AppNavigator: 온보딩 화면으로 이동');
-  } else {
+  // 간단한 조건부 렌더링
+  if (!user) {
+    // 사용자가 없으면 로그인 화면
     console.log('🧭 AppNavigator: 로그인 화면으로 이동');
+    return (
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          cardStyle: { backgroundColor: COLORS.BACKGROUND },
+        }}
+      >
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="EmailSignup" component={EmailSignupScreen} />
+        <Stack.Screen name="EmailLogin" component={EmailLoginScreen} />
+        <Stack.Screen name="VerificationIntro" component={VerificationIntroScreen} />
+        <Stack.Screen name="PhoneAuth" component={PhoneAuthScreen} />
+        <Stack.Screen name="Verification" component={VerificationScreen} />
+        <Stack.Screen name="AppIntro" component={AppIntroScreen} />
+        <Stack.Screen name="AppGuide" component={AppGuideScreen} />
+      </Stack.Navigator>
+    );
+  } else if (!onboardingCompleted) {
+    // 사용자가 있지만 온보딩이 완료되지 않았으면 온보딩 화면
+    console.log('🧭 AppNavigator: 온보딩 화면으로 이동');
+    return (
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          cardStyle: { backgroundColor: COLORS.BACKGROUND },
+        }}
+      >
+        <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        <Stack.Screen name="AppIntro" component={AppIntroScreen} />
+      </Stack.Navigator>
+    );
+  } else {
+    // 사용자가 있고 온보딩이 완료되었으면 메인 화면
+    console.log('🧭 AppNavigator: 홈 화면으로 이동');
+    return (
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          cardStyle: { backgroundColor: COLORS.BACKGROUND },
+        }}
+      >
+        <Stack.Screen name="Main" component={MainTabNavigator} />
+        <Stack.Screen name="Chat" component={ChatScreen} />
+        <Stack.Screen name="Participant" component={ParticipantScreen} />
+        <Stack.Screen name="EventDetail" component={EventDetailScreen} />
+        <Stack.Screen name="RunningMeetingReview" component={RunningMeetingReview} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="PostCreate" component={PostCreateScreen} />
+        <Stack.Screen name="PostDetail" component={PostDetailScreen} />
+        <Stack.Screen name="Notification" component={NotificationScreen} />
+        <Stack.Screen name="Search" component={SearchScreen} />
+      </Stack.Navigator>
+    );
   }
-
-  
-
-  return (
-    <Stack.Navigator
-      initialRouteName={initialRouteName}
-      screenOptions={{
-        headerShown: false,
-        cardStyle: { backgroundColor: COLORS.BACKGROUND },
-        cardOverlayEnabled: false,
-        animationEnabled: true,
-        gestureEnabled: false,
-        presentation: 'card',
-      }}
-    >
-      {/* 모든 화면을 항상 등록하되, 초기 화면만 조건에 따라 결정 */}
-          <Stack.Screen 
-            name="Main" 
-            component={MainTabNavigator}
-            options={{
-              animationTypeForReplace: 'push'
-            }}
-          />
-          <Stack.Screen 
-            name="Chat" 
-            component={ChatScreen}
-            options={{
-              headerShown: true,
-              headerStyle: {
-                backgroundColor: COLORS.SURFACE,
-              },
-              headerTintColor: '#ffffff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
-            }}
-          />
-          <Stack.Screen 
-            name="Onboarding" 
-            component={OnboardingScreen}
-            options={{
-              headerShown: false,
-              cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-            }}
-          />
-          <Stack.Screen 
-            name="Participant" 
-            component={ParticipantScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen 
-            name="EventDetail" 
-            component={EventDetailScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen 
-            name="RunningMeetingReview" 
-            component={RunningMeetingReview}
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen 
-            name="Settings" 
-            component={SettingsScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen 
-            name="PostCreate" 
-            component={PostCreateScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen 
-            name="PostDetail" 
-            component={PostDetailScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen 
-            name="Notification" 
-            component={NotificationScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen 
-            name="Search" 
-            component={SearchScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen 
-            name="Login" 
-            component={LoginScreen}
-            options={{
-              animationTypeForReplace: 'pop'
-            }}
-          />
-          <Stack.Screen 
-            name="VerificationIntro" 
-            component={VerificationIntroScreen}
-            options={{
-              headerShown: false,
-              cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-            }}
-          />
-          <Stack.Screen 
-        name="PhoneAuth" 
-        component={PhoneAuthScreen}
-            options={{
-          title: '휴대폰 인증',
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-            }}
-          />
-          <Stack.Screen 
-        name="CarrierAuth" 
-        component={CarrierAuthScreen}
-            options={{
-          title: '통신사 본인인증',
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-            }}
-          />
-          <Stack.Screen 
-        name="Verification" 
-        component={VerificationScreen}
-            options={{
-          title: '인증번호 확인',
-              cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-            }}
-          />
-          <Stack.Screen 
-            name="AppIntro" 
-            component={AppIntroScreen}
-            options={{
-              headerShown: false,
-              cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-            }}
-          />
-          <Stack.Screen 
-            name="AppGuide" 
-            component={AppGuideScreen}
-            options={{
-              headerShown: false,
-              cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-            }}
-          />
-    </Stack.Navigator>
-  );
 };
 
 export default AppNavigator; 

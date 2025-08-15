@@ -1,17 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import firebaseService from '../config/firebase';
-import { 
+import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
+  sendPasswordResetEmail,
   PhoneAuthProvider,
-  signInWithPhoneNumber
+  signInWithCredential
 } from 'firebase/auth';
-import carrierAuthService from '../services/carrierAuthService';
+import smsService from '../services/smsService';
+
 
 export const useAuthViewModel = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [confirmationResult, setConfirmationResult] = useState(null);
 
 
 
@@ -21,13 +24,15 @@ export const useAuthViewModel = () => {
       setLoading(true);
       setError(null);
       
+      console.log('🚀 이메일 회원가입 시작:', email);
+      
       const auth = firebaseService.getAuth();
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-
+      console.log('✅ Firebase 회원가입 성공:', userCredential.user.uid);
       setError(null);
-      
       return userCredential.user;
+      
     } catch (error) {
       console.error('❌ 회원가입 오류:', error);
       const errorMessage = getAuthErrorMessage(error.code);
@@ -44,13 +49,15 @@ export const useAuthViewModel = () => {
       setLoading(true);
       setError(null);
       
+      console.log('🚀 이메일 로그인 시작:', email);
+      
       const auth = firebaseService.getAuth();
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-
+      console.log('✅ Firebase 로그인 성공:', userCredential.user.uid);
       setError(null);
-      
       return userCredential.user;
+      
     } catch (error) {
       console.error('❌ 로그인 오류:', error);
       const errorMessage = getAuthErrorMessage(error.code);
@@ -70,23 +77,8 @@ export const useAuthViewModel = () => {
       console.log('🔐 AuthViewModel: 로그아웃 시작');
       
       const auth = firebaseService.getAuth();
-      const currentUser = auth.currentUser;
-      
-      if (!currentUser) {
-        console.log('⚠️ AuthViewModel: 현재 로그인된 사용자가 없음');
-        return;
-      }
-      
-      if (currentUser.uid === 'test-user-id') {
-        console.log('🧪 테스트 모드: Firebase 로그아웃 건너뛰기');
-        // 테스트 모드에서는 Firebase 로그아웃을 호출하지 않음
-      } else {
-        console.log('🔐 실제 사용자: Firebase signOut 실행');
-        await signOut(auth);
-        console.log('✅ Firebase signOut 완료');
-      }
-      
-      console.log('✅ AuthViewModel 로그아웃 완료');
+      await signOut(auth);
+      console.log('✅ Firebase signOut 완료');
       
     } catch (error) {
       console.error('❌ AuthViewModel 로그아웃 오류:', error);
@@ -133,7 +125,7 @@ export const useAuthViewModel = () => {
     return errorMessages[errorCode] || '로그인 중 문제가 발생했습니다. 다시 시도해주세요. 🔄';
   };
 
-  // 📱 휴대폰 인증번호 발송
+  // �� 휴대폰 인증번호 발송 (서버 사이드 SMS)
   const sendPhoneVerification = async (phoneNumber) => {
     try {
       setLoading(true);
@@ -141,33 +133,30 @@ export const useAuthViewModel = () => {
       
       console.log('📱 휴대폰 인증 시작:', phoneNumber);
       
-      const auth = firebaseService.getAuth();
-      console.log('🔧 Firebase Auth 객체:', auth ? '존재함' : '없음');
-      
       const fullPhoneNumber = `+82${phoneNumber.replace(/[^\d]/g, '').slice(1)}`; // 010 → +8210 변환
       console.log('🌍 변환된 전화번호:', fullPhoneNumber);
       
-      // 개발 중 임시 테스트 모드 (실제 Firebase 호출 대신)
-      if (phoneNumber === '010-0000-0000') {
-        console.log('🧪 테스트 모드: 가짜 confirmationResult 반환');
-        // 가짜 confirmationResult 객체 생성
-        const mockConfirmationResult = {
-          verificationId: 'test-verification-id',
-          confirm: async (code) => {
-            if (code === '123456') {
-              return { user: { uid: 'test-user-id' } };
-            } else {
-              throw new Error('인증번호가 올바르지 않습니다.');
-            }
-          }
-        };
-        return mockConfirmationResult;
-      }
+      // SMS 서비스를 통한 전송
+      console.log('📞 SMS 서비스로 전송 시도...');
       
-      // React Native에서는 reCAPTCHA 없이 직접 호출
-      console.log('📞 signInWithPhoneNumber 호출 중...');
-      const confirmationResult = await signInWithPhoneNumber(auth, fullPhoneNumber);
-      console.log('✅ 인증번호 발송 성공:', confirmationResult ? '성공' : '실패');
+      const smsResult = await smsService.sendSMS(fullPhoneNumber);
+      
+      console.log('✅ SMS 전송 성공');
+      console.log('📱 verificationId:', smsResult.verificationId);
+      
+      // SMS 서비스 응답을 기반으로 confirmationResult 생성
+      const confirmationResult = {
+        verificationId: smsResult.verificationId,
+        confirm: async (code) => {
+          console.log('🔢 인증번호 확인 시도:', code);
+          
+          // SMS 서비스를 통한 인증번호 확인
+          const verifyResult = await smsService.verifyCode(smsResult.verificationId, code);
+          
+          console.log('✅ 인증번호 확인 성공');
+          return verifyResult;
+        }
+      };
       
       setError(null);
       return confirmationResult;
@@ -176,13 +165,6 @@ export const useAuthViewModel = () => {
       console.error('❌ 에러 코드:', error.code);
       console.error('❌ 에러 메시지:', error.message);
       
-      // reCAPTCHA 관련 에러인 경우 특별 처리
-      if (error.message && error.message.includes('verify')) {
-        const errorMessage = 'Firebase Phone Auth 설정이 필요합니다. Firebase Console에서 Phone Auth를 활성화해주세요.';
-        setError(errorMessage);
-        throw new Error(errorMessage);
-      }
-      
       // 네트워크 에러 처리
       if (error.message && error.message.includes('network')) {
         const errorMessage = '네트워크 연결을 확인해주세요.';
@@ -190,7 +172,7 @@ export const useAuthViewModel = () => {
         throw new Error(errorMessage);
       }
       
-      const errorMessage = getAuthErrorMessage(error.code) || '인증번호 발송에 실패했습니다. 다시 시도해주세요.';
+      const errorMessage = getAuthErrorMessage(error.code) || error.message || '인증번호 발송에 실패했습니다. 다시 시도해주세요.';
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -198,60 +180,26 @@ export const useAuthViewModel = () => {
     }
   };
 
-  // 📱 휴대폰 인증번호 확인
+  // 📱 휴대폰 인증번호 확인 (서버 사이드)
   const verifyPhoneCode = async (confirmationResult, code) => {
     try {
       setLoading(true);
       setError(null);
       
-      // 테스트 모드 확인
-      if (confirmationResult.verificationId === 'test-verification-id') {
-        console.log('🧪 테스트 모드: 가짜 인증 확인');
-        if (code === '123456') {
-          // 테스트 모드에서 성공 시 가짜 사용자 객체 반환
-          const mockUser = {
-            uid: 'test-user-id',
-            phoneNumber: '+821000000000',
-            email: null,
-            displayName: null,
-            emailVerified: false,
-            isAnonymous: false,
-            metadata: {
-              creationTime: new Date().toISOString(),
-              lastSignInTime: new Date().toISOString()
-            },
-            // Firebase User 객체의 필수 메서드들 추가
-            getIdToken: async () => 'test-id-token',
-            getIdTokenResult: async () => ({
-              token: 'test-id-token',
-              authTime: new Date().toISOString(),
-              issuedAtTime: new Date().toISOString(),
-              expirationTime: new Date(Date.now() + 3600000).toISOString(),
-              signInProvider: 'phone',
-              claims: {}
-            }),
-            reload: async () => Promise.resolve(),
-            toJSON: () => ({
-              uid: 'test-user-id',
-              phoneNumber: '+821000000000'
-            })
-          };
-          console.log('🧪 테스트 모드: 가짜 사용자 객체 반환', mockUser);
-          return mockUser;
-        } else {
-          throw new Error('인증번호가 올바르지 않습니다.');
-        }
-      }
+      console.log('📱 인증번호 확인 시작:', code);
+      console.log('🔍 verificationId:', confirmationResult.verificationId);
       
-      const auth = firebaseService.getAuth();
-      const credential = PhoneAuthProvider.credential(confirmationResult.verificationId, code);
-      const userCredential = await signInWithCredential(auth, credential);
+      // 서버 사이드 인증번호 확인
+      const result = await confirmationResult.confirm(code);
+      
+      console.log('✅ 인증번호 확인 성공');
+      console.log('👤 사용자 정보:', result.user);
       
       setError(null);
-      return userCredential.user;
+      return result.user;
     } catch (error) {
       console.error('❌ 휴대폰 인증번호 확인 오류:', error);
-      const errorMessage = getAuthErrorMessage(error.code);
+      const errorMessage = getAuthErrorMessage(error.code) || error.message || '인증번호가 올바르지 않습니다.';
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -259,40 +207,7 @@ export const useAuthViewModel = () => {
     }
   };
 
-  // 🔐 통신사 본인인증
-  const carrierAuth = async (authData) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('🔐 통신사 본인인증 시작:', authData);
-      
-      // 통신사 지원 여부 확인
-      if (!carrierAuthService.isCarrierSupported(authData.carrier)) {
-        throw new Error('지원하지 않는 통신사입니다.');
-      }
-      
-      // 통신사 서비스 상태 확인
-      const serviceStatus = await carrierAuthService.checkCarrierServiceStatus(authData.carrier);
-      if (!serviceStatus.available) {
-        throw new Error(serviceStatus.message);
-      }
-      
-      // 통신사 본인인증 실행
-      const result = await carrierAuthService.verifyIdentity(authData);
-      
-      console.log('✅ 통신사 본인인증 성공:', result);
-      
-      setError(null);
-      return result;
-    } catch (error) {
-      console.error('❌ 통신사 본인인증 오류:', error);
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   return {
     loading,
@@ -302,7 +217,6 @@ export const useAuthViewModel = () => {
     signIn,
     logout,
     sendPhoneVerification,
-    verifyPhoneCode,
-    carrierAuth
+    verifyPhoneCode
   };
 };

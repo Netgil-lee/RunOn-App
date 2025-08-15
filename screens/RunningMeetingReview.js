@@ -361,7 +361,9 @@ const RunningMeetingReview = ({ route, navigation }) => {
             </View>
             <View style={styles.eventInfoRow}>
               <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
-              <Text style={styles.eventInfoText}>{event.date} {event.time}</Text>
+              <Text style={styles.eventInfoText}>
+                {event.date ? (event.date instanceof Date ? event.date.toLocaleDateString('ko-KR') : event.date) : '날짜 없음'} {event.time || '시간 없음'}
+              </Text>
             </View>
             <View style={styles.eventInfoRow}>
               <Ionicons name="people" size={16} color={COLORS.ICON_DEFAULT} />

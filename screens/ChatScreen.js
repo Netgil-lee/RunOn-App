@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   FlatList,
+  Modal,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,30 +40,10 @@ const ChatScreen = ({ route, navigation }) => {
       sender: 'system',
       timestamp: new Date(Date.now() - 3600000),
       type: 'system'
-    },
-    {
-      id: 2,
-      text: '안녕하세요! 러닝 모임 참여자 여러분 👋',
-      sender: '박코치',
-      timestamp: new Date(Date.now() - 1800000),
-      type: 'received'
-    },
-    {
-      id: 3,
-      text: '안녕하세요! 오늘 날씨가 정말 좋네요',
-      sender: user?.name || '나',
-      timestamp: new Date(Date.now() - 900000),
-      type: 'sent'
-    },
-    {
-      id: 4,
-      text: '내일 러닝하실 분들 준비물 꼭 챙기세요!',
-      sender: '이마라토너',
-      timestamp: new Date(Date.now() - 300000),
-      type: 'received'
     }
   ]);
   const [newMessage, setNewMessage] = useState('');
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const flatListRef = useRef(null);
 
   useEffect(() => {
@@ -102,6 +84,22 @@ const ChatScreen = ({ route, navigation }) => {
     handleChatRoomClick(chatRoom.id);
     console.log(`✅ ChatScreen 진입 - 채팅방 ${chatRoom.id} 알림 해제`);
   }, [chatRoom.id]); // chatRoom.id만 의존성으로 사용
+
+  // 참여자 목록 가져오기
+  const getParticipants = () => {
+    if (!chatRoom.participants || !Array.isArray(chatRoom.participants)) {
+      return [];
+    }
+    
+    // 실제 구현에서는 Firestore에서 참여자 정보를 가져와야 합니다
+    // 현재는 기본 정보만 반환
+    return chatRoom.participants.map((participantId, index) => ({
+      id: participantId,
+      name: `참여자 ${index + 1}`,
+      isOnline: Math.random() > 0.5, // 임시 온라인 상태
+      joinDate: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000) // 임시 가입일
+    }));
+  };
 
   const sendMessage = () => {
     if (newMessage.trim()) {
@@ -164,21 +162,30 @@ const ChatScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.SURFACE }]}>
+      <StatusBar 
+        backgroundColor={COLORS.SURFACE}
+        barStyle="light-content"
+      />
       <KeyboardAvoidingView 
         style={styles.container} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* 채팅방 정보 헤더 */}
         <View style={styles.chatHeader}>
           <View style={styles.chatInfo}>
             <Text style={styles.chatTitle}>{chatRoom.title}</Text>
-            <Text style={styles.participantsCount}>{chatRoom.participants}명 참여 중</Text>
           </View>
-          <TouchableOpacity style={styles.infoButton}>
-            <Ionicons name="information-circle-outline" size={24} color={COLORS.PRIMARY} />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <Text style={styles.participantsCount}>{Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 1}명 참여 중</Text>
+            <TouchableOpacity 
+              style={styles.infoButton}
+              onPress={() => setShowParticipantsModal(true)}
+            >
+              <Ionicons name="menu" size={28} color={COLORS.TEXT} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 메시지 목록 */}
@@ -217,6 +224,51 @@ const ChatScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* 참여자 목록 모달 */}
+      <Modal
+        visible={showParticipantsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowParticipantsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>참여자 목록</Text>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setShowParticipantsModal(false)}
+              >
+                <Ionicons name="close" size={24} color={COLORS.TEXT} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.participantsList}>
+              {getParticipants().map((participant) => (
+                <View key={participant.id} style={styles.participantItem}>
+                  <View style={styles.participantInfo}>
+                    <View style={styles.participantAvatar}>
+                      <Text style={styles.participantInitial}>
+                        {participant.name.charAt(0)}
+                      </Text>
+                    </View>
+                    <View style={styles.participantDetails}>
+                      <Text style={styles.participantName}>{participant.name}</Text>
+                      <Text style={styles.participantStatus}>
+                        {participant.isOnline ? '🟢 온라인' : '⚪ 오프라인'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.participantJoinDate}>
+                    {participant.joinDate.toLocaleDateString('ko-KR')} 참여
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -231,23 +283,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 4,
     backgroundColor: COLORS.SURFACE,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
   },
   chatInfo: {
     flex: 1,
   },
   chatTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: 'bold',
     color: COLORS.TEXT,
-    marginBottom: 2,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   participantsCount: {
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.SECONDARY,
+    marginRight: 12,
   },
   infoButton: {
     padding: 8,
@@ -326,10 +380,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 6,
     backgroundColor: COLORS.SURFACE,
-    borderTopWidth: 1,
-    borderTopColor: '#333333',
   },
   textInput: {
     flex: 1,
@@ -354,6 +406,85 @@ const styles = StyleSheet.create({
   },
   sendButtonInactive: {
     backgroundColor: COLORS.CARD,
+  },
+  // 모달 스타일
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 16,
+    width: '90%',
+    maxHeight: '80%',
+    padding: 0,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.TEXT,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  participantsList: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  participantItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  participantInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  participantAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.PRIMARY,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  participantInitial: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000000',
+  },
+  participantDetails: {
+    flex: 1,
+  },
+  participantName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.TEXT,
+    marginBottom: 2,
+  },
+  participantStatus: {
+    fontSize: 12,
+    color: COLORS.SECONDARY,
+  },
+  participantJoinDate: {
+    fontSize: 12,
+    color: COLORS.SECONDARY,
   },
 });
 

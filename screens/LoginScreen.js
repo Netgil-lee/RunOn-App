@@ -14,6 +14,7 @@ import {
   Animated,
   Easing,
   Image,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,8 +27,22 @@ const LoginScreen = ({ navigation }) => {
   const [localError, setLocalError] = useState(null);
   const [errorType, setErrorType] = useState(null); // 'phone' | 'verification' | 'network'
   const [showPhoneInput, setShowPhoneInput] = useState(false); // 휴대폰번호 입력 화면 표시 여부
-  const { sendPhoneVerification, verifyPhoneCode, setConfirmationResult, confirmationResult, setTestUser, error: authError, clearError } = useAuth();
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [nextSlideIndex, setNextSlideIndex] = useState(1);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const backgroundFadeAnim = useRef(new Animated.Value(1)).current;
+  const { sendPhoneVerification, verifyPhoneCode, setConfirmationResult, confirmationResult, error: authError, clearError } = useAuth();
   const { isOnline } = useNetwork();
+
+  // 배경 이미지 배열
+  const backgroundImages = [
+    require('../assets/images/riverside/running-bg-1.png'),
+    require('../assets/images/riverside/running-bg-2.png'),
+    require('../assets/images/riverside/running-bg-3.png'),
+    require('../assets/images/riverside/running-bg-4.png'),
+  ];
+
+  const { width: screenWidth } = Dimensions.get('window');
 
   // 애니메이션 refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -91,14 +106,38 @@ const LoginScreen = ({ navigation }) => {
     setIsLoading(false);
   }, []);
 
-  // 컴포넌트 언마운트 시 타이머 정리
+  // 자동 슬라이드 로직
   useEffect(() => {
+    const slideInterval = setInterval(() => {
+      const nextIndex = (currentSlideIndex + 1) % backgroundImages.length;
+      setNextSlideIndex(nextIndex);
+      setIsTransitioning(true);
+      
+      // 부드러운 전환을 위한 애니메이션
+      Animated.timing(backgroundFadeAnim, {
+        toValue: 0,
+        duration: 1000, // 1초로 늘림
+        useNativeDriver: true,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+      }).start(() => {
+        setCurrentSlideIndex(nextIndex);
+        setIsTransitioning(false);
+        Animated.timing(backgroundFadeAnim, {
+          toValue: 1,
+          duration: 1000, // 1초로 늘림
+          useNativeDriver: true,
+          easing: Easing.bezier(0.4, 0, 0.2, 1),
+        }).start();
+      });
+    }, 5000); // 5초마다 슬라이드
+
     return () => {
+      clearInterval(slideInterval);
       if (errorTimeoutRef.current) {
         clearTimeout(errorTimeoutRef.current);
       }
     };
-  }, []);
+  }, [currentSlideIndex, backgroundImages.length, backgroundFadeAnim]);
 
   // 휴대폰번호 포맷팅 (010-1234-5678)
   const formatPhoneNumber = (value) => {
@@ -210,10 +249,7 @@ const LoginScreen = ({ navigation }) => {
   // 1단계: 휴대폰번호 확인 및 기존 회원 여부 확인
   const checkExistingUser = async (phoneNumber) => {
     try {
-      // 테스트 모드 확인
-      if (phoneNumber === '010-0000-0000') {
-        return true; // 테스트 번호는 항상 기존 회원으로 처리
-      }
+
 
       // 실제 구현에서는 Firestore에서 해당 휴대폰번호로 가입된 사용자를 찾아야 합니다
       // 현재는 인증번호 확인 단계에서 실제 사용자 여부를 판단하도록 처리
@@ -305,25 +341,47 @@ const LoginScreen = ({ navigation }) => {
     navigation.navigate('VerificationIntro');
   };
 
-  // 에러 액션 처리
-  const handleErrorAction = () => {
-    const errorInfo = getFriendlyErrorMessage(localError, errorType);
-    
-    if (errorInfo?.actionText === '회원가입하기') {
-      handleClearError();
-      setTimeout(() => {
-        navigation.navigate('PhoneAuth');
-      }, 100);
-    } else {
-      handleClearError();
-    }
+  // 이메일 회원가입으로 이동
+  const handleEmailSignup = () => {
+    handleClearError();
+    navigation.navigate('EmailSignup');
+  };
+
+  // 이메일 로그인으로 이동
+  const handleEmailLogin = () => {
+    handleClearError();
+    navigation.navigate('EmailLogin');
   };
 
   const errorInfo = getFriendlyErrorMessage(localError, errorType);
 
+  // 배경 이미지 렌더링 함수
+  const renderBackgroundImage = (imageSource) => (
+    <View style={styles.backgroundImageContainer}>
+      <Image 
+        source={imageSource} 
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+      <View style={styles.backgroundOverlay} />
+    </View>
+  );
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <SafeAreaView style={styles.container}>
+        {/* 배경 슬라이드 */}
+        <View style={styles.backgroundContainer}>
+          <Animated.View style={[styles.backgroundImageContainer, { opacity: backgroundFadeAnim }]}>
+            <Image 
+              source={backgroundImages[currentSlideIndex]} 
+              style={styles.backgroundImage}
+              resizeMode="cover"
+            />
+            <View style={styles.backgroundOverlay} />
+          </Animated.View>
+        </View>
+
         {/* 뒤로가기 버튼 */}
         {showPhoneInput && (
           <TouchableOpacity 
@@ -346,22 +404,14 @@ const LoginScreen = ({ navigation }) => {
           {!showPhoneInput ? (
             // 첫 화면: 로고와 버튼들
             <>
-              {/* 앱 이름 - 상단 */}
-              <View style={styles.appNameContainer}>
-                <Text style={styles.appName}>NetGill</Text>
-              </View>
-
               {/* 중앙 영역 */}
               <View style={styles.centerContainer}>
-                {/* 로고 이미지가 들어갈 공간 */}
-                <View style={styles.logoPlaceholder}>
-                  <Text style={styles.logoPlaceholderText}>브랜드 로고 또는 이미지</Text>
-                </View>
-                
-                {/* 서브 타이틀 */}
-                <View style={styles.subtitleContainer}>
-                  <Text style={styles.subtitle}>너와 나의{'\n'}러닝커뮤니티</Text>
-                </View>
+                {/* 로고 이미지 */}
+                <Image 
+                  source={require('../assets/logo.png')} 
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
               </View>
 
               {/* 힌트 문구 */}
@@ -379,12 +429,28 @@ const LoginScreen = ({ navigation }) => {
                   <Text style={styles.signupButtonText}>시작하기</Text>
                 </TouchableOpacity>
 
+                {/* 이메일로 회원가입 버튼 */}
+                <TouchableOpacity
+                  style={styles.emailSignupButton}
+                  onPress={handleEmailSignup}
+                >
+                  <Text style={styles.emailSignupButtonText}>이메일로 회원가입</Text>
+                </TouchableOpacity>
+
                 {/* 로그인 버튼 */}
                 <TouchableOpacity
                   style={styles.loginButton}
                   onPress={handleLoginButtonClick}
                 >
                   <Text style={styles.loginButtonText}>로그인</Text>
+                </TouchableOpacity>
+
+                {/* 이메일로 로그인 버튼 */}
+                <TouchableOpacity
+                  style={styles.emailLoginButton}
+                  onPress={handleEmailLogin}
+                >
+                  <Text style={styles.emailLoginButtonText}>이메일로 로그인</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -467,6 +533,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  backgroundContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  backgroundImageContainer: {
+    width: '100%',
+    height: '100%',
+  },
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+  },
+  backgroundOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', // 어두운 오버레이
+  },
   backButton: {
     position: 'absolute',
     top: 50,
@@ -481,48 +570,18 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     justifyContent: 'center',
+    zIndex: 1, // 배경 위에 표시되도록
   },
-  appNameContainer: {
-    alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 40,
-  },
-  appName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    fontFamily: 'Pretendard-Bold',
-  },
+
   centerContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoPlaceholder: {
-    width: 200,
-    height: 200,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 30,
-  },
-  logoPlaceholderText: {
-    color: '#666',
-    fontSize: 14,
-    textAlign: 'center',
-    fontFamily: 'Pretendard-Regular',
-    lineHeight: 20,
-  },
-  subtitleContainer: {
-    alignItems: 'center',
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#fff',
-    textAlign: 'center',
-    fontFamily: 'Pretendard-Regular',
-    lineHeight: 26,
+  logoImage: {
+    width: 250,
+    height: 65,
+    marginBottom: 0,
   },
   hintContainer: {
     alignItems: 'center',
@@ -651,6 +710,36 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   loginButtonText: {
+    color: '#3AF8FF',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  emailSignupButton: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#3AF8FF',
+    borderRadius: 8,
+    padding: 15,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emailSignupButtonText: {
+    color: '#3AF8FF',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  emailLoginButton: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#3AF8FF',
+    borderRadius: 8,
+    padding: 15,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emailLoginButtonText: {
     color: '#3AF8FF',
     fontSize: 16,
     fontWeight: '600',

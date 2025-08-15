@@ -93,7 +93,7 @@ const InsightCard = ({ user, weather }) => {
   const getUserDisplayName = () => {
     if (user.displayName) return user.displayName;
     if (user.name) return user.name;
-    return '김러너';
+    return '사용자';
   };
 
   const progress = getWeeklyProgress();

@@ -18,7 +18,7 @@ import WeatherCard from '../components/WeatherCard';
 import HanRiverMap from '../components/HanRiverMap';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
-// NetGill 디자인 시스템
+// Runon 디자인 시스템
 const COLORS = {
   PRIMARY: '#3AF8FF',
   BACKGROUND: '#000000',
@@ -27,7 +27,7 @@ const COLORS = {
 };
 
 const HomeScreen = ({ navigation }) => {
-  const { user, testUserProfile } = useAuth();
+  const { user } = useAuth();
   const { isTabEnabled, isNotificationTypeEnabled } = useNotificationSettings();
   const scrollViewRef = useRef(null);
   
@@ -50,16 +50,7 @@ const HomeScreen = ({ navigation }) => {
     if (!user) return;
 
     try {
-      // 테스트 모드인 경우 기본값 사용
-      if (user.uid === 'test-user-id') {
-        setCommunityActivity({
-          totalParticipated: 0,
-          thisMonth: 0,
-          hostedEvents: 0,
-          mannerScore: 5.0,
-        });
-        return;
-      }
+
 
       // 실제 사용자인 경우 Firestore에서 데이터 가져오기
       const db = getFirestore();
@@ -86,7 +77,7 @@ const HomeScreen = ({ navigation }) => {
   useEffect(() => {
     fetchCommunityActivity();
     fetchUserProfile();
-  }, [user, testUserProfile]);
+  }, [user]);
 
   // 사용자 프로필 데이터 상태
   const [userProfile, setUserProfile] = useState(null);
@@ -96,27 +87,6 @@ const HomeScreen = ({ navigation }) => {
     if (!user) return;
 
     try {
-      // 테스트 모드인 경우
-      if (user.uid === 'test-user-id') {
-        if (testUserProfile) {
-          setUserProfile(testUserProfile);
-        } else {
-          setUserProfile({
-            displayName: '테스트 사용자',
-            bio: '테스트 모드 사용자입니다.',
-            runningProfile: {
-              level: 'beginner',
-              pace: '6:00',
-              preferredCourses: ['banpo'],
-              preferredTimes: ['morning'],
-              runningStyles: ['steady'],
-              favoriteSeasons: ['spring'],
-              currentGoals: ['habit']
-            }
-          });
-        }
-        return;
-      }
 
       // 실제 사용자인 경우 Firestore에서 프로필 데이터 가져오기
       const db = getFirestore();
@@ -124,7 +94,14 @@ const HomeScreen = ({ navigation }) => {
       const userSnap = await getDoc(userRef);
       
       if (userSnap.exists()) {
-        setUserProfile(userSnap.data());
+        const userData = userSnap.data();
+        // Firestore Timestamp 객체를 안전하게 처리
+        const processedData = {
+          ...userData,
+          createdAt: userData.createdAt?.toDate?.() || userData.createdAt,
+          onboardingCompletedAt: userData.onboardingCompletedAt?.toDate?.() || userData.onboardingCompletedAt,
+        };
+        setUserProfile(processedData);
       } else {
         // 프로필 데이터가 없는 경우 기본 데이터 설정
         setUserProfile({
@@ -216,140 +193,9 @@ const HomeScreen = ({ navigation }) => {
   
   // 실제 알림 데이터 (NotificationScreen과 동일)
   const [notifications] = useState({
-    general: [
-      {
-        id: 1,
-        type: 'system',
-        title: '냇길 앱 업데이트',
-        message: '새로운 기능이 추가되었습니다. 한강 러닝 코스 지도와 실시간 날씨 정보를 확인해보세요!',
-        time: '1시간 전',
-        isRead: false,
-        icon: 'refresh-circle',
-        action: 'update'
-      },
-      {
-        id: 2,
-        type: 'weather',
-        title: '오늘은 러닝하기 좋은 날씨!',
-        message: '기온 18도, 습도 60%로 러닝하기 최적의 날씨입니다. 한강공원에서 러닝을 즐겨보세요.',
-        time: '3시간 전',
-        isRead: false,
-        icon: 'partly-sunny',
-        action: 'weather'
-      },
-      {
-        id: 3,
-        type: 'event',
-        title: '봄맞이 러닝 챌린지 시작!',
-        message: '3월 한 달간 100km 달성 챌린지에 참여하고 특별한 뱃지를 받아보세요.',
-        time: '1일 전',
-        isRead: true,
-        icon: 'trophy',
-        action: 'challenge'
-      },
-      {
-        id: 4,
-        type: 'tip',
-        title: '러닝 팁: 올바른 자세',
-        message: '러닝 시 허리를 펴고 팔꿈치를 90도로 유지하면 더 효율적으로 달릴 수 있습니다.',
-        time: '2일 전',
-        isRead: true,
-        icon: 'fitness',
-        action: 'tip'
-      },
-      {
-        id: 5,
-        type: 'safety',
-        title: '한강 주변 안전 주의',
-        message: '오늘 밤 한강 주변에 안개가 발생할 예정입니다. 러닝 시 주의하세요.',
-        time: '30분 전',
-        isRead: false,
-        icon: 'warning',
-        action: 'safety'
-      }
-    ],
-    meeting: [
-      {
-        id: 6,
-        type: 'reminder',
-        title: '잠실한강공원 러닝 모임',
-        message: '오늘 오후 7시 잠실한강공원에서 러닝 모임이 시작됩니다. 미리 준비해주세요!',
-        time: '30분 전',
-        isRead: false,
-        icon: 'time',
-        action: 'meeting',
-        meetingId: 'meeting_001'
-      },
-      {
-        id: 7,
-        type: 'rating',
-        title: '러닝매너점수 작성 요청',
-        message: '어제 참여한 반포한강공원 러닝 모임의 러닝매너점수를 작성해주세요.',
-        time: '1일 전',
-        isRead: false,
-        icon: 'star',
-        action: 'rating',
-        meetingId: 'meeting_002'
-      },
-      {
-        id: 8,
-        type: 'cancel',
-        title: '망원한강공원 러닝 모임 취소',
-        message: '날씨 악화로 인해 오늘 예정된 망원한강공원 러닝 모임이 취소되었습니다.',
-        time: '2일 전',
-        isRead: true,
-        icon: 'close-circle',
-        action: 'cancel',
-        meetingId: 'meeting_003'
-      },
-
-    ],
-    chat: [
-      {
-        id: 10,
-        type: 'message',
-        title: '잠실한강공원 러닝 모임',
-        message: '김러너님이 "내일 날씨가 좋을 것 같아요!" 메시지를 보냈습니다.',
-        time: '10분 전',
-        isRead: false,
-        icon: 'chatbubble',
-        action: 'chat',
-        chatId: 'chat_001'
-      },
-      {
-        id: 11,
-        type: 'like',
-        title: '게시글 좋아요',
-        message: '러닝매니아님이 당신의 "한강 러닝 후기" 게시글에 좋아요를 눌렀습니다.',
-        time: '1시간 전',
-        isRead: false,
-        icon: 'heart',
-        action: 'like',
-        postId: 'post_001'
-      },
-      {
-        id: 12,
-        type: 'comment',
-        title: '게시글 댓글',
-        message: '초보러너님이 당신의 "러닝화 추천" 게시글에 댓글을 남겼습니다.',
-        time: '2시간 전',
-        isRead: false,
-        icon: 'chatbubble-ellipses',
-        action: 'comment',
-        postId: 'post_002'
-      },
-      {
-        id: 13,
-        type: 'mention',
-        title: '게시글에서 언급',
-        message: '박러너님이 "오늘 러닝 팁" 게시글에서 당신을 언급했습니다.',
-        time: '1일 전',
-        isRead: true,
-        icon: 'at',
-        action: 'mention',
-        postId: 'post_003'
-      }
-    ]
+    general: [],
+    meeting: [],
+    chat: []
   });
 
   // 설정에 따라 필터링된 알림 가져오기
@@ -405,7 +251,8 @@ const HomeScreen = ({ navigation }) => {
       {/* AppBar */}
       <AppBar
         user={user}
-        title="홈"
+        profile={userProfile}
+        hideProfile={false}
         onProfilePress={handleProfilePress}
         onNotificationPress={handleNotificationPress}
         onSettingsPress={handleSettingsPress}

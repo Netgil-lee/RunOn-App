@@ -164,18 +164,27 @@ const ScheduleScreen = ({ navigation, route }) => {
         {
           text: '삭제',
           style: 'destructive',
-          onPress: () => {
-            // 삭제할 모임 찾기
-            const eventToDelete = userCreatedEvents.find(event => event.id === eventId);
-            
-            // 모임 삭제 (EventContext에서 알림 생성 포함)
-            deleteEvent(eventId);
-            
-            Alert.alert(
-              '삭제 완료',
-              '모임과 관련 채팅방이 삭제되었습니다.',
-              [{ text: '확인' }]
-            );
+          onPress: async () => {
+            try {
+              // 삭제할 모임 찾기
+              const eventToDelete = userCreatedEvents.find(event => event.id === eventId);
+              
+              // 모임 삭제 (EventContext에서 알림 생성 포함)
+              await deleteEvent(eventId);
+              
+              Alert.alert(
+                '삭제 완료',
+                '모임과 관련 채팅방이 삭제되었습니다.',
+                [{ text: '확인' }]
+              );
+            } catch (error) {
+              console.error('모임 삭제 실패:', error);
+              Alert.alert(
+                '삭제 실패',
+                '모임 삭제 중 오류가 발생했습니다.',
+                [{ text: '확인' }]
+              );
+            }
           },
         },
       ]
@@ -211,8 +220,16 @@ const ScheduleScreen = ({ navigation, route }) => {
     // 내가 만든 모임인지 확인
     const isCreatedByMe = currentScreen === 'myCreated' || event.isCreatedByUser;
     
+    // Date 객체를 문자열로 변환하여 직렬화 문제 해결
+    const serializedEvent = {
+      ...event,
+      createdAt: event.createdAt && typeof event.createdAt.toISOString === 'function' ? event.createdAt.toISOString() : event.createdAt,
+      date: event.date && typeof event.date.toISOString === 'function' ? event.date.toISOString() : event.date,
+      updatedAt: event.updatedAt && typeof event.updatedAt.toISOString === 'function' ? event.updatedAt.toISOString() : event.updatedAt
+    };
+    
     navigation.navigate('EventDetail', { 
-      event, 
+      event: serializedEvent, 
       isJoined: userJoinedEvents.some(e => e.id === event.id), 
       currentScreen,
       isCreatedByMe
@@ -767,7 +784,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
         <View style={styles.rightSection}>
           {(event.participants || event.maxParticipants) && (
             <Text style={styles.participantInfo}>
-              참여자 {event.participants || 0}
+              참여자 {Array.isArray(event.participants) ? event.participants.length : (event.participants || 0)}
               {event.maxParticipants ? `/${event.maxParticipants}` : ' (제한 없음)'}
             </Text>
           )}
@@ -843,7 +860,15 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     tomorrow.setDate(tomorrow.getDate() + 1);
     return tomorrow;
   });
-  const [dateString, setDateString] = useState(editingEvent?.date || '');
+  const [dateString, setDateString] = useState(() => {
+    if (editingEvent?.date) {
+      return editingEvent.date;
+    }
+    // 기본값: 내일 날짜를 ISO 문자열로 설정
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  });
   const [time, setTime] = useState(() => {
     if (editingEvent?.time) {
       // 기존 시간 문자열을 Date 객체로 변환
@@ -861,7 +886,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     defaultTime.setHours(9, 0, 0, 0);
     return defaultTime;
   });
-  const [timeString, setTimeString] = useState(editingEvent?.time || '');
+  const [timeString, setTimeString] = useState(() => {
+    if (editingEvent?.time) {
+      return editingEvent.time;
+    }
+    // 기본값: 오전 9시
+    return '오전 9:00';
+  });
   const [distance, setDistance] = useState(editingEvent?.distance || '');
   const [minPace, setMinPace] = useState(() => {
     if (editingEvent?.pace && editingEvent.pace.includes(' - ')) {
@@ -1153,6 +1184,10 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   };
 
   const handleCreateEvent = () => {
+    console.log('🔍 모임 생성 - dateString:', dateString, typeof dateString);
+    console.log('🔍 모임 생성 - timeString:', timeString, typeof timeString);
+    console.log('🔍 모임 생성 - date 객체:', date, typeof date);
+    console.log('🔍 모임 생성 - date.toISOString():', date?.toISOString?.());
 
     const organizerName = user?.displayName || user?.email?.split('@')[0] || '나';
     
@@ -1171,8 +1206,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       customMarkerCoords: customMarkerCoords, // 커스텀 마커 좌표 추가
       customLocation: customLocation.trim() || null, // 사용자가 입력한 상세 위치 설명
       organizer: organizerName, // 실제 사용자 정보를 호스트로 설정
+      createdBy: user?.uid, // 모임 생성자 UID 추가
     };
 
+    console.log('🔍 모임 생성 - newEvent:', newEvent);
+    console.log('🔍 모임 생성 - newEvent.date:', newEvent.date, typeof newEvent.date);
     onEventCreated(newEvent);
   };
 
@@ -3227,12 +3265,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.PRIMARY + '20',
   },
   difficultyName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.TEXT,
   },
   difficultyDescription: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666666',
     marginTop: 2,
   },

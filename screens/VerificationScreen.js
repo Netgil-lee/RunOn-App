@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../contexts/NetworkContext';
 import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import smsService from '../services/smsService';
 
 const VerificationScreen = ({ navigation, route }) => {
   const { phoneNumber, isLogin = false } = route.params;
@@ -22,7 +23,7 @@ const VerificationScreen = ({ navigation, route }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [canResend, setCanResend] = useState(false);
-  const { verifyPhoneCode, sendPhoneVerification, confirmationResult, setConfirmationResult, setTestUser } = useAuth();
+  const { verifyPhoneCode, sendPhoneVerification, confirmationResult, setConfirmationResult } = useAuth();
   const { isOnline } = useNetwork();
 
   // 6개 입력 필드 refs
@@ -111,50 +112,34 @@ const VerificationScreen = ({ navigation, route }) => {
 
       const user = await verifyPhoneCode(confirmationResult, verificationCode);
 
-      // 테스트 모드 확인 및 사용자 상태 설정
-      if (user.uid === 'test-user-id') {
-        console.log('🧪 테스트 모드: 사용자 상태 설정');
-        
-        // 테스트 모드에서는 사용자 상태 설정
-        setTestUser(user);
-        
-        if (isLogin) {
-          // 로그인 모드: 메인 화면으로 이동
-          console.log('🧪 테스트 모드: 로그인 성공, 메인 화면으로 이동');
-          navigation.replace('Main');
-        } else {
-          // 회원가입 모드: 온보딩 화면으로 이동
-          console.log('🧪 테스트 모드: 회원가입 성공, 온보딩 화면으로 이동');
-          navigation.replace('Onboarding', { isFromSignup: true });
-        }
+      console.log('✅ 인증 성공, 사용자 정보:', user);
+      
+      // 실제 Firebase 사용자 처리
+      if (isLogin) {
+        // 로그인 모드: 메인 화면으로 이동
+        console.log('🔥 실제 Firebase 사용자: 로그인 성공, 메인 화면으로 이동');
+        navigation.replace('Main');
       } else {
-        // 실제 Firebase 사용자의 경우
-        if (isLogin) {
-          // 로그인 모드: 메인 화면으로 이동
-          console.log('🔥 실제 Firebase 사용자: 로그인 성공, 메인 화면으로 이동');
-          navigation.replace('Main');
-        } else {
-          // 회원가입 모드: Firestore에 사용자 기본 정보 저장 후 온보딩으로 이동
-          console.log('🔥 실제 Firebase 사용자: 회원가입, Firestore에 저장');
-          const db = getFirestore();
-          await setDoc(doc(db, 'users', user.uid), {
-            phoneNumber: phoneNumber,
-            uid: user.uid,
-            createdAt: serverTimestamp(),
-            communityStats: {
-              totalParticipated: 0,
-              thisMonthParticipated: 0,
-              hostedEvents: 0,
-              averageMannerScore: 5.0,
-              mannerScoreCount: 0,
-              receivedTags: {}
-            }
-          });
+        // 회원가입 모드: Firestore에 사용자 기본 정보 저장 후 온보딩으로 이동
+        console.log('🔥 실제 Firebase 사용자: 회원가입, Firestore에 저장');
+        const db = getFirestore();
+        await setDoc(doc(db, 'users', user.uid), {
+          phoneNumber: phoneNumber,
+          uid: user.uid,
+          createdAt: serverTimestamp(),
+          communityStats: {
+            totalParticipated: 0,
+            thisMonthParticipated: 0,
+            hostedEvents: 0,
+            averageMannerScore: 5.0,
+            mannerScoreCount: 0,
+            receivedTags: {}
+          }
+        });
 
-          console.log('✅ 사용자 정보 저장 완료');
-          console.log('🔥 실제 Firebase 사용자: 온보딩 화면으로 이동');
-          navigation.replace('Onboarding', { isFromSignup: true });
-        }
+        console.log('✅ 사용자 정보 저장 완료');
+        console.log('🔥 실제 Firebase 사용자: 온보딩 화면으로 이동');
+        navigation.replace('Onboarding', { isFromSignup: true });
       }
 
     } catch (error) {
@@ -174,7 +159,20 @@ const VerificationScreen = ({ navigation, route }) => {
       setCanResend(false);
       setTimer(180); // 타이머 재시작
 
-      const newConfirmationResult = await sendPhoneVerification(phoneNumber);
+      // SMS 서비스를 통한 재전송
+      const fullPhoneNumber = `+82${phoneNumber.replace(/[^\d]/g, '').slice(1)}`;
+      const smsResult = await smsService.resendSMS(fullPhoneNumber);
+      
+      // 새로운 confirmationResult 생성
+      const newConfirmationResult = {
+        verificationId: smsResult.verificationId,
+        confirm: async (code) => {
+          console.log('🔢 재전송 인증번호 확인 시도:', code);
+          const verifyResult = await smsService.verifyCode(smsResult.verificationId, code);
+          console.log('✅ 재전송 인증번호 확인 성공');
+          return verifyResult;
+        }
+      };
       
       // 새로운 confirmationResult로 전역 상태 업데이트
       setConfirmationResult(newConfirmationResult);

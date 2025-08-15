@@ -17,12 +17,14 @@ const COLORS = {
 
 const ProfileCard = ({ user }) => {
   const userProfile = {
-    name: user?.displayName || '김러너',
+    name: user?.displayName || '사용자',
     level: 'Runner',
-    totalRuns: 24,
-    totalDistance: 186.5,
-    thisWeekRuns: 3,
-    avatar: user?.displayName ? user.displayName.charAt(0) : '러',
+    totalRuns: 0,
+    totalDistance: 0,
+    thisWeekRuns: 0,
+    avatar: user?.displayName ? user.displayName.charAt(0) : '사',
+    gender: user?.gender || '',
+    age: user?.age || '',
   };
 
   return (
@@ -43,6 +45,17 @@ const ProfileCard = ({ user }) => {
               <Text style={styles.levelText}>{userProfile.level}</Text>
             </View>
           </View>
+
+                     {/* 성별과 나이 정보 */}
+           {(userProfile.gender || userProfile.age) && (
+             <View style={styles.userDetails}>
+               <Text style={styles.userDetailsText}>
+                 {userProfile.gender === 'male' ? '남성' : userProfile.gender === 'female' ? '여성' : userProfile.gender}
+                 {userProfile.gender && userProfile.age && ' • '}
+                 {userProfile.age && `${userProfile.age}세`}
+               </Text>
+             </View>
+           )}
 
           {/* 3컬럼 통계 */}
           <View style={styles.statsContainer}>
@@ -145,6 +158,13 @@ const styles = StyleSheet.create({
     height: 24,
     backgroundColor: '#333333',
     marginHorizontal: 8,
+  },
+  userDetails: {
+    marginBottom: 8,
+  },
+  userDetailsText: {
+    fontSize: 14,
+    color: '#666666',
   },
 
 });

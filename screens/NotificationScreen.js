@@ -46,104 +46,8 @@ const NotificationScreen = () => {
   
   // 알림 데이터
   const [notifications, setNotifications] = useState({
-    general: [
-      {
-        id: 1,
-        type: 'system',
-        title: '냇길 앱 업데이트',
-        message: '새로운 기능이 추가되었습니다. 한강 러닝 코스 지도와 실시간 날씨 정보를 확인해보세요!',
-        time: '1시간 전',
-        isRead: false,
-        icon: 'refresh-circle',
-        action: 'update'
-      },
-      {
-        id: 2,
-        type: 'weather',
-        title: '오늘은 러닝하기 좋은 날씨!',
-        message: '기온 18도, 습도 60%로 러닝하기 최적의 날씨입니다. 한강공원에서 러닝을 즐겨보세요.',
-        time: '3시간 전',
-        isRead: false,
-        icon: 'partly-sunny',
-        action: 'weather'
-      },
-      {
-        id: 3,
-        type: 'event',
-        title: '봄맞이 러닝 챌린지 시작!',
-        message: '3월 한 달간 100km 달성 챌린지에 참여하고 특별한 뱃지를 받아보세요.',
-        time: '1일 전',
-        isRead: true,
-        icon: 'trophy',
-        action: 'challenge'
-      },
-      {
-        id: 4,
-        type: 'tip',
-        title: '러닝 팁: 올바른 자세',
-        message: '러닝 시 허리를 펴고 팔꿈치를 90도로 유지하면 더 효율적으로 달릴 수 있습니다.',
-        time: '2일 전',
-        isRead: true,
-        icon: 'fitness',
-        action: 'tip'
-      },
-      {
-        id: 5,
-        type: 'safety',
-        title: '한강 주변 안전 주의',
-        message: '오늘 밤 한강 주변에 안개가 발생할 예정입니다. 러닝 시 주의하세요.',
-        time: '30분 전',
-        isRead: false,
-        icon: 'warning',
-        action: 'safety'
-      }
-    ],
-    chat: [
-      {
-        id: 10,
-        type: 'message',
-        title: '잠실한강공원 러닝 모임',
-        message: '김러너님이 "내일 날씨가 좋을 것 같아요!" 메시지를 보냈습니다.',
-        time: '10분 전',
-        isRead: false,
-        icon: 'chatbubble',
-        action: 'chat',
-        chatId: 'chat_001'
-      },
-      {
-        id: 11,
-        type: 'like',
-        title: '게시글 좋아요',
-        message: '러닝매니아님이 당신의 "한강 러닝 후기" 게시글에 좋아요를 눌렀습니다.',
-        time: '1시간 전',
-        isRead: false,
-        icon: 'heart',
-        action: 'like',
-        postId: 'post_001'
-      },
-      {
-        id: 12,
-        type: 'comment',
-        title: '게시글 댓글',
-        message: '초보러너님이 당신의 "러닝화 추천" 게시글에 댓글을 남겼습니다.',
-        time: '2시간 전',
-        isRead: false,
-        icon: 'chatbubble-ellipses',
-        action: 'comment',
-        postId: 'post_002'
-      },
-      {
-        id: 13,
-        type: 'mention',
-        title: '게시글에서 언급',
-        message: '박러너님이 "오늘 러닝 팁" 게시글에서 당신을 언급했습니다.',
-        time: '1일 전',
-        isRead: true,
-        icon: 'at',
-        action: 'mention',
-        postId: 'post_003'
-      }
-    ]
+    general: [],
+    chat: []
   });
 
   // 탭 데이터
@@ -309,9 +213,17 @@ const NotificationScreen = () => {
               markNotificationAsRead(chatNotification.id);
             });
             
+            // Date 객체를 문자열로 직렬화
+            const serializedChatRoom = {
+              ...targetChatRoom,
+              createdAt: targetChatRoom.createdAt && typeof targetChatRoom.createdAt.toISOString === 'function' ? targetChatRoom.createdAt.toISOString() : targetChatRoom.createdAt,
+              lastMessageTime: targetChatRoom.lastMessageTime && typeof targetChatRoom.lastMessageTime.toISOString === 'function' ? targetChatRoom.lastMessageTime.toISOString() : targetChatRoom.lastMessageTime,
+              updatedAt: targetChatRoom.updatedAt && typeof targetChatRoom.updatedAt.toISOString === 'function' ? targetChatRoom.updatedAt.toISOString() : targetChatRoom.updatedAt
+            };
+            
             // Chat 화면으로 이동 (독립적인 스크린)
             navigation.navigate('Chat', { 
-              chatRoom: targetChatRoom,
+              chatRoom: serializedChatRoom,
               returnToCommunity: true // 뒤로가기 시 CommunityTab으로 돌아가기 위한 플래그
             });
           } else {
@@ -451,7 +363,7 @@ const NotificationScreen = () => {
               {notification.title}
             </Text>
             <Text style={styles.notificationTime}>
-              {notification.time || formatTime(notification.timestamp)}
+              {notification.time ? (notification.time instanceof Date ? notification.time.toLocaleDateString('ko-KR') : notification.time) : formatTime(notification.timestamp)}
             </Text>
           </View>
         </View>
@@ -515,105 +427,7 @@ const NotificationScreen = () => {
         style={styles.notificationList}
         showsVerticalScrollIndicator={false}
       >
-        {/* 테스트 버튼 (커뮤니티 탭에서만 표시) */}
-        {activeTab === 'chat' && (
-          <View style={styles.testSection}>
-            <Text style={styles.testSectionTitle}>테스트 기능</Text>
-            <View style={styles.testButtons}>
-              <TouchableOpacity 
-                style={styles.testButton}
-                onPress={() => {
-                  console.log('🧪 NotificationScreen - 좋아요 알림 테스트 버튼 클릭');
-                  createLikeNotification('1', '한강 러닝 후기 공유합니다!', '테스트 사용자');
-                  console.log('✅ 좋아요 알림 생성 완료');
-                  Alert.alert('테스트', '좋아요 알림이 생성되었습니다!');
-                }}
-              >
-                <Text style={styles.testButtonText}>좋아요 알림 생성</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.testButton}
-                onPress={() => {
-                  console.log('🧪 NotificationScreen - 댓글 알림 테스트 버튼 클릭');
-                  createCommentNotification('2', '초보자 러닝 팁 질문드려요', '테스트 사용자');
-                  console.log('✅ 댓글 알림 생성 완료');
-                  Alert.alert('테스트', '댓글 알림이 생성되었습니다!');
-                }}
-              >
-                <Text style={styles.testButtonText}>댓글 알림 생성</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
-        {/* 날씨 알림 테스트 버튼 (일반 탭에서만 표시) */}
-        {activeTab === 'general' && (
-          <View style={styles.testSection}>
-            <Text style={styles.testSectionTitle}>날씨 알림 테스트</Text>
-            <View style={styles.testButtons}>
-              <TouchableOpacity 
-                style={styles.testButton}
-                onPress={() => {
-                  console.log('🧪 NotificationScreen - 고온 알림 테스트');
-                  const testWeatherData = {
-                    temperature: 38,
-                    feelsLike: 42,
-                    humidity: 70,
-                    windSpeed: 5,
-                    rainVolume: 0
-                  };
-                  const testLocation = {
-                    latitude: 37.5665,
-                    longitude: 126.9780,
-                    name: '서울시청'
-                  };
-                  
-                  weatherAlertService.checkWeatherAlerts(testWeatherData, testLocation)
-                    .then(alerts => {
-                      if (alerts.length > 0) {
-                        Alert.alert('날씨 알림 테스트', alerts[0].message);
-                      } else {
-                        Alert.alert('테스트', '알림 조건이 충족되지 않았습니다.');
-                      }
-                    });
-                }}
-              >
-                <Text style={styles.testButtonText}>고온 알림 테스트</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.testButton}
-                onPress={() => {
-                  console.log('🧪 NotificationScreen - 강수 알림 테스트');
-                  const testWeatherData = {
-                    temperature: 20,
-                    feelsLike: 22,
-                    humidity: 85,
-                    windSpeed: 8,
-                    rainVolume: 35
-                  };
-                  const testLocation = {
-                    latitude: 37.5665,
-                    longitude: 126.9780,
-                    name: '서울시청'
-                  };
-                  
-                  weatherAlertService.checkWeatherAlerts(testWeatherData, testLocation)
-                    .then(alerts => {
-                      if (alerts.length > 0) {
-                        Alert.alert('날씨 알림 테스트', alerts[0].message);
-                      } else {
-                        Alert.alert('테스트', '알림 조건이 충족되지 않았습니다.');
-                      }
-                    });
-                }}
-              >
-                <Text style={styles.testButtonText}>강수 알림 테스트</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* 채팅 알림 테스트 버튼 (커뮤니티 탭에서만 표시) */}
         {activeTab === 'chat' && (
@@ -855,36 +669,7 @@ const styles = StyleSheet.create({
   bottomSpacing: {
     height: 100,
   },
-  testSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: COLORS.SURFACE,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  testSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.TEXT,
-    marginBottom: 12,
-  },
-  testButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  testButton: {
-    flex: 1,
-    backgroundColor: COLORS.PRIMARY + '20',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  testButtonText: {
-    fontSize: 12,
-    color: COLORS.PRIMARY,
-    fontWeight: '600',
-  },
+
 });
 
 export default NotificationScreen; 

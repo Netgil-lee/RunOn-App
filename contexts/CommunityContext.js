@@ -1,11 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
 import { useNotificationSettings } from './NotificationSettingsContext';
+import { useAuth } from './AuthContext';
 
 const CommunityContext = createContext();
 
 export const useCommunity = () => useContext(CommunityContext);
 
 export const CommunityProvider = ({ children }) => {
+  const { user } = useAuth();
+  const db = getFirestore();
   const [posts, setPosts] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const { isNotificationTypeEnabled } = useNotificationSettings();
@@ -14,6 +18,61 @@ export const CommunityProvider = ({ children }) => {
   const [hasCommunityNotification, setHasCommunityNotification] = useState(false);
   const [hasChatNotification, setHasChatNotification] = useState(false);
   const [hasBoardNotification, setHasBoardNotification] = useState(false);
+
+  // Firebase에서 실시간으로 게시글 데이터 가져오기
+  useEffect(() => {
+    if (!user) return;
+
+    const postsRef = collection(db, 'posts');
+    const postsQuery = query(postsRef, orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+      const postsData = [];
+      snapshot.forEach((doc) => {
+        const postData = doc.data();
+        // Firestore Timestamp 객체를 안전하게 처리
+        const processedPost = {
+          id: doc.id,
+          ...postData,
+          createdAt: postData.createdAt?.toDate?.() || postData.createdAt,
+          updatedAt: postData.updatedAt?.toDate?.() || postData.updatedAt,
+        };
+        postsData.push(processedPost);
+      });
+      setPosts(postsData);
+    });
+
+    return () => unsubscribe();
+  }, [user, db]);
+
+  // 커뮤니티 알림 데이터 가져오기
+  useEffect(() => {
+    if (!user) return;
+
+    const notificationsRef = collection(db, 'notifications');
+    const notificationsQuery = query(
+      notificationsRef, 
+      where('userId', '==', user.uid),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      const notificationsData = [];
+      snapshot.forEach((doc) => {
+        const notificationData = doc.data();
+        // Firestore Timestamp 객체를 안전하게 처리
+        const processedNotification = {
+          id: doc.id,
+          ...notificationData,
+          timestamp: notificationData.timestamp?.toDate?.() || notificationData.timestamp,
+        };
+        notificationsData.push(processedNotification);
+      });
+      setNotifications(notificationsData);
+    });
+
+    return () => unsubscribe();
+  }, [user, db]);
 
   // 커뮤니티 알림이 있는지 확인하는 함수
   const checkCommunityNotifications = () => {
@@ -84,78 +143,6 @@ export const CommunityProvider = ({ children }) => {
     checkBoardNotifications();
   }, [notifications]);
 
-  // 초기화 시 샘플 게시글 추가
-  useEffect(() => {
-    if (!Array.isArray(posts)) {
-      setPosts([]);
-    }
-    
-    // 샘플 게시글 추가 (한 번만)
-    if (posts.length === 0) {
-      const samplePosts = [
-        {
-          id: 1,
-          title: '한강 러닝 후기 공유합니다!',
-          content: '어제 한강공원에서 5km 뛰었는데 정말 좋았어요. 날씨도 좋고...',
-          author: '러닝매니아',
-          authorId: 'user_002',
-          createdAt: '2024-01-15',
-          likes: 12,
-          comments: 3,
-          category: 'review'
-        },
-        {
-          id: 2,
-          title: '초보자 러닝 팁 질문드려요',
-          content: '러닝을 시작한지 한 달 정도 됐는데, 무릎이 아픈 경우가 있어서...',
-          author: '초보러너',
-          authorId: 'user_003',
-          createdAt: '2024-01-14',
-          likes: 8,
-          comments: 7,
-          category: 'question'
-        },
-        {
-          id: 3,
-          title: '러닝화 추천 부탁드립니다',
-          content: '발볼이 넓은 편인데 어떤 러닝화가 좋을까요?',
-          author: '발넓이',
-          authorId: 'user_004',
-          createdAt: '2024-01-13',
-          likes: 15,
-          comments: 12,
-          category: 'gear'
-        },
-        {
-          id: 4,
-          title: '내가 작성한 첫 번째 게시글입니다!',
-          content: '안녕하세요! 저는 러닝을 좋아하는 사용자입니다. 오늘은 제가 작성한 게시글이 어떻게 보이는지 확인해보겠습니다.',
-          author: '나',
-          authorId: 'user_001',
-          createdAt: '2024-01-16',
-          likes: 5,
-          comments: 2,
-          category: 'free'
-        },
-        {
-          id: 5,
-          title: '러닝 코스 추천해드려요',
-          content: '한강공원에서 발견한 좋은 러닝 코스를 공유합니다. 경사가 적당하고 경치도 좋아요!',
-          author: '나',
-          authorId: 'user_001',
-          createdAt: '2024-01-17',
-          likes: 10,
-          comments: 4,
-          category: 'course'
-        }
-      ];
-      
-      samplePosts.forEach(post => {
-        addPost(post);
-      });
-    }
-  }, [posts.length]);
-
   const addPost = (post) => {
     setPosts(prev => [post, ...prev]);
   };
@@ -200,7 +187,7 @@ export const CommunityProvider = ({ children }) => {
   const createNotification = (type, postId, postTitle, authorName) => {
     // 알림 설정이 비활성화되어 있으면 알림 생성하지 않음
     if (!isNotificationTypeEnabled(type)) {
-      // 테스트를 위해 강제로 알림 생성
+      return;
     }
 
     const notification = {
@@ -234,12 +221,12 @@ export const CommunityProvider = ({ children }) => {
     });
   };
 
-  // 좋아요 알림 생성 (테스트용으로 항상 생성)
+  // 좋아요 알림 생성
   const createLikeNotification = (postId, postTitle, authorName) => {
     createNotification('like', postId, postTitle, authorName);
   };
 
-  // 댓글 알림 생성 (테스트용으로 항상 생성)
+  // 댓글 알림 생성
   const createCommentNotification = (postId, postTitle, authorName) => {
     createNotification('comment', postId, postTitle, authorName);
   };
