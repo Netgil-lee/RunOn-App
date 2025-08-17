@@ -362,7 +362,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.lee-gwang-hee.runon";
+				PRODUCT_BUNDLE_IDENTIFIER = com.runon.app;
 				PRODUCT_NAME = RunOn;
 				SWIFT_OBJC_BRIDGING_HEADER = "RunOn/RunOn-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -393,7 +393,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.lee-gwang-hee.runon";
+				PRODUCT_BUNDLE_IDENTIFIER = com.runon.app;
 				PRODUCT_NAME = RunOn;
 				SWIFT_OBJC_BRIDGING_HEADER = "RunOn/RunOn-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
