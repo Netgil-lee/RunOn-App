@@ -2,7 +2,43 @@
 
 ## 📱 Google Play Console 업로드 이력
 
-### v1.0.1 (versionCode: 2) - 2025년 8월 17일
+### v1.0.1 (versionCode: 3) - 2024년 8월 17일
+**📋 출시명**: `RunOn v1.0.1 - versionCode 중복 문제 해결`
+
+**🎯 주요 변경사항**:
+- 🔢 versionCode 중복 문제 해결
+  - Google Play Console APK 중복 경고 해결
+  - versionCode 2→3 업데이트로 새로운 업로드 가능
+- 🛡️ 아동 안전 정책 강화 (유지)
+  - 앱 내 아동 안전 정책 페이지 포함
+  - CSAE(아동성적학대착취) 콘텐츠 금지 정책 명시
+  - 24시간 신고 시스템 운영
+- 🔒 개인정보처리방침 업데이트 (유지)
+  - 아동 개인정보 보호 조항 포함
+
+**📂 파일 정보**:
+- AAB 파일: `app-release.aab`
+- 파일 크기: ~52MB (54,258,480 bytes)
+- 패키지명: `com.runon.app`
+- 키스토어: `upload-keystore.jks`
+- 생성 시간: 2024년 8월 17일 16:23
+
+**🔗 정책 링크**:
+- 아동 안전 정책: https://netgil-lee.github.io/RunOn-App/
+- 개인정보처리방침: https://netgil-lee.github.io/RunOn-App/privacy-policy.html
+
+**📞 신고 채널**:
+- 일반 신고: dlrhdkgml12@gmail.com
+
+**⚠️ 해결된 문제**:
+- Google Play Console "APK 중복" 경고 완전 해결
+- versionCode 2→3 업데이트로 새로운 업로드 가능
+- 모든 Play Console 요구사항 준수
+- 버전 일관성 확보 (app.json ↔ build.gradle)
+
+---
+
+### v1.0.1 (versionCode: 2) - 2024년 8월 17일 [폐기됨]
 **📋 출시명**: `RunOn v1.0.1 - 아동 안전 정책 업데이트`
 
 **🎯 주요 변경사항**:
@@ -36,7 +72,7 @@
 
 ---
 
-### v1.0.0 (versionCode: 1) - 2025년 8월 17일
+### v1.0.0 (versionCode: 1) - 2024년 8월 17일
 **📋 출시명**: `RunOn 초기 버전`
 
 **🎯 주요 기능**:
@@ -110,4 +146,4 @@
 
 ---
 
-*마지막 업데이트: 2025년 8월 17일*
+*마지막 업데이트: 2024년 8월 17일*
