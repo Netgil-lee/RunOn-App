@@ -86,7 +86,7 @@ const SettingsScreen = ({ navigation }) => {
         { 
           text: '상세보기', 
           onPress: () => {
-            Linking.openURL('https://YOUR_GITHUB_USERNAME.github.io/RunOn-App/')
+            Linking.openURL('https://netgil-lee.github.io/RunOn-App/')
               .catch(() => Alert.alert('오류', '링크를 열 수 없습니다.'));
           }
         }
