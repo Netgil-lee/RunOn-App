@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 구글 소유권 확인 메타 태그를 여기에 추가하세요 -->
+    <title>RunOn - 한강 러닝 파트너 매칭 앱</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 60px 0;
+            color: white;
+        }
+        
+        .logo {
+            font-size: 4em;
+            font-weight: bold;
+            background: linear-gradient(45deg, #3AF8FF, #00FF88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+        }
+        
+        .tagline {
+            font-size: 1.5em;
+            color: #cccccc;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 1.1em;
+            color: #999999;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .content {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            margin: 40px 0;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section:last-child {
+            margin-bottom: 0;
+        }
+        
+        h2 {
+            color: #333;
+            font-size: 2em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3AF8FF;
+            display: inline-block;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .feature-card {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 4px solid #3AF8FF;
+        }
+        
+        .feature-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .feature-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .contact-info {
+            background: linear-gradient(135deg, #3AF8FF, #00FF88);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 30px 0;
+        }
+        
+        .contact-item {
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .contact-icon {
+            margin-right: 15px;
+            font-size: 1.2em;
+        }
+        
+        .company-info {
+            background: #f0f8ff;
+            padding: 25px;
+            border-radius: 15px;
+            border: 1px solid #e0e8f0;
+        }
+        
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 40px 0;
+            color: #999;
+            border-top: 1px solid #eee;
+            margin-top: 40px;
+        }
+        
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 3em;
+            }
+            
+            .tagline {
+                font-size: 1.2em;
+            }
+            
+            .content {
+                padding: 20px;
+                margin: 20px 0;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">RunOn</div>
+            <div class="tagline">한강 러닝 파트너 매칭 앱</div>
+            <div class="subtitle">
+                건강한 러닝 문화 확산과 안전한 러닝 환경 조성을 위해 노력하는 개발팀입니다
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>🏃‍♂️ 회사 소개</h2>
+                <p>
+                    RunOn은 한강에서 러닝을 즐기는 사람들을 위한 파트너 매칭 앱을 개발하는 전문 팀입니다. 
+                    우리는 러너들이 안전하고 즐겁게 운동할 수 있는 환경을 만들고, 
+                    건강한 러닝 문화 확산에 기여하고자 합니다.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>✨ 주요 서비스</h2>
+                <div class="features">
+                    <div class="feature-card">
+                        <div class="feature-icon">🗺️</div>
+                        <div class="feature-title">한강 러닝 코스 정보</div>
+                        <p>한강 11개 공원의 상세한 러닝 코스 정보와 실시간 위치 기반 추천 서비스를 제공합니다.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">👥</div>
+                        <div class="feature-title">러닝 파트너 매칭</div>
+                        <p>비슷한 실력과 관심사를 가진 러닝 파트너를 AI 기반으로 매칭해드립니다.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📅</div>
+                        <div class="feature-title">실시간 러닝 모임</div>
+                        <p>실시간으로 러닝 모임을 생성하고 참여할 수 있는 소셜 러닝 플랫폼을 운영합니다.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">💬</div>
+                        <div class="feature-title">러닝 커뮤니티</div>
+                        <p>러닝 팁, 후기, 정보를 공유할 수 있는 건전한 커뮤니티 공간을 제공합니다.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <div class="feature-title">러닝 기록 관리</div>
+                        <p>개인 러닝 기록과 통계를 체계적으로 관리하고 분석할 수 있습니다.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🌤️</div>
+                        <div class="feature-title">날씨 정보</div>
+                        <p>실시간 날씨 정보를 통해 최적의 러닝 시간을 추천해드립니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section company-info">
+                <h2>🏢 회사 정보</h2>
+                <p><strong>회사명:</strong> RunOn 개발팀</p>
+                <p><strong>설립:</strong> 2024년</p>
+                <p><strong>업종:</strong> 모바일 애플리케이션 개발</p>
+                <p><strong>주요 사업:</strong> 스포츠/헬스케어 모바일 앱 개발 및 운영</p>
+                <p><strong>미션:</strong> 건강한 러닝 문화 확산과 안전한 운동 환경 조성</p>
+            </div>
+
+            <div class="contact-info">
+                <h2>📞 연락처 정보</h2>
+                <div class="contact-item">
+                    <span class="contact-icon">📧</span>
+                    <div>
+                        <strong>이메일:</strong> dlrhdkgml12@gmail.com
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <span class="contact-icon">🌐</span>
+                    <div>
+                        <strong>웹사이트:</strong> <a href="https://netgil-lee.github.io/RunOn-App">https://netgil-lee.github.io/RunOn-App</a>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <span class="contact-icon">📱</span>
+                    <div>
+                        <strong>앱 스토어:</strong> 출시 예정 (iOS/Android)
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <span class="contact-icon">🔒</span>
+                    <div>
+                        <strong>개인정보처리방침:</strong> 
+                        <a href="https://netgil-lee.github.io/RunOn-App/privacy-policy.html">보기</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🛡️ 정책 및 규정</h2>
+                <p>
+                    RunOn은 사용자의 안전과 개인정보 보호를 최우선으로 생각합니다. 
+                    모든 서비스는 관련 법규를 준수하며, 특히 아동 안전 보호 정책을 엄격히 시행하고 있습니다.
+                </p>
+                <ul style="margin-top: 15px; padding-left: 20px;">
+                    <li>개인정보보호법 완전 준수</li>
+                    <li>아동 안전 보호 정책 시행</li>
+                    <li>24시간 신고 시스템 운영</li>
+                    <li>부적절한 콘텐츠 자동 필터링</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2024 RunOn 개발팀. All rights reserved.</p>
+            <p>건강한 러닝 문화를 만들어가는 RunOn과 함께하세요!</p>
+        </div>
+    </div>
+</body>
+</html>
