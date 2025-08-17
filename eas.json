@@ -13,6 +13,10 @@
     "production": {
       "android": {
         "buildType": "apk"
+      },
+      "node": "18.18.0",
+      "env": {
+        "NODE_OPTIONS": "--legacy-peer-deps"
       }
     }
   },

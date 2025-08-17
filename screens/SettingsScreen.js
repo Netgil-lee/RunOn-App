@@ -77,6 +77,23 @@ const SettingsScreen = ({ navigation }) => {
     }));
   };
 
+  const handleChildSafetyPolicy = () => {
+    Alert.alert(
+      '아동 안전 정책',
+      'RunOn은 아동의 안전과 보호를 최우선으로 합니다.\n\n• 아동성적학대착취(CSAE) 콘텐츠 금지\n• 만 13세 미만 사용자 보호자 동의 필요\n• 24시간 신고 시스템 운영\n• 부적절한 콘텐츠 자동 필터링\n\n신고: safety@runon.app\n긴급신고: 02-0000-0000',
+      [
+        { text: '확인', style: 'default' },
+        { 
+          text: '상세보기', 
+          onPress: () => {
+            Linking.openURL('https://YOUR_GITHUB_USERNAME.github.io/RunOn-App/')
+              .catch(() => Alert.alert('오류', '링크를 열 수 없습니다.'));
+          }
+        }
+      ]
+    );
+  };
+
   const handleLogout = async () => {
     Alert.alert(
       '로그아웃',
@@ -291,10 +308,16 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => Alert.alert('개인정보 처리방침', '개인정보 처리방침이 곧 추가됩니다.')}
           />
           <SettingItem
+            icon="shield-checkmark-outline"
+            title="아동 안전 정책"
+            subtitle="아동 보호 및 안전에 관한 정책"
+            onPress={() => handleChildSafetyPolicy()}
+          />
+          <SettingItem
             icon="information-circle-outline"
             title="버전 정보"
-            subtitle="냇길 v1.0.0"
-            onPress={() => Alert.alert('버전 정보', '냇길 v1.0.0\n최신 버전입니다.')}
+            subtitle="RunOn v1.0.0"
+            onPress={() => Alert.alert('버전 정보', 'RunOn v1.0.0\n최신 버전입니다.')}
           />
         </View>
 
