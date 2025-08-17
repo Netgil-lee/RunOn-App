@@ -88,7 +88,7 @@ const EventDetailScreen = ({ route, navigation }) => {
   
   // 내가 생성한 일정인지 확인 (route 파라미터 우선, 없으면 UID 비교 사용)
   const isCreatedByMe = routeIsCreatedByMe !== undefined ? routeIsCreatedByMe : (user && event.createdBy && (
-    user.uid === event.createdBy ||
+    user.uid === event.createdBy || user.uid === event.organizerId ||
     user.displayName === event.organizer || 
     user.email?.split('@')[0] === event.organizer ||
     event.organizer === '나' ||

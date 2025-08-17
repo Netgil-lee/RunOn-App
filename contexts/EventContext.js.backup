@@ -390,13 +390,13 @@ export const EventProvider = ({ children }) => {
       
       if (result.success) {
         // 일정 생성 시 자동으로 채팅방 생성
-        const chatRoomResult = await createChatRoomForEvent({ ...eventData, id: result.id });
+        await createChatRoomForEvent({ ...eventData, id: result.id });
         
         // 모임 생성자 통계 업데이트 (호스트로 카운트)
         await evaluationService.incrementParticipationCount(user.uid, true);
         
         console.log('✅ 이벤트 생성 완료:', result.id);
-        return { ...eventData, id: result.id, chatRoomId: chatRoomResult?.id };
+        return { ...eventData, id: result.id };
       }
     } catch (error) {
       console.error('❌ 이벤트 생성 실패:', error);
@@ -439,7 +439,6 @@ export const EventProvider = ({ children }) => {
       const result = await firestoreService.createChatRoom(chatRoomData);
       if (result.success) {
         console.log('✅ 채팅방 생성 완료:', result.id);
-        return result;
       }
     } catch (error) {
       console.error('❌ 채팅방 생성 실패:', error);

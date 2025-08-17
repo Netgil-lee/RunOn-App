@@ -100,13 +100,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.lee_gwang_hee.runon.v2'
+    namespace 'com.runon.app'
     defaultConfig {
-        applicationId 'com.lee_gwang_hee.runon.v2'
+        applicationId 'com.runon.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 3
+        versionName "1.0.1"
     }
     signingConfigs {
         debug {

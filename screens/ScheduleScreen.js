@@ -123,7 +123,7 @@ const ScheduleScreen = ({ navigation, route }) => {
     setShowCreateFlow(true);
   };
 
-  const handleEventCreated = (newEvent) => {
+  const handleEventCreated = async (newEvent) => {
     if (editingEvent && editingEvent.id) {
       // 수정 모드
       updateEvent(editingEvent.id, newEvent);
@@ -131,7 +131,7 @@ const ScheduleScreen = ({ navigation, route }) => {
       setEditingEvent(null);
     } else {
       // 새 모임 생성
-      const createdEvent = addEvent(newEvent);
+      const createdEvent = await addEvent(newEvent);
       setShowCreateFlow(false);
       setEditingEvent(null);
       
@@ -140,10 +140,17 @@ const ScheduleScreen = ({ navigation, route }) => {
         '모임 생성 완료! 🎉',
         `"${newEvent.title}" 모임이 성공적으로 생성되었습니다.\n\n채팅방을 확인해보세요!`,
         [
-          { text: '확인' },
+          { text: '나중에' },
           { 
             text: '채팅방 보기', 
-            onPress: () => navigation.navigate('CommunityTab')
+            onPress: () => {
+              if (createdEvent?.chatRoomId) {
+                const chatRoom = { id: createdEvent.chatRoomId, title: `${newEvent.title} 🏃‍♀️` };
+                navigation.navigate('Chat', { chatRoom });
+              } else {
+                navigation.navigate('CommunityTab');
+              }
+            }
           }
         ]
       );
@@ -1274,11 +1281,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     // 사용자가 삭제하고 있는지 확인 (이전 값보다 길이가 짧아졌는지)
     const isDeleting = previousValue && value.length < previousValue.length;
     
-    // 삭제 중이면 포맷팅하지 않고 원본 반환
-    if (isDeleting) {
-      return value;
-    }
-    
     // 숫자만 추출
     const numbers = value.replace(/[^0-9]/g, '');
     
@@ -1297,6 +1299,24 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     
     // 이미 올바른 포맷팅된 형태라면 그대로 반환 (예: 5'30", 10'15")
     if (/^\d+'\d+"$/.test(value)) {
+      return value;
+    }
+    
+    // 삭제 중이고 불완전한 포맷이면 자동 수정
+    if (isDeleting) {
+      // 예: "50'0" -> "5'00"으로 자동 수정
+      if (/^\d+'\d$/.test(value)) {
+        const parts = value.split("'");
+        const minutes = parts[0];
+        const seconds = parts[1];
+        
+        // 50'0의 경우 5'00"으로 변환
+        if (minutes === '50' && seconds === '0') {
+          return `5'00"`;
+        }
+        // 다른 경우는 초를 두 자리로 패딩
+        return `${minutes}'0${seconds}"`;
+      }
       return value;
     }
     
@@ -1676,13 +1696,15 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       <View style={styles.coursePhotoModalOverlay}>
         <View style={styles.coursePhotoModalContainer}>
           <View style={styles.coursePhotoModalHeader}>
-            <TouchableOpacity onPress={() => setShowCoursePhotoModal(false)}>
+            <TouchableOpacity 
+              onPress={() => setShowCoursePhotoModal(false)}
+              style={styles.coursePhotoModalCloseButton}
+            >
               <Text style={styles.coursePhotoModalCancelText}>닫기</Text>
             </TouchableOpacity>
             <Text style={styles.coursePhotoModalTitle}>
               {selectedCoursePhoto?.name || '코스 사진'}
             </Text>
-            <View style={{ width: 50 }} />
           </View>
           <View style={styles.coursePhotoModalContent}>
             {selectedCoursePhoto ? (
@@ -4394,11 +4416,12 @@ const styles = StyleSheet.create({
   coursePhotoModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#333333',
+    position: 'relative',
   },
   coursePhotoModalTitle: {
     fontSize: 18,
@@ -4411,6 +4434,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#666666',
+  },
+  coursePhotoModalCloseButton: {
+    position: 'absolute',
+    left: 20,
+    zIndex: 1,
   },
   coursePhotoModalContent: {
     padding: 20,

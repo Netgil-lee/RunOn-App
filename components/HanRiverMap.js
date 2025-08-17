@@ -6,9 +6,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import MeetingCard from './MeetingCard';
 import { useEvents } from '../contexts/EventContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const HanRiverMap = ({ navigation }) => {
   const { allEvents } = useEvents(); // EventContext에서 모임 데이터 가져오기
+  const { user } = useAuth();
   
   const [isLoading, setIsLoading] = useState(true);
   const [mapError, setMapError] = useState(false);
@@ -1017,10 +1019,20 @@ const HanRiverMap = ({ navigation }) => {
             updatedAt: eventData.updatedAt && typeof eventData.updatedAt.toISOString === 'function' ? eventData.updatedAt.toISOString() : eventData.updatedAt
           };
           
+          // 이벤트 작성자 확인
+          const isCreatedByMe = user && (
+            user.uid === meeting.createdBy ||
+            user.uid === meeting.organizerId ||
+            user.displayName === meeting.organizer ||
+            user.email?.split('@')[0] === meeting.organizer ||
+            meeting.isCreatedByUser
+          );
+          
           navigation.navigate('EventDetail', { 
             event: serializedEventData,
             isJoined: false,
-            currentScreen: 'home'
+            currentScreen: 'home',
+            isCreatedByMe: isCreatedByMe
           });
         }}
       >

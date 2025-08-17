@@ -221,7 +221,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const handleProfilePress = () => {
-    navigation.navigate('Profile');
+    navigation.navigate('ProfileTab');
   };
 
   const handleNotificationPress = () => {
