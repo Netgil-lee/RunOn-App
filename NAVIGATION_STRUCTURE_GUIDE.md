@@ -86,3 +86,26 @@ navigation.navigate('NextScreen');
 - [ ] 공통 스크린 포함 여부 확인
 - [ ] 네비게이션 방식 적절성 검토
 - [ ] 상태 관리와 네비게이션 동기화 확인
+
+## 🔍 점검 완료된 Screen들
+
+### ✅ 안전한 Screen들:
+- **OnboardingScreen.js**: `navigation.replace('AppIntro')` - 같은 Stack 내 이동
+- **LoginScreen.js**: `navigation.navigate()` - 같은 Stack 내 이동
+- **EmailSignupScreen.js**: 네비게이션 직접 호출 없음
+- **EmailLoginScreen.js**: 네비게이션 직접 호출 없음
+
+### 🔧 수정된 Screen들:
+- **VerificationScreen.js**: 직접 네비게이션 제거, AuthContext 상태 변경으로 자동 처리
+- **AppIntroScreen.js**: `navigation.reset()` → `navigation.replace()` 변경
+
+## 🚨 주의사항
+
+### 다른 Stack으로 이동하는 네비게이션은 피해야 함:
+```javascript
+// ❌ 위험한 방식
+navigation.replace('Main');  // 다른 Stack으로 이동 시도
+
+// ✅ 안전한 방식
+// AuthContext 상태 변경으로 AppNavigator가 자동 처리
+```

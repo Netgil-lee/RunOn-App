@@ -116,9 +116,9 @@ const VerificationScreen = ({ navigation, route }) => {
       
       // 실제 Firebase 사용자 처리
       if (isLogin) {
-        // 로그인 모드: 메인 화면으로 이동
-        console.log('🔥 실제 Firebase 사용자: 로그인 성공, 메인 화면으로 이동');
-        navigation.replace('Main');
+        // 로그인 모드: AuthContext 상태 변경으로 자동 네비게이션
+        console.log('🔥 실제 Firebase 사용자: 로그인 성공, AuthContext 상태 변경 대기');
+        // AuthContext의 상태 변경으로 AppNavigator가 자동으로 메인 화면으로 전환
       } else {
         // 회원가입 모드: Firestore에 사용자 기본 정보 저장 후 온보딩으로 이동
         console.log('🔥 실제 Firebase 사용자: 회원가입, Firestore에 저장');
@@ -127,6 +127,7 @@ const VerificationScreen = ({ navigation, route }) => {
           phoneNumber: phoneNumber,
           uid: user.uid,
           createdAt: serverTimestamp(),
+          onboardingCompleted: false, // 새 사용자는 온보딩 미완료
           communityStats: {
             totalParticipated: 0,
             thisMonthParticipated: 0,
@@ -138,8 +139,8 @@ const VerificationScreen = ({ navigation, route }) => {
         });
 
         console.log('✅ 사용자 정보 저장 완료');
-        console.log('🔥 실제 Firebase 사용자: 온보딩 화면으로 이동');
-        navigation.replace('Onboarding', { isFromSignup: true });
+        console.log('🔥 실제 Firebase 사용자: AuthContext 상태 변경으로 자동 네비게이션');
+        // AuthContext의 상태 변경으로 AppNavigator가 자동으로 온보딩 화면으로 전환
       }
 
     } catch (error) {
