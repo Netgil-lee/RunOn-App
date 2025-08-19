@@ -7,28 +7,56 @@ class EvaluationService {
 
   // 평가 결과를 Firebase에 저장
   async saveEvaluationResults(meetingId, evaluations, evaluatorId) {
-    try {
-      const meetingRef = doc(this.db, 'meetings', meetingId);
-      
-      // 평가 데이터 구조
-      const evaluationData = {
-        evaluatorId,
-        timestamp: new Date(),
-        evaluations: evaluations
-      };
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔍 EvaluationService.saveEvaluationResults 호출됨 (시도:', retryCount + 1, ')');
+        console.log('🔍 모임 ID:', meetingId);
+        console.log('🔍 평가자 ID:', evaluatorId);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const meetingRef = doc(this.db, 'meetings', meetingId);
+        
+        // 평가 데이터 구조
+        const evaluationData = {
+          evaluatorId,
+          timestamp: new Date(),
+          evaluations: evaluations
+        };
 
-      // 모임 문서에 평가 결과 추가
-      await updateDoc(meetingRef, {
-        evaluations: arrayUnion(evaluationData)
-      });
+        // 모임 문서에 평가 결과 추가
+        await updateDoc(meetingRef, {
+          evaluations: arrayUnion(evaluationData)
+        });
 
-      // 각 참여자의 프로필 통계 업데이트
-      await this.updateParticipantStats(evaluations);
+        console.log('✅ 모임 평가 결과 저장 완료 (시도:', retryCount + 1, ')');
 
-      return { success: true };
-    } catch (error) {
-      console.error('평가 저장 실패:', error);
-      throw error;
+        // 각 참여자의 프로필 통계 업데이트
+        await this.updateParticipantStats(evaluations);
+
+        console.log('✅ 평가 시스템 완료 (시도:', retryCount + 1, ')');
+        return { success: true };
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 평가 저장 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          throw error;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   }
 
@@ -126,28 +154,52 @@ class EvaluationService {
 
   // 참여 모임 수 업데이트 (모임 참여 시 호출)
   async incrementParticipationCount(userId, isHost = false) {
-    try {
-      console.log('📊 EvaluationService - 참여 카운트 업데이트 시작:', { userId, isHost });
-      
-      const userRef = doc(this.db, 'users', userId);
-      
-      const updateData = {
-        'communityStats.totalParticipated': increment(1),
-        'communityStats.thisMonthParticipated': increment(1) // 이번달 참여 카운트 증가
-      };
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('📊 EvaluationService - 참여 카운트 업데이트 시작 (시도:', retryCount + 1, ')');
+        console.log('📊 사용자 ID:', userId, '호스트 여부:', isHost);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const userRef = doc(this.db, 'users', userId);
+        
+        const updateData = {
+          'communityStats.totalParticipated': increment(1),
+          'communityStats.thisMonthParticipated': increment(1) // 이번달 참여 카운트 증가
+        };
 
-      if (isHost) {
-        updateData['communityStats.hostedEvents'] = increment(1);
-        // 모임 생성도 이번달 참여에 포함되므로 추가 증가
-        updateData['communityStats.thisMonthParticipated'] = increment(1);
+        if (isHost) {
+          updateData['communityStats.hostedEvents'] = increment(1);
+          // 모임 생성도 이번달 참여에 포함되므로 추가 증가
+          updateData['communityStats.thisMonthParticipated'] = increment(1);
+        }
+
+        console.log('📊 EvaluationService - 업데이트 데이터:', updateData);
+        await updateDoc(userRef, updateData);
+        
+        console.log('✅ EvaluationService - 참여 카운트 업데이트 완료 (시도:', retryCount + 1, ')');
+        return;
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 참여 수 업데이트 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          return; // 실패해도 앱 동작에 영향 없도록 return
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-
-      console.log('📊 EvaluationService - 업데이트 데이터:', updateData);
-      await updateDoc(userRef, updateData);
-      
-      console.log('✅ EvaluationService - 참여 카운트 업데이트 완료');
-    } catch (error) {
-      console.error('❌ 참여 수 업데이트 실패:', error);
     }
   }
 }

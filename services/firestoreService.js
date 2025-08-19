@@ -347,69 +347,175 @@ class FirestoreService {
 
   // 채팅방 관련
   async createChatRoom(chatRoomData) {
-    try {
-      const chatRoomsRef = collection(this.db, 'chatRooms');
-      const docRef = await addDoc(chatRoomsRef, {
-        ...chatRoomData,
-        createdAt: serverTimestamp(),
-        lastMessageTime: serverTimestamp()
-      });
-      return { success: true, id: docRef.id };
-    } catch (error) {
-      console.error('채팅방 생성 실패:', error);
-      throw error;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔍 FirestoreService.createChatRoom 호출됨 (시도:', retryCount + 1, ')');
+        console.log('🔍 채팅방 데이터:', chatRoomData);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const chatRoomsRef = collection(this.db, 'chatRooms');
+        const docRef = await addDoc(chatRoomsRef, {
+          ...chatRoomData,
+          createdAt: serverTimestamp(),
+          lastMessageTime: serverTimestamp()
+        });
+        
+        console.log('✅ 채팅방 생성 완료 (시도:', retryCount + 1, ') - ID:', docRef.id);
+        return { success: true, id: docRef.id };
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 채팅방 생성 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          throw error;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   }
 
   async sendMessage(chatRoomId, messageData) {
-    try {
-      const messagesRef = collection(this.db, 'chatRooms', chatRoomId, 'messages');
-      await addDoc(messagesRef, {
-        ...messageData,
-        timestamp: serverTimestamp()
-      });
-      
-      // 채팅방의 마지막 메시지 시간 업데이트
-      const chatRoomRef = doc(this.db, 'chatRooms', chatRoomId);
-      await updateDoc(chatRoomRef, {
-        lastMessage: messageData.text,
-        lastMessageTime: serverTimestamp()
-      });
-      
-      return { success: true };
-    } catch (error) {
-      console.error('메시지 전송 실패:', error);
-      throw error;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔍 FirestoreService.sendMessage 호출됨 (시도:', retryCount + 1, ')');
+        console.log('🔍 채팅방 ID:', chatRoomId);
+        console.log('🔍 메시지 데이터:', messageData);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const messagesRef = collection(this.db, 'chatRooms', chatRoomId, 'messages');
+        await addDoc(messagesRef, {
+          ...messageData,
+          timestamp: serverTimestamp()
+        });
+        
+        console.log('✅ 메시지 저장 완료 (시도:', retryCount + 1, ')');
+        
+        // 채팅방의 마지막 메시지 시간 업데이트
+        const chatRoomRef = doc(this.db, 'chatRooms', chatRoomId);
+        await updateDoc(chatRoomRef, {
+          lastMessage: messageData.text,
+          lastMessageTime: serverTimestamp()
+        });
+        
+        console.log('✅ 채팅방 업데이트 완료 (시도:', retryCount + 1, ')');
+        return { success: true };
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 메시지 전송 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          throw error;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   }
 
   // 알림 관련
   async createNotification(notificationData) {
-    try {
-      const notificationsRef = collection(this.db, 'notifications');
-      const docRef = await addDoc(notificationsRef, {
-        ...notificationData,
-        timestamp: serverTimestamp(),
-        isRead: false
-      });
-      return { success: true, id: docRef.id };
-    } catch (error) {
-      console.error('알림 생성 실패:', error);
-      throw error;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔍 FirestoreService.createNotification 호출됨 (시도:', retryCount + 1, ')');
+        console.log('🔍 알림 데이터:', notificationData);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const notificationsRef = collection(this.db, 'notifications');
+        const docRef = await addDoc(notificationsRef, {
+          ...notificationData,
+          timestamp: serverTimestamp(),
+          isRead: false
+        });
+        
+        console.log('✅ 알림 생성 완료 (시도:', retryCount + 1, ') - ID:', docRef.id);
+        return { success: true, id: docRef.id };
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 알림 생성 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          throw error;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   }
 
   async markNotificationAsRead(notificationId) {
-    try {
-      const notificationRef = doc(this.db, 'notifications', notificationId);
-      await updateDoc(notificationRef, {
-        isRead: true,
-        readAt: serverTimestamp()
-      });
-      return { success: true };
-    } catch (error) {
-      console.error('알림 읽음 처리 실패:', error);
-      throw error;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔍 FirestoreService.markNotificationAsRead 호출됨 (시도:', retryCount + 1, ')');
+        console.log('🔍 알림 ID:', notificationId);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const notificationRef = doc(this.db, 'notifications', notificationId);
+        await updateDoc(notificationRef, {
+          isRead: true,
+          readAt: serverTimestamp()
+        });
+        
+        console.log('✅ 알림 읽음 처리 완료 (시도:', retryCount + 1, ')');
+        return { success: true };
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 알림 읽음 처리 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          throw error;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   }
 
