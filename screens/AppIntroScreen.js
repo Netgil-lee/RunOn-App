@@ -124,8 +124,16 @@ const AppIntroScreen = ({ navigation }) => {
         const result = await completeOnboarding();
         console.log('✅ 온보딩 완료 처리 성공, 결과:', result);
         
-        // AuthContext의 상태 변경으로 자동으로 메인 화면으로 전환됨
-        console.log('🎯 메인 화면으로 자동 전환 대기 중...');
+        // 직접 네비게이션으로 메인 화면으로 전환
+        if (result) {
+          console.log('🎯 직접 네비게이션으로 메인 화면 전환');
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          });
+        } else {
+          console.log('⚠️ 온보딩 완료 처리 실패 - 네비게이션 중단');
+        }
         
       } catch (error) {
         console.error('❌ 온보딩 완료 처리 실패:', error);
