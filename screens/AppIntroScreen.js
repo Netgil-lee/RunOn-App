@@ -124,31 +124,43 @@ const AppIntroScreen = ({ navigation }) => {
         const result = await completeOnboarding();
         console.log('✅ 온보딩 완료 처리 성공, 결과:', result);
         
-        // 강제로 Main 스크린으로 직접 이동 (이중 안전장치)
+        // 4단계 안전장치로 Main 스크린으로 이동
         if (result) {
-          console.log('🎯 온보딩 완료 - 강제로 Main 스크린으로 이동');
+          console.log('🎯 온보딩 완료 - 4단계 안전장치로 Main 스크린으로 이동');
+          
+          // 1차: 강제로 Main 스크린으로 이동
           try {
-            // 1차: 강제로 Main 스크린으로 이동
             navigation.reset({
               index: 0,
               routes: [{ name: 'Main' }],
             });
-            console.log('✅ Main 스크린으로 강제 이동 성공');
+            console.log('✅ 1차: Main 스크린으로 강제 이동 성공');
           } catch (navError) {
-            console.error('❌ Main 스크린 강제 이동 실패:', navError);
+            console.error('❌ 1차: Main 스크린 강제 이동 실패:', navError);
             
-            // 2차: AuthContext 상태 변경으로 자동 네비게이션 시도
-            console.log('🔄 AuthContext 상태 변경으로 자동 네비게이션 시도');
-            setTimeout(() => {
-              console.log('🔍 상태 변경 확인 중...');
-              if (onboardingCompleted) {
-                console.log('✅ 상태 변경 감지됨 - 자동 네비게이션 예상');
-              } else {
-                console.log('⚠️ 상태 변경 미감지 - 최종 대안 시도');
-                // 최종 대안: 강제로 AppIntro를 다시 호출
-                navigation.replace('AppIntro');
-              }
-            }, 1000);
+            // 2차: 직접 HomeTab으로 이동 시도
+            try {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Main', params: { screen: 'HomeTab' } }],
+              });
+              console.log('✅ 2차: HomeTab으로 직접 이동 성공');
+            } catch (navError2) {
+              console.error('❌ 2차: HomeTab 직접 이동 실패:', navError2);
+              
+              // 3차: AuthContext 상태 변경으로 자동 네비게이션 시도
+              console.log('🔄 3차: AuthContext 상태 변경으로 자동 네비게이션 시도');
+              setTimeout(() => {
+                console.log('🔍 상태 변경 확인 중...');
+                if (onboardingCompleted) {
+                  console.log('✅ 상태 변경 감지됨 - 자동 네비게이션 예상');
+                } else {
+                  console.log('⚠️ 상태 변경 미감지 - 4차 대안 시도');
+                  // 4차: 강제로 AppIntro를 다시 호출
+                  navigation.replace('AppIntro');
+                }
+              }, 1000);
+            }
           }
         } else {
           console.log('⚠️ 온보딩 완료 처리 실패 - 네비게이션 중단');
