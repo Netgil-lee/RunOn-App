@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lee-gwang-hee.runon",
-      "buildNumber": "14",
+      "buildNumber": "15",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
