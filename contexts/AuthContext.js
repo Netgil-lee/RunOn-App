@@ -265,68 +265,41 @@ export const AuthProvider = ({ children }) => {
 
   // 온보딩 완료 처리
   const completeOnboarding = async () => {
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    while (retryCount < maxRetries) {
-      try {
-        if (user) {
-          console.log('🔐 AuthContext: 온보딩 완료 처리 시작', { 
-            uid: user.uid, 
-            attempt: retryCount + 1,
-            environment: __DEV__ ? 'development' : 'production'
-          });
-          
-          const db = getFirestore();
-          const userRef = doc(db, 'users', user.uid);
-          
-          // Firestore 업데이트
-          await updateDoc(userRef, {
-            onboardingCompleted: true,
-            onboardingCompletedAt: serverTimestamp()
-          });
-          
-          console.log('✅ Firestore 업데이트 완료 (시도:', retryCount + 1, ')');
-          
-          // 로컬 상태 업데이트
-          setOnboardingCompleted(true);
-          console.log('🔐 AuthContext: 온보딩 완료 상태로 업데이트 완료');
-          
-          // 상태 변경 확인을 위한 짧은 지연
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          return true; // 성공 시 true 반환
-        } else {
-          console.warn('⚠️ 사용자 정보가 없어 온보딩 완료 처리 불가');
-          return false;
-        }
-      } catch (error) {
-        retryCount++;
-        console.error('❌ 온보딩 완료 처리 실패 (시도:', retryCount, '):', error);
-        console.error('❌ 에러 상세:', {
-          code: error.code,
-          message: error.message,
+    try {
+      if (user) {
+        console.log('🔐 AuthContext: 온보딩 완료 처리 시작', { 
+          uid: user.uid,
           environment: __DEV__ ? 'development' : 'production'
         });
         
-        if (retryCount >= maxRetries) {
-          console.error('❌ 최대 재시도 횟수 초과');
-          
-          // 마지막 시도에서 실패한 경우에도 로컬 상태는 업데이트 시도
-          try {
-            console.log('🔄 로컬 상태 강제 업데이트 시도');
-            setOnboardingCompleted(true);
-            return true; // 로컬 상태 업데이트 성공으로 간주
-          } catch (localError) {
-            console.error('❌ 로컬 상태 업데이트도 실패:', localError);
-            throw error; // 원래 에러를 던짐
-          }
-        }
+        const db = getFirestore();
+        const userRef = doc(db, 'users', user.uid);
         
-        // 1초 대기 후 재시도
-        console.log('⏳ 재시도 대기 중... (1초)');
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Firestore 업데이트
+        await updateDoc(userRef, {
+          onboardingCompleted: true,
+          onboardingCompletedAt: serverTimestamp()
+        });
+        
+        console.log('✅ Firestore 업데이트 완료');
+        
+        // 로컬 상태 업데이트
+        setOnboardingCompleted(true);
+        console.log('🔐 AuthContext: 온보딩 완료 상태로 업데이트 완료');
+        
+        return true;
+      } else {
+        console.warn('⚠️ 사용자 정보가 없어 온보딩 완료 처리 불가');
+        return false;
       }
+    } catch (error) {
+      console.error('❌ 온보딩 완료 처리 실패:', error);
+      console.error('❌ 에러 상세:', {
+        code: error.code,
+        message: error.message,
+        environment: __DEV__ ? 'development' : 'production'
+      });
+      throw error;
     }
   };
 

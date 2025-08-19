@@ -45,7 +45,7 @@ const AppIntroScreen = ({ navigation }) => {
     toggleSetting
   } = useNotificationSettings();
   
-  const { completeOnboarding } = useAuth(); // AuthContext에서 completeOnboarding 가져오기
+  const { completeOnboarding, onboardingCompleted, user } = useAuth(); // AuthContext에서 필요한 변수들 가져오기
 
   // 알림 권한 확인
   useEffect(() => {
@@ -125,35 +125,7 @@ const AppIntroScreen = ({ navigation }) => {
         console.log('✅ 온보딩 완료 처리 성공, 결과:', result);
         
         // AuthContext의 상태 변경으로 자동으로 메인 화면으로 전환됨
-        // 추가적인 안정성을 위해 짧은 지연 추가
-        setTimeout(() => {
-          console.log('🎯 메인 화면으로 자동 전환 대기 중...');
-          console.log('🔍 현재 onboardingCompleted 상태:', onboardingCompleted);
-          
-          // 상태 변경이 반영되지 않았을 경우 강제 리렌더링
-          if (!onboardingCompleted) {
-            console.warn('⚠️ onboardingCompleted 상태가 아직 false, 강제 리렌더링 시도');
-            // 강제로 상태를 다시 확인
-            setTimeout(() => {
-              console.log('🔍 재확인 - onboardingCompleted 상태:', onboardingCompleted);
-              
-              // 여전히 false인 경우 강제 네비게이션 시도
-              if (!onboardingCompleted) {
-                console.warn('⚠️ 강제 네비게이션 시도');
-                try {
-                  // 강제로 메인 화면으로 이동
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Main' }],
-                  });
-                  console.log('✅ 강제 네비게이션 성공');
-                } catch (navError) {
-                  console.error('❌ 강제 네비게이션 실패:', navError);
-                }
-              }
-            }, 500);
-          }
-        }, 100);
+        console.log('🎯 메인 화면으로 자동 전환 대기 중...');
         
       } catch (error) {
         console.error('❌ 온보딩 완료 처리 실패:', error);
