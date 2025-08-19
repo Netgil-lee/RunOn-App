@@ -31,6 +31,10 @@ const HomeScreen = ({ navigation }) => {
   const { isTabEnabled, isNotificationTypeEnabled } = useNotificationSettings();
   const scrollViewRef = useRef(null);
   
+  // 로딩 상태 추가
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  
   // 날씨 데이터 상태
   const [weatherData, setWeatherData] = useState(null);
   
@@ -75,8 +79,27 @@ const HomeScreen = ({ navigation }) => {
 
   // 컴포넌트 마운트 시 데이터 가져오기
   useEffect(() => {
-    fetchCommunityActivity();
-    fetchUserProfile();
+    const initializeData = async () => {
+      try {
+        setIsLoading(true);
+        setHasError(false);
+        console.log('🏠 HomeScreen: 데이터 초기화 시작');
+        
+        await Promise.all([
+          fetchCommunityActivity(),
+          fetchUserProfile()
+        ]);
+        
+        console.log('✅ HomeScreen: 데이터 초기화 완료');
+      } catch (error) {
+        console.error('❌ HomeScreen: 데이터 초기화 실패:', error);
+        setHasError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    initializeData();
   }, [user]);
 
   // 사용자 프로필 데이터 상태
@@ -245,6 +268,34 @@ const HomeScreen = ({ navigation }) => {
   const handleRecommendationPress = () => {
     Alert.alert('러닝 시작', '러닝 추적 기능이 곧 추가됩니다!');
   };
+
+  // 로딩 중이거나 에러가 있는 경우 처리
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: COLORS.TEXT, fontSize: 16 }}>홈 화면을 불러오는 중...</Text>
+      </View>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: COLORS.ERROR, fontSize: 16 }}>데이터를 불러오는데 실패했습니다.</Text>
+        <TouchableOpacity 
+          style={{ marginTop: 20, padding: 10, backgroundColor: COLORS.PRIMARY, borderRadius: 8 }}
+          onPress={() => {
+            setIsLoading(true);
+            setHasError(false);
+            fetchCommunityActivity();
+            fetchUserProfile();
+          }}
+        >
+          <Text style={{ color: COLORS.BACKGROUND }}>다시 시도</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
