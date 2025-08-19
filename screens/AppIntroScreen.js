@@ -115,21 +115,53 @@ const AppIntroScreen = ({ navigation }) => {
       // 앱 인트로 완료 - 온보딩 상태를 완료로 변경
       try {
         console.log('🎉 AppIntro 완료 - 온보딩 상태 업데이트 시작');
+        console.log('🔍 현재 환경:', __DEV__ ? '개발' : '프로덕션');
+        console.log('🔍 현재 사용자:', user?.uid);
         
         // 로딩 상태 표시 (선택사항)
         // setLoading(true);
         
-        await completeOnboarding();
-        console.log('✅ 온보딩 완료 처리 성공');
+        const result = await completeOnboarding();
+        console.log('✅ 온보딩 완료 처리 성공, 결과:', result);
         
         // AuthContext의 상태 변경으로 자동으로 메인 화면으로 전환됨
         // 추가적인 안정성을 위해 짧은 지연 추가
         setTimeout(() => {
           console.log('🎯 메인 화면으로 자동 전환 대기 중...');
+          console.log('🔍 현재 onboardingCompleted 상태:', onboardingCompleted);
+          
+          // 상태 변경이 반영되지 않았을 경우 강제 리렌더링
+          if (!onboardingCompleted) {
+            console.warn('⚠️ onboardingCompleted 상태가 아직 false, 강제 리렌더링 시도');
+            // 강제로 상태를 다시 확인
+            setTimeout(() => {
+              console.log('🔍 재확인 - onboardingCompleted 상태:', onboardingCompleted);
+              
+              // 여전히 false인 경우 강제 네비게이션 시도
+              if (!onboardingCompleted) {
+                console.warn('⚠️ 강제 네비게이션 시도');
+                try {
+                  // 강제로 메인 화면으로 이동
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'Main' }],
+                  });
+                  console.log('✅ 강제 네비게이션 성공');
+                } catch (navError) {
+                  console.error('❌ 강제 네비게이션 실패:', navError);
+                }
+              }
+            }, 500);
+          }
         }, 100);
         
       } catch (error) {
         console.error('❌ 온보딩 완료 처리 실패:', error);
+        console.error('❌ 에러 상세 정보:', {
+          message: error.message,
+          code: error.code,
+          stack: error.stack
+        });
         Alert.alert(
           '설정 저장 오류', 
           '온보딩 완료 처리 중 문제가 발생했습니다. 다시 시도해주세요.',

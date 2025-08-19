@@ -138,8 +138,19 @@ const AppNavigator = () => {
     initializing, 
     onboardingCompleted,
     hasUser: !!user,
-    onboardingStatus: onboardingCompleted ? 'completed' : 'pending'
+    onboardingStatus: onboardingCompleted ? 'completed' : 'pending',
+    environment: __DEV__ ? 'development' : 'production'
   });
+
+  // 상태 일관성 검증
+  useEffect(() => {
+    if (user && !initializing) {
+      console.log('🔍 AppNavigator: 상태 일관성 검증 중...');
+      console.log('🔍 사용자 존재:', !!user);
+      console.log('🔍 온보딩 완료 상태:', onboardingCompleted);
+      console.log('🔍 초기화 상태:', initializing);
+    }
+  }, [user, initializing, onboardingCompleted]);
 
   if (initializing) {
     console.log('🧭 AppNavigator: 초기화 중 - SplashScreen 표시');

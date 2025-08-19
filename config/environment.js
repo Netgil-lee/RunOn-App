@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 // 환경 변수 설정
 const ENV = {
@@ -56,12 +57,21 @@ const ENV = {
 
 // 현재 환경 감지
 function getEnvVars(env = Constants.expoConfig?.releaseChannel) {
+  console.log('🌍 환경 감지:', {
+    isDev: __DEV__,
+    releaseChannel: env,
+    platform: Platform?.OS
+  });
+  
   // __DEV__는 개발 모드일 때 true
   if (__DEV__) {
+    console.log('🌍 개발 환경 사용');
     return ENV.dev;
   } else if (env === 'staging') {
+    console.log('🌍 스테이징 환경 사용');
     return ENV.staging;
   } else {
+    console.log('🌍 프로덕션 환경 사용');
     return ENV.prod;
   }
 }
