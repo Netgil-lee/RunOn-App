@@ -203,6 +203,7 @@ const AppNavigator = () => {
         }}
       >
         <Stack.Screen name="Main" component={MainTabNavigator} />
+        <Stack.Screen name="AppIntro" component={AppIntroScreen} />
         <Stack.Screen name="Chat" component={ChatScreen} />
         <Stack.Screen name="Participant" component={ParticipantScreen} />
         <Stack.Screen name="EventDetail" component={EventDetailScreen} />
