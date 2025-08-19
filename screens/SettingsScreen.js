@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -83,8 +84,8 @@ const SettingsScreen = ({ navigation }) => {
       'RunOn은 아동의 안전과 보호를 최우선으로 합니다.\n\n• 아동성적학대착취(CSAE) 콘텐츠 금지\n• 만 13세 미만 사용자 보호자 동의 필요\n• 24시간 신고 시스템 운영\n• 부적절한 콘텐츠 자동 필터링\n\n신고: safety@runon.app\n긴급신고: 02-0000-0000',
       [
         { text: '확인', style: 'default' },
-        { 
-          text: '상세보기', 
+        {
+          text: '상세보기',
           onPress: () => {
             Linking.openURL('https://netgil-lee.github.io/RunOn-App/')
               .catch(() => Alert.alert('오류', '링크를 열 수 없습니다.'));
@@ -92,6 +93,33 @@ const SettingsScreen = ({ navigation }) => {
         }
       ]
     );
+  };
+
+  const handleDebugInfo = async () => {
+    try {
+      const debugLog = await AsyncStorage.getItem('onboarding_debug_log');
+      if (debugLog) {
+        const debugInfo = JSON.parse(debugLog);
+        Alert.alert(
+          '디버깅 정보',
+          `시간: ${debugInfo.timestamp}\n단계: ${debugInfo.step}\n선택된 목표: ${debugInfo.currentGoals.length}개\n진행 가능: ${debugInfo.canProceed}\n메시지: ${debugInfo.message}`,
+          [
+            { text: '확인', style: 'default' },
+            {
+              text: '로그 삭제',
+              onPress: async () => {
+                await AsyncStorage.removeItem('onboarding_debug_log');
+                Alert.alert('완료', '디버깅 로그가 삭제되었습니다.');
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('알림', '저장된 디버깅 정보가 없습니다.');
+      }
+    } catch (error) {
+      Alert.alert('오류', '디버깅 정보를 불러올 수 없습니다.');
+    }
   };
 
   const handleLogout = async () => {
@@ -312,6 +340,12 @@ const SettingsScreen = ({ navigation }) => {
             title="아동 안전 정책"
             subtitle="아동 보호 및 안전에 관한 정책"
             onPress={() => handleChildSafetyPolicy()}
+          />
+          <SettingItem
+            icon="bug-outline"
+            title="디버깅 정보"
+            subtitle="온보딩 디버깅 정보 확인"
+            onPress={() => handleDebugInfo()}
           />
           <SettingItem
             icon="information-circle-outline"

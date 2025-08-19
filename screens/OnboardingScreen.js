@@ -31,6 +31,7 @@ import {
 } from '../constants/onboardingOptions';
 import OnboardingLevelSelector from '../components/OnboardingLevelSelector';
 import OnboardingCourseSelector from '../components/OnboardingCourseSelector';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -265,6 +266,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
       case 6:
         return formData.favoriteSeasons.length > 0;
       case 7:
+        console.log('🔍 7단계 검증 - currentGoals:', formData.currentGoals, 'length:', formData.currentGoals.length);
         return formData.currentGoals.length > 0;
       default:
         return false;
@@ -273,81 +275,47 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
 
   // 온보딩 완료
   const handleComplete = async () => {
-    const finalData = {
-      ...formData,
+    // 디버깅 정보를 AsyncStorage에 저장
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      step: 7,
+      formData: formData,
       currentGoals: formData.currentGoals,
+      canProceed: canProceed(),
+      message: 'handleComplete 함수 실행됨'
     };
     
     try {
-      // 테스트 모드 확인
-      if (user?.uid === 'test-user-id') {
-        console.log('🧪 테스트 모드: 온보딩 프로필 저장');
-        
-        // 테스트 모드에서도 프로필 데이터 저장
-        if (updateUserProfile) {
-          const calculatedAge = calculateAge(formData.birthDate);
-          await updateUserProfile({
-            displayName: formData.nickname,
-            bio: formData.bio,
-            profileImage: formData.profileImage,
-            birthDate: formData.birthDate,
-            gender: formData.gender,
-            age: calculatedAge,
-            runningProfile: {
-              level: formData.runningLevel,
-              pace: formData.averagePace,
-              preferredCourses: formData.preferredCourses,
-              preferredTimes: formData.preferredTimes,
-              runningStyles: formData.runningStyles,
-              favoriteSeasons: formData.favoriteSeasons,
-              currentGoals: finalData.currentGoals,
-            },
-            // onboardingCompleted는 AppIntroScreen에서 설정
-            onboardingCompletedAt: new Date().toISOString(),
-          });
-        }
-        
-        console.log('✅ 테스트 모드 프로필 저장 완료 - AppIntroScreen으로 이동');
-        setShowWelcome(true);
-        setTimeout(() => {
-          navigation.navigate('AppIntro');
-        }, 1500);
-        return;
-      }
-      
-      // 사용자 프로필 저장 (온보딩 완료 상태는 AppIntroScreen에서 처리)
-      if (user && updateUserProfile) {
-        const calculatedAge = calculateAge(formData.birthDate);
-        await updateUserProfile({
-          displayName: formData.nickname,
-          bio: formData.bio,
-          profileImage: formData.profileImage,
-          birthDate: formData.birthDate,
-          gender: formData.gender,
-          age: calculatedAge,
-          runningProfile: {
-            level: formData.runningLevel,
-            pace: formData.averagePace,
-            preferredCourses: formData.preferredCourses,
-            preferredTimes: formData.preferredTimes,
-            runningStyles: formData.runningStyles,
-            favoriteSeasons: formData.favoriteSeasons,
-            currentGoals: finalData.currentGoals,
-          },
-          // onboardingCompleted는 AppIntroScreen에서 설정
-          onboardingCompletedAt: new Date().toISOString(),
-        });
-      }
-      
-      console.log('✅ 온보딩 프로필 저장 완료 - AppIntroScreen으로 이동');
+      await AsyncStorage.setItem('onboarding_debug_log', JSON.stringify(debugInfo));
+      console.log('🚀 온보딩 완료 버튼 클릭됨');
+      console.log('📊 현재 formData:', formData);
+      console.log('🎯 선택된 목표들:', formData.currentGoals);
+      console.log('✅ 진행 가능 여부:', canProceed());
       
       setShowWelcome(true);
+      
+      // 지연 시간을 단축하고 더 안정적인 네비게이션 사용
       setTimeout(() => {
-        navigation.navigate('AppIntro');
-      }, 1500);
+        console.log('🚀 AppIntroScreen으로 네비게이션 시작');
+        console.log('🧭 네비게이션 객체:', navigation);
+        console.log('🧭 사용 가능한 라우트:', navigation.getState()?.routes?.map(r => r.name) || []);
+        
+        try {
+          // navigate 대신 replace 사용으로 더 안정적인 화면 전환
+          navigation.replace('AppIntro');
+          console.log('✅ AppIntro 네비게이션 성공');
+        } catch (error) {
+          console.error('❌ AppIntro 네비게이션 실패:', error);
+          // 네비게이션 실패 시 대안 처리 - 더 구체적인 에러 메시지
+          Alert.alert(
+            '화면 전환 오류', 
+            '앱 인트로 화면으로 이동할 수 없습니다. 앱을 다시 시작해주세요.',
+            [{ text: '확인' }]
+          );
+        }
+      }, 800); // 지연 시간을 1.5초에서 0.8초로 단축
     } catch (error) {
-      console.error('온보딩 완료 처리 중 오류:', error);
-      Alert.alert('오류', '프로필 저장 중 문제가 발생했습니다. 다시 시도해주세요.');
+      console.error('디버깅 정보 저장 실패:', error);
     }
   };
 

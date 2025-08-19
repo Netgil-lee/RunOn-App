@@ -267,19 +267,31 @@ export const AuthProvider = ({ children }) => {
   const completeOnboarding = async () => {
     try {
       if (user) {
+        console.log('🔐 AuthContext: 온보딩 완료 처리 시작', { uid: user.uid });
+        
         const db = getFirestore();
         const userRef = doc(db, 'users', user.uid);
         
+        // Firestore 업데이트
         await updateDoc(userRef, {
           onboardingCompleted: true,
           onboardingCompletedAt: serverTimestamp()
         });
         
+        console.log('✅ Firestore 업데이트 완료');
+        
+        // 로컬 상태 업데이트
         setOnboardingCompleted(true);
-        console.log('🔐 AuthContext: 온보딩 완료 상태로 업데이트');
+        console.log('🔐 AuthContext: 온보딩 완료 상태로 업데이트 완료');
+        
+        return true; // 성공 시 true 반환
+      } else {
+        console.warn('⚠️ 사용자 정보가 없어 온보딩 완료 처리 불가');
+        return false;
       }
     } catch (error) {
-      console.error('온보딩 완료 처리 실패:', error);
+      console.error('❌ 온보딩 완료 처리 실패:', error);
+      throw error; // 에러를 다시 던져서 호출자가 처리할 수 있도록
     }
   };
 

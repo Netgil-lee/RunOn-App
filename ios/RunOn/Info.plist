@@ -38,7 +38,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>3</string>
+    <string>8</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -90,5 +90,9 @@
     <string>Light</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+    <key>ITSEncryptionExportComplianceCode</key>
+    <string>a7d70c2c-8b2f-4f55-a3f7-2e1b4c7d8e9f</string>
   </dict>
 </plist>

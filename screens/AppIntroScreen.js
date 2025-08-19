@@ -114,12 +114,30 @@ const AppIntroScreen = ({ navigation }) => {
     } else {
       // 앱 인트로 완료 - 온보딩 상태를 완료로 변경
       try {
-        console.log('🎉 AppIntro 완료 - 온보딩 상태 업데이트');
+        console.log('🎉 AppIntro 완료 - 온보딩 상태 업데이트 시작');
+        
+        // 로딩 상태 표시 (선택사항)
+        // setLoading(true);
+        
         await completeOnboarding();
+        console.log('✅ 온보딩 완료 처리 성공');
+        
         // AuthContext의 상태 변경으로 자동으로 메인 화면으로 전환됨
+        // 추가적인 안정성을 위해 짧은 지연 추가
+        setTimeout(() => {
+          console.log('🎯 메인 화면으로 자동 전환 대기 중...');
+        }, 100);
+        
       } catch (error) {
         console.error('❌ 온보딩 완료 처리 실패:', error);
-        Alert.alert('오류', '설정 저장 중 문제가 발생했습니다.');
+        Alert.alert(
+          '설정 저장 오류', 
+          '온보딩 완료 처리 중 문제가 발생했습니다. 다시 시도해주세요.',
+          [
+            { text: '다시 시도', onPress: handleNext },
+            { text: '취소', style: 'cancel' }
+          ]
+        );
       }
     }
   };

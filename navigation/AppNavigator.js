@@ -136,17 +136,20 @@ const AppNavigator = () => {
   console.log('🧭 AppNavigator 상태:', { 
     user: user ? user.uid : null, 
     initializing, 
-    onboardingCompleted 
+    onboardingCompleted,
+    hasUser: !!user,
+    onboardingStatus: onboardingCompleted ? 'completed' : 'pending'
   });
 
   if (initializing) {
+    console.log('🧭 AppNavigator: 초기화 중 - SplashScreen 표시');
     return <SplashScreen />;
   }
 
   // 간단한 조건부 렌더링
   if (!user) {
     // 사용자가 없으면 로그인 화면
-    console.log('🧭 AppNavigator: 로그인 화면으로 이동');
+    console.log('🧭 AppNavigator: 사용자 없음 - 로그인 화면으로 이동');
     return (
       <Stack.Navigator
         screenOptions={{
@@ -166,7 +169,7 @@ const AppNavigator = () => {
     );
   } else if (!onboardingCompleted) {
     // 사용자가 있지만 온보딩이 완료되지 않았으면 온보딩 화면
-    console.log('🧭 AppNavigator: 온보딩 화면으로 이동');
+    console.log('🧭 AppNavigator: 온보딩 미완료 - 온보딩 화면으로 이동');
     return (
       <Stack.Navigator
         screenOptions={{
@@ -180,7 +183,7 @@ const AppNavigator = () => {
     );
   } else {
     // 사용자가 있고 온보딩이 완료되었으면 메인 화면
-    console.log('🧭 AppNavigator: 홈 화면으로 이동');
+    console.log('🧭 AppNavigator: 온보딩 완료 - 홈 화면으로 이동');
     return (
       <Stack.Navigator
         screenOptions={{

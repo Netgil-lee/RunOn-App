@@ -26,6 +26,9 @@ const OnboardingGoalSelector = ({ value = [], onChange }) => {
     }
   };
 
+  console.log('🎯 OnboardingGoalSelector - 현재 선택된 값:', value);
+  console.log('🎯 GOAL_OPTIONS:', GOAL_OPTIONS);
+
   return (
     <View style={styles.container}>
       <View style={styles.optionsContainer}>
@@ -37,7 +40,10 @@ const OnboardingGoalSelector = ({ value = [], onChange }) => {
               value.includes(goal.id) && styles.selectedCard
             ]}
             onPress={() => {
-              onChange(toggleArrayItem(value, goal.id));
+              console.log('🎯 목표 선택됨:', goal.id);
+              const newValue = toggleArrayItem(value, goal.id);
+              console.log('🎯 새로운 값:', newValue);
+              onChange(newValue);
             }}
           >
             <Text style={styles.goalTitle}>{goal.title}</Text>
