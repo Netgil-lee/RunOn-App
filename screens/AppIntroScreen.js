@@ -124,21 +124,30 @@ const AppIntroScreen = ({ navigation }) => {
         const result = await completeOnboarding();
         console.log('✅ 온보딩 완료 처리 성공, 결과:', result);
         
-        // 강제로 Main 스크린으로 직접 이동
+        // 온보딩 성공 패턴과 동일한 방식으로 Main 스크린으로 이동
         if (result) {
-          console.log('🎯 온보딩 완료 - 강제로 Main 스크린으로 이동');
-          try {
-            // 강제로 Main 스크린으로 이동
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Main' }],
-            });
-            console.log('✅ Main 스크린으로 강제 이동 성공');
-          } catch (navError) {
-            console.error('❌ Main 스크린 강제 이동 실패:', navError);
-            // 실패 시 AuthContext 상태 변경으로 자동 네비게이션 시도
-            console.log('🔄 AuthContext 상태 변경으로 자동 네비게이션 시도');
-          }
+          console.log('🎯 온보딩 완료 - Main 스크린으로 이동 준비');
+          
+          // 온보딩에서 성공한 패턴과 동일하게 setTimeout 사용
+          setTimeout(() => {
+            console.log('🚀 Main 스크린으로 네비게이션 시작');
+            console.log('🧭 네비게이션 객체:', navigation);
+            console.log('🧭 사용 가능한 라우트:', navigation.getState()?.routes?.map(r => r.name) || []);
+            
+            try {
+              // 온보딩에서 성공한 replace 방식 사용
+              navigation.replace('Main');
+              console.log('✅ Main 스크린 네비게이션 성공');
+            } catch (error) {
+              console.error('❌ Main 스크린 네비게이션 실패:', error);
+              // 실패 시 대안 처리
+              Alert.alert(
+                '화면 전환 오류', 
+                '홈 화면으로 이동할 수 없습니다. 앱을 다시 시작해주세요.',
+                [{ text: '확인' }]
+              );
+            }
+          }, 800); // 온보딩과 동일한 지연 시간
         } else {
           console.log('⚠️ 온보딩 완료 처리 실패 - 네비게이션 중단');
         }
