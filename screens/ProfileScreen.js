@@ -437,30 +437,71 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const handleSave = async () => {
-    try {
-      setLoading(true);
-      await updateUserProfile({
-        displayName: editData.nickname,
-        bio: editData.bio,
-        birthDate: editData.birthDate,
-        gender: editData.gender,
-        age: editData.age,
-        runningProfile: editData.runningProfile,
-      });
-      setProfile((prev) => ({
-        ...prev,
-        displayName: editData.nickname,
-        bio: editData.bio,
-        birthDate: editData.birthDate,
-        gender: editData.gender,
-        age: editData.age,
-        runningProfile: editData.runningProfile,
-      }));
-      setEditModalVisible(false);
-    } catch (e) {
-      Alert.alert('오류', '프로필 저장에 실패했습니다.');
-    } finally {
-      setLoading(false);
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('💾 프로필 저장 시작 (시도:', retryCount + 1, ')');
+        setLoading(true);
+        
+        // 프로필 업데이트 시도
+        await updateUserProfile({
+          displayName: editData.nickname,
+          bio: editData.bio,
+          birthDate: editData.birthDate,
+          gender: editData.gender,
+          age: editData.age,
+          runningProfile: editData.runningProfile,
+        });
+        
+        console.log('✅ 프로필 업데이트 성공 (시도:', retryCount + 1, ')');
+        
+        // 로컬 상태 업데이트
+        setProfile((prev) => ({
+          ...prev,
+          displayName: editData.nickname,
+          bio: editData.bio,
+          birthDate: editData.birthDate,
+          gender: editData.gender,
+          age: editData.age,
+          runningProfile: editData.runningProfile,
+        }));
+        
+        setEditModalVisible(false);
+        console.log('✅ 프로필 저장 완료');
+        return; // 성공 시 함수 종료
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 프로필 저장 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          Alert.alert(
+            '프로필 저장 실패', 
+            '네트워크 연결을 확인하고 다시 시도해주세요.',
+            [
+              { text: '다시 시도', onPress: handleSave },
+              { text: '취소', style: 'cancel' }
+            ]
+          );
+          return;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } finally {
+        if (retryCount >= maxRetries) {
+          setLoading(false);
+        }
+      }
     }
   };
 

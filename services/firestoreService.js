@@ -75,22 +75,44 @@ class FirestoreService {
 
   // 이벤트/모임 관련
   async createEvent(eventData) {
-    try {
-      console.log('🔍 FirestoreService.createEvent 호출됨 - eventData:', eventData);
-      console.log('🔍 FirestoreService.createEvent - eventData.date:', eventData.date, typeof eventData.date);
-      
-      const eventsRef = collection(this.db, 'events');
-      const docRef = await addDoc(eventsRef, {
-        ...eventData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      
-      console.log('✅ Firebase에 이벤트 저장 완료 - ID:', docRef.id);
-      return { success: true, id: docRef.id };
-    } catch (error) {
-      console.error('이벤트 생성 실패:', error);
-      throw error;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔍 FirestoreService.createEvent 호출됨 (시도:', retryCount + 1, ')');
+        console.log('🔍 FirestoreService.createEvent - eventData:', eventData);
+        console.log('🔍 FirestoreService.createEvent - eventData.date:', eventData.date, typeof eventData.date);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const eventsRef = collection(this.db, 'events');
+        const docRef = await addDoc(eventsRef, {
+          ...eventData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        
+        console.log('✅ Firebase에 이벤트 저장 완료 (시도:', retryCount + 1, ') - ID:', docRef.id);
+        return { success: true, id: docRef.id };
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 이벤트 생성 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          throw error;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   }
 
@@ -152,29 +174,80 @@ class FirestoreService {
   }
 
   async updateEvent(eventId, eventData) {
-    try {
-      const eventRef = doc(this.db, 'events', eventId);
-      await updateDoc(eventRef, {
-        ...eventData,
-        updatedAt: serverTimestamp()
-      });
-      return { success: true };
-    } catch (error) {
-      console.error('이벤트 업데이트 실패:', error);
-      throw error;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔍 FirestoreService.updateEvent 호출됨 (시도:', retryCount + 1, ')');
+        console.log('🔍 이벤트 ID:', eventId);
+        console.log('🔍 업데이트 데이터:', eventData);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const eventRef = doc(this.db, 'events', eventId);
+        await updateDoc(eventRef, {
+          ...eventData,
+          updatedAt: serverTimestamp()
+        });
+        
+        console.log('✅ 이벤트 업데이트 완료 (시도:', retryCount + 1, ')');
+        return { success: true };
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 이벤트 업데이트 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          throw error;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   }
 
   async deleteEvent(eventId) {
-    try {
-      console.log('🔍 FirestoreService.deleteEvent 호출됨 - eventId:', eventId);
-      const eventRef = doc(this.db, 'events', eventId);
-      await deleteDoc(eventRef);
-      console.log('✅ Firebase에서 이벤트 삭제 완료');
-      return { success: true };
-    } catch (error) {
-      console.error('이벤트 삭제 실패:', error);
-      throw error;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔍 FirestoreService.deleteEvent 호출됨 (시도:', retryCount + 1, ')');
+        console.log('🔍 이벤트 ID:', eventId);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const eventRef = doc(this.db, 'events', eventId);
+        await deleteDoc(eventRef);
+        
+        console.log('✅ 이벤트 삭제 완료 (시도:', retryCount + 1, ')');
+        return { success: true };
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 이벤트 삭제 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          throw error;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   }
 
