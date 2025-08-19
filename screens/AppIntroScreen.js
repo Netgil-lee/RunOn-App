@@ -124,10 +124,21 @@ const AppIntroScreen = ({ navigation }) => {
         const result = await completeOnboarding();
         console.log('✅ 온보딩 완료 처리 성공, 결과:', result);
         
-        // AuthContext 상태 변경으로 자동 네비게이션
+        // 강제로 Main 스크린으로 직접 이동
         if (result) {
-          console.log('🎯 온보딩 완료 - AuthContext 상태 변경으로 자동 네비게이션');
-          // AuthContext의 상태 변경으로 AppNavigator가 자동으로 메인 화면으로 전환
+          console.log('🎯 온보딩 완료 - 강제로 Main 스크린으로 이동');
+          try {
+            // 강제로 Main 스크린으로 이동
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Main' }],
+            });
+            console.log('✅ Main 스크린으로 강제 이동 성공');
+          } catch (navError) {
+            console.error('❌ Main 스크린 강제 이동 실패:', navError);
+            // 실패 시 AuthContext 상태 변경으로 자동 네비게이션 시도
+            console.log('🔄 AuthContext 상태 변경으로 자동 네비게이션 시도');
+          }
         } else {
           console.log('⚠️ 온보딩 완료 처리 실패 - 네비게이션 중단');
         }
