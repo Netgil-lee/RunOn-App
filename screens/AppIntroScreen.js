@@ -124,13 +124,20 @@ const AppIntroScreen = ({ navigation }) => {
         const result = await completeOnboarding();
         console.log('✅ 온보딩 완료 처리 성공, 결과:', result);
         
-        // 직접 네비게이션으로 메인 화면으로 전환
+        // 상태 업데이트 후 AuthContext의 자동 네비게이션 대기
         if (result) {
-          console.log('🎯 직접 네비게이션으로 메인 화면 전환');
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          });
+          console.log('🎯 온보딩 완료 - AuthContext 상태 변경 대기');
+          // 짧은 지연 후 상태 변경 확인
+          setTimeout(() => {
+            console.log('🔍 상태 변경 확인 중...');
+            if (onboardingCompleted) {
+              console.log('✅ 상태 변경 감지됨 - 자동 네비게이션 예상');
+            } else {
+              console.log('⚠️ 상태 변경 미감지 - 강제 네비게이션 시도');
+              // 강제로 AppIntro를 다시 호출하여 네비게이션 트리거
+              navigation.replace('AppIntro');
+            }
+          }, 500);
         } else {
           console.log('⚠️ 온보딩 완료 처리 실패 - 네비게이션 중단');
         }

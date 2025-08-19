@@ -287,6 +287,9 @@ export const AuthProvider = ({ children }) => {
         setOnboardingCompleted(true);
         console.log('🔐 AuthContext: 온보딩 완료 상태로 업데이트 완료');
         
+        // 상태 변경 후 강제 리렌더링을 위한 짧은 지연
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         return true;
       } else {
         console.warn('⚠️ 사용자 정보가 없어 온보딩 완료 처리 불가');
