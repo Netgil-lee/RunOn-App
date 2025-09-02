@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, doc, getDoc, updateDoc, addDoc, deleteDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { useNotificationSettings } from './NotificationSettingsContext';
 import { useAuth } from './AuthContext';
 
@@ -18,6 +18,9 @@ export const CommunityProvider = ({ children }) => {
   const [hasCommunityNotification, setHasCommunityNotification] = useState(false);
   const [hasChatNotification, setHasChatNotification] = useState(false);
   const [hasBoardNotification, setHasBoardNotification] = useState(false);
+  
+  // 사용자 정보 캐시 (성능 최적화)
+  const [userCache, setUserCache] = useState({});
 
   // Firebase에서 실시간으로 게시글 데이터 가져오기
   useEffect(() => {
@@ -26,19 +29,104 @@ export const CommunityProvider = ({ children }) => {
     const postsRef = collection(db, 'posts');
     const postsQuery = query(postsRef, orderBy('createdAt', 'desc'));
     
-    const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(postsQuery, async (snapshot) => {
       const postsData = [];
-      snapshot.forEach((doc) => {
+      
+      for (const doc of snapshot.docs) {
         const postData = doc.data();
+        
+        // 댓글의 사용자 정보 업데이트
+        let processedComments = postData.comments || [];
+        
+        if (processedComments.length > 0) {
+          processedComments = await Promise.all(
+            processedComments.map(async (comment) => {
+              // authorId가 있는 모든 댓글에 대해 사용자 정보 확인
+              if (comment.authorId) {
+                try {
+                  // 캐시에서 먼저 확인
+                  if (userCache[comment.authorId]) {
+                    const cachedAuthorName = userCache[comment.authorId];
+                    return {
+                      ...comment,
+                      author: cachedAuthorName
+                    };
+                  }
+                  
+                  // 사용자 정보 조회
+                  const { doc: docRef } = await import('firebase/firestore');
+                  const userRef = docRef(db, 'users', comment.authorId);
+                  const userDoc = await getDoc(userRef);
+                                                          if (userDoc.exists()) {
+                      const userData = userDoc.data();
+                      const authorName = userData.displayName || userData.nickname || userData.profile?.nickname || userData.email?.split('@')[0] || '사용자';
+                    
+                    // 캐시에 저장
+                    setUserCache(prev => ({
+                      ...prev,
+                      [comment.authorId]: authorName
+                    }));
+                    
+                    return {
+                      ...comment,
+                      author: authorName
+                    };
+                  } else {
+                    console.warn('⚠️ 사용자 문서가 존재하지 않음:', comment.authorId);
+                  }
+                } catch (error) {
+                  console.warn('⚠️ 댓글 작성자 정보 조회 실패:', error);
+                }
+              }
+              return comment;
+            })
+          );
+        }
+        
+        // 게시글 작성자 프로필 정보 가져오기
+        let authorProfile = null;
+        if (postData.authorId && !postData.isAnonymous) {
+          try {
+            // 캐시에서 먼저 확인
+            if (userCache[postData.authorId]) {
+              authorProfile = userCache[postData.authorId];
+            } else {
+              // 사용자 정보 조회
+              const { doc: docRef } = await import('firebase/firestore');
+              const userRef = docRef(db, 'users', postData.authorId);
+              const userDoc = await getDoc(userRef);
+              
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                authorProfile = {
+                  displayName: userData.displayName || userData.nickname || userData.profile?.nickname || userData.email?.split('@')[0] || '사용자',
+                  profileImage: userData.photoURL || userData.profileImage || null
+                };
+                
+                // 캐시에 저장
+                setUserCache(prev => ({
+                  ...prev,
+                  [postData.authorId]: authorProfile
+                }));
+              }
+            }
+          } catch (error) {
+            console.warn('⚠️ 게시글 작성자 프로필 조회 실패:', error);
+          }
+        }
+
         // Firestore Timestamp 객체를 안전하게 처리
         const processedPost = {
           id: doc.id,
           ...postData,
+          comments: processedComments,
+          authorProfile: authorProfile,
           createdAt: postData.createdAt?.toDate?.() || postData.createdAt,
           updatedAt: postData.updatedAt?.toDate?.() || postData.updatedAt,
         };
         postsData.push(processedPost);
-      });
+      }
+      
       setPosts(postsData);
     });
 
@@ -74,6 +162,14 @@ export const CommunityProvider = ({ children }) => {
     return () => unsubscribe();
   }, [user, db]);
 
+  // notifications 상태가 변경될 때마다 알림 상태 자동 업데이트
+  useEffect(() => {
+    // 초기 로딩 시에도 체크하도록 수정
+    checkCommunityNotifications();
+    checkChatNotifications();
+    checkBoardNotifications();
+  }, [notifications]);
+
   // 커뮤니티 알림이 있는지 확인하는 함수
   const checkCommunityNotifications = () => {
     const hasUnreadNotifications = notifications.some(notification => 
@@ -101,32 +197,95 @@ export const CommunityProvider = ({ children }) => {
     return hasUnreadBoardNotifications;
   };
 
-  // 채팅 탭 클릭 시 모든 채팅 알림을 읽음 처리
-  const handleChatTabClick = () => {
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.type === 'message' 
-          ? { ...notification, isRead: true }
-          : notification
-      )
-    );
+  // 채팅 탭 클릭 시 (알림 읽음 처리하지 않음 - 채팅카드에 알림 배지 표시 유지)
+  const handleChatTabClick = async () => {
+    console.log('🔍 채팅 탭 클릭됨 - 알림 읽음 처리하지 않음');
+    
+    // 채팅 탭 클릭 시에는 알림을 읽음 처리하지 않음
+    // 채팅카드에 읽지 않은 메시지 수를 표시하기 위함
+    
+    // 알림 상태 확인만 수행
+    checkCommunityNotifications();
+    checkChatNotifications();
+    checkBoardNotifications();
   };
 
   // 특정 채팅방 클릭 시 해당 채팅방 알림을 읽음 처리
-  const handleChatRoomClick = (chatRoomId) => {
-    // chatRoomId를 문자열로 변환하여 비교
-    const chatRoomIdStr = chatRoomId.toString();
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.type === 'message' && notification.chatId === chatRoomIdStr
-          ? { ...notification, isRead: true }
-          : notification
-      )
-    );
+  const handleChatRoomClick = async (chatRoomId) => {
+    try {
+      // chatRoomId를 문자열로 변환하여 비교
+      const chatRoomIdStr = chatRoomId.toString();
+      
+      console.log(`🔍 채팅방 ${chatRoomIdStr} 클릭됨 - 해당 채팅방 알림 읽음 처리`);
+      
+      // Firestore에서 해당 채팅방의 알림만 읽음 처리
+      const notificationsRef = collection(db, 'notifications');
+      const chatRoomNotificationsQuery = query(
+        notificationsRef,
+        where('userId', '==', user.uid),
+        where('type', '==', 'message'),
+        where('chatId', '==', chatRoomIdStr),
+        where('isRead', '==', false)
+      );
+      
+      const querySnapshot = await getDocs(chatRoomNotificationsQuery);
+      
+      if (querySnapshot.docs.length > 0) {
+        const updatePromises = querySnapshot.docs.map(doc => 
+          updateDoc(doc.ref, { isRead: true })
+        );
+        
+        await Promise.all(updatePromises);
+        console.log(`✅ 채팅방 ${chatRoomIdStr} 알림 읽음 처리 완료:`, querySnapshot.docs.length, '개');
+      } else {
+        console.log(`🔍 채팅방 ${chatRoomIdStr}에 읽지 않은 알림 없음`);
+      }
+      
+      // 로컬 상태 업데이트
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.type === 'message' && notification.chatId === chatRoomIdStr
+            ? { ...notification, isRead: true }
+            : notification
+        )
+      );
+      
+      // 알림 상태 다시 확인
+      setTimeout(() => {
+        checkCommunityNotifications();
+        checkChatNotifications();
+        checkBoardNotifications();
+      }, 100);
+      
+    } catch (error) {
+      console.error(`❌ 채팅방 ${chatRoomId} 알림 읽음 처리 실패:`, error);
+    }
   };
 
   // 자유게시판 탭 클릭 시 모든 자유게시판 알림을 읽음 처리
-  const handleBoardTabClick = () => {
+  const handleBoardTabClick = async () => {
+    try {
+      // Firestore에서 자유게시판 알림들을 읽음 처리
+      const notificationsRef = collection(db, 'notifications');
+      const boardNotificationsQuery = query(
+        notificationsRef,
+        where('userId', '==', user.uid),
+        where('type', 'in', ['like', 'comment']),
+        where('isRead', '==', false)
+      );
+      
+      const querySnapshot = await getDocs(boardNotificationsQuery);
+      const updatePromises = querySnapshot.docs.map(doc => 
+        updateDoc(doc.ref, { isRead: true })
+      );
+      
+      await Promise.all(updatePromises);
+      console.log('✅ Firestore 자유게시판 알림 읽음 처리 완료:', querySnapshot.docs.length, '개');
+    } catch (error) {
+      console.error('❌ Firestore 자유게시판 알림 읽음 처리 실패:', error);
+    }
+    
+    // 로컬 상태 업데이트
     setNotifications(prev => 
       prev.map(notification => 
         notification.type === 'like' || notification.type === 'comment'
@@ -134,17 +293,35 @@ export const CommunityProvider = ({ children }) => {
           : notification
       )
     );
+    
+    // 알림 상태 다시 확인
+    setTimeout(() => {
+      checkCommunityNotifications();
+      checkChatNotifications();
+      checkBoardNotifications();
+    }, 100);
   };
   
   // 알림 상태 변경 시 커뮤니티 알림 표시 상태 업데이트
   useEffect(() => {
-    checkCommunityNotifications();
-    checkChatNotifications();
-    checkBoardNotifications();
+    const hasUnreadNotifications = checkCommunityNotifications();
+    const hasUnreadChatNotifications = checkChatNotifications();
+    const hasUnreadBoardNotifications = checkBoardNotifications();
+    
+    // 디버깅: 커뮤니티 알림 상태 로그
+    console.log('🔍 CommunityContext 알림 상태 업데이트:', {
+      hasUnreadNotifications,
+      hasUnreadChatNotifications,
+      hasUnreadBoardNotifications,
+      totalNotifications: notifications.length,
+      unreadCount: notifications.filter(n => !n.isRead).length
+    });
   }, [notifications]);
 
   const addPost = (post) => {
-    setPosts(prev => [post, ...prev]);
+    // Firestore에서 실시간으로 가져오므로 로컬 상태 업데이트는 불필요
+    // onSnapshot이 자동으로 업데이트됨
+    console.log('게시글 추가됨:', post);
   };
 
   const updatePost = (postId, updates) => {
@@ -153,48 +330,155 @@ export const CommunityProvider = ({ children }) => {
     ));
   };
 
-  const deletePost = (postId) => {
-    setPosts(prev => prev.filter(post => post.id !== postId));
-  };
-
-  const toggleLike = (postId, userId) => {
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        const likes = post.likes || [];
-        const isLiked = likes.includes(userId);
+  const deletePost = async (postId) => {
+    try {
+      // Firebase에서 실제 게시글 삭제
+      const postRef = doc(db, 'posts', postId);
+      await deleteDoc(postRef);
+      
+      // 게시글과 연관된 이미지 파일들도 삭제 (백그라운드에서 실행)
+      try {
+        // StorageService를 사용하여 게시글 관련 파일 삭제
+        // 에러가 발생해도 게시글 삭제는 성공으로 처리
+        const { getStorage, ref, listAll, deleteObject } = await import('firebase/storage');
+        const storage = getStorage();
+        const postImagesRef = ref(storage, `post-images/posts/${postId}`);
+        const fileList = await listAll(postImagesRef);
         
-        if (isLiked) {
-          return { ...post, likes: likes.filter(id => id !== userId) };
-        } else {
-          return { ...post, likes: [...likes, userId] };
+        if (fileList.items.length > 0) {
+          const deletePromises = fileList.items.map(item => deleteObject(item));
+          await Promise.all(deletePromises);
         }
+      } catch (fileError) {
+        // 파일 삭제 실패는 무시 (게시글 삭제는 성공)
       }
-      return post;
-    }));
+      
+      // 로컬 상태 업데이트
+      setPosts(prev => prev.filter(post => post.id !== postId));
+    } catch (error) {
+      console.error('❌ 게시글 삭제 실패:', error);
+      throw error;
+    }
   };
 
-  const addComment = (postId, comment) => {
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        const comments = post.comments || [];
-        return { ...post, comments: [comment, ...comments] };
+  const toggleLike = async (postId, userId) => {
+    try {
+      const postRef = doc(db, 'posts', postId);
+      const postDoc = await getDoc(postRef);
+      
+      if (!postDoc.exists()) {
+        console.error('게시글을 찾을 수 없습니다:', postId);
+        return;
       }
-      return post;
-    }));
+      
+      const postData = postDoc.data();
+      const likes = postData.likes || [];
+      const isLiked = likes.includes(userId);
+      
+      let updatedLikes;
+      if (isLiked) {
+        updatedLikes = likes.filter(id => id !== userId);
+      } else {
+        updatedLikes = [...likes, userId];
+      }
+      
+      await updateDoc(postRef, { likes: updatedLikes });
+      // console.log('✅ 좋아요 토글 완료:', { postId, userId, isLiked: !isLiked });
+    } catch (error) {
+      console.error('❌ 좋아요 토글 실패:', error);
+    }
+  };
+
+  // 댓글 추가
+  const addComment = async (postId, comment) => {
+    try {
+      const postRef = doc(db, 'posts', postId);
+      const postDoc = await getDoc(postRef);
+      
+      if (!postDoc.exists()) {
+        console.error('❌ 게시글을 찾을 수 없음:', postId);
+        return;
+      }
+      
+      const postData = postDoc.data();
+      const comments = postData.comments || [];
+      const updatedComments = [comment, ...comments];
+      
+      await updateDoc(postRef, { comments: updatedComments });
+      // console.log('✅ 댓글 추가 완료:', { postId, commentId: comment.id });
+    } catch (error) {
+      console.error('❌ 댓글 추가 실패:', error);
+    }
+  };
+
+  // 댓글 수정
+  const updateComment = async (postId, commentId, updatedComment) => {
+    try {
+      const postRef = doc(db, 'posts', postId);
+      const postDoc = await getDoc(postRef);
+      
+      if (!postDoc.exists()) {
+        console.error('❌ 게시글을 찾을 수 없음:', postId);
+        return;
+      }
+      
+      const postData = postDoc.data();
+      const comments = postData.comments || [];
+      const updatedComments = comments.map(comment => 
+        comment.id === commentId ? updatedComment : comment
+      );
+      
+      await updateDoc(postRef, { comments: updatedComments });
+      console.log('✅ 댓글 수정 완료:', { postId, commentId });
+    } catch (error) {
+      console.error('❌ 댓글 수정 실패:', error);
+      throw error;
+    }
+  };
+
+  // 댓글 삭제
+  const deleteComment = async (postId, commentId) => {
+    try {
+      const postRef = doc(db, 'posts', postId);
+      const postDoc = await getDoc(postRef);
+      
+      if (!postDoc.exists()) {
+        console.error('❌ 게시글을 찾을 수 없음:', postId);
+        return;
+      }
+      
+      const postData = postDoc.data();
+      const comments = postData.comments || [];
+      const updatedComments = comments.filter(comment => comment.id !== commentId);
+      
+      await updateDoc(postRef, { comments: updatedComments });
+      console.log('✅ 댓글 삭제 완료:', { postId, commentId });
+    } catch (error) {
+      console.error('❌ 댓글 삭제 실패:', error);
+      throw error;
+    }
   };
 
   // 알림 생성 함수
-  const createNotification = (type, postId, postTitle, authorName) => {
+  const createNotification = async (type, postId, postTitle, authorName, targetUserId) => {
     // 알림 설정이 비활성화되어 있으면 알림 생성하지 않음
     if (!isNotificationTypeEnabled(type)) {
+      return;
+    }
+
+    // 필수 매개변수 검증
+    if (!targetUserId || !postId || !authorName) {
+      console.warn('⚠️ 알림 생성 실패: 필수 매개변수 누락', { type, postId, authorName, targetUserId });
       return;
     }
 
     const notification = {
       id: `notification_${Date.now()}_${Math.random()}`,
       type: type,
+      action: type, // 액션 필드 추가
       timestamp: new Date(),
       isRead: false,
+      userId: targetUserId, // 알림을 받을 사용자 ID
       navigationData: {
         screen: 'PostDetail',
         params: { postId }
@@ -212,59 +496,122 @@ export const CommunityProvider = ({ children }) => {
         notification.message = `${authorName}님이 당신의 게시글 "${postTitle}"에 댓글을 달았습니다`;
         break;
       default:
+        console.warn('⚠️ 알림 생성 실패: 알 수 없는 타입', type);
         return;
     }
 
-    setNotifications(prev => {
-      const newNotifications = [notification, ...prev];
-      return newNotifications;
-    });
+    try {
+      // Firestore에 알림 저장
+      const notificationsRef = collection(db, 'notifications');
+      await addDoc(notificationsRef, notification);
+      console.log('✅ 알림 생성 완료:', { type, targetUserId, postId });
+    } catch (error) {
+      console.error('❌ 알림 생성 실패:', error);
+      throw error; // 상위 함수에서 처리할 수 있도록 에러 전파
+    }
   };
 
   // 좋아요 알림 생성
-  const createLikeNotification = (postId, postTitle, authorName) => {
-    createNotification('like', postId, postTitle, authorName);
+  const createLikeNotification = async (postId, postTitle, authorName, targetUserId) => {
+    await createNotification('like', postId, postTitle, authorName, targetUserId);
   };
 
   // 댓글 알림 생성
-  const createCommentNotification = (postId, postTitle, authorName) => {
-    createNotification('comment', postId, postTitle, authorName);
+  const createCommentNotification = async (postId, postTitle, authorName, targetUserId) => {
+    await createNotification('comment', postId, postTitle, authorName, targetUserId);
   };
 
-  // 채팅 알림 생성 함수
-  const createChatNotification = (chatRoomId, chatRoomTitle, message, sender) => {
-    const notification = {
-      id: `chat_${Date.now()}_${Math.random()}`,
-      type: 'message',
-      timestamp: new Date(),
-      isRead: false,
-      title: `${chatRoomTitle}`,
-      message: `${sender}님이 "${message}" 메시지를 보냈습니다.`,
-      action: 'chat',
-      chatId: chatRoomId,
-      navigationData: {
-        screen: 'Chat',
-        params: { chatRoomId }
+  // 채팅 알림 생성 함수 (Firestore에 저장)
+  const createChatNotification = async (chatRoomId, chatRoomTitle, message, sender, targetUserId) => {
+    try {
+      // 알림 설정이 비활성화되어 있으면 알림 생성하지 않음
+      if (!isNotificationTypeEnabled('message')) {
+        return;
       }
-    };
 
-    setNotifications(prev => {
-      const newNotifications = [notification, ...prev];
-      return newNotifications;
-    });
+      // 필수 매개변수 검증
+      if (!targetUserId || !chatRoomId || !sender) {
+        console.warn('⚠️ 채팅 알림 생성 실패: 필수 매개변수 누락', { chatRoomId, sender, targetUserId });
+        return;
+      }
+
+      const notification = {
+        id: `chat_${Date.now()}_${Math.random()}`,
+        type: 'message',
+        timestamp: new Date(),
+        isRead: false,
+        title: `${chatRoomTitle}`,
+        message: `${sender}님이 "${message}" 메시지를 보냈습니다.`,
+        action: 'chat',
+        chatId: chatRoomId,
+        userId: targetUserId, // 알림을 받을 사용자 ID
+        navigationData: {
+          screen: 'Chat',
+          params: { chatRoomId }
+        }
+      };
+
+      // Firestore에 알림 저장
+      const notificationsRef = collection(db, 'notifications');
+      await addDoc(notificationsRef, notification);
+      console.log('✅ 채팅 알림 생성 완료:', { chatRoomId, targetUserId, sender });
+
+      // 로컬 상태에도 추가 (현재 사용자가 대상인 경우)
+      if (targetUserId === user.uid) {
+        setNotifications(prev => {
+          const newNotifications = [notification, ...prev];
+          return newNotifications;
+        });
+      }
+    } catch (error) {
+      console.error('❌ 채팅 알림 생성 실패:', error);
+    }
   };
 
   // 알림을 읽음으로 표시
-  const markNotificationAsRead = (notificationId) => {
-    setNotifications(prev => {
-      const updatedNotifications = prev.map(notification => 
-        notification.id === notificationId 
-          ? { ...notification, isRead: true }
-          : notification
-      );
+  const markNotificationAsRead = async (notificationId) => {
+    if (!notificationId) {
+      console.warn('⚠️ 알림 읽음 처리 실패: notificationId가 없음');
+      return;
+    }
+
+    try {
+      // Firestore에서 알림 문서 찾기
+      const notificationsRef = collection(db, 'notifications');
+      const q = query(notificationsRef, where('id', '==', notificationId));
+      const querySnapshot = await getDocs(q);
       
-      return updatedNotifications;
-    });
+      if (!querySnapshot.empty) {
+        const notificationDoc = querySnapshot.docs[0];
+        await updateDoc(notificationDoc.ref, { isRead: true });
+        console.log('✅ Firestore 알림 읽음 처리 완료:', notificationId);
+      } else {
+        console.warn('⚠️ 알림 문서를 찾을 수 없음:', notificationId);
+      }
+      
+      // 로컬 상태도 업데이트
+      setNotifications(prev => {
+        const updatedNotifications = prev.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, isRead: true }
+            : notification
+        );
+        
+        return updatedNotifications;
+      });
+    } catch (error) {
+      console.error('❌ 알림 읽음 처리 실패:', error);
+      // 로컬 상태만 업데이트 (Firestore 실패 시에도 UI는 업데이트)
+      setNotifications(prev => {
+        const updatedNotifications = prev.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, isRead: true }
+            : notification
+        );
+        
+        return updatedNotifications;
+      });
+    }
   };
 
   // 읽지 않은 알림 개수 가져오기
@@ -290,6 +637,8 @@ export const CommunityProvider = ({ children }) => {
       deletePost, 
       toggleLike, 
       addComment,
+      updateComment,
+      deleteComment,
       notifications,
       createLikeNotification,
       createCommentNotification,

@@ -18,6 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useCommunity } from '../contexts/CommunityContext';
 import { useAuth } from '../contexts/AuthContext';
+import { formatRelativeTime } from '../utils/timestampUtils';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -37,45 +38,113 @@ const COLORS = {
 const PostDetailScreen = ({ route, navigation }) => {
   const { post } = route.params;
   const { user } = useAuth();
-  const { toggleLike, addComment, updatePost, deletePost, createLikeNotification, createCommentNotification } = useCommunity();
+  const { toggleLike, addComment, updateComment, deleteComment, updatePost, deletePost, createLikeNotification, createCommentNotification } = useCommunity();
+  
+  // 안전한 데이터 처리 - post가 없거나 잘못된 경우 처리
+  const safePost = post || {};
   
   const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(post.likes?.length || 0);
+  const [likeCount, setLikeCount] = useState(safePost.likes?.length || 0);
   const [commentInput, setCommentInput] = useState('');
-  const [comments, setComments] = useState(post.comments || []);
+  const [comments, setComments] = useState(safePost.comments || []);
   const [showMenuModal, setShowMenuModal] = useState(false);
+  const [showCommentMenuModal, setShowCommentMenuModal] = useState(false);
+  const [showCommentEditModal, setShowCommentEditModal] = useState(false);
+  const [selectedComment, setSelectedComment] = useState(null);
+  const [editCommentText, setEditCommentText] = useState('');
   const [currentPost, setCurrentPost] = useState({
-    ...post,
-    likes: Array.isArray(post.likes) ? post.likes : [],
-    comments: Array.isArray(post.comments) ? post.comments : []
+    id: safePost.id || '',
+    title: safePost.title || '',
+    content: safePost.content || '',
+    author: safePost.author || '작성자',
+    authorId: safePost.authorId || '',
+    createdAt: safePost.createdAt || new Date().toISOString(),
+    category: safePost.category || 'free',
+    isAnonymous: safePost.isAnonymous || false,
+    likes: Array.isArray(safePost.likes) ? safePost.likes : [],
+    comments: Array.isArray(safePost.comments) ? safePost.comments : [],
+    images: Array.isArray(safePost.images) ? safePost.images : [],
+    hashtags: safePost.hashtags || [],
+    location: safePost.location || ''
   });
+
+  // 작성자 프로필 정보 상태
+  const [authorProfile, setAuthorProfile] = useState(null);
+
+  // 디버깅 로그 (필요시에만 활성화)
+  // console.log('🔍 PostDetailScreen - 받은 post 데이터:', post);
+  // console.log('🔍 PostDetailScreen - 안전 처리된 post:', safePost);
+
+  // 작성자 프로필 정보 가져오기
+  useEffect(() => {
+    const fetchAuthorProfile = async () => {
+      if (!currentPost.authorId || currentPost.isAnonymous) {
+        return;
+      }
+
+      try {
+        const firestoreService = require('../services/firestoreService').default;
+        const userProfile = await firestoreService.getUserProfile(currentPost.authorId);
+        
+        if (userProfile) {
+          setAuthorProfile({
+            displayName: userProfile.displayName || userProfile.profile?.nickname || '사용자',
+            profileImage: userProfile.photoURL || userProfile.profileImage || null
+          });
+        }
+      } catch (error) {
+        console.error('작성자 프로필 가져오기 실패:', error);
+      }
+    };
+
+    fetchAuthorProfile();
+  }, [currentPost.authorId, currentPost.isAnonymous]);
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
     
     try {
+      // Firebase Timestamp 객체인 경우
+      if (dateString && typeof dateString === 'object' && dateString.seconds) {
+        return formatRelativeTime(dateString);
+      }
+      
+      // 일반 날짜 문자열인 경우
       const date = new Date(dateString);
-      const now = new Date();
-      const diffTime = Math.abs(now - date);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (isNaN(date.getTime())) {
+        return dateString; // 유효하지 않은 날짜인 경우 원본 반환
+      }
       
-      if (diffDays === 1) return '어제';
-      if (diffDays <= 7) return `${diffDays}일 전`;
-      
-      return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+      return formatRelativeTime(date);
     } catch (error) {
+      console.warn('날짜 변환 오류:', error);
       return dateString;
     }
   };
 
   // 해시태그 파싱 함수
   const parseHashtags = (hashtagString) => {
-    if (!hashtagString || !hashtagString.trim()) return [];
+    // undefined, null, 빈 문자열 체크
+    if (!hashtagString) return [];
     
     // 이미 배열인 경우 그대로 반환
     if (Array.isArray(hashtagString)) {
       return hashtagString;
     }
+    
+    // 문자열이 아닌 경우 빈 배열 반환
+    if (typeof hashtagString !== 'string') {
+      console.warn('⚠️ hashtagString이 문자열이 아님:', hashtagString);
+      return [];
+    }
+    
+    // trim() 함수가 없는 경우 처리
+    if (typeof hashtagString.trim !== 'function') {
+      console.warn('⚠️ hashtagString.trim이 함수가 아님:', hashtagString);
+      return [];
+    }
+    
+    if (!hashtagString.trim()) return [];
     
     // 문자열인 경우 파싱
     const hashtags = hashtagString
@@ -121,60 +190,94 @@ const PostDetailScreen = ({ route, navigation }) => {
     }
   }, [currentPost.comments]);
 
-  const handleLike = () => {
+  const handleLike = async () => {
     if (!user?.uid) return;
     
-    toggleLike(currentPost.id, user.uid);
-    setIsLiked(!isLiked);
-    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
-    
-    // 현재 포스트 상태 업데이트
-    setCurrentPost(prev => ({
-      ...prev,
-      likes: isLiked 
-        ? (prev.likes || []).filter(id => id !== user.uid)
-        : [...(prev.likes || []), user.uid]
-    }));
+    try {
+      await toggleLike(currentPost.id, user.uid);
+      setIsLiked(!isLiked);
+      setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
+      
+      // 현재 포스트 상태 업데이트
+      setCurrentPost(prev => ({
+        ...prev,
+        likes: isLiked 
+          ? (prev.likes || []).filter(id => id !== user.uid)
+          : [...(prev.likes || []), user.uid]
+      }));
 
-    // 좋아요를 눌렀을 때만 알림 생성 (좋아요 취소가 아닐 때)
-    if (!isLiked && currentPost.authorId && currentPost.authorId !== user.uid) {
-      createLikeNotification(
-        currentPost.id, 
-        currentPost.title, 
-        user?.displayName || user?.email?.split('@')[0] || '사용자'
-      );
+      // 좋아요를 눌렀을 때만 알림 생성 (좋아요 취소가 아닐 때)
+      if (!isLiked && currentPost.authorId && currentPost.authorId !== user.uid) {
+        try {
+          await createLikeNotification(
+            currentPost.id, 
+            currentPost.title, 
+            user?.displayName || user?.email?.split('@')[0] || '사용자',
+            currentPost.authorId // 게시글 작성자에게 알림
+          );
+        } catch (error) {
+          console.warn('⚠️ 좋아요 알림 생성 실패:', error);
+        }
+      }
+    } catch (error) {
+      console.error('좋아요 처리 실패:', error);
     }
   };
 
-  const handleComment = () => {
+  const handleComment = async () => {
     if (commentInput.trim() && user?.uid) {
-      const newComment = {
-        id: Date.now().toString(),
-        text: commentInput.trim(),
-        author: user?.displayName || user?.email?.split('@')[0] || '사용자',
-        authorId: user.uid,
-        createdAt: new Date().toISOString(),
-      };
-      
-      addComment(currentPost.id, newComment);
-      
-      // 현재 포스트 상태도 즉시 업데이트
-      setCurrentPost(prev => ({
-        ...prev,
-        comments: [newComment, ...(Array.isArray(prev.comments) ? prev.comments : [])]
-      }));
-      
-      // 댓글 작성자가 게시글 작성자가 아닐 때만 알림 생성
-      if (currentPost.authorId && currentPost.authorId !== user.uid) {
-        createCommentNotification(
-          currentPost.id, 
-          currentPost.title, 
-          user?.displayName || user?.email?.split('@')[0] || '사용자'
-        );
+      try {
+        // Firestore에서 사용자 프로필 정보 가져오기
+        const { getFirestore, doc, getDoc } = await import('firebase/firestore');
+        const db = getFirestore();
+        const userRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userRef);
+        
+        let authorName = '사용자';
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          authorName = userData.displayName || userData.nickname || userData.profile?.nickname || userData.email?.split('@')[0] || user?.email?.split('@')[0] || '사용자';
+        } else {
+          authorName = user?.email?.split('@')[0] || '사용자';
+        }
+        
+
+        
+                const newComment = {
+          id: Date.now().toString(),
+          text: commentInput.trim(),
+          author: authorName,
+          authorId: user.uid,
+          createdAt: new Date().toISOString(),
+        };
+        
+        await addComment(currentPost.id, newComment);
+        
+        // 현재 포스트 상태도 즉시 업데이트
+        setCurrentPost(prev => ({
+          ...prev,
+          comments: [newComment, ...(Array.isArray(prev.comments) ? prev.comments : [])]
+        }));
+        
+        // 댓글 작성자가 게시글 작성자가 아닐 때만 알림 생성
+        if (currentPost.authorId && currentPost.authorId !== user.uid) {
+          try {
+            await createCommentNotification(
+              currentPost.id, 
+              currentPost.title, 
+              authorName,
+              currentPost.authorId // 게시글 작성자에게 알림
+            );
+          } catch (error) {
+            console.warn('⚠️ 댓글 알림 생성 실패:', error);
+          }
+        }
+        
+        setCommentInput('');
+        Keyboard.dismiss(); // 키보드 숨기기
+      } catch (error) {
+        console.error('댓글 추가 실패:', error);
       }
-      
-      setCommentInput('');
-      Keyboard.dismiss(); // 키보드 숨기기
     }
   };
 
@@ -194,9 +297,91 @@ const PostDetailScreen = ({ route, navigation }) => {
         { 
           text: '삭제', 
           style: 'destructive',
-          onPress: () => {
-            deletePost(currentPost.id);
-            navigation.goBack();
+          onPress: async () => {
+            try {
+              await deletePost(currentPost.id);
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert('오류', '게시글 삭제에 실패했습니다.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // 댓글 메뉴 열기
+  const handleCommentMenu = (comment) => {
+    setSelectedComment(comment);
+    setShowCommentMenuModal(true);
+  };
+
+  // 댓글 수정 모달 열기
+  const handleEditComment = () => {
+    setShowCommentMenuModal(false);
+    setEditCommentText(selectedComment.text);
+    setShowCommentEditModal(true);
+  };
+
+  // 댓글 수정 완료
+  const handleUpdateComment = async () => {
+    if (!editCommentText.trim() || !selectedComment) return;
+
+    try {
+      const updatedComment = {
+        ...selectedComment,
+        text: editCommentText.trim(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // CommunityContext에서 댓글 업데이트 함수 호출
+      await updateComment(currentPost.id, selectedComment.id, updatedComment);
+
+      // 로컬 상태 업데이트
+      setCurrentPost(prev => ({
+        ...prev,
+        comments: prev.comments.map(comment => 
+          comment.id === selectedComment.id ? updatedComment : comment
+        )
+      }));
+
+      setShowCommentEditModal(false);
+      setSelectedComment(null);
+      setEditCommentText('');
+      Keyboard.dismiss();
+    } catch (error) {
+      console.error('댓글 수정 실패:', error);
+      Alert.alert('오류', '댓글 수정에 실패했습니다.');
+    }
+  };
+
+  // 댓글 삭제
+  const handleDeleteComment = () => {
+    setShowCommentMenuModal(false);
+    Alert.alert(
+      '댓글 삭제',
+      '정말로 이 댓글을 삭제하시겠습니까?',
+      [
+        { text: '취소', style: 'cancel' },
+        { 
+          text: '삭제', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // CommunityContext에서 댓글 삭제 함수 호출
+              await deleteComment(currentPost.id, selectedComment.id);
+
+              // 로컬 상태 업데이트
+              setCurrentPost(prev => ({
+                ...prev,
+                comments: prev.comments.filter(comment => comment.id !== selectedComment.id)
+              }));
+
+              setSelectedComment(null);
+            } catch (error) {
+              console.error('댓글 삭제 실패:', error);
+              Alert.alert('오류', '댓글 삭제에 실패했습니다.');
+            }
           }
         }
       ]
@@ -224,24 +409,34 @@ const PostDetailScreen = ({ route, navigation }) => {
           {/* 카테고리 */}
           <View style={styles.categoryContainer}>
             <View style={styles.categoryBadge}>
-              <Text style={styles.categoryText}>{getCategoryName(post.category)}</Text>
+              <Text style={styles.categoryText}>{getCategoryName(currentPost.category)}</Text>
             </View>
           </View>
 
           {/* 제목 */}
-          <Text style={styles.title}>{post.title}</Text>
+          <Text style={styles.title}>{currentPost.title}</Text>
 
           {/* 작성 정보 */}
           <View style={styles.authorInfo}>
             <View style={styles.authorSection}>
               <View style={styles.authorAvatar}>
-                <Ionicons name="person" size={20} color={COLORS.TEXT_SECONDARY} />
+                {currentPost.isAnonymous ? (
+                  <Ionicons name="person" size={20} color={COLORS.TEXT_SECONDARY} />
+                ) : authorProfile?.profileImage ? (
+                  <Image 
+                    source={{ uri: authorProfile.profileImage }} 
+                    style={styles.authorProfileImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Ionicons name="person" size={20} color={COLORS.TEXT_SECONDARY} />
+                )}
               </View>
               <View style={styles.authorDetails}>
                 <Text style={styles.authorText}>
-                  {post.isAnonymous ? '익명' : (post.author || '작성자')}
+                  {currentPost.isAnonymous ? '익명' : (currentPost.author || '작성자')}
                 </Text>
-                <Text style={styles.dateText}>{formatDate(post.createdAt)}</Text>
+                <Text style={styles.dateText}>{formatDate(currentPost.createdAt)}</Text>
               </View>
             </View>
             {isAuthor && (
@@ -256,14 +451,14 @@ const PostDetailScreen = ({ route, navigation }) => {
 
           {/* 내용 */}
           <View style={styles.contentSection}>
-            <Text style={styles.contentText}>{post.content}</Text>
+            <Text style={styles.contentText}>{currentPost.content}</Text>
           </View>
 
           {/* 이미지들 */}
-          {post.images && post.images.length > 0 && (
+          {currentPost.images && currentPost.images.length > 0 && (
             <View style={styles.imagesSection}>
               <View style={styles.imageGrid}>
-                {post.images.map((image, index) => (
+                {currentPost.images.map((image, index) => (
                   <Image 
                     key={index} 
                     source={{ uri: image }} 
@@ -276,10 +471,10 @@ const PostDetailScreen = ({ route, navigation }) => {
           )}
 
           {/* 해시태그 */}
-          {post.hashtags && post.hashtags.length > 0 && (
+          {currentPost.hashtags && currentPost.hashtags.length > 0 && (
             <View style={styles.hashtagSection}>
               <View style={styles.hashtagContainer}>
-                {parseHashtags(post.hashtags).map((tag, index) => (
+                {parseHashtags(currentPost.hashtags).map((tag, index) => (
                   <View key={index} style={styles.hashtagBadge}>
                     <Text style={styles.hashtagText}>#{tag}</Text>
                   </View>
@@ -289,11 +484,11 @@ const PostDetailScreen = ({ route, navigation }) => {
           )}
 
           {/* 위치 */}
-          {post.location && (
+          {currentPost.location && (
             <View style={styles.locationSection}>
               <View style={styles.locationContainer}>
                 <Ionicons name="location" size={16} color={COLORS.PRIMARY} />
-                <Text style={styles.locationText}>{post.location}</Text>
+                <Text style={styles.locationText}>{currentPost.location}</Text>
               </View>
             </View>
           )}
@@ -320,50 +515,7 @@ const PostDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
             
-            {/* 테스트 버튼들 */}
-            <View style={styles.testButtons}>
-              <TouchableOpacity 
-                style={styles.testButton}
-                onPress={() => {
-                  console.log('🧪 좋아요 알림 테스트 버튼 클릭');
-                  if (currentPost.authorId && currentPost.authorId !== user?.uid) {
-                    console.log('📝 테스트 알림 생성 중...');
-                    createLikeNotification(
-                      currentPost.id, 
-                      currentPost.title, 
-                      '테스트 사용자'
-                    );
-                    Alert.alert('테스트', '좋아요 알림이 생성되었습니다!');
-                  } else {
-                    console.log('❌ 자신의 게시글에는 알림 생성 안됨');
-                    Alert.alert('테스트', '자신의 게시글에는 알림이 생성되지 않습니다.');
-                  }
-                }}
-              >
-                <Text style={styles.testButtonText}>좋아요 알림 테스트</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.testButton}
-                onPress={() => {
-                  console.log('🧪 댓글 알림 테스트 버튼 클릭');
-                  if (currentPost.authorId && currentPost.authorId !== user?.uid) {
-                    console.log('📝 테스트 댓글 알림 생성 중...');
-                    createCommentNotification(
-                      currentPost.id, 
-                      currentPost.title, 
-                      '테스트 사용자'
-                    );
-                    Alert.alert('테스트', '댓글 알림이 생성되었습니다!');
-                  } else {
-                    console.log('❌ 자신의 게시글에는 알림 생성 안됨');
-                    Alert.alert('테스트', '자신의 게시글에는 알림이 생성되지 않습니다.');
-                  }
-                }}
-              >
-                <Text style={styles.testButtonText}>댓글 알림 테스트</Text>
-              </TouchableOpacity>
-            </View>
+
           </View>
 
           {/* 댓글 섹션 */}
@@ -375,10 +527,20 @@ const PostDetailScreen = ({ route, navigation }) => {
                 {currentPost.comments.map((comment) => (
                   <View key={comment.id} style={styles.commentItem}>
                     <View style={styles.commentHeader}>
-                      <Text style={styles.commentAuthor}>{comment.author}</Text>
-                      <Text style={styles.commentDate}>
-                        {formatDate(comment.createdAt)}
-                      </Text>
+                      <View style={styles.commentAuthorSection}>
+                        <Text style={styles.commentAuthor}>{comment.author}</Text>
+                        <Text style={styles.commentDate}>
+                          {formatDate(comment.createdAt)}
+                        </Text>
+                      </View>
+                      {comment.authorId === user?.uid && (
+                        <TouchableOpacity 
+                          style={styles.commentMenuButton}
+                          onPress={() => handleCommentMenu(comment)}
+                        >
+                          <Ionicons name="ellipsis-horizontal" size={16} color={COLORS.TEXT_SECONDARY} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                     <Text style={styles.commentText}>{comment.text}</Text>
                   </View>
@@ -453,6 +615,78 @@ const PostDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
+        </Modal>
+
+        {/* 댓글 메뉴 모달 */}
+        <Modal
+          visible={showCommentMenuModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowCommentMenuModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowCommentMenuModal(false)}
+          >
+            <View style={styles.commentMenuModal}>
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={handleEditComment}
+              >
+                <Ionicons name="create-outline" size={20} color={COLORS.TEXT} />
+                <Text style={styles.menuItemText}>수정</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={handleDeleteComment}
+              >
+                <Ionicons name="trash-outline" size={20} color={COLORS.ERROR} />
+                <Text style={[styles.menuItemText, styles.menuItemTextDelete]}>삭제</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* 댓글 수정 모달 */}
+        <Modal
+          visible={showCommentEditModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowCommentEditModal(false)}
+        >
+          <View style={styles.editCommentModal}>
+            <View style={styles.editCommentHeader}>
+              <Text style={styles.editCommentTitle}>댓글 수정</Text>
+            </View>
+            <TextInput
+              style={styles.editCommentInput}
+              placeholder="댓글을 입력하세요..."
+              placeholderTextColor={COLORS.TEXT_SECONDARY}
+              value={editCommentText}
+              onChangeText={setEditCommentText}
+              multiline
+              maxLength={500}
+              autoFocus
+            />
+            <View style={styles.editCommentActions}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => setShowCommentEditModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.updateButton, !editCommentText.trim() && styles.updateButtonDisabled]}
+                onPress={handleUpdateComment}
+                disabled={!editCommentText.trim()}
+              >
+                <Text style={[styles.updateButtonText, !editCommentText.trim() && styles.updateButtonTextDisabled]}>
+                  수정
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </Modal>
       </SafeAreaView>
     );
@@ -540,6 +774,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+  authorProfileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   authorDetails: {
     flex: 1,
@@ -645,22 +884,7 @@ const styles = StyleSheet.create({
   actionTextActive: {
     color: COLORS.ERROR,
   },
-  testButtons: {
-    marginTop: 16,
-    gap: 8,
-  },
-  testButton: {
-    backgroundColor: COLORS.PRIMARY + '20',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  testButtonText: {
-    fontSize: 12,
-    color: COLORS.PRIMARY,
-    fontWeight: '600',
-  },
+
   commentsSection: {
     marginHorizontal: 16,
     marginBottom: 24,
@@ -693,6 +917,8 @@ const styles = StyleSheet.create({
   commentDate: {
     fontSize: 12,
     color: COLORS.TEXT_SECONDARY,
+    marginTop: 2,
+    opacity: 0.8,
   },
   commentText: {
     fontSize: 14,
@@ -787,6 +1013,99 @@ const styles = StyleSheet.create({
   },
   menuItemTextDelete: {
     color: COLORS.ERROR,
+  },
+  commentMenuModal: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 12,
+    padding: 8,
+    minWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    alignSelf: 'flex-end',
+    marginRight: 40,
+  },
+  commentAuthorSection: {
+    flex: 1,
+    flexDirection: 'column',
+    gap: 2,
+  },
+  commentMenuButton: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editCommentModal: {
+    flex: 1,
+    backgroundColor: COLORS.BACKGROUND,
+    marginTop: 100,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  editCommentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 0.25,
+    borderBottomColor: COLORS.BORDER,
+  },
+  editCommentTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+  },
+  editCommentInput: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  editCommentActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    fontWeight: '500',
+  },
+  updateButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.PRIMARY,
+    alignItems: 'center',
+  },
+  updateButtonDisabled: {
+    backgroundColor: COLORS.BORDER,
+  },
+  updateButtonText: {
+    fontSize: 16,
+    color: COLORS.BACKGROUND,
+    fontWeight: '600',
+  },
+  updateButtonTextDisabled: {
+    color: COLORS.TEXT_SECONDARY,
   },
 });
 

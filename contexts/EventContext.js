@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import firestoreService from '../services/firestoreService';
+import storageService from '../services/storageService';
 import evaluationService from '../services/evaluationService';
 import { useAuth } from './AuthContext';
+import { firestore } from '../config/firebase';
+import { doc, updateDoc, serverTimestamp, arrayUnion, arrayRemove, collection, query, where, getDocs } from 'firebase/firestore';
 
 const EventContext = createContext();
 
@@ -26,8 +29,8 @@ export const EventProvider = ({ children }) => {
       const events = [];
       snapshot.forEach((doc) => {
         const eventData = doc.data();
-        console.log('🔍 EventContext - 원본 eventData:', eventData);
-        console.log('🔍 EventContext - eventData.date:', eventData.date, typeof eventData.date);
+        // console.log('🔍 EventContext - 원본 eventData:', eventData);
+        // console.log('🔍 EventContext - eventData.date:', eventData.date, typeof eventData.date);
         
         // Firestore Timestamp 객체를 안전하게 처리
         const processedEvent = {
@@ -36,11 +39,16 @@ export const EventProvider = ({ children }) => {
           createdAt: eventData.createdAt?.toDate?.() || eventData.createdAt,
           updatedAt: eventData.updatedAt?.toDate?.() || eventData.updatedAt,
           date: eventData.date || null, // date 필드도 처리
+          isCreatedByUser: eventData.organizerId === user.uid, // 내가 만든 모임인지 확인
         };
         
-        console.log('🔍 EventContext - processedEvent.date:', processedEvent.date, typeof processedEvent.date);
+        // console.log('🔍 EventContext - processedEvent.date:', processedEvent.date, typeof processedEvent.date);
         events.push(processedEvent);
       });
+      
+      // 디버깅: allEvents 데이터 확인
+      
+      
       setAllEvents(events);
       
       // 사용자가 생성한 이벤트 필터링
@@ -59,6 +67,73 @@ export const EventProvider = ({ children }) => {
     return () => unsubscribe();
   }, [user]);
 
+  // 기존 채팅방 데이터 마이그레이션 (한 번만 실행)
+  const migrateChatRooms = async () => {
+    if (!user) return;
+    
+    try {
+  
+      
+      // 모든 채팅방 가져오기
+      const chatRoomsRef = collection(firestore, 'chatRooms');
+      const chatQuery = query(chatRoomsRef, where('participants', 'array-contains', user.uid));
+      const snapshot = await getDocs(chatQuery);
+      
+      let migrationCount = 0;
+      
+      snapshot.forEach((doc) => {
+        const roomData = doc.data();
+        
+        // createdBy나 organizerId가 없는 채팅방만 마이그레이션
+        // 또한, 제목 끝의 달리기 이모지(🏃, 🏃‍♂️, 🏃‍♀️)를 제거
+        if (!roomData.createdBy || !roomData.organizerId || typeof roomData.title === 'string') {
+          const updateData = {};
+          
+          if (!roomData.createdBy && roomData.participants && roomData.participants.length > 0) {
+            updateData.createdBy = roomData.participants[0];
+          }
+          
+          if (!roomData.organizerId && (roomData.createdBy || updateData.createdBy)) {
+            updateData.organizerId = roomData.createdBy || updateData.createdBy;
+          }
+
+          // 제목 말미 이모지 제거 처리
+          if (typeof roomData.title === 'string') {
+            let sanitizedTitle = roomData.title;
+            // 말미 공백 + 달리기 이모지 변형 제거
+            sanitizedTitle = sanitizedTitle.replace(/\s*🏃‍♀️$/u, '');
+            sanitizedTitle = sanitizedTitle.replace(/\s*🏃‍♂️$/u, '');
+            sanitizedTitle = sanitizedTitle.replace(/\s*🏃$/u, '');
+            // 말미 불필요 공백 정리
+            sanitizedTitle = sanitizedTitle.replace(/\s+$/u, '');
+            if (sanitizedTitle !== roomData.title) {
+              updateData.title = sanitizedTitle;
+            }
+          }
+          
+          if (Object.keys(updateData).length > 0) {
+            // Firebase에 업데이트
+            updateDoc(doc.ref, updateData);
+            migrationCount++;
+
+          }
+        }
+      });
+      
+
+      
+    } catch (error) {
+      console.error('❌ 채팅방 마이그레이션 실패:', error);
+    }
+  };
+
+  // 앱 시작 시 마이그레이션 실행 (한 번만)
+  useEffect(() => {
+    if (user) {
+      migrateChatRooms();
+    }
+  }, [user]);
+
   // 채팅방 데이터 실시간 가져오기
   useEffect(() => {
     if (!user) return;
@@ -68,18 +143,79 @@ export const EventProvider = ({ children }) => {
       snapshot.forEach((doc) => {
         const roomData = doc.data();
         // Firestore Timestamp 객체를 안전하게 처리
-        const processedRoom = {
+        // 기존 채팅방 데이터 마이그레이션: createdBy와 organizerId가 없는 경우 설정
+        let processedRoom = {
           id: doc.id,
           ...roomData,
           createdAt: roomData.createdAt?.toDate?.() || roomData.createdAt,
           lastMessageTime: roomData.lastMessageTime?.toDate?.() || roomData.lastMessageTime,
         };
+
+        // createdBy가 없는 경우, participants 배열의 첫 번째 사용자를 생성자로 설정
+        if (!processedRoom.createdBy && processedRoom.participants && processedRoom.participants.length > 0) {
+          processedRoom.createdBy = processedRoom.participants[0];
+
+        }
+
+        // organizerId가 없는 경우, createdBy와 동일하게 설정
+        if (!processedRoom.organizerId && processedRoom.createdBy) {
+          processedRoom.organizerId = processedRoom.createdBy;
+
+        }
+
+        // 사용자가 해당 채팅방을 생성했는지 확인
+        processedRoom.isCreatedByUser = processedRoom.createdBy === user.uid || processedRoom.organizerId === user.uid;
+        
         rooms.push(processedRoom);
       });
+
       setChatRooms(rooms);
     });
 
     return () => unsubscribe();
+  }, [user]);
+
+  // 모임 알림 데이터 실시간 가져오기
+  useEffect(() => {
+    if (!user) return;
+
+    const { collection, query, where, orderBy, onSnapshot } = require('firebase/firestore');
+    const notificationsRef = collection(firestore, 'meetingNotifications');
+    const notificationsQuery = query(
+      notificationsRef,
+      where('targetUserId', '==', user.uid),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      const notifications = [];
+      snapshot.forEach((doc) => {
+        const notificationData = doc.data();
+        const processedNotification = {
+          id: doc.id,
+          ...notificationData,
+          timestamp: notificationData.timestamp?.toDate?.() || notificationData.timestamp,
+        };
+        notifications.push(processedNotification);
+      });
+      setMeetingNotifications(notifications);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // meetingNotifications 상태가 변경될 때마다 알림 상태 자동 업데이트
+  useEffect(() => {
+    // 초기 로딩 시에도 체크하도록 수정
+    checkMeetingNotifications();
+    checkRatingNotifications();
+  }, [meetingNotifications]);
+
+  // 사용자 로그인 시 업데이트 알림 상태 확인
+  useEffect(() => {
+    if (user) {
+      checkUpdateNotificationStatus();
+    }
   }, [user]);
 
   // 종료된 이벤트 가져오기
@@ -89,16 +225,58 @@ export const EventProvider = ({ children }) => {
     // 종료된 이벤트는 별도 컬렉션에서 관리
     const loadEndedEvents = async () => {
       try {
-        // 여기서는 일반 이벤트 중 종료된 것들을 필터링하거나
-        // 별도의 endedEvents 컬렉션을 사용할 수 있습니다
-        setEndedEvents([]); // 임시로 빈 배열
+    
+        
+        // 현재 시간 기준으로 종료된 모임들을 필터링
+        const now = new Date();
+        const endedEventsData = allEvents.filter(event => {
+          if (!event.date || !event.time) return false;
+          
+          // 날짜와 시간을 결합하여 모임 시작 시간 계산
+          let eventDateTime;
+          try {
+            if (typeof event.date === 'string') {
+              // "2024-01-18" 형식인 경우
+              const [year, month, day] = event.date.split('-').map(Number);
+              const timeStr = event.time; // "오전 9:00" 형식
+              
+              let hours, minutes;
+              if (timeStr.includes('오전')) {
+                const timeMatch = timeStr.match(/(\d+):(\d+)/);
+                hours = parseInt(timeMatch[1]);
+                minutes = parseInt(timeMatch[2]);
+              } else if (timeStr.includes('오후')) {
+                const timeMatch = timeStr.match(/(\d+):(\d+)/);
+                hours = parseInt(timeMatch[1]) + 12;
+                minutes = parseInt(timeMatch[2]);
+              }
+              
+              eventDateTime = new Date(year, month - 1, day, hours, minutes);
+            } else {
+              // Date 객체인 경우
+              eventDateTime = new Date(event.date);
+            }
+            
+            // 모임 시작 후 3시간이 지나면 종료된 것으로 간주
+            const eventEndTime = new Date(eventDateTime.getTime() + (3 * 60 * 60 * 1000));
+            return now > eventEndTime;
+          } catch (error) {
+            console.error('날짜 파싱 오류:', error, event);
+            return false;
+          }
+        });
+        
+
+        
+        setEndedEvents(endedEventsData);
       } catch (error) {
         console.error('종료된 이벤트 로딩 실패:', error);
+        setEndedEvents([]);
       }
     };
 
     loadEndedEvents();
-  }, [user]);
+  }, [user, allEvents]);
 
   // 기존 하드코딩된 데이터 제거됨 - Firebase에서 실시간으로 가져옴
 
@@ -109,6 +287,7 @@ export const EventProvider = ({ children }) => {
   // 알림 표시 상태 관리
   const [hasMeetingNotification, setHasMeetingNotification] = useState(false);
   const [hasRatingNotification, setHasRatingNotification] = useState(false);
+  const [hasUpdateNotification, setHasUpdateNotification] = useState(false);
   
   // 종료된 모임 옵션카드 클릭 상태 관리 (rating 알림용)
   const [endedEventsOptionClicked, setEndedEventsOptionClicked] = useState(false);
@@ -118,6 +297,9 @@ export const EventProvider = ({ children }) => {
   
   // 개별 종료된 모임 카드 클릭 상태 관리 (rating 알림용)
   const [clickedEndedEventIds, setClickedEndedEventIds] = useState(new Set());
+  
+  // 전체 모임 알림표시 상태 관리 (개별 모임 읽음 상태 제거)
+  const [hasUnreadJoinedMeetings, setHasUnreadJoinedMeetings] = useState(false);
 
   // 모임 알림이 있는지 확인하는 함수
   const checkMeetingNotifications = () => {
@@ -135,6 +317,14 @@ export const EventProvider = ({ children }) => {
     
     const hasUnreadNotifications = hasCancelNotifications || hasUnresolvedRatingNotifications;
     setHasMeetingNotification(hasUnreadNotifications);
+    
+    console.log('🔍 checkMeetingNotifications 결과:', {
+      hasCancelNotifications,
+      hasUnresolvedRatingNotifications,
+      hasUnreadNotifications,
+      totalNotifications: meetingNotifications.length
+    });
+    
     return hasUnreadNotifications;
   };
 
@@ -239,76 +429,133 @@ export const EventProvider = ({ children }) => {
 
   // 참여한 일정에 대응하는 채팅방들도 포함하도록 초기 채팅방 데이터 확장
   useEffect(() => {
-    // 참여한 일정들에 대한 채팅방이 없으면 추가
+    // 참여한 일정들에 대한 채팅방이 없으면 Firestore에서 조회
     userJoinedEvents.forEach(event => {
       setChatRooms(prev => {
         const existingChatRoom = prev.find(chatRoom => chatRoom.eventId === event.id);
         if (!existingChatRoom) {
-          const newChatRoom = {
-            id: event.id,
-            eventId: event.id,
-            title: `${event.title} 🏃‍♀️`,
-            lastMessage: `${event.organizer}님이 생성한 모임입니다.`,
-            lastMessageTime: '1일 전',
-            participants: event.participants,
-            unreadCount: Math.floor(Math.random() * 3), // 임시로 랜덤 읽지 않은 메시지 수
-            type: '러닝모임',
-            isCreatedByUser: false
+          // Firestore에서 해당 이벤트의 채팅방 조회
+          const fetchChatRoom = async () => {
+            try {
+              const chatRoomsRef = collection(firestore, 'chatRooms');
+              const q = query(chatRoomsRef, where('eventId', '==', event.id));
+              const querySnapshot = await getDocs(q);
+              
+              if (!querySnapshot.empty) {
+                const chatRoomDoc = querySnapshot.docs[0];
+                const chatRoom = { id: chatRoomDoc.id, ...chatRoomDoc.data() };
+                
+                // 로컬 상태에 추가
+                setChatRooms(prevRooms => {
+                  const alreadyExists = prevRooms.find(room => room.id === chatRoom.id);
+                  if (!alreadyExists) {
+                    return [...prevRooms, chatRoom];
+                  }
+                  return prevRooms;
+                });
+              }
+            } catch (error) {
+              console.error('❌ Firestore 채팅방 조회 실패:', error);
+            }
           };
-          return [...prev, newChatRoom];
+          
+          fetchChatRoom();
         }
         return prev;
       });
     });
-  }, []);
+  }, [userJoinedEvents]);
 
-  // 모임 알림 생성 함수들
-  const addMeetingNotification = (type, event, isCreatedByMe = false) => {
-    const notificationId = Date.now();
-    let notification = {
-      id: notificationId,
-      type: type,
-      eventId: event.id,
-      meetingId: `meeting_${event.id}`,
-      isRead: false,
-      time: '방금 전',
-      icon: '',
-      action: type
-    };
+  // 모임 알림 생성 함수들 (모든 참여자에게 전송)
+  const addMeetingNotification = async (type, event, isCreatedByMe = false) => {
+    try {
+      // 모임 참여자 목록 가져오기 (생성자 포함)
+      const participants = event.participants || [];
+      
+      // 알림을 받을 사용자들 (모임 생성자는 제외)
+      const targetUsers = participants.filter(participantId => 
+        participantId !== event.organizerId
+      );
 
-    switch (type) {
-      case 'reminder':
-        notification = {
-          ...notification,
-          title: `${event.title}`,
-          message: `오늘 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`,
-          icon: 'time'
+      // Firestore에 알림 저장
+      const { collection, addDoc } = await import('firebase/firestore');
+      const notificationsRef = collection(firestore, 'meetingNotifications');
+
+      const notificationPromises = targetUsers.map(async (targetUserId) => {
+        const notification = {
+          id: `meeting_${Date.now()}_${Math.random()}`,
+          type: type,
+          eventId: event.id,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          organizerName: event.organizer,
+          targetUserId: targetUserId, // 알림을 받을 사용자 ID
+          isRead: false,
+          timestamp: new Date(),
+          action: type
         };
-        break;
-      case 'cancel':
-        notification = {
-          ...notification,
-          title: `${event.title} 취소`,
-          message: `${event.organizer}님이 모임을 취소했습니다.`,
-          icon: 'close-circle'
+
+        switch (type) {
+          case 'reminder':
+            notification.title = `${event.title}`;
+            notification.message = `오늘 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
+            break;
+          case 'cancel':
+            notification.title = `${event.title} 취소`;
+            notification.message = `${event.organizer}님이 모임을 취소했습니다.`;
+            break;
+          case 'rating':
+            notification.title = '러닝매너점수 작성 요청';
+            notification.message = `참여한 ${event.title} 모임이 종료되었습니다. 러닝매너점수를 작성해주세요.`;
+            break;
+        }
+
+        try {
+          await addDoc(notificationsRef, notification);
+          console.log('✅ 모임 알림 생성 완료:', { type, targetUserId, eventId: event.id });
+        } catch (error) {
+          console.error('❌ 모임 알림 생성 실패:', error);
+        }
+      });
+
+      await Promise.all(notificationPromises);
+      
+      // 로컬 상태에도 추가 (현재 사용자가 대상인 경우)
+      if (targetUsers.includes(user.uid)) {
+        const localNotification = {
+          id: `meeting_${Date.now()}_${Math.random()}`,
+          type: type,
+          eventId: event.id,
+          meetingId: `meeting_${event.id}`,
+          isRead: false,
+          time: '방금 전',
+          icon: '',
+          action: type
         };
-        break;
-      case 'rating':
-        notification = {
-          ...notification,
-          title: '러닝매너점수 작성 요청',
-          message: `참여한 ${event.title} 모임이 종료되었습니다. 러닝매너점수를 작성해주세요.`,
-          icon: 'star'
-        };
-        break;
+
+        switch (type) {
+          case 'reminder':
+            localNotification.title = `${event.title}`;
+            localNotification.message = `오늘 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
+            localNotification.icon = 'time';
+            break;
+          case 'cancel':
+            localNotification.title = `${event.title} 취소`;
+            localNotification.message = `${event.organizer}님이 모임을 취소했습니다.`;
+            localNotification.icon = 'close-circle';
+            break;
+          case 'rating':
+            localNotification.title = '러닝매너점수 작성 요청';
+            localNotification.message = `참여한 ${event.title} 모임이 종료되었습니다. 러닝매너점수를 작성해주세요.`;
+            localNotification.icon = 'star';
+            break;
+        }
+
+        setMeetingNotifications(prev => [localNotification, ...prev]);
+      }
+    } catch (error) {
+      console.error('❌ 모임 알림 생성 중 오류:', error);
     }
-
-    // 내가 만든 모임의 경우 reminder만 생성, cancel과 rating은 생성하지 않음
-    if (isCreatedByMe && (type === 'cancel' || type === 'rating')) {
-      return;
-    }
-
-    setMeetingNotifications(prev => [notification, ...prev]);
   };
 
   // 모임 시작 1시간 전 reminder 알림 스케줄링
@@ -364,7 +611,7 @@ export const EventProvider = ({ children }) => {
           const timeUntilReminder = reminderTime.getTime() - now.getTime();
           
           setTimeout(() => {
-            addMeetingNotification('reminder', event, event.isCreatedByUser);
+            addMeetingNotification('reminder', event, false); // 모든 참여자에게 전송
           }, timeUntilReminder);
         }
       }
@@ -379,7 +626,8 @@ export const EventProvider = ({ children }) => {
       const eventData = {
         ...newEvent,
         organizerId: user.uid,
-        organizer: user.displayName || '익명',
+        organizer: newEvent.organizer || user.displayName || '익명',
+        organizerImage: newEvent.organizerImage || null,
         createdBy: user.uid, // 모임 생성자 UID 추가
         participants: [user.uid], // 호스트(생성자)를 참여자 배열에 포함
         isCreatedByUser: true,
@@ -411,14 +659,88 @@ export const EventProvider = ({ children }) => {
       if (result.success) {
         console.log('✅ 이벤트 참여 완료:', eventId);
         
+        // 로컬 상태 즉시 업데이트
+        setAllEvents(prevEvents => 
+          prevEvents.map(event => 
+            event.id === eventId 
+              ? { 
+                  ...event, 
+                  participants: Array.isArray(event.participants) 
+                    ? [...event.participants, user.uid]
+                    : [user.uid]
+                }
+              : event
+          )
+        );
+
+        // userJoinedEvents 상태도 업데이트
+        setUserJoinedEvents(prevJoined => {
+          const joinedEvent = allEvents.find(event => event.id === eventId);
+          if (joinedEvent && !prevJoined.find(event => event.id === eventId)) {
+            return [...prevJoined, {
+              ...joinedEvent,
+              participants: Array.isArray(joinedEvent.participants) 
+                ? [...joinedEvent.participants, user.uid]
+                : [user.uid]
+            }];
+          }
+          return prevJoined;
+        });
+        
         // 모임 참여자 통계 업데이트 (일반 참여자로 카운트)
         await evaluationService.incrementParticipationCount(user.uid, false);
         
         // 채팅방 참여도 자동으로 처리
         await joinChatRoom(eventId);
+        
+        // 새로운 모임 참여 시 알림표시 활성화
+        setHasUnreadJoinedMeetings(true);
       }
     } catch (error) {
       console.error('❌ 이벤트 참여 실패:', error);
+      throw error;
+    }
+  };
+
+  // 일정 나가기
+  const leaveEvent = async (eventId) => {
+    try {
+      console.log('🔍 leaveEvent - 시작:', eventId);
+      
+      // Firestore에서 참여자 목록에서 제거
+      const eventRef = doc(firestore, 'events', eventId);
+      await updateDoc(eventRef, {
+        participants: arrayRemove(user.uid),
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log('✅ Firestore 이벤트 나가기 완료:', eventId);
+      
+      // 로컬 상태 즉시 업데이트
+      setAllEvents(prevEvents => 
+        prevEvents.map(event => 
+          event.id === eventId 
+            ? { 
+                ...event, 
+                participants: Array.isArray(event.participants) 
+                  ? event.participants.filter(participantId => participantId !== user.uid)
+                  : []
+              }
+            : event
+        )
+      );
+
+      // userJoinedEvents에서 즉시 제거
+      setUserJoinedEvents(prevJoined => 
+        prevJoined.filter(event => event.id !== eventId)
+      );
+      
+      // 채팅방에서도 나가기
+      await leaveChatRoom(eventId);
+      
+      console.log('✅ 이벤트 나가기 완료:', eventId);
+    } catch (error) {
+      console.error('❌ 이벤트 나가기 실패:', error);
       throw error;
     }
   };
@@ -428,11 +750,13 @@ export const EventProvider = ({ children }) => {
     try {
       const chatRoomData = {
         eventId: event.id,
-        title: `${event.title} 🏃‍♀️`,
+        title: `${event.title}`,
         lastMessage: '채팅방이 생성되었습니다. 러닝 모임에 대해 자유롭게 이야기해보세요!',
         participants: [user.uid], // 생성자만 처음에 입장
         unreadCount: 0,
         type: '러닝모임',
+        createdBy: user.uid, // 생성자 ID 추가
+        organizerId: event.organizerId || user.uid, // 모임 생성자 ID 추가
         isCreatedByUser: true
       };
 
@@ -450,10 +774,131 @@ export const EventProvider = ({ children }) => {
   // 채팅방 입장 (일정 참여 시 자동 호출)
   const joinChatRoom = async (eventId) => {
     try {
-      // 실제 구현에서는 채팅방에 사용자를 추가하는 로직 필요
-      console.log('✅ 채팅방 참여 완료:', eventId);
+      // 먼저 로컬에서 채팅방 확인
+      let existingChatRoom = chatRooms.find(room => room.eventId === eventId);
+      
+      if (existingChatRoom) {
+        // 이미 참여자 목록에 있는지 확인
+        if (existingChatRoom.participants && existingChatRoom.participants.includes(user.uid)) {
+          return;
+        }
+        
+        // Firestore에서 채팅방 참여자 업데이트
+        const chatRoomRef = doc(firestore, 'chatRooms', existingChatRoom.id);
+        await updateDoc(chatRoomRef, {
+          participants: arrayUnion(user.uid),
+          updatedAt: serverTimestamp()
+        });
+        
+        // 로컬 상태 업데이트
+        setChatRooms(prevRooms => 
+          prevRooms.map(room => 
+            room.id === existingChatRoom.id 
+              ? { 
+                  ...room, 
+                  participants: Array.isArray(room.participants) 
+                    ? [...room.participants, user.uid]
+                    : [user.uid]
+                }
+              : room
+          )
+        );
+        
+        return;
+      }
+      
+      // 로컬에 없으면 Firestore에서 조회
+      const chatRoomsRef = collection(firestore, 'chatRooms');
+      const q = query(chatRoomsRef, where('eventId', '==', eventId));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const chatRoomDoc = querySnapshot.docs[0];
+        const chatRoom = { id: chatRoomDoc.id, ...chatRoomDoc.data() };
+        
+        // 채팅방에 사용자 추가
+        const chatRoomRef = doc(firestore, 'chatRooms', chatRoom.id);
+        await updateDoc(chatRoomRef, {
+          participants: arrayUnion(user.uid),
+          updatedAt: serverTimestamp()
+        });
+        
+        // 로컬 상태에 추가
+        setChatRooms(prevRooms => {
+          const alreadyExists = prevRooms.find(room => room.id === chatRoom.id);
+          if (alreadyExists) {
+            return prevRooms.map(room => 
+              room.id === chatRoom.id 
+                ? { 
+                    ...room, 
+                    participants: Array.isArray(room.participants) 
+                      ? [...room.participants, user.uid]
+                      : [user.uid]
+                  }
+                : room
+            );
+          } else {
+            return [...prevRooms, {
+              ...chatRoom,
+              participants: Array.isArray(chatRoom.participants) 
+                ? [...chatRoom.participants, user.uid]
+                : [user.uid]
+            }];
+          }
+        });
+      } else {
+        // 채팅방이 없으면 생성
+        const event = allEvents.find(e => e.id === eventId);
+        if (event) {
+          await createChatRoomForEvent(event);
+        }
+      }
     } catch (error) {
       console.error('❌ 채팅방 참여 실패:', error);
+      throw error;
+    }
+  };
+
+  // 채팅방 나가기 (일정 나가기 시 자동 호출)
+  const leaveChatRoom = async (eventId) => {
+    try {
+      console.log('🔍 leaveChatRoom - 시작:', eventId);
+      // Firestore에서 직접 해당 이벤트의 채팅방 조회
+      const chatRoomsRef = collection(firestore, 'chatRooms');
+      const q = query(chatRoomsRef, where('eventId', '==', eventId));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const chatRoomDoc = querySnapshot.docs[0];
+        const chatRoom = { id: chatRoomDoc.id, ...chatRoomDoc.data() };
+        
+        // 채팅방에서 사용자 제거
+        const chatRoomRef = doc(firestore, 'chatRooms', chatRoom.id);
+        await updateDoc(chatRoomRef, {
+          participants: arrayRemove(user.uid),
+          updatedAt: serverTimestamp()
+        });
+        
+        // 로컬 상태 업데이트
+        setChatRooms(prevRooms => 
+          prevRooms.map(room => 
+            room.id === chatRoom.id 
+              ? { 
+                  ...room, 
+                  participants: Array.isArray(room.participants) 
+                    ? room.participants.filter(participantId => participantId !== user.uid)
+                    : []
+                }
+              : room
+          )
+        );
+        
+        console.log('✅ 채팅방 나가기 완료:', chatRoom.id);
+      } else {
+        console.warn('⚠️ 해당 이벤트의 채팅방을 찾을 수 없습니다:', eventId);
+      }
+    } catch (error) {
+      console.error('❌ 채팅방 나가기 실패:', error);
       throw error;
     }
   };
@@ -464,6 +909,24 @@ export const EventProvider = ({ children }) => {
       const result = await firestoreService.updateEvent(eventId, updatedEvent);
       if (result.success) {
         console.log('✅ 이벤트 수정 완료:', eventId);
+        
+        // 제목이 변경된 경우 채팅방 제목도 업데이트
+        if (updatedEvent.title) {
+          try {
+            // 해당 이벤트의 채팅방을 찾아서 제목 업데이트
+            const chatRoom = chatRooms.find(room => room.eventId === eventId);
+            if (chatRoom) {
+              const newChatRoomTitle = `${updatedEvent.title}`;
+              await firestoreService.updateChatRoomTitle(chatRoom.id, newChatRoomTitle);
+              console.log('✅ 채팅방 제목 업데이트 완료:', newChatRoomTitle);
+            } else {
+              console.log('⚠️ 해당 이벤트의 채팅방을 찾을 수 없음:', eventId);
+            }
+          } catch (chatError) {
+            console.error('❌ 채팅방 제목 업데이트 실패:', chatError);
+            // 채팅방 제목 업데이트 실패는 모임 수정 실패로 처리하지 않음
+          }
+        }
       }
     } catch (error) {
       console.error('❌ 이벤트 수정 실패:', error);
@@ -507,52 +970,67 @@ export const EventProvider = ({ children }) => {
   };
 
   // 모임 종료 (알림 생성 포함)
-  const endEvent = (eventId) => {
-    // 내가 만든 모임에서 찾기
-    const createdEvent = userCreatedEvents.find(event => event.id === eventId);
-    if (createdEvent) {
-      const endedEvent = {
-        ...createdEvent,
-        endedAt: new Date().toISOString(),
-        status: 'ended'
-      };
-      setEndedEvents(prev => [...prev, endedEvent]);
-      setUserCreatedEvents(prev => prev.filter(event => event.id !== eventId));
-      setAllEvents(prev => prev.filter(event => event.id !== eventId));
+  const endEvent = async (eventId) => {
+    try {
+      console.log('🔍 EventContext.endEvent 호출됨:', eventId);
       
-      // 내가 만든 모임을 종료하는 경우, 참여자들에게 rating 알림 생성
-      addMeetingNotification('rating', createdEvent, true);
-      
-      // 연결된 채팅방도 종료 상태로 변경
-      setChatRooms(prev => 
-        prev.map(chatRoom => 
-          chatRoom.eventId === eventId 
-            ? { ...chatRoom, status: 'ended', title: `${chatRoom.title} (종료됨)` }
-            : chatRoom
-        )
-      );
-      return;
-    }
+      // 내가 만든 모임에서 찾기
+      const createdEvent = userCreatedEvents.find(event => event.id === eventId);
+      if (createdEvent) {
+        // Firebase에서 실제 데이터 삭제
+        await firestoreService.endEvent(eventId);
+        
+        // Firebase Storage에서 모임 관련 파일 삭제
+        await storageService.deleteEventFiles(eventId);
+        
+        const endedEvent = {
+          ...createdEvent,
+          endedAt: new Date().toISOString(),
+          status: 'ended'
+        };
+        setEndedEvents(prev => [...prev, endedEvent]);
+        setUserCreatedEvents(prev => prev.filter(event => event.id !== eventId));
+        setAllEvents(prev => prev.filter(event => event.id !== eventId));
+        
+        // 내가 만든 모임을 종료하는 경우, 참여자들에게 rating 알림 생성
+        addMeetingNotification('rating', createdEvent, true);
+        
+        // 연결된 채팅방도 종료 상태로 변경
+        setChatRooms(prev => 
+          prev.map(chatRoom => 
+            chatRoom.eventId === eventId 
+              ? { ...chatRoom, status: 'ended', title: `${chatRoom.title} (종료됨)` }
+              : chatRoom
+          )
+        );
+        
+        console.log('✅ 모임 종료 완료:', eventId);
+        return;
+      }
 
-    // 내가 참여한 모임에서 찾기
-    const joinedEvent = userJoinedEvents.find(event => event.id === eventId);
-    if (joinedEvent) {
-      const endedEvent = {
-        ...joinedEvent,
-        endedAt: new Date().toISOString(),
-        status: 'ended'
-      };
-      setEndedEvents(prev => [...prev, endedEvent]);
-      setUserJoinedEvents(prev => prev.filter(event => event.id !== eventId));
-      
-      // 연결된 채팅방도 종료 상태로 변경
-      setChatRooms(prev => 
-        prev.map(chatRoom => 
-          chatRoom.eventId === eventId 
-            ? { ...chatRoom, status: 'ended', title: `${chatRoom.title} (종료됨)` }
-            : chatRoom
-        )
-      );
+      // 내가 참여한 모임에서 찾기
+      const joinedEvent = userJoinedEvents.find(event => event.id === eventId);
+      if (joinedEvent) {
+        const endedEvent = {
+          ...joinedEvent,
+          endedAt: new Date().toISOString(),
+          status: 'ended'
+        };
+        setEndedEvents(prev => [...prev, endedEvent]);
+        setUserJoinedEvents(prev => prev.filter(event => event.id !== eventId));
+        
+        // 연결된 채팅방도 종료 상태로 변경
+        setChatRooms(prev => 
+          prev.map(chatRoom => 
+            chatRoom.eventId === eventId 
+              ? { ...chatRoom, status: 'ended', title: `${chatRoom.title} (종료됨)` }
+              : chatRoom
+          )
+        );
+      }
+    } catch (error) {
+      console.error('❌ 모임 종료 실패:', error);
+      throw error;
     }
   };
 
@@ -649,10 +1127,196 @@ export const EventProvider = ({ children }) => {
     console.log(`💬 채팅방 ${chatRoomId}에 메시지 추가됨: ${message}`);
   };
 
+  // 업데이트 알림 설정 함수
+  const setUpdateNotification = (show) => {
+    setHasUpdateNotification(show);
+    console.log('🔔 업데이트 알림 상태 변경:', show);
+  };
+
+  // 업데이트 알림 해제 함수
+  const clearUpdateNotification = () => {
+    setHasUpdateNotification(false);
+    console.log('✅ 업데이트 알림 해제됨');
+  };
+
+  // AsyncStorage와 동기화하여 업데이트 알림 상태 확인
+  const checkUpdateNotificationStatus = async () => {
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      const updateRead = await AsyncStorage.getItem('updateNotificationRead');
+      
+      // 안전한 값 검증
+      if (updateRead === 'true') {
+        // 이미 읽었으면 알림 표시하지 않음
+        setHasUpdateNotification(false);
+        console.log('🔄 AsyncStorage 동기화: 업데이트 알림 읽음 처리됨');
+      } else if (updateRead === 'false' || updateRead === null || updateRead === undefined) {
+        // 읽지 않았거나 값이 없으면 알림 표시
+        setHasUpdateNotification(true);
+        console.log('🔄 AsyncStorage 동기화: 업데이트 알림 표시됨');
+      } else {
+        // 잘못된 값이면 초기화하고 알림 표시
+        console.log('⚠️ AsyncStorage 잘못된 값 발견, 초기화:', updateRead);
+        await AsyncStorage.removeItem('updateNotificationRead');
+        setHasUpdateNotification(true);
+        console.log('🔄 AsyncStorage 동기화: 잘못된 값 초기화 후 알림 표시됨');
+      }
+    } catch (error) {
+      console.error('❌ AsyncStorage 동기화 실패:', error);
+      // 오류 발생 시 기본값으로 설정
+      setHasUpdateNotification(true);
+      console.log('🔄 AsyncStorage 동기화: 오류 발생으로 기본값 설정');
+    }
+  };
+
+  // 메시지 연속성 확인 함수 (1분 미만 간격)
+  const isConsecutiveMessage = (currentMessageTime, previousMessageTime) => {
+    if (!currentMessageTime || !previousMessageTime) return false;
+    
+    const current = new Date(currentMessageTime);
+    const previous = new Date(previousMessageTime);
+    const timeDiff = current.getTime() - previous.getTime();
+    
+    // 1분(60초) 미만이면 연속 메시지로 간주
+    return timeDiff < 60 * 1000;
+  };
+
+  // 메시지 그룹에서 시간 표시 여부 결정 함수 (더 이상 사용하지 않음)
+  // const shouldShowTimestamp = (messages, currentIndex) => { ... };
+
+  // 메시지 그룹화 함수 (연속 메시지 그룹으로 분리)
+  const groupConsecutiveMessages = (messages) => {
+    if (!messages || messages.length === 0) return [];
+    
+    const groups = [];
+    let currentGroup = [];
+    
+    messages.forEach((message, index) => {
+      if (index === 0) {
+        // 첫 번째 메시지는 새 그룹 시작
+        currentGroup = [message];
+      } else {
+        const previousMessage = messages[index - 1];
+        
+        // 같은 사용자의 연속 메시지인지 확인
+        const isSameUser = message.senderId === previousMessage.senderId;
+        const isConsecutive = isSameUser && isConsecutiveMessage(message.timestamp, previousMessage.timestamp);
+        
+        if (isConsecutive) {
+          // 연속 메시지면 현재 그룹에 추가
+          currentGroup.push(message);
+        } else {
+          // 연속이 아니면 현재 그룹을 저장하고 새 그룹 시작
+          if (currentGroup.length > 0) {
+            groups.push([...currentGroup]);
+          }
+          currentGroup = [message];
+        }
+      }
+    });
+    
+    // 마지막 그룹 추가
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+    
+    return groups;
+  };
+
+  // 메시지에 연속성 정보 추가 함수
+  const addConsecutiveInfoToMessages = (messages) => {
+    if (!messages || messages.length === 0) return messages;
+    
+    // 먼저 연속 메시지 그룹을 식별
+    const messageGroups = [];
+    let currentGroup = [];
+    
+    messages.forEach((message, index) => {
+      if (index === 0) {
+        // 첫 번째 메시지는 새 그룹 시작
+        currentGroup = [message];
+      } else {
+        const previousMessage = messages[index - 1];
+        
+        // 같은 사용자의 연속 메시지인지 확인
+        const isSameUser = message.senderId === previousMessage.senderId;
+        const isConsecutive = isSameUser && isConsecutiveMessage(message.timestamp, previousMessage.timestamp);
+        
+        if (isConsecutive) {
+          // 연속 메시지면 현재 그룹에 추가
+          currentGroup.push(message);
+        } else {
+          // 연속이 아니면 현재 그룹을 저장하고 새 그룹 시작
+          if (currentGroup.length > 0) {
+            messageGroups.push([...currentGroup]);
+          }
+          currentGroup = [message];
+        }
+      }
+    });
+    
+    // 마지막 그룹 추가
+    if (currentGroup.length > 0) {
+      messageGroups.push(currentGroup);
+    }
+    
+    console.log('🔍 메시지 그룹화 결과:', messageGroups.map(group => ({
+      senderId: group[0].senderId,
+      count: group.length,
+      messages: group.map(m => m.text)
+    })));
+    
+    // 각 메시지에 연속성 정보 추가
+    return messages.map((message, index) => {
+      // 현재 메시지가 속한 그룹 찾기
+      let messageGroup = null;
+      let messageIndexInGroup = -1;
+      
+      for (const group of messageGroups) {
+        const groupIndex = group.findIndex(m => m.id === message.id);
+        if (groupIndex !== -1) {
+          messageGroup = group;
+          messageIndexInGroup = groupIndex;
+          break;
+        }
+      }
+      
+      if (!messageGroup) {
+        console.warn('⚠️ 메시지 그룹을 찾을 수 없음:', message.id);
+        return message;
+      }
+      
+      const isFirstInGroup = messageIndexInGroup === 0;
+      const isLastInGroup = messageIndexInGroup === messageGroup.length - 1;
+      
+      // 시간 표시 여부 결정: 그룹의 마지막 메시지에만 시간 표시
+      const showTimestamp = isLastInGroup;
+      
+      console.log(`🔍 메시지 ${index} (${message.text}):`, {
+        senderId: message.senderId,
+        groupIndex: messageIndexInGroup,
+        groupSize: messageGroup.length,
+        isFirstInGroup,
+        isLastInGroup,
+        showTimestamp
+      });
+      
+      return {
+        ...message,
+        showTimestamp,
+        isFirstInGroup,
+        isLastInGroup,
+        isConsecutive: !isFirstInGroup
+      };
+    });
+  };
 
 
   // 알림 변경 시 상태 업데이트
   useEffect(() => {
+    // 참여한 모임이 있는지 확인
+    const hasJoinedEvents = userJoinedEvents.length > 0;
+    
     // 모임 알림 확인
     const hasCancelNotifications = meetingNotifications.some(notification => 
       !notification.isRead && notification.type === 'cancel'
@@ -666,7 +1330,9 @@ export const EventProvider = ({ children }) => {
     );
     
     const hasUnreadNotifications = hasCancelNotifications || hasUnresolvedRatingNotifications;
-    setHasMeetingNotification(hasUnreadNotifications);
+    
+    // 전체 모임 알림표시 상태 사용
+    setHasMeetingNotification(hasUnreadJoinedMeetings || hasUnreadNotifications);
 
     // 러닝매너점수 알림 확인
     const hasUnreadRatingNotifications = meetingNotifications.some(notification => 
@@ -675,7 +1341,35 @@ export const EventProvider = ({ children }) => {
     setHasRatingNotification(hasUnreadRatingNotifications);
 
 
-  }, [meetingNotifications, endedEventsOptionClicked, clickedEndedEventIds, lastOptionClickTime]);
+
+  }, [userJoinedEvents, meetingNotifications, endedEventsOptionClicked, clickedEndedEventIds, lastOptionClickTime, hasUnreadJoinedMeetings]);
+
+  // 전체 모임 알림표시 제거 함수
+  const clearMeetingNotificationBadge = async () => {
+
+    setHasUnreadJoinedMeetings(false);
+    
+    // Firestore에서 모임 알림들을 읽음 처리
+    try {
+      const { collection, query, where, getDocs, updateDoc } = await import('firebase/firestore');
+      const notificationsRef = collection(firestore, 'meetingNotifications');
+      const notificationsQuery = query(
+        notificationsRef,
+        where('targetUserId', '==', user.uid),
+        where('isRead', '==', false)
+      );
+      
+      const querySnapshot = await getDocs(notificationsQuery);
+      const updatePromises = querySnapshot.docs.map(doc => 
+        updateDoc(doc.ref, { isRead: true })
+      );
+      
+      await Promise.all(updatePromises);
+
+    } catch (error) {
+      console.error('❌ Firestore 모임 알림 읽음 처리 실패:', error);
+    }
+  };
 
   const value = {
     allEvents,
@@ -689,8 +1383,10 @@ export const EventProvider = ({ children }) => {
     deleteEvent,
     endEvent,
     joinEvent,
+    leaveEvent,
     createChatRoomForEvent,
     joinChatRoom,
+    leaveChatRoom,
     addMeetingNotification,
     scheduleReminderNotification,
     setUserCreatedEvents,
@@ -701,6 +1397,7 @@ export const EventProvider = ({ children }) => {
     checkMeetingNotifications,
     addMeetingNotificationWithBadge,
     hasMeetingNotification,
+    hasUpdateNotification,
     hasRatingNotification,
     checkRatingNotifications,
     hasRatingNotificationForEvent,
@@ -710,7 +1407,15 @@ export const EventProvider = ({ children }) => {
     handleEndedEventCardClick,
     handleChatTabClick,
     handleChatRoomClick,
-    addChatMessage
+    addChatMessage,
+    setUpdateNotification,
+    clearUpdateNotification,
+    checkUpdateNotificationStatus,
+    clearMeetingNotificationBadge,
+    // 메시지 연속 기능 관련 함수들
+    isConsecutiveMessage,
+    groupConsecutiveMessages,
+    addConsecutiveInfoToMessages
   };
 
   return (
