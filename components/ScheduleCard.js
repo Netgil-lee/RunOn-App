@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -15,7 +16,13 @@ const COLORS = {
   CARD: '#171719',
 };
 
-const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true }) => {
+const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasNotification = false }) => {
+  
+  // 참여자수 계산
+  const participantCount = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+  const maxParticipantText = event.maxParticipants ? ` / ${event.maxParticipants}명` : '';
+  const finalParticipantText = `참여자 ${participantCount}명${maxParticipantText}`;
+
   // 연도를 제거하고 요일을 추가하는 함수
   const formatDateWithoutYear = (dateString) => {
     if (!dateString) return '';
@@ -73,8 +80,15 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true }) =>
       onPress={() => onPress && onPress(event)}
       activeOpacity={0.8}
     >
-      {/* 제목 */}
-      <Text style={styles.title}>{event.title}</Text>
+      {/* 제목과 알림표시 */}
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>{event.title}</Text>
+        {hasNotification && (
+          <View style={styles.notificationBadge} />
+        )}
+      </View>
+      
+
 
       {/* 위치와 날짜/시간을 한 줄로 배치 */}
       <View style={styles.locationDateTimeRow}>
@@ -121,24 +135,56 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true }) =>
       <View style={styles.footer}>
         <View style={styles.organizerInfo}>
           <View style={styles.organizerAvatar}>
-            <Text style={styles.organizerAvatarText}>
-              {event.organizer.charAt(0)}
-            </Text>
+            {event.organizerImage && !event.organizerImage.startsWith('file://') ? (
+              <Image 
+                source={{ uri: event.organizerImage }} 
+                style={styles.organizerAvatarImage}
+              />
+            ) : (
+              <Ionicons name="person" size={14} color="#ffffff" />
+            )}
           </View>
           <Text style={styles.organizerName}>{event.organizer}</Text>
         </View>
 
         <View style={styles.rightSection}>
-          <Text style={styles.participantInfo}>
-            참여자 {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
-            {event.maxParticipants ? ` / ${event.maxParticipants}명` : ''}
+          <Text style={[styles.participantInfo, { color: '#ffffff', fontSize: 15 }]}>
+            {finalParticipantText}
           </Text>
           {showJoinButton && (
             <TouchableOpacity 
-              style={styles.joinButton} 
+              style={[
+                styles.joinButton,
+                // 참여 마감된 경우 버튼 비활성화
+                (() => {
+                  const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
+                  const maxParticipants = event.maxParticipants || 6;
+                  return currentParticipants >= maxParticipants ? styles.disabledButton : {};
+                })()
+              ]} 
               onPress={() => onJoinPress(event)}
+              // 참여 마감된 경우 버튼 비활성화
+              disabled={(() => {
+                const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
+                const maxParticipants = event.maxParticipants || 6;
+                return currentParticipants >= maxParticipants;
+              })()}
             >
-              <Text style={styles.joinButtonText}>참여하기</Text>
+              <Text style={[
+                styles.joinButtonText,
+                // 참여 마감된 경우 텍스트 스타일 변경
+                (() => {
+                  const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
+                  const maxParticipants = event.maxParticipants || 6;
+                  return currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
+                })()
+              ]}>
+                {(() => {
+                  const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
+                  const maxParticipants = event.maxParticipants || 6;
+                  return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
+                })()}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -155,11 +201,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   title: {
     fontSize: 18,
     fontWeight: '600',
     color: '#ffffff',
-    marginBottom: 12,
+    flex: 1,
+  },
+  notificationBadge: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF0022',
+    marginLeft: 8,
   },
   locationDateTimeRow: {
     flexDirection: 'row',
@@ -242,6 +300,7 @@ const styles = StyleSheet.create({
   organizerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1, // 왼쪽 공간 차지
   },
   organizerAvatar: {
     width: 32,
@@ -251,6 +310,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
+    overflow: 'hidden',
+  },
+  organizerAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   organizerAvatarText: {
     fontSize: 14,
@@ -266,6 +331,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    minWidth: 80, // 최소 너비 설정
+    justifyContent: 'flex-end', // 오른쪽 정렬
   },
   participantInfo: {
     fontSize: 13,
@@ -282,6 +349,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#000000',
+  },
+  disabledButton: {
+    backgroundColor: '#666666', // 비활성화된 버튼의 색상
+    opacity: 0.7, // 비활성화된 버튼의 투명도
+  },
+  disabledButtonText: {
+    color: '#999999', // 비활성화된 텍스트의 색상
   },
 });
 

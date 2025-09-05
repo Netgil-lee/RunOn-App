@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
+import { useEvents } from '../contexts/EventContext';
+import { useCommunity } from '../contexts/CommunityContext';
 import AppBar from '../components/AppBar';
 import { doc, getDoc, updateDoc, getFirestore } from 'firebase/firestore';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -30,6 +32,7 @@ import OnboardingLevelSelector from '../components/OnboardingLevelSelector';
 import OnboardingCourseSelector from '../components/OnboardingCourseSelector';
 import evaluationService from '../services/evaluationService';
 import storageService from '../services/storageService';
+import updateService from '../services/updateService';
 import { 
   HAN_RIVER_PARKS, 
   RIVER_SIDES, 
@@ -79,12 +82,74 @@ const getJoinDate = (createdAt) => {
   return `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}.${String(dateObj.getDate()).padStart(2, '0')}`;
 };
 
+// 주민등록번호 6자리를 나이로 계산하는 함수
+const calculateAge = (birthDate) => {
+  if (!birthDate) return null;
+  
+  try {
+    // 기존 YYYY-MM-DD 형식인지 확인
+    if (birthDate.length === 10 && birthDate.includes('-')) {
+      const [year, month, day] = birthDate.split('-').map(Number);
+      const birth = new Date(year, month - 1, day);
+      const today = new Date();
+      
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+      
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      
+      return age;
+    }
+    
+    // 새로운 YYMMDD 형식 처리
+    if (birthDate.length === 6) {
+      const year = parseInt(birthDate.substring(0, 2));
+      const month = parseInt(birthDate.substring(2, 4));
+      const day = parseInt(birthDate.substring(4, 6));
+      
+      // 한국 주민등록번호 기준: 실제 나이 계산을 위한 보정
+      let fullYear;
+      const currentYear = new Date().getFullYear();
+      const currentYearLastTwo = currentYear % 100; // 2024 → 24
+      
+      // 간단한 규칙: 00-24는 2000년대, 25-99는 1900년대
+      if (year >= 0 && year <= currentYearLastTwo) {
+        // 00-24: 2000년대로 처리 (2000-2024)
+        fullYear = 2000 + year;
+      } else {
+        // 25-99: 1900년대로 처리 (1925-1999)
+        fullYear = 1900 + year;
+      }
+      
+      const birth = new Date(fullYear, month - 1, day);
+      const today = new Date();
+      
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+      
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      
+      return age;
+    }
+    
+    return null;
+  } catch (error) {
+    return null;
+  }
+};
+
 
 
 
 const ProfileScreen = ({ navigation }) => {
   const { user, logout, updateUserProfile } = useAuth();
   const { isTabEnabled, isNotificationTypeEnabled } = useNotificationSettings();
+  const { hasMeetingNotification, hasUpdateNotification } = useEvents();
+  const { hasCommunityNotification } = useCommunity();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [profile, setProfile] = useState(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -108,6 +173,9 @@ const ProfileScreen = ({ navigation }) => {
     chat: []
   });
 
+  // 업데이트 알림 상태
+  const [updateNotification, setUpdateNotification] = useState(null);
+
   // 설정에 따라 필터링된 알림 가져오기
   const getFilteredNotifications = (tabType) => {
     if (!isTabEnabled(tabType)) {
@@ -124,10 +192,44 @@ const ProfileScreen = ({ navigation }) => {
     return getFilteredNotifications(tabType).filter(notif => !notif.isRead).length;
   };
 
+  // 업데이트 알림 가져오기
+  const fetchUpdateNotification = async () => {
+    try {
+      const updateResult = await updateService.checkForUpdate();
+      
+      if (updateResult && updateResult.showNotification) {
+        const notification = {
+          id: 'update',
+          type: 'update',
+          title: '앱 업데이트',
+          message: updateResult.message,
+          timestamp: new Date(),
+          isRead: false,
+        };
+        setUpdateNotification(notification);
+      } else {
+        setUpdateNotification(null);
+      }
+    } catch (error) {
+      console.error('업데이트 알림 가져오기 실패:', error);
+    }
+  };
+
   const getTotalUnreadCount = () => {
-    return Object.keys(notifications).reduce((total, tabType) => {
-      return total + getUnreadCount(tabType);
-    }, 0);
+    // Context 상태를 사용하여 알림 카운트 계산
+    let totalCount = 0;
+    
+    // 모임 알림
+    if (hasMeetingNotification || hasUpdateNotification) {
+      totalCount += 1;
+    }
+    
+    // 커뮤니티 알림
+    if (hasCommunityNotification) {
+      totalCount += 1;
+    }
+    
+    return totalCount;
   };
 
   // 커뮤니티 이력(실제 데이터)
@@ -141,13 +243,17 @@ const ProfileScreen = ({ navigation }) => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      console.log('🔄 ProfileScreen: fetchProfile 호출됨', { 
-        user: !!user, 
-        userUid: user?.uid
-      });
+      // if (__DEV__) {
+      //   console.log('🔄 ProfileScreen: fetchProfile 호출됨', { 
+      //     user: !!user, 
+      //     userUid: user?.uid
+      //   });
+      // }
       
       if (!user) {
-        console.log('❌ ProfileScreen: 사용자가 없습니다. 기본 프로필 설정');
+        // if (__DEV__) {
+        //   console.log('❌ ProfileScreen: 사용자가 없습니다. 기본 프로필 설정');
+        // }
         setProfile({
           displayName: '사용자',
           bio: '자기소개를 입력해주세요.',
@@ -172,35 +278,35 @@ const ProfileScreen = ({ navigation }) => {
         return;
       }
       
-      console.log('🔄 ProfileScreen: 프로필 데이터 로딩 시작', { 
-        uid: user.uid
-      });
+      // console.log('🔄 ProfileScreen: 프로필 데이터 로딩 시작', { 
+      //   uid: user.uid
+      // });
       
       setLoading(true);
       
       try {
-        console.log('📊 실제 사용자: Firestore에서 프로필 데이터 가져오기 시작');
+        // console.log('📊 실제 사용자: Firestore에서 프로필 데이터 가져오기 시작');
         const db = getFirestore();
         const userRef = doc(db, 'users', user.uid);
         const snap = await getDoc(userRef);
         
         if (snap.exists()) {
           const profileData = snap.data();
-          console.log('✅ 실제 사용자: Firestore에서 프로필 데이터 가져옴', profileData);
+          // console.log('✅ 실제 사용자: Firestore에서 프로필 데이터 가져옴', profileData);
           
           // 온보딩 데이터가 있는지 확인
           const onboardingProfile = profileData.profile;
-          console.log('🔍 온보딩 프로필 데이터:', onboardingProfile);
+          // console.log('🔍 온보딩 프로필 데이터:', onboardingProfile);
           
           // Firestore Timestamp 객체를 안전하게 처리하고 온보딩 데이터 매핑
           const processedProfile = {
             ...profileData,
             // 온보딩에서 저장한 프로필 데이터가 있으면 우선 사용
-            displayName: onboardingProfile?.nickname || profileData.displayName || user.displayName || '사용자',
+            displayName: onboardingProfile?.nickname || profileData.displayName || user.displayName,
             bio: onboardingProfile?.bio || profileData.bio || '자기소개를 입력해주세요.',
             gender: onboardingProfile?.gender || profileData.gender || '',
             birthDate: onboardingProfile?.birthDate || profileData.birthDate || '',
-            profileImage: onboardingProfile?.profileImage || profileData.profileImage || null,
+            profileImage: onboardingProfile?.profileImage || profileData.profileImage,
             // 러닝 프로필 데이터 매핑
             runningProfile: {
               level: onboardingProfile?.runningLevel || profileData.runningProfile?.level || 'beginner',
@@ -215,13 +321,13 @@ const ProfileScreen = ({ navigation }) => {
             onboardingCompletedAt: profileData.onboardingCompletedAt?.toDate?.() || profileData.onboardingCompletedAt,
           };
           
-          console.log('📝 처리된 프로필 데이터:', processedProfile);
+          // console.log('📝 처리된 프로필 데이터:', processedProfile);
           setProfile(processedProfile);
         } else {
           // 프로필 데이터가 없는 경우 기본 데이터 설정
-          console.log('⚠️ 실제 사용자: 프로필 데이터가 없습니다. 기본 데이터를 설정합니다.');
+          // console.log('⚠️ 실제 사용자: 프로필 데이터가 없습니다. 기본 데이터를 설정합니다.');
           const defaultProfile = {
-            displayName: user.displayName || '사용자',
+            displayName: user.displayName,
             bio: '자기소개를 입력해주세요.',
             runningProfile: {
               level: 'beginner',
@@ -233,12 +339,12 @@ const ProfileScreen = ({ navigation }) => {
               currentGoals: []
             }
           };
-          console.log('📝 실제 사용자: 기본 프로필 데이터 설정', defaultProfile);
+          // console.log('📝 실제 사용자: 기본 프로필 데이터 설정', defaultProfile);
           setProfile(defaultProfile);
         }
 
         // 커뮤니티 통계 가져오기
-        console.log('📊 실제 사용자: 커뮤니티 통계 가져오기 시작');
+        // console.log('📊 실제 사용자: 커뮤니티 통계 가져오기 시작');
         const communityStats = await evaluationService.getUserCommunityStats(user.uid);
         
         // 태그를 형식에 맞게 변환
@@ -275,14 +381,15 @@ const ProfileScreen = ({ navigation }) => {
             currentGoals: []
           }
         };
-        console.log('🔄 실제 사용자: 에러 시 기본 프로필 데이터 설정', errorProfile);
+        // console.log('🔄 실제 사용자: 에러 시 기본 프로필 데이터 설정', errorProfile);
         setProfile(errorProfile);
       } finally {
-        console.log('🏁 ProfileScreen: 프로필 데이터 로딩 완료, loading = false');
+        // console.log('🏁 ProfileScreen: 프로필 데이터 로딩 완료, loading = false');
         setLoading(false);
       }
     };
     fetchProfile();
+    fetchUpdateNotification();
   }, [user]);
 
   const handleMenuPress = () => {
@@ -329,7 +436,6 @@ const ProfileScreen = ({ navigation }) => {
         bio: profile.bio || '',
         birthDate: profile.birthDate || '',
         gender: profile.gender || '',
-        age: profile.age || '',
         runningProfile: {
           level: profile.runningProfile?.level || '',
           pace: profile.runningProfile?.pace || '',
@@ -468,15 +574,27 @@ const ProfileScreen = ({ navigation }) => {
         console.log('💾 프로필 저장 시작 (시도:', retryCount + 1, ')');
         setLoading(true);
         
-        // 프로필 업데이트 시도
-        await updateUserProfile({
-          displayName: editData.nickname,
+        // undefined 값 제거하고 프로필 업데이트 시도
+        const profileUpdateData = {
+          nickname: editData.nickname,
           bio: editData.bio,
           birthDate: editData.birthDate,
           gender: editData.gender,
-          age: editData.age,
-          runningProfile: editData.runningProfile,
-        });
+          runningLevel: editData.runningProfile?.level,
+          averagePace: editData.runningProfile?.pace,
+          preferredCourses: editData.runningProfile?.preferredCourses,
+          preferredTimes: editData.runningProfile?.preferredTimes,
+          runningStyles: editData.runningProfile?.runningStyles,
+          favoriteSeasons: editData.runningProfile?.favoriteSeasons,
+          currentGoals: editData.runningProfile?.currentGoals,
+        };
+        
+        // age는 유효한 값일 때만 추가
+        if (editData.age !== undefined && editData.age !== null) {
+          profileUpdateData.age = editData.age;
+        }
+        
+        await updateUserProfile(profileUpdateData);
         
         console.log('✅ 프로필 업데이트 성공 (시도:', retryCount + 1, ')');
         
@@ -488,7 +606,15 @@ const ProfileScreen = ({ navigation }) => {
           birthDate: editData.birthDate,
           gender: editData.gender,
           age: editData.age,
-          runningProfile: editData.runningProfile,
+          runningProfile: {
+            level: editData.runningProfile?.level,
+            pace: editData.runningProfile?.pace,
+            preferredCourses: editData.runningProfile?.preferredCourses,
+            preferredTimes: editData.runningProfile?.preferredTimes,
+            runningStyles: editData.runningProfile?.runningStyles,
+            favoriteSeasons: editData.runningProfile?.favoriteSeasons,
+            currentGoals: editData.runningProfile?.currentGoals,
+          },
         }));
         
         setEditModalVisible(false);
@@ -528,18 +654,18 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  console.log('🔄 ProfileScreen 렌더링:', { 
-    loading, 
-    profile: !!profile, 
-    user: !!user,
-    userUid: user?.uid,
-    userEmail: user?.email,
-    profileAge: profile?.age,
-    profileGender: profile?.gender
-  });
+  // console.log('🔄 ProfileScreen 렌더링:', { 
+  //   loading, 
+  //   profile: !!profile, 
+  //   user: !!user,
+  //   userUid: user?.uid,
+  //   userEmail: user?.email,
+  //   profileAge: profile?.age,
+  //   profileGender: profile?.gender
+  // });
   
   if (loading && !profile) {
-    console.log('⏳ ProfileScreen: 로딩 중...');
+    // console.log('⏳ ProfileScreen: 로딩 중...');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator color={COLORS.PRIMARY} size="large" />
@@ -617,8 +743,8 @@ const ProfileScreen = ({ navigation }) => {
               </View>
               <Text style={styles.profileJoin}>가입일: {getJoinDate(profile?.createdAt)}</Text>
               <View style={styles.profileInfoRow}>
-                {profile?.age && (
-                  <Text style={styles.profileInfo}>나이: {profile.age}세</Text>
+                {profile?.birthDate && calculateAge(profile.birthDate) && (
+                  <Text style={styles.profileInfo}>나이: {calculateAge(profile.birthDate)}세</Text>
                 )}
                 {profile?.gender && (
                   <Text style={styles.profileInfo}>성별: {profile.gender === 'male' ? '남성' : profile.gender === 'female' ? '여성' : profile.gender}</Text>
@@ -803,11 +929,15 @@ const ProfileScreen = ({ navigation }) => {
               </View>
               <View style={styles.tagRow}>
                 {activity.tags.length > 0 ? (
-                  activity.tags.map((tag, i) => (
-                    <View key={i} style={styles.tagOutline}> 
-                      <Text style={styles.tagTextOutline}>{tag}</Text>
-                    </View>
-                  ))
+                  activity.tags.map((tag, i) => {
+                    // [1 #태그명] 형태에서 태그명만 추출
+                    const cleanTag = tag.replace(/^\[\d+\s*#\s*/, '').replace(/\]$/, '');
+                    return (
+                      <View key={i} style={styles.tagOutline}> 
+                        <Text style={styles.tagTextOutline}>{cleanTag}</Text>
+                      </View>
+                    );
+                  })
                 ) : (
                   <Text style={styles.noTagsText}>아직 받은 태그가 없습니다.</Text>
                 )}
@@ -824,12 +954,6 @@ const ProfileScreen = ({ navigation }) => {
             <View style={styles.modalContent}>
               {/* 모달 헤더 */}
               <View style={styles.modalHeader}>
-                <TouchableOpacity 
-                  style={styles.modalBackButton}
-                  onPress={() => setEditModalVisible(false)}
-                >
-                  <Ionicons name="chevron-back" size={24} color={COLORS.TEXT} />
-                </TouchableOpacity>
                 <Text style={styles.modalTitle}>프로필 수정</Text>
               </View>
               <ScrollView
@@ -858,14 +982,14 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
                 
                 {/* 나이와 성별 정보 표시 (읽기 전용) */}
-                {(editData.age || editData.gender) && (
+                {(editData.birthDate || editData.gender) && (
                   <View style={styles.stepContainer}>
                     <Text style={[styles.inputLabel, styles.stepTitle]}>본인인증 정보</Text>
                     <View style={styles.verifiedInfoContainer}>
-                      {editData.age && (
+                      {editData.birthDate && calculateAge(editData.birthDate) && (
                         <View style={styles.verifiedInfoRow}>
                           <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
-                          <Text style={styles.verifiedInfoText}>나이: {editData.age}세</Text>
+                          <Text style={styles.verifiedInfoText}>나이: {calculateAge(editData.birthDate)}세</Text>
                         </View>
                       )}
                       {editData.gender && (
@@ -924,13 +1048,24 @@ const ProfileScreen = ({ navigation }) => {
                     onChange={(value) => setEditData(d => ({ ...d, runningProfile: { ...d.runningProfile, currentGoals: value } }))}
                   />
                 </View>
-                <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                  <Text style={styles.saveButtonText}>저장</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setEditModalVisible(false)}>
-                  <Text style={styles.cancelButtonText}>취소</Text>
-                </TouchableOpacity>
+
               </ScrollView>
+              
+              {/* 하단 네비게이터 */}
+              <View style={styles.modalBottomNavigator}>
+                <TouchableOpacity 
+                  style={styles.modalCancelButton}
+                  onPress={() => setEditModalVisible(false)}
+                >
+                  <Text style={styles.modalCancelButtonText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.modalSaveButton}
+                  onPress={handleSave}
+                >
+                  <Text style={styles.modalSaveButtonText}>저장</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -1307,15 +1442,51 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 10,
     position: 'relative',
     height: 50,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.SURFACE,
   },
-  modalBackButton: {
-    padding: 5,
-    position: 'absolute',
-    left: 5,
-    zIndex: 1,
+  modalBottomNavigator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.SURFACE,
+    backgroundColor: COLORS.CARD,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.SURFACE,
+    marginRight: 8,
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 16,
+    fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
+  },
+  modalSaveButton: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.PRIMARY,
+    marginLeft: 8,
+    alignItems: 'center',
+  },
+  modalSaveButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold',
+    fontFamily: 'Pretendard-Bold',
   },
   modalTitle: {
     fontSize: 20,

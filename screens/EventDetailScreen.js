@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -13,7 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
+import evaluationService from '../services/evaluationService';
 import ENV from '../config/environment';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import firestoreService from '../services/firestoreService';
 
 const COLORS = {
   PRIMARY: '#3AF8FF',
@@ -27,15 +31,15 @@ const COLORS = {
 };
 
 const EventDetailScreen = ({ route, navigation }) => {
-  const { event: rawEvent, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe } = route.params;
+  const { event: rawEvent, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe, returnToScreen, evaluationCompleted = false } = route.params;
   const [isJoinedState, setIsJoinedState] = useState(isJoined);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [isEvaluationCompleted, setIsEvaluationCompleted] = useState(false);
+  const [isCheckingEvaluation, setIsCheckingEvaluation] = useState(false);
   const { user } = useAuth();
-  const { endEvent } = useEvents();
+  const { endEvent, joinEvent, leaveEvent, allEvents, chatRooms } = useEvents();
   
-  // 디버깅을 위한 로그 추가
-  console.log('🔍 EventDetailScreen - rawEvent:', rawEvent);
-  console.log('🔍 EventDetailScreen - rawEvent.date:', rawEvent.date, typeof rawEvent.date);
-  console.log('🔍 EventDetailScreen - rawEvent.time:', rawEvent.time, typeof rawEvent.time);
+
   
   // 문자열로 받은 날짜를 Date 객체로 변환
   const event = {
@@ -45,8 +49,7 @@ const EventDetailScreen = ({ route, navigation }) => {
     updatedAt: rawEvent.updatedAt && rawEvent.updatedAt !== 'null' ? new Date(rawEvent.updatedAt) : null
   };
   
-  console.log('🔍 EventDetailScreen - processed event.date:', event.date, typeof event.date);
-  console.log('🔍 EventDetailScreen - processed event.time:', event.time, typeof event.time);
+
   
   // 날짜 포맷팅 함수 추가
   const formatDate = (dateValue) => {
@@ -88,28 +91,145 @@ const EventDetailScreen = ({ route, navigation }) => {
   };
   
   // 내가 생성한 일정인지 확인 (route 파라미터 우선, 없으면 UID 비교 사용)
-  const isCreatedByMe = routeIsCreatedByMe !== undefined ? routeIsCreatedByMe : (user && event.createdBy && (
-    user.uid === event.createdBy || user.uid === event.organizerId ||
-    user.displayName === event.organizer || 
-    user.email?.split('@')[0] === event.organizer ||
-    event.organizer === '나' ||
-    event.isCreatedByUser
+  const isCreatedByMe = routeIsCreatedByMe !== undefined ? routeIsCreatedByMe : (user && (
+    (event.createdBy && user.uid === event.createdBy) || 
+    (event.organizerId && user.uid === event.organizerId)
   ));
 
-  // 디버깅을 위한 로그 추가
-  console.log('🔍 EventDetailScreen - isCreatedByMe 확인:', {
-    routeIsCreatedByMe,
-    userUid: user?.uid,
-    eventCreatedBy: event.createdBy,
-    userDisplayName: user?.displayName,
-    eventOrganizer: event.organizer,
-    userEmail: user?.email?.split('@')[0],
-    eventIsCreatedByUser: event.isCreatedByUser,
-    isCreatedByMe
-  });
 
-  // 종료된 모임 여부 확인
-  const isEnded = event.status === 'ended';
+  // 현재 사용자가 모임의 참여자인지 확인
+  const isCurrentUserParticipant = user && event.participants && Array.isArray(event.participants) && 
+    event.participants.includes(user.uid);
+
+
+
+  // 참여 상태 업데이트 (route 파라미터가 없으면 참여자 목록에서 확인)
+  useEffect(() => {
+    if (isJoined === undefined && isCurrentUserParticipant) {
+      setIsJoinedState(true);
+    }
+  }, [isJoined, isCurrentUserParticipant]);
+
+  // 평가 완료 상태 파라미터 처리
+  useEffect(() => {
+    if (evaluationCompleted) {
+      console.log('🔍 EventDetailScreen - 평가 완료 상태 파라미터 받음, 즉시 업데이트');
+      setIsEvaluationCompleted(true);
+    }
+  }, [evaluationCompleted]);
+
+  // 화면 포커스 시 평가 완료 상태 확인
+  useFocusEffect(
+    React.useCallback(() => {
+      // 화면이 포커스될 때마다 평가 완료 상태를 다시 확인
+      if (user?.uid && event.id && event.status === 'ended') {
+        checkEvaluationStatus();
+      }
+    }, [user?.uid, event.id, event.status])
+  );
+
+  // 뒤로가기 시 이전 화면으로 복원
+  useFocusEffect(
+    React.useCallback(() => {
+      const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+        // 뒤로가기 시 이전 화면 상태로 복원
+        if (returnToScreen) {
+          console.log('🔍 EventDetailScreen - 뒤로가기 시 이전 화면으로 복원:', returnToScreen);
+          // 기본 뒤로가기 동작을 막고 직접 네비게이션
+          e.preventDefault();
+          navigation.navigate('ScheduleTab', { 
+            returnToScreen: returnToScreen,
+            forceScreenState: returnToScreen
+          });
+        }
+      });
+
+      return unsubscribe;
+    }, [navigation, returnToScreen])
+  );
+
+
+
+  // 현재 사용자의 프로필 정보 가져오기
+  useEffect(() => {
+    const fetchCurrentUserProfile = async () => {
+      if (user?.uid) {
+        try {
+          const db = getFirestore();
+          const userRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            setCurrentUserProfile(userData);
+
+          }
+        } catch (error) {
+          console.error('❌ EventDetailScreen - 현재 사용자 프로필 로드 실패:', error);
+        }
+      }
+    };
+    
+    fetchCurrentUserProfile();
+  }, [user?.uid]);
+
+  // 평가 완료 여부 확인 함수
+  const checkEvaluationStatus = async () => {
+    if (!user?.uid || !event.id) return;
+    
+    setIsCheckingEvaluation(true);
+    try {
+      const completed = await evaluationService.isEvaluationCompleted(event.id, user.uid);
+      setIsEvaluationCompleted(completed);
+    } catch (error) {
+      console.error('❌ 평가 완료 여부 확인 실패:', error);
+      setIsEvaluationCompleted(false);
+    } finally {
+      setIsCheckingEvaluation(false);
+    }
+  };
+
+  // 평가 완료 여부 확인
+  useEffect(() => {
+    checkEvaluationStatus();
+  }, [user?.uid, event.id]);
+
+  // 종료된 모임 여부 확인 - EventContext의 endedEvents와 비교하여 정확한 상태 확인
+  const isEnded = (() => {
+    // 1. event.status가 'ended'인 경우
+    if (event.status === 'ended') {
+      return true;
+    }
+    
+    // 2. EventContext의 allEvents에서 해당 모임이 'ended' 상태인지 확인
+    const matchingEndedEvent = allEvents.find(e => e.id === event.id && e.status === 'ended');
+    if (matchingEndedEvent) {
+      return true;
+    }
+    
+    // 3. 날짜/시간이 지난 모임인지 확인 (자동 종료 로직)
+    if (event.date && event.time) {
+      try {
+        const eventDateTime = new Date(`${event.date} ${event.time}`);
+        const now = new Date();
+        const threeHoursAfterEvent = new Date(eventDateTime.getTime() + (3 * 60 * 60 * 1000)); // 이벤트 후 3시간
+        
+        if (now > threeHoursAfterEvent) {
+          console.log('🔍 EventDetailScreen - 자동 종료된 모임 감지:', {
+            eventId: event.id,
+            eventDateTime: eventDateTime,
+            threeHoursAfterEvent: threeHoursAfterEvent,
+            now: now
+          });
+          return true;
+        }
+      } catch (error) {
+        console.warn('⚠️ EventDetailScreen - 날짜 파싱 오류:', error);
+      }
+    }
+    
+    return false;
+  })();
+  
 
   const getEventTypeEmoji = (type) => {
     const emojiMap = {
@@ -175,9 +295,21 @@ const EventDetailScreen = ({ route, navigation }) => {
           { 
             text: '나가기', 
             style: 'destructive',
-            onPress: () => {
-              setIsJoinedState(false);
-              Alert.alert('나가기 완료', '모임에서 나갔습니다.');
+            onPress: async () => {
+              try {
+                console.log('🔍 EventDetailScreen - leaveEvent 호출 시작:', event.id);
+                await leaveEvent(event.id);
+                console.log('🔍 EventDetailScreen - leaveEvent 호출 완료:', event.id);
+                setIsJoinedState(false);
+                Alert.alert('나가기 완료', '모임에서 나갔습니다.');
+              } catch (error) {
+                console.error('❌ EventDetailScreen - leaveEvent 실패:', error);
+                Alert.alert(
+                  '나가기 실패',
+                  '모임에서 나가기에 실패했습니다. 다시 시도해주세요.',
+                  [{ text: '확인' }]
+                );
+              }
             }
           },
         ]
@@ -191,13 +323,76 @@ const EventDetailScreen = ({ route, navigation }) => {
           { text: '취소', style: 'cancel' },
           { 
             text: '참여하기', 
-            onPress: () => {
-              setIsJoinedState(true);
-              Alert.alert(
-                '참여 완료', 
-                '모임에 참여했습니다!\n채팅방에도 자동으로 입장되었습니다.',
-                [{ text: '확인' }]
-              );
+            onPress: async () => {
+              try {
+                console.log('🔍 EventDetailScreen - joinEvent 호출 시작:', event.id);
+                await joinEvent(event.id);
+                console.log('🔍 EventDetailScreen - joinEvent 호출 완료:', event.id);
+                setIsJoinedState(true);
+                Alert.alert(
+                  '참여 완료', 
+                  '모임에 참여했습니다!\n채팅방에도 자동으로 입장되었습니다.\n채팅방으로 이동하시겠습니까?',
+                  [
+                    { text: '나중에', style: 'cancel' },
+                    { 
+                      text: '네', 
+                      onPress: async () => {
+                        try {
+                          // 해당 모임의 채팅방 찾기 (로컬에서 먼저 확인)
+                          let chatRoom = chatRooms.find(room => room.eventId === event.id);
+                          
+                          // 로컬에서 찾을 수 없는 경우 Firestore에서 직접 조회
+                          if (!chatRoom) {
+                            console.log('🔍 EventDetailScreen - 로컬에서 채팅방을 찾을 수 없음, Firestore에서 조회:', event.id);
+                            
+                            const { getFirestore, collection, query, where, getDocs } = await import('firebase/firestore');
+                            const db = getFirestore();
+                            const chatRoomsRef = collection(db, 'chatRooms');
+                            const q = query(chatRoomsRef, where('eventId', '==', event.id));
+                            const querySnapshot = await getDocs(q);
+                            
+                            if (!querySnapshot.empty) {
+                              const chatRoomDoc = querySnapshot.docs[0];
+                              chatRoom = { id: chatRoomDoc.id, ...chatRoomDoc.data() };
+                              console.log('✅ EventDetailScreen - Firestore에서 채팅방 찾음:', chatRoom.id);
+                            }
+                          }
+                          
+                          if (chatRoom) {
+                            console.log('✅ EventDetailScreen - 채팅방으로 직접 이동:', chatRoom.id);
+                            // 채팅방으로 직접 이동
+                            navigation.navigate('Chat', { 
+                              chatRoom: chatRoom,
+                              returnToCommunity: true
+                            });
+                          } else {
+                            console.log('⚠️ EventDetailScreen - 채팅방을 찾을 수 없음, 커뮤니티 탭으로 이동');
+                            // 채팅방을 찾을 수 없는 경우 커뮤니티 탭으로 이동
+                            navigation.navigate('Main', { 
+                              screen: 'CommunityTab',
+                              params: { activeTab: '채팅' }
+                            });
+                          }
+                        } catch (error) {
+                          console.error('❌ EventDetailScreen - 채팅방 이동 실패:', error);
+                          // 에러 발생 시 커뮤니티 탭으로 이동
+                          navigation.navigate('Main', { 
+                            screen: 'CommunityTab',
+                            params: { activeTab: '채팅' }
+                          });
+                        }
+                      }
+                    }
+                  ]
+                );
+              } catch (error) {
+                console.error('❌ EventDetailScreen - joinEvent 실패:', error);
+                Alert.alert(
+                  '참여 실패',
+                  '모임 참여에 실패했습니다. 다시 시도해주세요.',
+                  [{ text: '확인' }]
+                );
+              }
             }
           },
         ]
@@ -219,54 +414,111 @@ const EventDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  const renderParticipantsList = () => {
-    // 실제 일정의 호스트 정보를 사용하여 참여자 목록 생성
-    const hostName = event.organizer || '알 수 없음';
-    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1); // 현재 참여자 수 (기본값: 호스트 1명)
-    
-    // 호스트가 현재 사용자인지 확인
-    const isCurrentUserHost = user && (
-      user.displayName === hostName || 
-      user.email?.split('@')[0] === hostName ||
-      hostName === '나'
-    );
-    
-    // 호스트 정보 - 현재 사용자인 경우 실제 프로필 정보 사용
-    const hostParticipant = isCurrentUserHost ? {
-      id: 'participant_0',
-      name: user.displayName || user.email?.split('@')[0] || '나',
-      profileImage: user.photoURL || null,
-      isHost: true,
-      level: '초급',
-      mannerScore: 5.0,
-      totalParticipated: 0,
-      thisMonth: 0,
-      hostedEvents: 0,
-      joinDate: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.'),
-      bio: '자기소개를 입력해주세요.'
-    } : {
-      id: 'participant_0',
-      name: hostName,
-      profileImage: null,
-      isHost: true,
-      level: '초급',
-      mannerScore: 5.0,
-      totalParticipated: 0,
-      thisMonth: 0,
-      hostedEvents: 0,
-      joinDate: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.'),
-      bio: '자기소개를 입력해주세요.'
+  const [participantsList, setParticipantsList] = useState([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+
+  // 참여자 목록 가져오기
+  useEffect(() => {
+    const fetchParticipants = async () => {
+      if (!event.participants || !Array.isArray(event.participants)) {
+        return;
+      }
+
+      setLoadingParticipants(true);
+      try {
+        const participantsData = await Promise.all(
+          event.participants.map(async (participantId, index) => {
+            try {
+              // Firestore에서 참여자 프로필 정보 가져오기
+              const userProfile = await firestoreService.getUserProfile(participantId);
+              
+              const isHost = event.organizerId === participantId;
+              const hostName = event.organizer || '알 수 없음';
+              
+              // 프로필 이미지 우선순위: photoURL > Firebase Storage URL > 기본 이미지
+              // file:// 경로는 제외 (로컬 파일이므로 다른 사용자에게는 표시되지 않음)
+              const profileImage = userProfile?.photoURL || 
+                                 (userProfile?.profileImage && 
+                                  !userProfile.profileImage.startsWith('file://') && 
+                                  userProfile.profileImage.startsWith('http') ? 
+                                  userProfile.profileImage : null) ||
+                                 (userProfile?.profile?.profileImage && 
+                                  !userProfile.profile.profileImage.startsWith('file://') && 
+                                  userProfile.profile.profileImage.startsWith('http') ? 
+                                  userProfile.profile.profileImage : null) ||
+                                 null;
+              
+              
+              return {
+                id: participantId, // 실제 사용자 ID 사용
+                name: isHost ? hostName : (userProfile?.profile?.nickname || userProfile?.displayName),
+                profileImage: profileImage,
+                isHost: isHost,
+                level: userProfile?.profile?.level || '초급',
+                mannerScore: userProfile?.profile?.mannerScore || 5.0,
+                totalParticipated: userProfile?.profile?.totalParticipated || 0,
+                thisMonth: userProfile?.profile?.thisMonth || 0,
+                hostedEvents: userProfile?.profile?.hostedEvents || 0,
+                joinDate: event.createdAt ? new Date(event.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.') : '날짜 없음',
+                bio: userProfile?.profile?.bio || '자기소개를 입력해주세요.',
+                runningProfile: userProfile?.profile || null,
+                age: userProfile?.profile?.age || null,
+                gender: userProfile?.gender || userProfile?.profile?.gender || null,
+                userId: participantId
+              };
+            } catch (error) {
+              return {
+                id: participantId, // 실제 사용자 ID 사용
+                name: null,
+                profileImage: null,
+                isHost: event.organizerId === participantId,
+                level: '초급',
+                mannerScore: 5.0,
+                totalParticipated: 0,
+                thisMonth: 0,
+                hostedEvents: 0,
+                joinDate: '날짜 없음',
+                bio: '자기소개를 입력해주세요.',
+                runningProfile: null,
+                age: null,
+                gender: null,
+                userId: participantId
+              };
+            }
+          })
+        );
+
+        setParticipantsList(participantsData);
+      } catch (error) {
+        console.error('❌ 참여자 목록 로드 실패:', error);
+      } finally {
+        setLoadingParticipants(false);
+      }
     };
 
-    // 추가 참여자들 (호스트 제외) - 빈 배열로 초기화
-    const additionalParticipants = [];
+    fetchParticipants();
+  }, [event.id]);
 
-    // 실제 참여자 수에 맞춰 참여자 목록 생성 (호스트 + 추가 참여자들)
-    const participants = [hostParticipant, ...additionalParticipants.slice(0, currentParticipants - 1)];
+  const renderParticipantsList = () => {
+    if (loadingParticipants) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>참여자 목록을 불러오는 중...</Text>
+        </View>
+      );
+    }
+
+    if (participantsList.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>참여자가 없습니다.</Text>
+        </View>
+      );
+    }
 
     return (
       <View style={styles.participantsGrid}>
-        {participants.map((participant, index) => (
+        {participantsList.map((participant, index) => (
           <TouchableOpacity 
             key={participant.id} 
             style={styles.participantItem}
@@ -274,11 +526,20 @@ const EventDetailScreen = ({ route, navigation }) => {
             activeOpacity={0.7}
           >
             <View style={styles.participantAvatar}>
-              {participant.profileImage ? (
-                <Image source={{ uri: participant.profileImage }} style={styles.participantImage} />
+              {participant.profileImage && 
+               participant.profileImage.trim() !== '' && 
+               !participant.profileImage.startsWith('file://') ? (
+                <Image 
+                  source={{ uri: participant.profileImage }} 
+                  style={styles.participantImage}
+                  onError={(error) => {
+                  }}
+                  onLoad={() => {
+                  }}
+                />
               ) : (
                 <View style={styles.participantImagePlaceholder}>
-                  <Ionicons name="person" size={16} color="#fff" />
+                  <Ionicons name="person" size={16} color="#ffffff" />
                 </View>
               )}
             </View>
@@ -305,18 +566,6 @@ const EventDetailScreen = ({ route, navigation }) => {
     } else {
       latitude = 37.5172;
       longitude = 126.9881;
-    }
-    
-    // TestFlight에서 API 키 로딩 상태 확인
-    const kakaoApiKey = ENV.kakaoMapApiKey;
-    console.log('🗺️ EventDetailScreen - 카카오맵 API 키:', kakaoApiKey ? '로드됨' : '로드실패');
-    if (!__DEV__) {
-      console.log('📍 TestFlight - 카카오맵 API 키 상태:', {
-        hasKey: !!kakaoApiKey,
-        keyLength: kakaoApiKey?.length || 0,
-        environment: 'production'
-      });
-
     }
     
     return `
@@ -567,7 +816,7 @@ const EventDetailScreen = ({ route, navigation }) => {
 
       {/* 하단 버튼 */}
       <View style={styles.bottomActions}>
-        {isEnded ? (
+        {isEnded && !isEvaluationCompleted ? (
           <TouchableOpacity 
             style={[styles.actionButton, styles.endButton]} 
             onPress={() => {
@@ -582,14 +831,14 @@ const EventDetailScreen = ({ route, navigation }) => {
               );
               
               const hostParticipant = isCurrentUserHost ? {
-                id: 'participant_0',
+                id: user.uid, // 실제 사용자 ID 사용
                 name: user.displayName || user.email?.split('@')[0] || '나',
                 profileImage: user.photoURL || null,
                 isHost: true,
                 role: 'host',
                 bio: user.bio || '새벽 러닝의 매력을 알려드리는 코치입니다!'
               } : {
-                id: 'participant_0',
+                id: event.organizerId, // 실제 호스트 ID 사용
                 name: hostName,
                 profileImage: null,
                 isHost: true,
@@ -597,66 +846,108 @@ const EventDetailScreen = ({ route, navigation }) => {
                 bio: '새벽 러닝의 매력을 알려드리는 코치입니다!'
               };
 
-              const additionalParticipants = [
-                {
-                  id: 'participant_1',
-                  name: '김새벽',
-                  profileImage: null,
-                  isHost: false,
-                  role: 'participant',
-                  bio: '새벽 러닝을 시작한 지 3개월 된 초보입니다.'
-                },
-                {
-                  id: 'participant_2',
-                  name: '이모닝',
-                  profileImage: null,
-                  isHost: false,
-                  role: 'participant',
-                  bio: '모닝 러닝으로 하루를 시작하는 것이 좋아요!'
-                },
-                {
-                  id: 'participant_3',
-                  name: '최한강',
-                  profileImage: null,
-                  isHost: false,
-                  role: 'participant',
-                  bio: '한강에서의 러닝이 가장 좋아요!'
-                },
-                {
-                  id: 'participant_4',
-                  name: '정조깅',
-                  profileImage: null,
-                  isHost: false,
-                  role: 'participant',
-                  bio: '조깅으로 건강을 챙기고 있는 초보 러너입니다.'
-                }
-              ];
+              // 더미 데이터 제거 - 실제 참여자 데이터 사용
 
-              const participants = [hostParticipant, ...additionalParticipants.slice(0, currentParticipants - 1)];
-              navigation.navigate('RunningMeetingReview', { event, participants });
+              // 실제 모임 참여자 데이터 사용 (더미 데이터 대신)
+              const actualParticipants = participantsList.length > 0 
+                ? participantsList 
+                : [hostParticipant]; // 참여자 데이터가 없으면 호스트만
+              
+              console.log('🔍 EventDetailScreen - 러닝매너 작성 참여자 데이터:', {
+                eventId: event.id,
+                actualParticipantsCount: actualParticipants.length,
+                participantsListCount: participantsList.length,
+                actualParticipants: actualParticipants.map(p => ({ id: p.id, name: p.name, isHost: p.isHost }))
+              });
+              
+              // Date 객체를 문자열로 변환하여 직렬화 가능하게 만듦
+              const serializableEvent = {
+                ...event,
+                date: event.date ? event.date.toISOString() : null,
+                createdAt: event.createdAt ? event.createdAt.toISOString() : null,
+                updatedAt: event.updatedAt ? event.updatedAt.toISOString() : null
+              };
+              
+              navigation.navigate('RunningMeetingReview', { event: serializableEvent, participants: actualParticipants });
             }}
           >
             <Ionicons name="create-outline" size={24} color="#000000" />
             <Text style={[styles.actionButtonText, styles.endButtonText]}>러닝매너 작성하기</Text>
           </TouchableOpacity>
+        ) : isEnded && isEvaluationCompleted ? (
+          <View style={[styles.actionButton, styles.completedButton]}>
+            <Ionicons name="checkmark-circle" size={24} color={COLORS.PRIMARY} />
+            <Text style={[styles.actionButtonText, styles.completedButtonText]}>러닝매너 작성완료</Text>
+          </View>
         ) : (
           <TouchableOpacity 
             style={[
               styles.actionButton, 
-              isCreatedByMe ? styles.endButton : (isJoinedState ? styles.leaveButton : styles.joinButton)
+              isCreatedByMe ? styles.endButton : (isJoinedState ? styles.leaveButton : styles.joinButton),
+              // 참여 마감된 경우 버튼 비활성화
+              !isCreatedByMe && !isJoinedState && (() => {
+                const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+                const maxParticipants = event.maxParticipants || 6;
+                const isFull = currentParticipants >= maxParticipants;
+                
+                // 디버깅 로그 추가
+                console.log('🔍 EventDetailScreen - 참여자 수 계산 (UI):', {
+                  eventId: event.id,
+                  participants: event.participants,
+                  participantsType: typeof event.participants,
+                  isArray: Array.isArray(event.participants),
+                  currentParticipants,
+                  maxParticipants,
+                  isFull,
+                  buttonDisabled: isFull
+                });
+                
+                return isFull ? styles.disabledButton : {};
+              })()
             ]} 
             onPress={handleJoinPress}
+            // 참여 마감된 경우 버튼 비활성화
+            disabled={!isCreatedByMe && !isJoinedState && (() => {
+              const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+              const maxParticipants = event.maxParticipants || 6;
+              return currentParticipants >= maxParticipants;
+            })()}
           >
-            <Ionicons 
-              name={isCreatedByMe ? "checkmark-circle" : (isJoinedState ? "exit" : "add")} 
-              size={24} 
-              color={isCreatedByMe ? "#000000" : (isJoinedState ? COLORS.TEXT : "#000000")} 
-            />
+            {/* 참여 마감 시에는 아이콘을 표시하지 않음 */}
+            {(() => {
+              const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+              const maxParticipants = event.maxParticipants || 6;
+              const isFull = currentParticipants >= maxParticipants;
+              
+              // 참여 마감된 경우 아이콘을 표시하지 않음
+              if (!isCreatedByMe && !isJoinedState && isFull) {
+                return null;
+              }
+              
+              // 참여 가능하거나 다른 상태인 경우 기존 아이콘 표시
+              return (
+                <Ionicons 
+                  name={isCreatedByMe ? "checkmark-circle" : (isJoinedState ? "exit" : "add")} 
+                  size={24} 
+                  color={isCreatedByMe ? "#000000" : (isJoinedState ? COLORS.TEXT : "#000000")} 
+                />
+              );
+            })()}
             <Text style={[
               styles.actionButtonText, 
-              isCreatedByMe ? styles.endButtonText : (isJoinedState ? styles.leaveButtonText : styles.joinButtonText)
+              isCreatedByMe ? styles.endButtonText : (isJoinedState ? styles.leaveButtonText : styles.joinButtonText),
+              // 참여 마감된 경우 텍스트 스타일 변경
+              !isCreatedByMe && !isJoinedState && (() => {
+                const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+                const maxParticipants = event.maxParticipants || 6;
+                return currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
+              })()
             ]}>
-              {isCreatedByMe ? '종료하기' : (isJoinedState ? '나가기' : '참여하기')}
+              {isCreatedByMe ? '종료하기' : (isJoinedState ? '나가기' : (() => {
+                const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+                const maxParticipants = event.maxParticipants || 6;
+                return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
+              })())}
             </Text>
           </TouchableOpacity>
         )}
@@ -879,6 +1170,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#6B7280',
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 20,
+  },
+  participantInitial: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
   },
   participantInfo: {
     flex: 1,
@@ -894,6 +1191,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.SECONDARY,
     lineHeight: 18,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: COLORS.TEXT_SECONDARY,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: COLORS.TEXT_SECONDARY,
   },
   hashtagSection: {
     backgroundColor: COLORS.CARD,
@@ -950,6 +1267,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  completedButton: {
+    backgroundColor: '#1F2937',
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY,
+  },
+  completedButtonText: {
+    color: COLORS.PRIMARY,
+  },
   joinButtonText: {
     color: '#000000',
   },
@@ -958,6 +1283,14 @@ const styles = StyleSheet.create({
   },
   endButtonText: {
     color: '#000000',
+  },
+  disabledButton: {
+    opacity: 0.7,
+    backgroundColor: COLORS.BORDER,
+    paddingVertical: 18, // 기본 16에서 18로 증가 (위아래 여백 추가)
+  },
+  disabledButtonText: {
+    color: '#CCCCCC', // 더 밝은 회색으로 변경
   },
 });
 

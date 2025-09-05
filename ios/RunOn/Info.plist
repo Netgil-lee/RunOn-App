@@ -38,7 +38,7 @@
       </dict>
     </array>
     	<key>CFBundleVersion</key>
-	<string>39</string>
+	<string>74</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -54,9 +54,9 @@
         <key>dapi.kakao.com</key>
         <dict>
           <key>NSExceptionAllowsInsecureHTTPLoads</key>
-          <false/>
+          <true/>
           <key>NSExceptionMinimumTLSVersion</key>
-          <string>TLSv1.2</string>
+          <string>TLSv1.0</string>
           <key>NSExceptionRequiresForwardSecrecy</key>
           <false/>
           <key>NSIncludesSubdomains</key>
@@ -65,9 +65,20 @@
         <key>kakao.com</key>
         <dict>
           <key>NSExceptionAllowsInsecureHTTPLoads</key>
-          <false/>
+          <true/>
           <key>NSExceptionMinimumTLSVersion</key>
-          <string>TLSv1.2</string>
+          <string>TLSv1.0</string>
+          <key>NSExceptionRequiresForwardSecrecy</key>
+          <false/>
+          <key>NSIncludesSubdomains</key>
+          <true/>
+        </dict>
+        <key>developers.kakao.com</key>
+        <dict>
+          <key>NSExceptionAllowsInsecureHTTPLoads</key>
+          <true/>
+          <key>NSExceptionMinimumTLSVersion</key>
+          <string>TLSv1.0</string>
           <key>NSExceptionRequiresForwardSecrecy</key>
           <false/>
           <key>NSIncludesSubdomains</key>

@@ -17,10 +17,12 @@ import {
   arrayRemove,
   increment
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 class FirestoreService {
   constructor() {
     this.db = getFirestore();
+    this.auth = getAuth();
   }
 
   // 사용자 프로필 관련
@@ -43,18 +45,35 @@ class FirestoreService {
     try {
       const userRef = doc(this.db, 'users', userId);
       const userSnap = await getDoc(userRef);
+      
       if (userSnap.exists()) {
         const userData = userSnap.data();
+        
+        // 프로필 이미지 URL 통합 처리
+        let profileImage = null;
+        if (userData.profileImage) {
+          profileImage = userData.profileImage;
+        } else if (userData.profile?.profileImage) {
+          profileImage = userData.profile.profileImage;
+        } else if (userData.photoURL) {
+          profileImage = userData.photoURL;
+        }
+        
+        // 기본 프로필 이미지는 서비스 레이어에서 강제하지 않음
+        // UI 컴포넌트에서 아이콘 또는 로컬 기본 이미지를 처리하도록 null 유지
+        
+        
         // Firestore Timestamp 객체를 안전하게 처리
         return {
           ...userData,
+          profileImage: profileImage, // 통합된 프로필 이미지로 덮어쓰기
           createdAt: userData.createdAt?.toDate?.() || userData.createdAt,
           onboardingCompletedAt: userData.onboardingCompletedAt?.toDate?.() || userData.onboardingCompletedAt,
         };
+      } else {
+        return null;
       }
-      return null;
     } catch (error) {
-      console.error('사용자 프로필 조회 실패:', error);
       throw error;
     }
   }
@@ -147,11 +166,46 @@ class FirestoreService {
 
   async joinEvent(eventId, userId) {
     try {
+      // 1. 먼저 이벤트 정보를 가져와서 참여 가능 여부 확인
       const eventRef = doc(this.db, 'events', eventId);
+      const eventDoc = await getDoc(eventRef);
+      
+      if (!eventDoc.exists()) {
+        throw new Error('이벤트를 찾을 수 없습니다.');
+      }
+      
+      const eventData = eventDoc.data();
+      const currentParticipants = Array.isArray(eventData.participants) ? eventData.participants.length : 0;
+      const maxParticipants = eventData.maxParticipants || 6; // 기본값 6명
+      
+      // 디버깅 로그 추가
+      console.log('🔍 FirestoreService - 참여자 수 계산 (백엔드):', {
+        eventId,
+        userId,
+        participants: eventData.participants,
+        participantsType: typeof eventData.participants,
+        isArray: Array.isArray(eventData.participants),
+        currentParticipants,
+        maxParticipants,
+        canJoin: currentParticipants < maxParticipants
+      });
+      
+      // 2. 참여 가능 인원수 체크
+      if (currentParticipants >= maxParticipants) {
+        throw new Error('참여 가능 인원수가 마감되었습니다.');
+      }
+      
+      // 3. 이미 참여한 사용자인지 확인
+      if (Array.isArray(eventData.participants) && eventData.participants.includes(userId)) {
+        throw new Error('이미 참여한 모임입니다.');
+      }
+      
+      // 4. 참여자 추가
       await updateDoc(eventRef, {
         participants: arrayUnion(userId),
         updatedAt: serverTimestamp()
       });
+      
       return { success: true };
     } catch (error) {
       console.error('이벤트 참여 실패:', error);
@@ -214,6 +268,25 @@ class FirestoreService {
     }
   }
 
+  // 모임 상태 업데이트
+  async updateEventStatus(eventId, status) {
+    try {
+      const eventRef = doc(this.db, 'events', eventId);
+      await updateDoc(eventRef, {
+        status: status,
+        updatedAt: serverTimestamp(),
+        ...(status === 'ended' && { endedAt: serverTimestamp() })
+      });
+      
+      console.log('✅ 모임 상태 업데이트 성공:', eventId, status);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ 모임 상태 업데이트 실패:', eventId, status, error);
+      throw error;
+    }
+  }
+
+  // 모임 생성
   async deleteEvent(eventId) {
     let retryCount = 0;
     const maxRetries = 3;
@@ -437,6 +510,48 @@ class FirestoreService {
     }
   }
 
+  // 채팅방 제목 업데이트
+  async updateChatRoomTitle(chatRoomId, newTitle) {
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔍 FirestoreService.updateChatRoomTitle 호출됨 (시도:', retryCount + 1, ')');
+        console.log('🔍 채팅방 ID:', chatRoomId);
+        console.log('🔍 새 제목:', newTitle);
+        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
+        
+        const chatRoomRef = doc(this.db, 'chatRooms', chatRoomId);
+        await updateDoc(chatRoomRef, {
+          title: newTitle,
+          updatedAt: serverTimestamp()
+        });
+        
+        console.log('✅ 채팅방 제목 업데이트 완료 (시도:', retryCount + 1, ')');
+        return { success: true };
+        
+      } catch (error) {
+        retryCount++;
+        console.error('❌ 채팅방 제목 업데이트 실패 (시도:', retryCount, '):', error);
+        console.error('❌ 에러 상세:', {
+          code: error.code,
+          message: error.message,
+          environment: __DEV__ ? 'development' : 'production'
+        });
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ 최대 재시도 횟수 초과');
+          throw error;
+        }
+        
+        // 1초 대기 후 재시도
+        console.log('⏳ 재시도 대기 중... (1초)');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+  }
+
   // 알림 관련
   async createNotification(notificationData) {
     let retryCount = 0;
@@ -520,7 +635,7 @@ class FirestoreService {
   }
 
   // 실시간 리스너 설정
-  onEventsSnapshot(callback, filters = {}) {
+  onEventsSnapshot(callback, filters = {}, errorCallback) {
     const eventsRef = collection(this.db, 'events');
     let eventsQuery = query(eventsRef, orderBy('createdAt', 'desc'));
     
@@ -528,10 +643,10 @@ class FirestoreService {
       eventsQuery = query(eventsRef, where('organizerId', '==', filters.organizerId));
     }
     
-    return onSnapshot(eventsQuery, callback);
+    return onSnapshot(eventsQuery, callback, errorCallback);
   }
 
-  onPostsSnapshot(callback, filters = {}) {
+  onPostsSnapshot(callback, filters = {}, errorCallback) {
     const postsRef = collection(this.db, 'posts');
     let postsQuery = query(postsRef, orderBy('createdAt', 'desc'));
     
@@ -539,10 +654,12 @@ class FirestoreService {
       postsQuery = query(postsRef, where('category', '==', filters.category), orderBy('createdAt', 'desc'));
     }
     
-    return onSnapshot(postsQuery, callback);
+    return onSnapshot(postsQuery, callback, errorCallback);
   }
 
-  onNotificationsSnapshot(userId, callback) {
+  onNotificationsSnapshot(userId, callback, errorCallback) {
+    console.log('🔍 onNotificationsSnapshot 호출됨:', userId);
+    
     const notificationsRef = collection(this.db, 'notifications');
     const notificationsQuery = query(
       notificationsRef, 
@@ -550,10 +667,12 @@ class FirestoreService {
       orderBy('timestamp', 'desc')
     );
     
-    return onSnapshot(notificationsQuery, callback);
+    return onSnapshot(notificationsQuery, callback, errorCallback);
   }
 
-  onChatRoomsSnapshot(userId, callback) {
+  onChatRoomsSnapshot(userId, callback, errorCallback) {
+    console.log('🔍 onChatRoomsSnapshot 호출됨:', userId);
+    
     const chatRoomsRef = collection(this.db, 'chatRooms');
     const chatQuery = query(
       chatRoomsRef, 
@@ -561,14 +680,71 @@ class FirestoreService {
       orderBy('lastMessageTime', 'desc')
     );
     
-    return onSnapshot(chatQuery, callback);
+    return onSnapshot(chatQuery, callback, errorCallback);
   }
 
-  onChatMessagesSnapshot(chatRoomId, callback) {
+  onChatMessagesSnapshot(chatRoomId, callback, errorCallback) {
+    console.log('🔍 onChatMessagesSnapshot 호출됨:', chatRoomId);
+    
     const messagesRef = collection(this.db, 'chatRooms', chatRoomId, 'messages');
     const messagesQuery = query(messagesRef, orderBy('timestamp', 'asc'));
     
-    return onSnapshot(messagesQuery, callback);
+    return onSnapshot(messagesQuery, callback, errorCallback);
+  }
+
+  // 모임 종료 시 상태를 'ended'로 변경 (데이터 보존)
+  async endEvent(eventId) {
+    try {
+      console.log('🔍 FirestoreService.endEvent 호출됨:', eventId);
+      
+      // 1. 해당 모임의 채팅방 찾기
+      const chatRoomsRef = collection(this.db, 'chatRooms');
+      const chatQuery = query(chatRoomsRef, where('eventId', '==', eventId));
+      const chatSnapshot = await getDocs(chatQuery);
+      
+      if (!chatSnapshot.empty) {
+        const chatRoom = chatSnapshot.docs[0];
+        const chatRoomId = chatRoom.id;
+        
+        console.log('🔍 FirestoreService.endEvent - 채팅방 정보:', {
+          chatRoomId,
+          chatRoomData: chatRoom.data(),
+          currentUser: this.auth.currentUser?.uid
+        });
+        
+        // 2. 채팅방 상태를 'ended'로 변경 (삭제 안함)
+        console.log('🔍 FirestoreService.endEvent - 채팅방 상태 변경 시작');
+        await updateDoc(chatRoom.ref, {
+          status: 'ended',
+          endedAt: serverTimestamp(),
+          title: `${chatRoom.data().title} (종료됨)`
+        });
+        console.log('✅ 채팅방 상태 변경 완료: ended');
+      } else {
+        console.log('🔍 FirestoreService.endEvent - 해당 모임의 채팅방이 없음');
+      }
+      
+      // 3. 모임 상태를 'ended'로 변경 (삭제 안함)
+      console.log('🔍 FirestoreService.endEvent - 모임 상태 변경 시작');
+      const eventRef = doc(this.db, 'events', eventId);
+      await updateDoc(eventRef, {
+        status: 'ended',
+        endedAt: serverTimestamp()
+      });
+      console.log('✅ 모임 상태 변경 완료: ended');
+      
+      return { success: true };
+    } catch (error) {
+      console.error('❌ 모임 종료 실패:', error);
+      console.error('❌ 모임 종료 실패 상세:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorDetails: error.details,
+        currentUser: this.auth.currentUser?.uid,
+        eventId
+      });
+      throw error;
+    }
   }
 }
 

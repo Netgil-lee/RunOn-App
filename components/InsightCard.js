@@ -36,20 +36,23 @@ const InsightCard = ({ user, weather }) => {
     // 커뮤니티 활동 데이터에서 총참여 횟수 가져오기
     const totalParticipated = user.communityActivity?.totalParticipated || 0;
     
-    // 목표 횟수 계산 (5의 배수로 증가)
+    // 목표 단계별 설정 (5의 배수)
+    const goalSteps = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100];
+    
+    // 현재 참여 횟수에 맞는 다음 목표 찾기
     let targetCount = 5; // 기본 목표
     
-    // 현재 총참여 횟수에 따라 목표 설정
-    if (totalParticipated >= 20) {
-      targetCount = 25;
-    } else if (totalParticipated >= 15) {
-      targetCount = 20;
-    } else if (totalParticipated >= 10) {
-      targetCount = 15;
-    } else if (totalParticipated >= 5) {
-      targetCount = 10;
-    } else {
-      targetCount = 5;
+    for (let i = 0; i < goalSteps.length; i++) {
+      if (totalParticipated < goalSteps[i]) {
+        targetCount = goalSteps[i];
+        break;
+      }
+    }
+    
+    // 100번 이상의 경우 다음 단계 목표 설정 (10의 배수로 증가)
+    if (totalParticipated >= 100) {
+      const nextGoal = Math.ceil(totalParticipated / 10) * 10;
+      targetCount = nextGoal;
     }
     
     return { 
@@ -91,18 +94,29 @@ const InsightCard = ({ user, weather }) => {
 
   // 사용자 이름 표시
   const getUserDisplayName = () => {
-    if (user.displayName) return user.displayName;
-    if (user.name) return user.name;
+    
+    // user 객체에서 displayName 확인
+    if (user?.displayName) {
+      return user.displayName;
+    }
+    if (user?.name) {
+      return user.name;
+    }
+    
     return '사용자';
   };
 
   const progress = getWeeklyProgress();
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} key={`insight-${user?.displayName || 'default'}`}>
             <View style={styles.header}>
-        <Text style={styles.greetingText}>
-          {getGreeting()}, {getUserDisplayName()}님!
+        <Text style={styles.greetingText} key={`greeting-${user?.displayName || 'default'}`}>
+          {(() => {
+            const greeting = getGreeting();
+            const displayName = getUserDisplayName();
+            return `${greeting}, ${displayName}님!`;
+          })()}
         </Text>
       </View>
       

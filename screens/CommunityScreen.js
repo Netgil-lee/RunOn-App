@@ -10,12 +10,14 @@ import {
   TextInput,
   Modal,
   Animated,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import ScheduleCard from '../components/ScheduleCard';
+import { formatTimestamp, sanitizeTimestamps } from '../utils/timestampUtils';
 
 
 // NetGill 디자인 시스템 - 최종 색상 팔레트
@@ -30,7 +32,7 @@ const COLORS = {
 
 const CommunityScreen = ({ navigation, route }) => {
   const { user } = useAuth();
-  const { allEvents, chatRooms, joinEvent } = useEvents();
+  const { allEvents, chatRooms, joinEvent, userJoinedEvents } = useEvents();
   const { hasChatNotification, hasBoardNotification, notifications, markNotificationAsRead, handleChatTabClick, handleChatRoomClick, handleBoardTabClick } = useCommunity();
   
   // 디버깅: 알림 상태 확인
@@ -46,23 +48,34 @@ const CommunityScreen = ({ navigation, route }) => {
   const getUnreadCountForChatRoom = (chatRoomId) => {
     // chatRoomId를 문자열로 변환하여 비교
     const chatRoomIdStr = chatRoomId.toString();
-    const unreadCount = notifications.filter(n => 
-      n.type === 'message' && 
-      n.chatId === chatRoomIdStr && 
-      !n.isRead
-    ).length;
+    
+    // 모든 알림 타입 확인
+    const allNotificationTypes = [...new Set(notifications.map(n => n.type))];
+    
+    // message 타입 알림만 필터링
+    const messageNotifications = notifications.filter(n => n.type === 'message');
+    
+    // chatId가 일치하는 알림 필터링
+    const matchingNotifications = messageNotifications.filter(n => n.chatId === chatRoomIdStr);
+    
+    // 읽지 않은 알림만 필터링
+    const unreadCount = matchingNotifications.filter(n => !n.isRead).length;
     
     console.log(`🔍 getUnreadCountForChatRoom(${chatRoomId}):`, {
       chatRoomId,
       chatRoomIdType: typeof chatRoomId,
       chatRoomIdStr,
       totalNotifications: notifications.length,
-      messageNotifications: notifications.filter(n => n.type === 'message').length,
-      matchingNotifications: notifications.filter(n => 
-        n.type === 'message' && 
-        n.chatId === chatRoomIdStr
-      ).length,
-      unreadCount
+      allNotificationTypes,
+      messageNotificationsCount: messageNotifications.length,
+      matchingNotificationsCount: matchingNotifications.length,
+      unreadCount,
+      sampleNotifications: notifications.slice(0, 3).map(n => ({
+        id: n.id,
+        type: n.type,
+        chatId: n.chatId,
+        isRead: n.isRead
+      }))
     });
     
     return unreadCount;
@@ -167,6 +180,23 @@ const CommunityScreen = ({ navigation, route }) => {
   };
 
   const handleEventPress = (event) => {
+    // 내가 만든 모임인지 확인
+    const isCreatedByMe = event.isCreatedByUser || false;
+    
+    // 참여 상태 확인
+    const isJoined = userJoinedEvents.some(e => e.id === event.id);
+    
+    // 디버깅: 커뮤니티 모임 클릭 정보
+    console.log('🔍 CommunityScreen - 모임 클릭 정보:', {
+      eventId: event.id,
+      eventOrganizerId: event.organizerId,
+      eventCreatedBy: event.createdBy,
+      eventIsCreatedByUser: event.isCreatedByUser,
+      isCreatedByMe,
+      isJoined,
+      userUid: user?.uid
+    });
+    
     // Date 객체를 문자열로 직렬화
     const serializedEvent = {
       ...event,
@@ -175,7 +205,11 @@ const CommunityScreen = ({ navigation, route }) => {
       updatedAt: event.updatedAt && typeof event.updatedAt.toISOString === 'function' ? event.updatedAt.toISOString() : event.updatedAt
     };
     
-    navigation.navigate('EventDetail', { event: serializedEvent, isJoined: false });
+    navigation.navigate('EventDetail', { 
+      event: serializedEvent, 
+      isJoined,
+      isCreatedByMe
+    });
   };
 
 
@@ -190,6 +224,11 @@ const CommunityScreen = ({ navigation, route }) => {
   // 필터링된 이벤트 가져오기
   const getFilteredEvents = () => {
     return allEvents.filter(event => {
+      // 종료된 모임 제외 - 커뮤니티탭에서는 종료된 모임을 표시하지 않음
+      if (event.status === 'ended') {
+        return false;
+      }
+      
       // 검색어 필터 - 해시태그 검색 개선
       let matchesSearch = !searchText;
       
@@ -265,7 +304,32 @@ const CommunityScreen = ({ navigation, route }) => {
 
   // 게시글 핸들러
   const handlePostPress = (post) => {
-    navigation.navigate('PostDetail', { post });
+    try {
+      // 안전한 데이터 전달을 위해 필요한 필드만 추출
+      const safePost = {
+        id: post.id || '',
+        title: post.title || '',
+        content: post.content || '',
+        author: post.isAnonymous ? '익명' : post.author,
+        authorId: post.authorId || '',
+        createdAt: post.createdAt ? 
+          (post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt) : 
+          new Date().toISOString(),
+        category: post.category || 'free',
+        isAnonymous: post.isAnonymous || false,
+        likes: Array.isArray(post.likes) ? post.likes : [],
+        comments: Array.isArray(post.comments) ? post.comments : [],
+        images: Array.isArray(post.images) ? post.images : [],
+        hashtags: post.hashtags || [],
+        location: post.location || ''
+      };
+      
+      console.log('🔍 CommunityScreen - 게시글 클릭:', safePost);
+      navigation.navigate('PostDetail', { post: safePost });
+    } catch (error) {
+      console.error('❌ 게시글 클릭 오류:', error);
+      Alert.alert('오류', '게시글을 불러오는 중 오류가 발생했습니다.');
+    }
   };
 
   const handleCreatePost = () => {
@@ -274,7 +338,7 @@ const CommunityScreen = ({ navigation, route }) => {
 
   // 내가 작성한 게시글 필터링
   const getMyPosts = () => {
-    return 자유게시판글.filter(post => post.author === user?.displayName || post.author === '나');
+    return 자유게시판글.filter(post => post.author === user?.displayName);
   };
 
   // 내가 작성한 게시글과 전체 게시글 분리
@@ -283,8 +347,19 @@ const CommunityScreen = ({ navigation, route }) => {
     !myPosts.some(myPost => myPost.id === post.id)
   );
 
+  // 작성자 표시 함수
+  const getDisplayAuthor = (post) => {
+    return post.isAnonymous ? '익명' : post.author;
+  };
+
   // 채팅 핸들러
   const handleChatRoomPress = (chatRoom) => {
+    console.log('🔍 handleChatRoomPress 호출됨:', {
+      chatRoomId: chatRoom.id,
+      eventId: chatRoom.eventId,
+      title: chatRoom.title
+    });
+    
     handleChatRoomClick(chatRoom.id); // 채팅방 클릭 시 알림 해제
     
     // Date 객체를 문자열로 직렬화
@@ -295,7 +370,10 @@ const CommunityScreen = ({ navigation, route }) => {
       updatedAt: chatRoom.updatedAt && typeof chatRoom.updatedAt.toISOString === 'function' ? chatRoom.updatedAt.toISOString() : chatRoom.updatedAt
     };
     
-    navigation.navigate('Chat', { chatRoom: serializedChatRoom });
+    navigation.navigate('Chat', { 
+      chatRoom: serializedChatRoom,
+      returnToCommunity: true
+    });
   };
 
 
@@ -367,7 +445,7 @@ const CommunityScreen = ({ navigation, route }) => {
             }}
           >
             <View style={styles.tabTextContainer}>
-              <Text style={[styles.tabText, activeTab === '게시판' && styles.activeTabText]}>
+              <Text style={[styles.tabText, activeTab === '게시판' && styles.activeTabText, { paddingLeft: 10 }]}>
                 자유게시판
               </Text>
               {hasBoardNotification && (
@@ -466,7 +544,7 @@ const CommunityScreen = ({ navigation, route }) => {
                     event={event}
                     onJoinPress={handleJoinEvent}
                     onPress={handleEventPress}
-                      showJoinButton={!isCreatedByMe} // 내가 만든 모임이면 참여하기 버튼 숨김
+                    showJoinButton={false} // 커뮤니티에서는 참여하기 버튼 숨김
                   />
                   );
                 })}
@@ -494,15 +572,34 @@ const CommunityScreen = ({ navigation, route }) => {
           <>
                         {/* 채팅방 목록 */}
             <View style={styles.chatSection}>
-              {chatRooms.length > 0 ? (
-                <>
-                  {/* 내가 생성한 일정 */}
-                  {chatRooms.filter(chatRoom => chatRoom.isCreatedByUser).length > 0 && (
-                    <>
-                      <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>내가 생성한 일정</Text>
-                      </View>
-                                            {chatRooms.filter(chatRoom => chatRoom.isCreatedByUser).map((chatRoom) => (
+              {(() => {
+                // 종료된 모임의 채팅방 제외
+                const activeChatRooms = chatRooms.filter(chatRoom => {
+                  const relatedEvent = allEvents.find(event => event.id === chatRoom.eventId);
+                  return relatedEvent && relatedEvent.status !== 'ended';
+                });
+                
+                // 채팅방 구분 로직
+                const myCreatedChatRooms = activeChatRooms.filter(chatRoom => 
+                  chatRoom.isCreatedByUser || 
+                  chatRoom.createdBy === user?.uid || 
+                  chatRoom.organizerId === user?.uid
+                );
+                const otherCreatedChatRooms = activeChatRooms.filter(chatRoom => 
+                  !chatRoom.isCreatedByUser && 
+                  chatRoom.createdBy !== user?.uid && 
+                  chatRoom.organizerId !== user?.uid
+                );
+                
+                return activeChatRooms.length > 0 ? (
+                  <>
+                    {/* 내가 생성한 모임 */}
+                    {myCreatedChatRooms.length > 0 && (
+                      <>
+                        <View style={styles.sectionHeader}>
+                          <Text style={styles.sectionTitle}>내가 생성한 모임</Text>
+                        </View>
+                        {myCreatedChatRooms.map((chatRoom) => (
                           <TouchableOpacity 
                             key={chatRoom.id} 
                             style={styles.chatRoomCard}
@@ -513,9 +610,9 @@ const CommunityScreen = ({ navigation, route }) => {
                                 <Text style={styles.chatRoomTitle}>{chatRoom.title}</Text>
                               </View>
                               <View style={styles.chatRoomMeta}>
-                                <Text style={styles.chatRoomTime}>
-                                  {chatRoom.lastMessageTime ? (chatRoom.lastMessageTime instanceof Date ? chatRoom.lastMessageTime.toLocaleDateString('ko-KR') : chatRoom.lastMessageTime) : ''}
-                                </Text>
+                                                              <Text style={styles.chatRoomTime}>
+                                {formatTimestamp(chatRoom.lastMessageTime)}
+                              </Text>
                                 {(() => {
                                   const unreadCount = getUnreadCountForChatRoom(chatRoom.id);
                                   return unreadCount > 0 ? (
@@ -536,8 +633,37 @@ const CommunityScreen = ({ navigation, route }) => {
                             <View style={styles.chatRoomFooter}>
                               <View style={styles.participantsInfo}>
                                 <Ionicons name="people" size={14} color={COLORS.SECONDARY} />
-                                <Text style={styles.participantsCount}>{Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 1}명</Text>
+                                <Text style={[styles.participantsCount, { color: '#666666' }]}>
+                                  {(() => {
+                                    const participants = chatRoom.participants;
+                                    console.log('🔍 참여자수 계산:', {
+                                      participants,
+                                      type: typeof participants,
+                                      isArray: Array.isArray(participants),
+                                      length: Array.isArray(participants) ? participants.length : 'N/A'
+                                    });
+                                    
+                                    if (Array.isArray(participants)) {
+                                      return `${participants.length}명`;
+                                    } else if (participants && typeof participants === 'number') {
+                                      return `${participants}명`;
+                                    } else if (chatRoom.maxParticipants) {
+                                      return `1/${chatRoom.maxParticipants}명`;
+                                    } else {
+                                      return '1명';
+                                    }
+                                  })()}
+                                </Text>
                               </View>
+                              {console.log('🔍 CommunityScreen - 첫 번째 chatRoom 데이터:', {
+                                chatRoomId: chatRoom.id,
+                                participants: chatRoom.participants,
+                                participantsType: typeof chatRoom.participants,
+                                isArray: Array.isArray(chatRoom.participants),
+                                participantsLength: Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 1,
+                                isCreatedByUser: chatRoom.isCreatedByUser,
+                                maxParticipants: chatRoom.maxParticipants
+                              })}
                               <Ionicons name="chevron-forward" size={16} color={COLORS.SECONDARY} />
                             </View>
                           </TouchableOpacity>
@@ -546,18 +672,17 @@ const CommunityScreen = ({ navigation, route }) => {
                   )}
 
                   {/* 구분선 */}
-                  {chatRooms.filter(chatRoom => chatRoom.isCreatedByUser).length > 0 && 
-                   chatRooms.filter(chatRoom => !chatRoom.isCreatedByUser).length > 0 && (
+                  {myCreatedChatRooms.length > 0 && otherCreatedChatRooms.length > 0 && (
                     <View style={styles.divider} />
                   )}
 
-                  {/* 내가 참여한 일정 */}
-                  {chatRooms.filter(chatRoom => !chatRoom.isCreatedByUser).length > 0 && (
+                  {/* 다른 사용자가 생성한 모임 */}
+                  {otherCreatedChatRooms.length > 0 && (
                     <>
                       <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>내가 참여한 일정</Text>
+                        <Text style={styles.sectionTitle}>다른 사용자가 생성한 모임</Text>
                       </View>
-                      {chatRooms.filter(chatRoom => !chatRoom.isCreatedByUser).map((chatRoom) => (
+                      {otherCreatedChatRooms.map((chatRoom) => (
                         <TouchableOpacity 
                           key={chatRoom.id} 
                           style={styles.chatRoomCard}
@@ -569,7 +694,7 @@ const CommunityScreen = ({ navigation, route }) => {
                             </View>
                             <View style={styles.chatRoomMeta}>
                               <Text style={styles.chatRoomTime}>
-                                {chatRoom.lastMessageTime ? (chatRoom.lastMessageTime instanceof Date ? chatRoom.lastMessageTime.toLocaleDateString('ko-KR') : chatRoom.lastMessageTime) : ''}
+                                {formatTimestamp(chatRoom.lastMessageTime)}
                               </Text>
                               {(() => {
                                 const unreadCount = getUnreadCountForChatRoom(chatRoom.id);
@@ -591,7 +716,36 @@ const CommunityScreen = ({ navigation, route }) => {
                           <View style={styles.chatRoomFooter}>
                             <View style={styles.participantsInfo}>
                               <Ionicons name="people" size={14} color={COLORS.SECONDARY} />
-                              <Text style={styles.participantsCount}>{Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 1}명</Text>
+                              <Text style={[styles.participantsCount, { color: '#666666' }]}>
+                                {(() => {
+                                  const participants = chatRoom.participants;
+                                  console.log('🔍 참여자수 계산 (참여한 일정):', {
+                                    participants,
+                                    type: typeof participants,
+                                    isArray: Array.isArray(participants),
+                                    length: Array.isArray(participants) ? participants.length : 'N/A'
+                                  });
+                                  
+                                  if (Array.isArray(participants)) {
+                                    return `${participants.length}명`;
+                                  } else if (participants && typeof participants === 'number') {
+                                    return `${participants}명`;
+                                  } else if (chatRoom.maxParticipants) {
+                                    return `1/${chatRoom.maxParticipants}명`;
+                                  } else {
+                                    return '1명';
+                                  }
+                                })()}
+                              </Text>
+                              {console.log('🔍 CommunityScreen - chatRoom 데이터 (참여한 일정):', {
+                                chatRoomId: chatRoom.id,
+                                participants: chatRoom.participants,
+                                participantsType: typeof chatRoom.participants,
+                                isArray: Array.isArray(chatRoom.participants),
+                                participantsLength: Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 1,
+                                isCreatedByUser: chatRoom.isCreatedByUser,
+                                maxParticipants: chatRoom.maxParticipants
+                              })}
                             </View>
                             <Ionicons name="chevron-forward" size={16} color={COLORS.SECONDARY} />
                           </View>
@@ -603,12 +757,13 @@ const CommunityScreen = ({ navigation, route }) => {
               ) : (
                 <View style={styles.emptyState}>
                   <Ionicons name="chatbubbles-outline" size={60} color={COLORS.SECONDARY} />
-                  <Text style={styles.emptyTitle}>참여한 채팅방이 없어요</Text>
+                  <Text style={styles.emptyTitle}>활성 채팅방이 없어요</Text>
                   <Text style={styles.emptySubtitle}>
-                    러닝 모임에 참여하면 자동으로 채팅방이 생성됩니다
+                    진행 중인 러닝 모임에 참여하면 자동으로 채팅방이 생성됩니다
                   </Text>
                 </View>
-              )}
+              );
+            })()}
             </View>
           </>
         )}
@@ -671,7 +826,7 @@ const CommunityScreen = ({ navigation, route }) => {
                           <Text style={styles.postCategoryText}>{getCategoryName(post.category)}</Text>
                         </View>
                         <Text style={styles.postDate}>
-                          {post.createdAt ? (post.createdAt instanceof Date ? post.createdAt.toLocaleDateString('ko-KR') : new Date(post.createdAt).toLocaleDateString('ko-KR')) : ''}
+                          {formatTimestamp(post.createdAt)}
                         </Text>
                       </View>
                       <Text style={styles.postTitle}>{post.title}</Text>
@@ -679,7 +834,24 @@ const CommunityScreen = ({ navigation, route }) => {
                         {post.content}
                       </Text>
                       <View style={styles.postFooter}>
-                        <Text style={styles.postAuthor}>by {post.author}</Text>
+                        <View style={styles.postAuthorSection}>
+                          {post.isAnonymous ? (
+                            <View style={styles.postAuthorAvatar}>
+                              <Ionicons name="person" size={16} color="#ffffff" />
+                            </View>
+                          ) : post.authorProfile?.profileImage ? (
+                            <Image 
+                              source={{ uri: post.authorProfile.profileImage }} 
+                              style={styles.postAuthorProfileImage}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={styles.postAuthorAvatar}>
+                              <Ionicons name="person" size={16} color="#ffffff" />
+                            </View>
+                          )}
+                          <Text style={styles.postAuthor}>by {getDisplayAuthor(post)}</Text>
+                        </View>
                         <View style={styles.postStats}>
                           <View style={styles.postStat}>
                             <Ionicons name="heart" size={14} color={COLORS.PRIMARY} />
@@ -718,7 +890,7 @@ const CommunityScreen = ({ navigation, route }) => {
                           <Text style={styles.postCategoryText}>{getCategoryName(post.category)}</Text>
                         </View>
                         <Text style={styles.postDate}>
-                          {post.createdAt ? (post.createdAt instanceof Date ? post.createdAt.toLocaleDateString('ko-KR') : new Date(post.createdAt).toLocaleDateString('ko-KR')) : ''}
+                          {formatTimestamp(post.createdAt)}
                         </Text>
                       </View>
                       <Text style={styles.postTitle}>{post.title}</Text>
@@ -726,7 +898,24 @@ const CommunityScreen = ({ navigation, route }) => {
                         {post.content}
                       </Text>
                       <View style={styles.postFooter}>
-                        <Text style={styles.postAuthor}>by {post.author}</Text>
+                        <View style={styles.postAuthorSection}>
+                          {post.isAnonymous ? (
+                            <View style={styles.postAuthorAvatar}>
+                              <Ionicons name="person" size={16} color="#ffffff" />
+                            </View>
+                          ) : post.authorProfile?.profileImage ? (
+                            <Image 
+                              source={{ uri: post.authorProfile.profileImage }} 
+                              style={styles.postAuthorProfileImage}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={styles.postAuthorAvatar}>
+                              <Ionicons name="person" size={16} color="#ffffff" />
+                            </View>
+                          )}
+                          <Text style={styles.postAuthor}>by {getDisplayAuthor(post)}</Text>
+                        </View>
                         <View style={styles.postStats}>
                           <View style={styles.postStat}>
                             <Ionicons name="heart" size={14} color={COLORS.PRIMARY} />
@@ -1151,6 +1340,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  postAuthorSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  postAuthorAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.SURFACE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postAuthorProfileImage: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
   postAuthor: {
     fontSize: 14,
     color: COLORS.SECONDARY,
@@ -1200,6 +1407,17 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.SURFACE,
     marginVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dividerText: {
+    fontSize: 12,
+    color: COLORS.SECONDARY,
+    backgroundColor: COLORS.BACKGROUND,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    fontWeight: '500',
   },
   chatRoomCard: {
     backgroundColor: COLORS.CARD,

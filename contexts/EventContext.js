@@ -55,13 +55,66 @@ export const EventProvider = ({ children }) => {
       const userCreated = events.filter(event => event.organizerId === user.uid);
       setUserCreatedEvents(userCreated);
       
-      // 사용자가 참여한 이벤트 필터링 (생성자는 제외)
+      // 사용자가 참여한 이벤트 필터링 (생성자는 제외, 종료된 모임도 제외)
       const userJoined = events.filter(event => 
         event.participants && 
         event.participants.includes(user.uid) && 
-        event.organizerId !== user.uid // 내가 만든 모임은 제외
+        event.organizerId !== user.uid && // 내가 만든 모임은 제외
+        event.status !== 'ended' // 종료된 모임은 제외
       );
       setUserJoinedEvents(userJoined);
+      
+      // 사용자가 참여한 종료된 모임 필터링 (생성자는 제외)
+      const userJoinedEnded = events.filter(event => 
+        event.participants && 
+        event.participants.includes(user.uid) && 
+        event.organizerId !== user.uid && // 내가 만든 모임은 제외
+        event.status === 'ended' // 종료된 모임만
+      );
+      
+      // 종료된 모임 필터링 (status가 'ended'이거나 시간 기반으로 종료된 모임)
+      const now = new Date();
+      const allEndedEvents = events.filter(event => {
+        // 1. status가 'ended'인 모임
+        if (event.status === 'ended') {
+          return true;
+        }
+        
+        // 2. 시간 기반으로 종료된 모임 (기존 로직)
+        if (!event.date || !event.time) return false;
+        
+        try {
+          let eventDateTime;
+          if (typeof event.date === 'string') {
+            const [year, month, day] = event.date.split('-').map(Number);
+            const timeStr = event.time;
+            
+            let hours, minutes;
+            if (timeStr.includes('오전')) {
+              const timeMatch = timeStr.match(/(\d+):(\d+)/);
+              hours = parseInt(timeMatch[1]);
+              minutes = parseInt(timeMatch[2]);
+            } else if (timeStr.includes('오후')) {
+              const timeMatch = timeStr.match(/(\d+):(\d+)/);
+              hours = parseInt(timeMatch[1]) + 12;
+              minutes = parseInt(timeMatch[2]);
+            }
+            
+            eventDateTime = new Date(year, month - 1, day, hours, minutes);
+          } else {
+            eventDateTime = new Date(event.date);
+          }
+          
+          const eventEndTime = new Date(eventDateTime.getTime() + (3 * 60 * 60 * 1000));
+          return now > eventEndTime;
+        } catch (error) {
+          console.error('날짜 파싱 오류:', error, event);
+          return false;
+        }
+      });
+      
+      
+      setEndedEvents(allEndedEvents);
     });
 
     return () => unsubscribe();
@@ -218,65 +271,7 @@ export const EventProvider = ({ children }) => {
     }
   }, [user]);
 
-  // 종료된 이벤트 가져오기
-  useEffect(() => {
-    if (!user) return;
-
-    // 종료된 이벤트는 별도 컬렉션에서 관리
-    const loadEndedEvents = async () => {
-      try {
-    
-        
-        // 현재 시간 기준으로 종료된 모임들을 필터링
-        const now = new Date();
-        const endedEventsData = allEvents.filter(event => {
-          if (!event.date || !event.time) return false;
-          
-          // 날짜와 시간을 결합하여 모임 시작 시간 계산
-          let eventDateTime;
-          try {
-            if (typeof event.date === 'string') {
-              // "2024-01-18" 형식인 경우
-              const [year, month, day] = event.date.split('-').map(Number);
-              const timeStr = event.time; // "오전 9:00" 형식
-              
-              let hours, minutes;
-              if (timeStr.includes('오전')) {
-                const timeMatch = timeStr.match(/(\d+):(\d+)/);
-                hours = parseInt(timeMatch[1]);
-                minutes = parseInt(timeMatch[2]);
-              } else if (timeStr.includes('오후')) {
-                const timeMatch = timeStr.match(/(\d+):(\d+)/);
-                hours = parseInt(timeMatch[1]) + 12;
-                minutes = parseInt(timeMatch[2]);
-              }
-              
-              eventDateTime = new Date(year, month - 1, day, hours, minutes);
-            } else {
-              // Date 객체인 경우
-              eventDateTime = new Date(event.date);
-            }
-            
-            // 모임 시작 후 3시간이 지나면 종료된 것으로 간주
-            const eventEndTime = new Date(eventDateTime.getTime() + (3 * 60 * 60 * 1000));
-            return now > eventEndTime;
-          } catch (error) {
-            console.error('날짜 파싱 오류:', error, event);
-            return false;
-          }
-        });
-        
-
-        
-        setEndedEvents(endedEventsData);
-      } catch (error) {
-        console.error('종료된 이벤트 로딩 실패:', error);
-        setEndedEvents([]);
-      }
-    };
-
-    loadEndedEvents();
-  }, [user, allEvents]);
+  // 종료된 이벤트는 이제 위의 useEffect에서 통합 관리됨
 
   // 기존 하드코딩된 데이터 제거됨 - Firebase에서 실시간으로 가져옴
 
@@ -655,6 +650,42 @@ export const EventProvider = ({ children }) => {
   // 일정 참여
   const joinEvent = async (eventId) => {
     try {
+      // 1. 먼저 로컬에서 이벤트 정보 확인
+      const targetEvent = allEvents.find(event => event.id === eventId);
+      if (!targetEvent) {
+        throw new Error('모임 정보를 찾을 수 없습니다.');
+      }
+
+      // 2. 로컬에서 참여 가능 여부 사전 체크
+      const currentParticipants = Array.isArray(targetEvent.participants) ? targetEvent.participants.length : 1;
+      const maxParticipants = targetEvent.maxParticipants || 6;
+      
+      // 디버깅 로그 추가
+      console.log('🔍 EventContext - 참여자 수 계산 (로컬):', {
+        eventId,
+        targetEvent: {
+          id: targetEvent.id,
+          title: targetEvent.title,
+          participants: targetEvent.participants,
+          participantsType: typeof targetEvent.participants,
+          isArray: Array.isArray(targetEvent.participants),
+          maxParticipants: targetEvent.maxParticipants
+        },
+        currentParticipants,
+        maxParticipants,
+        canJoin: currentParticipants < maxParticipants
+      });
+      
+      if (currentParticipants >= maxParticipants) {
+        throw new Error('참여 가능 인원수가 마감되었습니다.');
+      }
+
+      // 3. 이미 참여한 사용자인지 확인
+      if (Array.isArray(targetEvent.participants) && targetEvent.participants.includes(user.uid)) {
+        throw new Error('이미 참여한 모임입니다.');
+      }
+
+      // 4. Firestore에 참여 요청
       const result = await firestoreService.joinEvent(eventId, user.uid);
       if (result.success) {
         console.log('✅ 이벤트 참여 완료:', eventId);
@@ -698,6 +729,21 @@ export const EventProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('❌ 이벤트 참여 실패:', error);
+      
+      // 사용자에게 적절한 에러 메시지 표시
+      let errorMessage = '모임 참여에 실패했습니다.';
+      
+      if (error.message.includes('마감되었습니다')) {
+        errorMessage = '참여 가능 인원수가 마감되었습니다.';
+      } else if (error.message.includes('이미 참여한 모임')) {
+        errorMessage = '이미 참여한 모임입니다.';
+      } else if (error.message.includes('참여 가능 인원수')) {
+        errorMessage = '참여 가능 인원수가 마감되었습니다.';
+      }
+      
+      // 에러 메시지를 Alert로 표시 (필요시)
+      // Alert.alert('참여 실패', errorMessage);
+      
       throw error;
     }
   };
@@ -977,20 +1023,32 @@ export const EventProvider = ({ children }) => {
       // 내가 만든 모임에서 찾기
       const createdEvent = userCreatedEvents.find(event => event.id === eventId);
       if (createdEvent) {
-        // Firebase에서 실제 데이터 삭제
-        await firestoreService.endEvent(eventId);
-        
-        // Firebase Storage에서 모임 관련 파일 삭제
-        await storageService.deleteEventFiles(eventId);
-        
         const endedEvent = {
           ...createdEvent,
           endedAt: new Date().toISOString(),
           status: 'ended'
         };
+        
+        // 1. 먼저 endedEvents에 추가 (종료된 모임 목록에 표시)
         setEndedEvents(prev => [...prev, endedEvent]);
-        setUserCreatedEvents(prev => prev.filter(event => event.id !== eventId));
-        setAllEvents(prev => prev.filter(event => event.id !== eventId));
+        
+        // 2. Firebase에서 모임 상태를 'ended'로 변경 (삭제 안함)
+        await firestoreService.endEvent(eventId);
+        
+        // 3. Firebase Storage에서 모임 관련 파일 삭제 (이미지 등)
+        await storageService.deleteEventFiles(eventId);
+        
+        // 4. 로컬 상태에서 종료된 모임을 userCreatedEvents에서 제거
+        setUserCreatedEvents(prev => 
+          prev.filter(event => event.id !== eventId)
+        );
+        setAllEvents(prev => 
+          prev.map(event => 
+            event.id === eventId 
+              ? { ...event, status: 'ended', endedAt: new Date().toISOString() }
+              : event
+          )
+        );
         
         // 내가 만든 모임을 종료하는 경우, 참여자들에게 rating 알림 생성
         addMeetingNotification('rating', createdEvent, true);
@@ -1004,7 +1062,14 @@ export const EventProvider = ({ children }) => {
           )
         );
         
+        // 상태 업데이트 후 즉시 확인
         console.log('✅ 모임 종료 완료:', eventId);
+        console.log('🔍 EventContext - endedEvents 상태 확인:', {
+          eventId,
+          endedEventsLength: endedEvents.length + 1,
+          addedEvent: endedEvent
+        });
+        
         return;
       }
 

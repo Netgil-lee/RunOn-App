@@ -17,7 +17,8 @@ const COLORS = {
 };
 
 const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettingsPress, onSearchPress, hideProfile, title, unreadCount = 0, transparent = false }) => {
-  const displayName = user?.displayName || user?.email?.split('@')[0] || '사용자';
+  const displayName = profile?.displayName || user?.displayName;
+  
   
   return (
     <SafeAreaView style={[styles.safeArea, transparent && styles.transparentSafeArea]}>
@@ -27,14 +28,29 @@ const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettings
           {title ? (
             <Text style={styles.title}>{title}</Text>
           ) : !hideProfile ? (
-            <TouchableOpacity style={styles.profileButton} onPress={onProfilePress}>
-              {(user?.photoURL || profile?.profileImage) ? (
-                <Image source={{ uri: user.photoURL || profile?.profileImage }} style={styles.profileImage} />
-              ) : (
-                <View style={styles.profilePlaceholder}>
-                  <Ionicons name="person" size={20} color="#ffffff" />
-                </View>
-              )}
+            <TouchableOpacity style={styles.profileButton} onPress={onProfilePress} key={`profile-${user?.uid || 'default'}`}>
+              {(() => {
+                const hasImage = profile?.profileImage;
+                const imageUri = profile?.profileImage;
+                
+                return hasImage ? (
+                  <Image 
+                    key={`profile-image-${user?.uid || 'default'}`}
+                    source={{ uri: imageUri }} 
+                    style={styles.profileImage}
+                    onError={(error) => {
+                      // 프로필 이미지 로드 실패 시 기본 아이콘으로 대체
+                    }}
+                    onLoad={() => {
+                      // 이미지 로드 성공
+                    }}
+                  />
+                ) : (
+                  <View style={styles.profilePlaceholder} key={`profile-placeholder-${user?.uid || 'default'}`}>
+                    <Ionicons name="person" size={20} color="#ffffff" />
+                  </View>
+                );
+              })()}
             </TouchableOpacity>
           ) : null}
         </View>

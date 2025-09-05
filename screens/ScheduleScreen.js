@@ -21,7 +21,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import HanRiverMap from '../components/HanRiverMap';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
+import firestoreService from '../services/firestoreService';
+import evaluationService from '../services/evaluationService';
 import ENV from '../config/environment';
+import storageService from '../services/storageService';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
 
 // NetGill 디자인 시스템 - 홈화면과 동일한 색상 팔레트
@@ -47,15 +51,14 @@ const ScheduleScreen = ({ navigation, route }) => {
     deleteEvent, 
     joinEvent, 
     addMeetingNotification, 
-    createTestMeetingNotification, 
-    createEndedMeetingNotification, 
     hasRatingNotification, 
     hasRatingNotificationForEvent, 
     hasRatingNotificationForEndedEventsOption,
     createRatingNotificationForEvent, 
-    createEndedEventWithRatingNotification,
     handleEndedEventsOptionClick,
-    handleEndedEventCardClick
+    handleEndedEventCardClick,
+    hasMeetingNotification,
+    clearMeetingNotificationBadge
   } = useEvents();
   
   // route 파라미터에서 화면 표시 여부 확인
@@ -204,6 +207,9 @@ const ScheduleScreen = ({ navigation, route }) => {
   };
 
   const handleViewMyJoined = () => {
+    // '내가 참여한 모임' 카드 클릭 시 알림표시 제거
+    clearMeetingNotificationBadge();
+    console.log('✅ 내가 참여한 모임 카드 클릭 - 알림표시 제거');
     setShowMyJoined(true);
   };
 
@@ -225,8 +231,14 @@ const ScheduleScreen = ({ navigation, route }) => {
       handleEndedEventCardClick(event.id);
     }
     
-    // 내가 만든 모임인지 확인
-    const isCreatedByMe = currentScreen === 'myCreated' || event.isCreatedByUser;
+                // 내가 참여한 모임 카드 클릭 시 개별 읽음 처리 제거 (전체 알림표시만 사용)
+            if (currentScreen === 'myJoined') {
+              console.log('✅ 내가 참여한 모임 카드 클릭:', event.id);
+            }
+    
+    // 내가 만든 모임인지 확인 (event.isCreatedByUser 필드 사용)
+    const isCreatedByMe = event.isCreatedByUser || false;
+    
     
     // Date 객체를 문자열로 변환하여 직렬화 문제 해결
     const serializedEvent = {
@@ -267,33 +279,7 @@ const ScheduleScreen = ({ navigation, route }) => {
     navigation.navigate('Participant', { participant });
   };
 
-  // 테스트용 모임 알림 생성 함수
-  const handleTestNotification = (type) => {
-    console.log('🧪 ScheduleScreen - 모임 알림 테스트:', type);
-    createTestMeetingNotification(type);
-    Alert.alert('테스트 알림', `${type} 알림이 생성되었습니다.`);
-  };
 
-  // 종료된 모임 알림 테스트 함수
-  const handleEndedMeetingNotification = (type) => {
-    console.log('🧪 ScheduleScreen - 종료된 모임 알림 테스트:', type);
-    createEndedMeetingNotification(type);
-    Alert.alert('종료된 모임 알림', `${type} 알림이 생성되었습니다.`);
-  };
-
-  // 특정 종료된 모임에 대한 러닝매너점수 알림 테스트 함수
-  const handleSpecificEventRatingNotification = (eventId) => {
-    console.log('🧪 ScheduleScreen - 특정 모임 러닝매너점수 알림 테스트:', eventId);
-    createRatingNotificationForEvent(eventId);
-    Alert.alert('특정 모임 알림', `ID ${eventId} 모임에 대한 러닝매너점수 알림이 생성되었습니다.`);
-  };
-
-  // 종료된 모임 생성 + rating 알림 생성 테스트 함수
-  const handleCreateEndedEventWithRating = (testNumber) => {
-    console.log('🧪 ScheduleScreen - 종료된 모임 생성 + rating 알림 테스트:', testNumber);
-    createEndedEventWithRatingNotification(testNumber);
-    Alert.alert('테스트 완료', `종료된 모임 ${testNumber}과 러닝매너점수 알림이 생성되었습니다!`);
-  };
 
 
 
@@ -321,7 +307,7 @@ const ScheduleScreen = ({ navigation, route }) => {
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {userCreatedEvents.length === 0 ? (
+          {userCreatedEvents.filter(event => event.status !== 'ended').length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="create-outline" size={80} color="#ffffff" />
               <Text style={styles.emptyTitle}>생성한 모임이 없어요</Text>
@@ -335,7 +321,9 @@ const ScheduleScreen = ({ navigation, route }) => {
             </View>
           ) : (
             <View style={styles.eventsList}>
-              {userCreatedEvents.map((event, index) => (
+              {userCreatedEvents
+                .filter(event => event.status !== 'ended') // 종료된 모임 제외
+                .map((event, index) => (
                 <ScheduleCard
                   key={event.id || index}
                   event={event}
@@ -344,6 +332,9 @@ const ScheduleScreen = ({ navigation, route }) => {
                   onPress={(e) => handleEventPress(e, 'myCreated')}
                   isCreatedByMe={true}
                   cardIndex={index}
+                  hasMeetingNotification={hasMeetingNotification}
+                  navigation={navigation}
+                  user={user}
                 />
               ))}
             </View>
@@ -366,7 +357,7 @@ const ScheduleScreen = ({ navigation, route }) => {
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {userJoinedEvents.length === 0 ? (
+          {userJoinedEvents.filter(event => event.status !== 'ended').length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={80} color="#ffffff" />
               <Text style={styles.emptyTitle}>참여한 모임이 없어요</Text>
@@ -376,7 +367,9 @@ const ScheduleScreen = ({ navigation, route }) => {
             </View>
           ) : (
             <View style={styles.eventsList}>
-              {userJoinedEvents.map((event, index) => (
+              {userJoinedEvents
+                .filter(event => event.status !== 'ended') // 종료된 모임 제외
+                .map((event, index) => (
                 <ScheduleCard
                   key={event.id}
                   event={event}
@@ -387,6 +380,9 @@ const ScheduleScreen = ({ navigation, route }) => {
                   showOrganizerInfo={true}
                   cardIndex={index}
                   showJoinButton={true} // 참여한 모임에서는 나가기 버튼 표시
+                  hasMeetingNotification={hasMeetingNotification}
+                  navigation={navigation}
+                  user={user}
                 />
               ))}
             </View>
@@ -409,7 +405,10 @@ const ScheduleScreen = ({ navigation, route }) => {
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {endedEvents.length === 0 ? (
+          {endedEvents.filter(event => 
+            event.organizerId === user?.uid || 
+            (event.participants && event.participants.includes(user?.uid))
+          ).length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="checkmark-circle-outline" size={80} color="#ffffff" />
               <Text style={styles.emptyTitle}>종료된 모임이 없어요</Text>
@@ -419,7 +418,13 @@ const ScheduleScreen = ({ navigation, route }) => {
             </View>
           ) : (
             <View style={styles.eventsList}>
-              {endedEvents.map((event, index) => (
+              {endedEvents
+                .filter(event => 
+                  // 사용자가 생성한 모임이거나 참여한 모임만 표시
+                  event.organizerId === user?.uid || 
+                  (event.participants && event.participants.includes(user?.uid))
+                )
+                .map((event, index) => (
                 <ScheduleCard
                   key={event.id || index}
                   event={event}
@@ -432,6 +437,8 @@ const ScheduleScreen = ({ navigation, route }) => {
                   showJoinButton={false} // 종료된 모임에서는 버튼 숨김
                   isEnded={true}
                   hasRatingNotification={hasRatingNotificationForEvent(event.id)}
+                  navigation={navigation}
+                  user={user}
                 />
               ))}
             </View>
@@ -471,6 +478,9 @@ const ScheduleScreen = ({ navigation, route }) => {
 
         {/* 내가 참여한 모임 */}
         <TouchableOpacity style={styles.mainOptionCard} onPress={handleViewMyJoined}>
+          {hasMeetingNotification && (
+            <View style={styles.cardTopNotificationBadge} />
+          )}
           <View style={styles.optionIconContainer}>
             <Ionicons name="people" size={48} color="#ffffff" />
           </View>
@@ -480,7 +490,7 @@ const ScheduleScreen = ({ navigation, route }) => {
               참여 신청한 러닝 모임들을 확인하고 관리하세요
             </Text>
             <View style={styles.optionBadge}>
-              <Text style={styles.optionBadgeText}>{userJoinedEvents.length}개</Text>
+              <Text style={styles.optionBadgeText}>{userJoinedEvents.filter(event => event.status !== 'ended').length}개</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={24} color="#666666" />
@@ -497,7 +507,7 @@ const ScheduleScreen = ({ navigation, route }) => {
               내가 만든 러닝 모임들을 관리하고 참여자를 확인하세요
             </Text>
             <View style={styles.optionBadge}>
-              <Text style={styles.optionBadgeText}>{userCreatedEvents.length}개</Text>
+              <Text style={styles.optionBadgeText}>{userCreatedEvents.filter(event => event.status !== 'ended').length}개</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={24} color="#666666" />
@@ -513,17 +523,21 @@ const ScheduleScreen = ({ navigation, route }) => {
           </View>
           <View style={styles.optionContent}>
             <Text style={styles.optionTitle}>종료된 모임</Text>
-            <Text style={styles.optionSubtitle}>
-              종료된 모임을 확인하고 <Text style={{ color: COLORS.PRIMARY }}>러닝매너</Text>를 작성하세요
-            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              <Text style={styles.optionSubtitle}>종료된 모임을 확인하고 </Text>
+              <Text style={[styles.optionSubtitle, { color: COLORS.PRIMARY }]}>러닝매너</Text>
+              <Text style={styles.optionSubtitle}>를 작성하세요</Text>
+            </View>
             <View style={styles.optionBadge}>
-              <Text style={styles.optionBadgeText}>{endedEvents.length}개</Text>
+              <Text style={styles.optionBadgeText}>{endedEvents.filter(event => 
+                event.organizerId === user?.uid || 
+                (event.participants && event.participants.includes(user?.uid))
+              ).length}개</Text>
             </View>
           </View>
-          <View style={styles.optionRightContainer}>
-            <Ionicons name="chevron-forward" size={24} color="#666666" />
-          </View>
+          <Ionicons name="chevron-forward" size={24} color="#666666" />
         </TouchableOpacity>
+        
 
         {/* 추가 정보 섹션 */}
         <View style={styles.infoSection}>
@@ -542,41 +556,165 @@ const ScheduleScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* 테스트 알림 섹션 (개발용) */}
-        <View style={styles.infoSection}>
-          <Text style={styles.infoTitle}>🧪 종료된 모임 생성 + 알림 테스트</Text>
-          <View style={styles.testButtonContainer}>
-            <TouchableOpacity 
-              style={styles.testButton} 
-              onPress={() => handleCreateEndedEventWithRating(1)}
-            >
-              <Text style={styles.testButtonText}>rating 알림 1</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.testButton} 
-              onPress={() => handleCreateEndedEventWithRating(2)}
-            >
-              <Text style={styles.testButtonText}>rating 알림 2</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.testButton} 
-              onPress={() => handleCreateEndedEventWithRating(3)}
-            >
-              <Text style={styles.testButtonText}>rating 알림 3</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false, showOrganizerInfo = false, cardIndex, showJoinButton = true, isEnded = false, hasRatingNotification = false }) => {
+const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false, showOrganizerInfo = false, cardIndex, showJoinButton = true, isEnded = false, hasRatingNotification = false, hasMeetingNotification = false, navigation, user }) => {
   const [showActionModal, setShowActionModal] = useState(false);
   const [buttonLayout, setButtonLayout] = useState(null);
   const [cardLayout, setCardLayout] = useState(null);
   const [modalPosition, setModalPosition] = useState({ top: 0, right: 16 });
   const [isButtonPressed, setIsButtonPressed] = useState(false);
+  const [isEvaluationCompleted, setIsEvaluationCompleted] = useState(false);
+
+  // 평가 완료 여부 확인 함수
+  const checkEvaluationStatus = async () => {
+    if (!user?.uid || !event.id || !isEnded) return;
+    
+    try {
+      const completed = await evaluationService.isEvaluationCompleted(event.id, user.uid);
+      setIsEvaluationCompleted(completed);
+    } catch (error) {
+      setIsEvaluationCompleted(false);
+    }
+  };
+
+  // 평가 완료 여부 확인
+  useEffect(() => {
+    checkEvaluationStatus();
+  }, [user?.uid, event.id, isEnded]);
+
+  // 화면이 포커스될 때마다 평가 완료 상태 확인
+  useFocusEffect(
+    useCallback(() => {
+      if (isEnded) {
+        checkEvaluationStatus();
+      }
+    }, [isEnded, user?.uid, event.id])
+  );
+
+  // 러닝매너 작성 함수 (EventDetailScreen 로직 활용)
+  const handleEvaluationPress = async (event) => {
+    try {
+      // 참여자 목록 데이터 생성
+      const hostName = event.organizer || '알 수 없음';
+      const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+      
+      const isCurrentUserHost = user && (
+        user.displayName === hostName || 
+        user.email?.split('@')[0] === hostName ||
+        hostName === '나'
+      );
+      
+      const hostParticipant = isCurrentUserHost ? {
+        id: user.uid, // 실제 사용자 ID 사용
+        name: user.displayName || user.email?.split('@')[0] || '나',
+        profileImage: user.photoURL || null,
+        isHost: true,
+        role: 'host',
+        bio: user.bio || '새벽 러닝의 매력을 알려드리는 코치입니다!'
+      } : {
+        id: event.organizerId, // 실제 호스트 ID 사용
+        name: hostName,
+        profileImage: null,
+        isHost: true,
+        role: 'host',
+        bio: '새벽 러닝의 매력을 알려드리는 코치입니다!'
+      };
+
+      // 실제 참여자 목록 생성 (EventDetailScreen과 동일한 로직)
+      let participantsList = [];
+      if (event.participants && Array.isArray(event.participants)) {
+        participantsList = await Promise.all(
+          event.participants.map(async (participantId, index) => {
+            try {
+              // Firestore에서 참여자 프로필 정보 가져오기
+              const userProfile = await firestoreService.getUserProfile(participantId);
+              
+              const isHost = event.organizerId === participantId;
+              const hostName = event.organizer || '알 수 없음';
+              
+              // 프로필 이미지 우선순위: photoURL > Firebase Storage URL > 기본 이미지
+              const profileImage = userProfile?.photoURL || 
+                                 (userProfile?.profileImage && 
+                                  !userProfile.profileImage.startsWith('file://') && 
+                                  userProfile.profileImage.startsWith('http') ? 
+                                  userProfile.profileImage : null) ||
+                                 (userProfile?.profile?.profileImage && 
+                                  !userProfile.profile.profileImage.startsWith('file://') && 
+                                  userProfile.profile.profileImage.startsWith('http') ? 
+                                  userProfile.profile.profileImage : null) ||
+                                 null;
+              
+              return {
+                id: participantId, // 실제 사용자 ID 사용
+                name: isHost ? hostName : (userProfile?.profile?.nickname || userProfile?.displayName),
+                profileImage: profileImage,
+                isHost: isHost,
+                level: userProfile?.profile?.level || '초급',
+                mannerScore: userProfile?.profile?.mannerScore || 5.0,
+                totalParticipated: userProfile?.profile?.totalParticipated || 0,
+                thisMonth: userProfile?.profile?.thisMonth || 0,
+                hostedEvents: userProfile?.profile?.hostedEvents || 0,
+                joinDate: event.createdAt ? new Date(event.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.') : '날짜 없음',
+                bio: userProfile?.profile?.bio || '자기소개를 입력해주세요.',
+                runningProfile: userProfile?.profile || null,
+                age: userProfile?.profile?.age || null,
+                gender: userProfile?.gender || userProfile?.profile?.gender || null,
+                userId: participantId
+              };
+            } catch (error) {
+              return {
+                id: participantId, // 실제 사용자 ID 사용
+                name: null,
+                profileImage: null,
+                isHost: event.organizerId === participantId,
+                level: '초급',
+                mannerScore: 5.0,
+                totalParticipated: 0,
+                thisMonth: 0,
+                hostedEvents: 0,
+                joinDate: '날짜 없음',
+                bio: '자기소개를 입력해주세요.',
+                runningProfile: null,
+                age: null,
+                gender: null,
+                userId: participantId
+              };
+            }
+          })
+        );
+      }
+
+      // 실제 모임 참여자 데이터 사용 (더미 데이터 대신)
+      const actualParticipants = participantsList.length > 0 
+        ? participantsList 
+        : [hostParticipant]; // 참여자 데이터가 없으면 호스트만
+      
+      
+      // Date 객체를 문자열로 변환하여 직렬화 가능하게 만듦
+      const serializableEvent = {
+        ...event,
+        date: event.date ? (typeof event.date.toISOString === 'function' ? event.date.toISOString() : event.date) : null,
+        createdAt: event.createdAt ? (typeof event.createdAt.toISOString === 'function' ? event.createdAt.toISOString() : event.createdAt) : null,
+        updatedAt: event.updatedAt ? (typeof event.updatedAt.toISOString === 'function' ? event.updatedAt.toISOString() : event.updatedAt) : null
+      };
+      
+      navigation.navigate('RunningMeetingReview', { 
+        event: serializableEvent, 
+        participants: actualParticipants,
+        onEvaluationComplete: () => {
+          // 러닝매너 작성 완료 후 상태 업데이트
+          setIsEvaluationCompleted(true);
+        }
+      });
+    } catch (error) {
+      Alert.alert('오류', '참여자 정보를 불러오는 중 오류가 발생했습니다.');
+    }
+  };
 
   const getDifficultyColor = (difficulty) => {
     const colorMap = {
@@ -683,7 +821,10 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
 
   return (
     <TouchableOpacity 
-      style={styles.eventCard}
+      style={[
+        styles.eventCard,
+        isEnded && isEvaluationCompleted && styles.eventCardCompleted
+      ]}
       onPress={handleCardPress}
       activeOpacity={0.8}
       onLayout={(event) => {
@@ -691,7 +832,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
         setCardLayout({ x, y, width, height });
       }}
     >
-      {hasRatingNotification && (
+      {(hasRatingNotification || hasMeetingNotification) && (
         <View style={styles.cardTopNotificationBadge} />
       )}
       {/* 제목과 난이도, 메뉴 버튼 */}
@@ -780,32 +921,44 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
       <View style={styles.footer}>
         <View style={styles.organizerInfo}>
           <View style={styles.organizerAvatar}>
-            <Text style={styles.organizerAvatarText}>
-              {showOrganizerInfo && event.organizer ? event.organizer.charAt(0) : '나'}
-            </Text>
+            {event.organizerImage && !event.organizerImage.startsWith('file://') ? (
+              <Image 
+                source={{ uri: event.organizerImage }} 
+                style={styles.organizerAvatarImage}
+              />
+            ) : (
+              <Ionicons name="person" size={14} color="#ffffff" />
+            )}
           </View>
           <Text style={styles.organizerName}>
-            {showOrganizerInfo && event.organizer ? event.organizer : '내가 만든 모임'}
+            {event.organizer || '호스트'}
           </Text>
         </View>
 
         <View style={styles.rightSection}>
-          {(event.participants || event.maxParticipants) && (
-            <Text style={styles.participantInfo}>
-              참여자 {Array.isArray(event.participants) ? event.participants.length : (event.participants || 0)}
-              {event.maxParticipants ? `/${event.maxParticipants}` : ' (제한 없음)'}
-            </Text>
-          )}
-          {!isCreatedByMe && showJoinButton && !isEnded && (
-            <TouchableOpacity 
-              onPress={() => {
-                setIsButtonPressed(true);
-                handleLeaveEvent();
-              }} 
-              style={styles.leaveButton}
-            >
-              <Ionicons name="exit-outline" size={20} color="#F44336" />
-            </TouchableOpacity>
+          {isEnded ? (
+            isEvaluationCompleted ? (
+              <View style={[styles.evaluationCompletedButton, styles.evaluationCompletedButtonBright]}>
+                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Text style={styles.evaluationCompletedButtonText}>러닝매너 작성완료</Text>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.evaluationButton}
+                onPress={() => handleEvaluationPress(event)}
+              >
+                <Ionicons name="heart" size={16} color="#000000" />
+                <Text style={styles.evaluationButtonText}>러닝매너 작성하기</Text>
+              </TouchableOpacity>
+            )
+          ) : (
+            // 일반 모임일 때는 참여자 정보 표시
+            (event.participants || event.maxParticipants) && (
+              <Text style={styles.participantInfo}>
+                참여자 {Array.isArray(event.participants) ? event.participants.length : (event.participants || 0)}
+                {event.maxParticipants ? `/${event.maxParticipants}` : ' (제한 없음)'}
+              </Text>
+            )
           )}
         </View>
       </View>
@@ -814,7 +967,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
       <Modal
         visible={showActionModal}
         transparent={true}
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowActionModal(false)}
       >
         <TouchableOpacity 
@@ -822,31 +975,28 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
           activeOpacity={1} 
           onPress={() => setShowActionModal(false)}
         >
-          <View 
-            style={[
-              styles.actionModalContainer,
-              {
-                position: 'absolute',
-                top: modalPosition.top,
-                right: modalPosition.right,
-              }
-            ]}
-          >
-            <TouchableOpacity 
-              style={styles.actionModalButton} 
-              onPress={handleEditAction}
-            >
-              <Ionicons name="pencil" size={20} color={COLORS.PRIMARY} />
-              <Text style={styles.actionModalButtonText}>수정</Text>
-            </TouchableOpacity>
-            <View style={styles.actionModalDivider} />
-            <TouchableOpacity 
-              style={styles.actionModalButton} 
-              onPress={handleDeleteAction}
-            >
-              <Ionicons name="trash" size={20} color="#F44336" />
-              <Text style={[styles.actionModalButtonText, { color: '#F44336' }]}>삭제</Text>
-            </TouchableOpacity>
+          <View style={styles.bottomModalContainer}>
+            <View style={styles.bottomModal}>
+              <TouchableOpacity 
+                style={styles.bottomMenuItem} 
+                onPress={handleEditAction}
+              >
+                <Text style={styles.bottomMenuItemText}>수정</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.bottomMenuItem} 
+                onPress={handleDeleteAction}
+              >
+                <Text style={[styles.bottomMenuItemText, styles.bottomMenuItemTextDelete]}>삭제</Text>
+              </TouchableOpacity>
+              <View style={styles.bottomModalSeparator} />
+              <TouchableOpacity 
+                style={styles.bottomMenuItem} 
+                onPress={() => setShowActionModal(false)}
+              >
+                <Text style={styles.bottomMenuItemText}>닫기</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -855,8 +1005,9 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
 };
 
 const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => {
-  const { user } = useAuth();
+  const { user, updateUserProfile } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
+  const [userProfile, setUserProfile] = useState(null);
   const [eventType, setEventType] = useState(editingEvent?.type || '');
   const [title, setTitle] = useState(editingEvent?.title || '');
   const [location, setLocation] = useState(editingEvent?.location || '');
@@ -948,6 +1099,34 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   // 코스 사진 모달 관련 상태
   const [showCoursePhotoModal, setShowCoursePhotoModal] = useState(false);
   const [selectedCoursePhoto, setSelectedCoursePhoto] = useState(null);
+
+  // 사용자 프로필 정보 가져오기
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (user?.uid) {
+        try {
+          console.log('🔍 사용자 프로필 가져오기 시작 - user.uid:', user.uid);
+          const profile = await firestoreService.getUserProfile(user.uid);
+          console.log('🔍 firestoreService.getUserProfile 결과:', profile);
+          
+          if (profile) {
+            setUserProfile(profile);
+            console.log('✅ 사용자 프로필 로드 완료:', profile);
+            console.log('🔍 프로필 이미지 URL:', profile?.profileImage);
+            console.log('🔍 프로필 닉네임:', profile?.profile?.nickname);
+          } else {
+            console.error('❌ 사용자 프로필 로드 실패 - profile이 null');
+          }
+        } catch (error) {
+          console.error('❌ 사용자 프로필 로드 실패:', error);
+        }
+      } else {
+        console.log('⚠️ user.uid가 없음:', user);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user?.uid]);
 
 
 
@@ -1191,13 +1370,65 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     }
   };
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
     console.log('🔍 모임 생성 - dateString:', dateString, typeof dateString);
     console.log('🔍 모임 생성 - timeString:', timeString, typeof timeString);
     console.log('🔍 모임 생성 - date 객체:', date, typeof date);
     console.log('🔍 모임 생성 - date.toISOString():', date?.toISOString?.());
 
-    const organizerName = user?.displayName || user?.email?.split('@')[0] || '나';
+    // 현재 사용자의 프로필 정보를 직접 가져오기
+    let currentUserProfileData = null;
+    try {
+      const db = getFirestore();
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        currentUserProfileData = userSnap.data();
+        console.log('🔍 현재 사용자 프로필 데이터:', currentUserProfileData);
+      }
+    } catch (error) {
+      console.error('❌ 현재 사용자 프로필 데이터 가져오기 실패:', error);
+    }
+
+    // 사용자 프로필에서 닉네임과 이미지 가져오기
+    const organizerName = currentUserProfileData?.profile?.nickname || user?.displayName || userProfile?.profile?.nickname || user?.email?.split('@')[0] || '나';
+    let organizerImage = currentUserProfileData?.profileImage || user?.photoURL || userProfile?.profileImage || userProfile?.profile?.profileImage || null;
+    
+    // 이미지가 로컬 파일 경로인 경우 Firebase Storage에 업로드
+    if (organizerImage && organizerImage.startsWith('file://')) {
+      try {
+        console.log('📤 로컬 이미지를 Firebase Storage에 업로드 중...');
+        const imageFile = {
+          uri: organizerImage,
+          name: 'profile.jpg',
+          type: 'image/jpeg'
+        };
+        
+        const uploadResult = await storageService.uploadProfileImage(user.uid, imageFile);
+        if (uploadResult.success) {
+          organizerImage = uploadResult.url;
+          console.log('✅ 이미지 업로드 성공:', organizerImage);
+        } else {
+          console.error('❌ 이미지 업로드 실패:', uploadResult.error);
+          // 업로드 실패 시 기존 이미지 사용
+        }
+      } catch (error) {
+        console.error('❌ 이미지 업로드 중 오류:', error);
+        // 오류 발생 시 기존 이미지 사용
+      }
+    }
+    
+    // 최종 값 설정
+    const finalOrganizerName = organizerName;
+    const finalOrganizerImage = organizerImage;
+    
+    console.log('🔍 모임 생성 - 사용자 프로필 정보:', {
+      userProfile,
+      organizerName: finalOrganizerName,
+      organizerImage: finalOrganizerImage,
+      userDisplayName: user?.displayName,
+      userPhotoURL: user?.photoURL
+    });
     
     const newEvent = {
       type: eventType,
@@ -1213,7 +1444,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       maxParticipants: maxParticipants ? parseInt(maxParticipants) : null,
       customMarkerCoords: customMarkerCoords, // 커스텀 마커 좌표 추가
       customLocation: customLocation.trim() || null, // 사용자가 입력한 상세 위치 설명
-      organizer: organizerName, // 실제 사용자 정보를 호스트로 설정
+      organizer: finalOrganizerName, // 실제 사용자 정보를 호스트로 설정
+      organizerImage: finalOrganizerImage, // 생성자 프로필 이미지 추가
       createdBy: user?.uid, // 모임 생성자 UID 추가
     };
 
@@ -1303,21 +1535,9 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       return value;
     }
     
-    // 삭제 중이고 불완전한 포맷이면 자동 수정
+    // 삭제 중인 경우 자동 포맷팅 방지
     if (isDeleting) {
-      // 예: "50'0" -> "5'00"으로 자동 수정
-      if (/^\d+'\d$/.test(value)) {
-        const parts = value.split("'");
-        const minutes = parts[0];
-        const seconds = parts[1];
-        
-        // 50'0의 경우 5'00"으로 변환
-        if (minutes === '50' && seconds === '0') {
-          return `5'00"`;
-        }
-        // 다른 경우는 초를 두 자리로 패딩
-        return `${minutes}'0${seconds}"`;
-      }
+      // 사용자가 의도적으로 삭제하고 있으므로 현재 값을 그대로 반환
       return value;
     }
     
@@ -1966,11 +2186,37 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                             { offset: customMarkerImageOffset }
                         );
                         
+                        // 서울 경계 정의 (HanRiverMap과 동일한 범위)
+                        var SEOUL_BOUNDARY = {
+                            north: 37.7150,  // 최북단 (의정부시 근처까지 확장)
+                            south: 37.4080,  // 최남단 (과천시 근처까지 확장)
+                            east: 127.1950,  // 최동단 (하남시 근처까지 확장)
+                            west: 126.7750   // 최서단 (김포시 근처까지 확장)
+                        };
+                        
+                        // 서울 경계 내부인지 확인하는 함수
+                        function isWithinSeoulBoundary(lat, lng) {
+                            return lat >= SEOUL_BOUNDARY.south && 
+                                   lat <= SEOUL_BOUNDARY.north && 
+                                   lng >= SEOUL_BOUNDARY.west && 
+                                   lng <= SEOUL_BOUNDARY.east;
+                        }
+                        
                         // 지도 클릭 이벤트 (상세 위치 설정)
                         kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
                             var latlng = mouseEvent.latLng;
                             var clickLat = latlng.getLat();
                             var clickLng = latlng.getLng();
+                            
+                            // 서울 경계 체크
+                            if (!isWithinSeoulBoundary(clickLat, clickLng)) {
+                                // 서울 경계 외 지역 클릭 시 알림
+                                if (window.ReactNativeWebView) {
+                                    window.ReactNativeWebView.postMessage('LOG: WARNING - 서울 경계 외 지역 클릭: ' + clickLat + ', ' + clickLng);
+                                    window.ReactNativeWebView.postMessage('seoulBoundaryWarning');
+                                }
+                                return; // 마커 생성하지 않음
+                            }
                             
                             // 디버그 로그
                             if (window.ReactNativeWebView) {
@@ -2085,7 +2331,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         // 지도 로딩 완료
               } else if (data.startsWith('inlineMapError')) {
         console.error('인라인 지도 로딩 실패:', data);
-
+              } else if (data === 'seoulBoundaryWarning') {
+        // 서울 경계 외 지역 클릭 시 알림
+        Alert.alert(
+          '⚠️ 서울 지역 제한',
+          '한강 러닝 코스는 서울 지역 내에서만 이용 가능합니다.\n\n서울 지역 내에서 위치를 선택해주세요.',
+          [{ text: '확인', style: 'default' }]
+        );
               } else if (data.startsWith('customMarkerAdded:')) {
                 const coords = data.replace('customMarkerAdded:', '');
                 const [lat, lng] = coords.split(',');
@@ -2762,6 +3014,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
+    overflow: 'hidden',
+  },
+  organizerAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   organizerAvatarText: {
     fontSize: 14,
@@ -2785,6 +3043,44 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
+  },
+  evaluationButton: {
+    backgroundColor: COLORS.PRIMARY,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  evaluationButtonText: {
+    fontSize: 14,
+    color: '#000000',
+    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  evaluationCompletedButton: {
+    backgroundColor: '#1F1F24',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY,
+  },
+  evaluationCompletedButtonText: {
+    fontSize: 14,
+    color: COLORS.PRIMARY,
+    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  eventCardCompleted: {
+    opacity: 0.7,
+  },
+  evaluationCompletedButtonBright: {
+    opacity: 1.0, // 버튼은 원래 밝기 유지
   },
   titleRow: {
     flexDirection: 'row',
@@ -4261,27 +4557,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // 테스트 버튼 스타일
-  testButtonContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-  },
-  testButton: {
-    flex: 1,
-    backgroundColor: COLORS.PRIMARY + '20',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
-    alignItems: 'center',
-  },
-  testButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.PRIMARY,
-  },
+
 
   // 업데이트된 이벤트 카드 스타일
   eventTitleContainer: {
@@ -4341,6 +4617,33 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomModalContainer: {
+    justifyContent: 'flex-end',
+  },
+  bottomModal: {
+    backgroundColor: COLORS.SURFACE,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34, // 하단 안전 영역 고려
+  },
+  bottomMenuItem: {
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  bottomMenuItemText: {
+    fontSize: 18,
+    color: COLORS.TEXT,
+    fontWeight: '500',
+  },
+  bottomMenuItemTextDelete: {
+    color: '#F44336',
+  },
+  bottomModalSeparator: {
+    height: 8,
+    backgroundColor: COLORS.BACKGROUND,
   },
   // 날짜/시간 선택 모달 오버레이
   datePickerModalOverlay: {
@@ -4348,37 +4651,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  actionModalContainer: {
-    backgroundColor: COLORS.SURFACE,
-    borderRadius: 16,
-    minWidth: 200,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  actionModalButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  actionModalButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.TEXT,
-  },
-  actionModalDivider: {
-    height: 1,
-    backgroundColor: '#333333',
-    marginHorizontal: 20,
   },
   
   // 알림 표시 스타일

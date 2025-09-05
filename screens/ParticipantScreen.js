@@ -38,6 +38,7 @@ const COLORS = {
 
 const ParticipantScreen = ({ route, navigation }) => {
   const { participant } = route.params;
+  
   const [communityStats, setCommunityStats] = useState({
     totalParticipated: 0,
     thisMonth: 0,
@@ -63,6 +64,7 @@ const ParticipantScreen = ({ route, navigation }) => {
       try {
         const stats = await evaluationService.getUserCommunityStats(participant.id);
         
+        
         // 태그를 형식에 맞게 변환
         const formattedTags = Object.entries(stats.receivedTags || {})
           .map(([tag, count]) => `[${count} #${tag}]`)
@@ -71,6 +73,7 @@ const ParticipantScreen = ({ route, navigation }) => {
             const countB = parseInt(b.match(/\[(\d+)/)[1]);
             return countB - countA; // 내림차순 정렬
           });
+
 
         setCommunityStats({
           totalParticipated: stats.totalParticipated || 0,
@@ -103,17 +106,37 @@ const ParticipantScreen = ({ route, navigation }) => {
         <View style={styles.profileCard}>
           <View style={styles.profileRow}>
             <View style={styles.profileImageWrap}>
-              {participant && participant.profileImage ? (
-                <Image source={{ uri: participant.profileImage }} style={styles.profileImage} />
-              ) : (
-                <View style={styles.profileImagePlaceholder}>
-                  <Ionicons name="person" size={60} color="#fff" />
-                </View>
-              )}
+              {(() => {
+                if (participant && 
+                    participant.profileImage && 
+                    participant.profileImage.trim() !== '' && 
+                    !participant.profileImage.startsWith('file://')) {
+                  // Firebase Storage URL인 경우만 표시
+                  return (
+                    <Image 
+                      source={{ uri: participant.profileImage }} 
+                      style={styles.profileImage}
+                      onError={(error) => {
+                        // 이미지 로드 실패 시 기본 아이콘으로 대체
+                      }}
+                      onLoad={() => {
+                        // 이미지 로드 성공
+                      }}
+                    />
+                  );
+                } else {
+                  // 로컬 파일이거나 이미지가 없는 경우 기본 아이콘 표시
+                  return (
+                    <View style={styles.profileImagePlaceholder}>
+                      <Ionicons name="person" size={60} color="#fff" />
+                    </View>
+                  );
+                }
+              })()}
             </View>
             <View style={styles.profileInfo}>
               <View style={styles.nameRow}>
-                <Text style={styles.profileName}>{participant ? participant.name : '알 수 없음'}</Text>
+                <Text style={styles.profileName}>{participant ? participant.name : null}</Text>
                 <View style={styles.levelBadge}>
                   <Text style={styles.levelText}>{participant ? getLevelInfo(participant.level).title : '미설정'}</Text>
                 </View>
@@ -121,7 +144,14 @@ const ParticipantScreen = ({ route, navigation }) => {
               <Text style={styles.joinDate}>
                 가입일: {participant ? (participant.joinDate instanceof Date ? participant.joinDate.toLocaleDateString('ko-KR') : participant.joinDate) : '미설정'}
               </Text>
-              <Text style={styles.bio}>{participant ? participant.bio : '자기소개가 없습니다.'}</Text>
+              {(participant?.age || participant?.gender) && (
+                <Text style={styles.basicInfo}>
+                  {participant?.age && `${participant.age}세`}
+                  {participant?.age && participant?.gender && ' • '}
+                  {participant?.gender && (participant.gender === 'male' ? '남성' : participant.gender === 'female' ? '여성' : participant.gender)}
+                </Text>
+              )}
+              <Text style={styles.bio}>{participant ? participant.bio : null}</Text>
             </View>
           </View>
         </View>
@@ -155,11 +185,19 @@ const ParticipantScreen = ({ route, navigation }) => {
               </View>
             </View>
             <View style={styles.tagRow}>
-              {communityStats.tags.map((tag, i) => (
-                <View key={i} style={styles.tagOutline}> 
-                  <Text style={styles.tagTextOutline}>{tag}</Text>
-                </View>
-              ))}
+              {communityStats.tags.length > 0 ? (
+                communityStats.tags.map((tag, i) => {
+                  // [1 #태그명] 형태에서 태그명만 추출
+                  const cleanTag = tag.replace(/^\[\d+\s*#\s*/, '').replace(/\]$/, '');
+                  return (
+                    <View key={i} style={styles.tagOutline}> 
+                      <Text style={styles.tagTextOutline}>{cleanTag}</Text>
+                    </View>
+                  );
+                })
+              ) : (
+                <Text style={styles.tagTextOutline}>아직 받은 태그가 없습니다</Text>
+              )}
             </View>
           </View>
         )}
@@ -342,6 +380,11 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT,
   },
   joinDate: {
+    fontSize: 16,
+    color: COLORS.SECONDARY,
+    marginBottom: 12,
+  },
+  basicInfo: {
     fontSize: 16,
     color: COLORS.SECONDARY,
     marginBottom: 12,

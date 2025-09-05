@@ -421,7 +421,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             <View style={styles.authorSection}>
               <View style={styles.authorAvatar}>
                 {currentPost.isAnonymous ? (
-                  <Ionicons name="person" size={20} color={COLORS.TEXT_SECONDARY} />
+                  <Ionicons name="person" size={20} color="#ffffff" />
                 ) : authorProfile?.profileImage ? (
                   <Image 
                     source={{ uri: authorProfile.profileImage }} 
@@ -429,7 +429,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                     resizeMode="cover"
                   />
                 ) : (
-                  <Ionicons name="person" size={20} color={COLORS.TEXT_SECONDARY} />
+                  <Ionicons name="person" size={20} color="#ffffff" />
                 )}
               </View>
               <View style={styles.authorDetails}>
@@ -590,7 +590,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         <Modal
           visible={showMenuModal}
           transparent={true}
-          animationType="fade"
+          animationType="slide"
           onRequestClose={() => setShowMenuModal(false)}
         >
           <TouchableOpacity 
@@ -598,21 +598,28 @@ const PostDetailScreen = ({ route, navigation }) => {
             activeOpacity={1}
             onPress={() => setShowMenuModal(false)}
           >
-            <View style={styles.menuModal}>
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={handleEditPost}
-              >
-                <Ionicons name="create-outline" size={20} color={COLORS.TEXT} />
-                <Text style={styles.menuItemText}>수정</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={handleDeletePost}
-              >
-                <Ionicons name="trash-outline" size={20} color={COLORS.ERROR} />
-                <Text style={[styles.menuItemText, styles.menuItemTextDelete]}>삭제</Text>
-              </TouchableOpacity>
+            <View style={styles.bottomModalContainer}>
+              <View style={styles.bottomModal}>
+                <TouchableOpacity 
+                  style={styles.bottomMenuItem}
+                  onPress={handleEditPost}
+                >
+                  <Text style={styles.bottomMenuItemText}>수정</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.bottomMenuItem}
+                  onPress={handleDeletePost}
+                >
+                  <Text style={[styles.bottomMenuItemText, styles.bottomMenuItemTextDelete]}>삭제</Text>
+                </TouchableOpacity>
+                <View style={styles.bottomModalSeparator} />
+                <TouchableOpacity 
+                  style={styles.bottomMenuItem}
+                  onPress={() => setShowMenuModal(false)}
+                >
+                  <Text style={styles.bottomMenuItemText}>닫기</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableOpacity>
         </Modal>
@@ -621,7 +628,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         <Modal
           visible={showCommentMenuModal}
           transparent={true}
-          animationType="fade"
+          animationType="slide"
           onRequestClose={() => setShowCommentMenuModal(false)}
         >
           <TouchableOpacity 
@@ -629,21 +636,28 @@ const PostDetailScreen = ({ route, navigation }) => {
             activeOpacity={1}
             onPress={() => setShowCommentMenuModal(false)}
           >
-            <View style={styles.commentMenuModal}>
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={handleEditComment}
-              >
-                <Ionicons name="create-outline" size={20} color={COLORS.TEXT} />
-                <Text style={styles.menuItemText}>수정</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={handleDeleteComment}
-              >
-                <Ionicons name="trash-outline" size={20} color={COLORS.ERROR} />
-                <Text style={[styles.menuItemText, styles.menuItemTextDelete]}>삭제</Text>
-              </TouchableOpacity>
+            <View style={styles.bottomModalContainer}>
+              <View style={styles.bottomModal}>
+                <TouchableOpacity 
+                  style={styles.bottomMenuItem}
+                  onPress={handleEditComment}
+                >
+                  <Text style={styles.bottomMenuItemText}>수정</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.bottomMenuItem}
+                  onPress={handleDeleteComment}
+                >
+                  <Text style={[styles.bottomMenuItemText, styles.bottomMenuItemTextDelete]}>삭제</Text>
+                </TouchableOpacity>
+                <View style={styles.bottomModalSeparator} />
+                <TouchableOpacity 
+                  style={styles.bottomMenuItem}
+                  onPress={() => setShowCommentMenuModal(false)}
+                >
+                  <Text style={styles.bottomMenuItemText}>닫기</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableOpacity>
         </Modal>
@@ -979,56 +993,33 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingTop: 60,
-    paddingRight: 20,
+    justifyContent: 'flex-end',
   },
-  menuModal: {
+  bottomModalContainer: {
+    justifyContent: 'flex-end',
+  },
+  bottomModal: {
     backgroundColor: COLORS.CARD,
-    borderRadius: 12,
-    padding: 8,
-    minWidth: 120,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34, // 하단 안전 영역 고려
   },
-  menuItem: {
-    flexDirection: 'row',
+  bottomMenuItem: {
+    paddingVertical: 18,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 12,
   },
-  menuItemText: {
-    fontSize: 16,
+  bottomMenuItemText: {
+    fontSize: 18,
     color: COLORS.TEXT,
     fontWeight: '500',
   },
-  menuItemTextDelete: {
+  bottomMenuItemTextDelete: {
     color: COLORS.ERROR,
   },
-  commentMenuModal: {
-    backgroundColor: COLORS.CARD,
-    borderRadius: 12,
-    padding: 8,
-    minWidth: 120,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    alignSelf: 'flex-end',
-    marginRight: 40,
+  bottomModalSeparator: {
+    height: 8,
+    backgroundColor: COLORS.BACKGROUND,
   },
   commentAuthorSection: {
     flex: 1,

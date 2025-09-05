@@ -1,6 +1,6 @@
 // components/HanRiverMap.js
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Alert, Linking, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Alert, Linking, ScrollView, Animated, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -16,7 +16,7 @@ const HanRiverMap = ({ navigation }) => {
   const [mapError, setMapError] = useState(false);
   const [useKakaoMap, setUseKakaoMap] = useState(true);
   const [showKeyInput, setShowKeyInput] = useState(false);
-  const [apiKey, setApiKey] = useState('a4e8824702e29ee6141edab0149ae982'); // 기본 키
+  const [apiKey, setApiKey] = useState('464318d78ffeb1e52a1185498fe1af08'); // 기본 키
   const [refreshKey, setRefreshKey] = useState(Date.now()); // 강제 새로고침용
   
   // 탭 및 모임카드 상태
@@ -74,27 +74,55 @@ const HanRiverMap = ({ navigation }) => {
         description: `${event.type} - ${event.distance}km ${event.pace} 페이스`,
         date: event.date,
         time: event.time,
-        participants: Array.isArray(event.participants) ? event.participants.length : (event.participants || 1),
+        participants: event.participants || [], // 참여자 배열 그대로 유지
+        participantCount: Array.isArray(event.participants) ? event.participants.length : (event.participants || 1), // 참여자 수는 별도 필드
         maxParticipants: event.maxParticipants || 6,
         distance: event.distance,
         pace: event.pace,
         difficulty: event.difficulty,
         hashtags: event.hashtags,
         organizer: event.organizer || '나',
+        organizerImage: event.organizerImage || null,
         organizerLevel: '중급자 • 2년차', // 기본값
         canJoin: (Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)) < (event.maxParticipants || 6),
-        status: (Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)) >= (event.maxParticipants || 6) ? 'full' : 'recruiting',
+        status: (() => {
+          // EventContext의 endedEvents와 비교하여 종료된 모임인지 확인
+          const isEnded = allEvents.some(endedEvent => 
+            endedEvent.id === event.id && endedEvent.status === 'ended'
+          );
+          
+          if (isEnded) {
+            return 'ended';
+          }
+          
+          // 참여자 수에 따른 상태 결정
+          const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+          const maxParticipants = event.maxParticipants || 6;
+          
+          return currentParticipants >= maxParticipants ? 'full' : 'recruiting';
+        })(),
         customMarkerCoords: event.customMarkerCoords,
         customLocation: event.customLocation,
         isPublic: event.isPublic,
         isCreatedByUser: event.isCreatedByUser,
-        isJoined: event.isJoined
+        isJoined: event.isJoined,
+        organizerId: event.organizerId, // 호스트 ID 추가
+        createdAt: event.createdAt, // 생성 시간 추가
+        updatedAt: event.updatedAt // 업데이트 시간 추가
       };
 
       if (isHanRiver) {
-        hanriverMeetings[event.location] = meetingData;
+        // 같은 위치에 여러 모임이 있을 수 있으므로 배열로 관리
+        if (!hanriverMeetings[event.location]) {
+          hanriverMeetings[event.location] = [];
+        }
+        hanriverMeetings[event.location].push(meetingData);
       } else {
-        riversideMeetings[event.location] = meetingData;
+        // 같은 위치에 여러 모임이 있을 수 있으므로 배열로 관리
+        if (!riversideMeetings[event.location]) {
+          riversideMeetings[event.location] = [];
+        }
+        riversideMeetings[event.location].push(meetingData);
       }
       });
     }
@@ -248,7 +276,7 @@ const HanRiverMap = ({ navigation }) => {
   // 모임 통계 계산 함수
   const calculateMeetingStats = (location) => {
     const allMeetings = { ...meetingsData.hanriver, ...meetingsData.riverside };
-    const locationMeetings = Object.values(allMeetings).filter(meeting => meeting.location === location);
+    const locationMeetings = allMeetings[location] || [];
     
     const stats = {
       recruiting: 0,
@@ -298,11 +326,12 @@ const HanRiverMap = ({ navigation }) => {
     ]
   };
 
-  // 현재 모집중인 모임 필터링 함수
-  const getRecruitingMeetings = (location) => {
+  // 전체 모임 필터링 함수 (모집중 + 마감된 모임)
+  const getAllMeetings = (location) => {
     const allMeetings = { ...meetingsData.hanriver, ...meetingsData.riverside };
-    return Object.values(allMeetings)
-      .filter(meeting => meeting.location === location && meeting.status === 'recruiting')
+    const locationMeetings = allMeetings[location] || [];
+    return locationMeetings
+      .filter(meeting => meeting.status === 'recruiting' || meeting.status === 'full')
       .slice(0, 5); // 최대 5개만
   };
 
@@ -385,12 +414,12 @@ const HanRiverMap = ({ navigation }) => {
             var currentLocationMarker = null;
             var currentLocationCircle = null;
             
-            // 서울시 경계 좌표 (5km 추가 축소)
+            // 서울시 경계 좌표 (확장된 범위)
             var SEOUL_BOUNDARY = {
-                north: 37.6650,  // 최북단 (도봉구 - 5km 추가 축소)
-                south: 37.4580,  // 최남단 (서초구 - 5km 추가 축소)
-                east: 127.1450,  // 최동단 (강동구 - 5km 추가 축소)
-                west: 126.8250   // 최서단 (강서구 - 5km 추가 축소)
+                north: 37.7150,  // 최북단 (의정부시 근처까지 확장)
+                south: 37.4080,  // 최남단 (과천시 근처까지 확장)
+                east: 127.1950,  // 최동단 (하남시 근처까지 확장)
+                west: 126.7750   // 최서단 (김포시 근처까지 확장)
             };
             
             // 서울시 경계 내부인지 확인하는 함수
@@ -550,7 +579,8 @@ const HanRiverMap = ({ navigation }) => {
 
             // React Native에서 메시지 수신
             window.addEventListener('message', function(event) {
-                var data = JSON.parse(event.data);
+                try {
+                    var data = JSON.parse(event.data);
                 if (data.type === 'switchTab') {
                     switchTab(data.tab);
                 } else if (data.type === 'updateCurrentLocation') {
@@ -562,6 +592,9 @@ const HanRiverMap = ({ navigation }) => {
                 } else if (data.type === 'simulateMarkerClick') {
                     // 마커 클릭 시뮬레이션 - 해당 위치의 마커를 찾아서 클릭 이벤트 발생
                     simulateMarkerClick(data.location, data.category);
+                }
+                } catch (parseError) {
+                    console.error('❌ WebView 메시지 파싱 오류:', parseError, '원본 데이터:', event.data);
                 }
             });
             
@@ -660,6 +693,16 @@ const HanRiverMap = ({ navigation }) => {
                 function initializeMap() {
                     try {
                         log('🗺️ 지도 초기화 시작', 'info');
+                        
+                        // kakao.maps 객체가 제대로 로드되었는지 확인
+                        if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
+                            throw new Error('Kakao Maps API가 로드되지 않음');
+                        }
+                        
+                        // kakao.maps.LatLng 생성자가 있는지 확인
+                        if (typeof kakao.maps.LatLng !== 'function') {
+                            throw new Error('kakao.maps.LatLng 생성자를 찾을 수 없음');
+                        }
                         
                         var mapContainer = document.getElementById('map');
                         if (!mapContainer) {
@@ -983,9 +1026,18 @@ const HanRiverMap = ({ navigation }) => {
 
   // 간단한 모임카드 컴포넌트
   const SimpleMeetingCard = ({ meeting, navigation }) => {
+    // 모임 상태 로깅 추가
+    console.log('🔍 SimpleMeetingCard - 모임 상태 확인:', {
+      meetingId: meeting.id,
+      meetingTitle: meeting.title,
+      meetingStatus: meeting.status,
+      allEventsLength: allEvents.length,
+      endedEventsCount: allEvents.filter(e => e.status === 'ended').length
+    });
+    
     // EventDetailScreen에서 기대하는 형식으로 데이터 변환
     const convertToEventDetailFormat = (meetingData) => {
-      return {
+      const eventData = {
         id: meetingData.id || Date.now(), // 고유 ID 생성
         title: meetingData.title,
         type: meetingData.type || '러닝',
@@ -996,16 +1048,28 @@ const HanRiverMap = ({ navigation }) => {
         pace: meetingData.pace,
         difficulty: meetingData.difficulty || '중급',
         organizer: meetingData.organizer,
-        participants: meetingData.participants,
+        organizerId: meetingData.organizerId, // 호스트 ID 추가
+        participants: meetingData.participants || [], // 참여자 배열
         maxParticipants: meetingData.maxParticipants,
         isPublic: true,
         hashtags: meetingData.hashtags,
         customMarkerCoords: meetingData.customMarkerCoords,
         customLocation: meetingData.customLocation,
         status: meetingData.status || 'recruiting',
-        isCreatedByUser: false, // 기본값
-        isJoined: false // 기본값
+        isCreatedByUser: meetingData.isCreatedByUser || false,
+        isJoined: meetingData.isJoined || false,
+        createdAt: meetingData.createdAt,
+        updatedAt: meetingData.updatedAt
       };
+      
+      console.log('🔍 SimpleMeetingCard - 변환된 이벤트 데이터:', {
+        eventId: eventData.id,
+        eventTitle: eventData.title,
+        eventStatus: eventData.status,
+        originalStatus: meetingData.status
+      });
+      
+      return eventData;
     };
 
     return (
@@ -1031,9 +1095,12 @@ const HanRiverMap = ({ navigation }) => {
             meeting.isCreatedByUser
           );
           
+          // 사용자가 해당 모임에 참여했는지 확인
+          const isJoined = user && eventData.participants && eventData.participants.includes(user.uid);
+          
           navigation.navigate('EventDetail', { 
             event: serializedEventData,
-            isJoined: false,
+            isJoined: isJoined,
             currentScreen: 'home',
             isCreatedByMe: isCreatedByMe
           });
@@ -1061,14 +1128,26 @@ const HanRiverMap = ({ navigation }) => {
         <View style={styles.simpleMeetingFooter}>
           <View style={styles.simpleMeetingOrganizer}>
             <View style={styles.simpleMeetingAvatar}>
-              <Text style={styles.simpleMeetingAvatarText}>
-                {meeting.organizer.charAt(0)}
-              </Text>
+              {meeting.organizerImage && !meeting.organizerImage.startsWith('file://') ? (
+                <Image 
+                  source={{ uri: meeting.organizerImage }} 
+                  style={styles.simpleMeetingAvatarImage}
+                />
+              ) : (
+                <Ionicons name="person" size={12} color="#ffffff" />
+              )}
             </View>
-            <Text style={styles.simpleMeetingOrganizerName}>{meeting.organizer}</Text>
+            <Text style={styles.simpleMeetingOrganizerName}>
+              {meeting.organizer || '익명'}
+            </Text>
           </View>
-          <Text style={styles.simpleMeetingParticipants}>
-            참여자 {meeting.participants}/{meeting.maxParticipants}
+          <Text style={[styles.simpleMeetingParticipants, { color: '#ffffff' }]}>
+            {(() => {
+              const participantCount = Array.isArray(meeting.participants) ? meeting.participants.length : (meeting.participants || 1);
+              const maxParticipantText = meeting.maxParticipants ? `/${meeting.maxParticipants}` : '';
+              const finalParticipantText = `참여자 ${participantCount}${maxParticipantText}`;
+              return finalParticipantText;
+            })()}
           </Text>
         </View>
       </TouchableOpacity>
@@ -1446,12 +1525,12 @@ const HanRiverMap = ({ navigation }) => {
 
           {/* 현재 모집중인 모임 리스트 */}
           {(() => {
-            const recruitingMeetings = getRecruitingMeetings(selectedLocation);
-            if (recruitingMeetings.length > 0) {
+            const allMeetings = getAllMeetings(selectedLocation);
+            if (allMeetings.length > 0) {
               return (
                 <View style={styles.meetingsListContainer}>
-                  <Text style={styles.meetingsListTitle}>현재 모집중인 모임</Text>
-                  {recruitingMeetings.map((meeting, index) => (
+                  <Text style={styles.meetingsListTitle}>전체 모임</Text>
+                  {allMeetings.map((meeting, index) => (
                     <SimpleMeetingCard key={index} meeting={meeting} navigation={navigation} />
                   ))}
                 </View>
@@ -1459,7 +1538,7 @@ const HanRiverMap = ({ navigation }) => {
             } else {
               return (
                 <View style={styles.noMeetingsContainer}>
-                  <Text style={styles.noMeetingsText}>현재 모집중인 모임이 없습니다</Text>
+                  <Text style={styles.noMeetingsText}>전체 모임이 없습니다</Text>
                 </View>
               );
             }
@@ -1752,18 +1831,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   simpleMeetingAvatar: {
-    backgroundColor: '#3AF8FF',
+    backgroundColor: '#6B7280',
     borderRadius: 12,
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 6,
+    overflow: 'hidden',
+  },
+  simpleMeetingAvatarImage: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
   simpleMeetingAvatarText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#000000',
+    color: '#ffffff',
   },
   simpleMeetingOrganizerName: {
     fontSize: 15,

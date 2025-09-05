@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getFirestore, collection, onSnapshot, doc, getDoc, updateDoc, addDoc, deleteDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { useNotificationSettings } from './NotificationSettingsContext';
 import { useAuth } from './AuthContext';
+import firestoreService from '../services/firestoreService'; // 추가: FirestoreService 임포트
 
 const CommunityContext = createContext();
 
@@ -99,8 +100,8 @@ export const CommunityProvider = ({ children }) => {
               if (userDoc.exists()) {
                 const userData = userDoc.data();
                 authorProfile = {
-                  displayName: userData.displayName || userData.nickname || userData.profile?.nickname || userData.email?.split('@')[0] || '사용자',
-                  profileImage: userData.photoURL || userData.profileImage || null
+                  displayName: userData.profile?.nickname || userData.displayName || userData.displayName,
+                  profileImage: userData.profile?.profileImage || userData.profileImage || userData.photoURL || null
                 };
                 
                 // 캐시에 저장
@@ -535,13 +536,56 @@ export const CommunityProvider = ({ children }) => {
         return;
       }
 
+      // sender 정보 검증 및 로깅
+      console.log('🔍 CommunityContext.createChatNotification - sender 정보:', {
+        chatRoomId,
+        chatRoomTitle,
+        sender,
+        senderType: typeof sender,
+        targetUserId,
+        currentUser: user?.uid
+      });
+
+      // sender가 '나' 또는 기본값인 경우 실제 사용자 닉네임 조회
+      let finalSender = sender;
+      if (sender === '나' || sender === '사용자' || sender === '알 수 없음') {
+        console.warn('⚠️ CommunityContext.createChatNotification - sender가 기본값입니다. 실제 닉네임 조회 시도:', {
+          sender,
+          chatRoomId,
+          targetUserId,
+          currentUser: user?.uid
+        });
+        
+        try {
+          // 현재 사용자의 실제 프로필 정보 조회
+          const userProfile = await firestoreService.getUserProfile(user.uid);
+          if (userProfile) {
+            finalSender = userProfile.profile?.nickname || 
+                         userProfile.profile?.displayName || 
+                         userProfile.displayName || 
+                         user?.displayName || 
+                         user?.email?.split('@')[0] || 
+                         '사용자';
+            
+            console.log('✅ CommunityContext.createChatNotification - sender 교체 완료:', {
+              original: sender,
+              new: finalSender,
+              uid: user.uid
+            });
+          }
+        } catch (error) {
+          console.error('❌ CommunityContext.createChatNotification - 사용자 프로필 조회 실패:', error);
+          finalSender = '사용자'; // 최종 fallback
+        }
+      }
+
       const notification = {
         id: `chat_${Date.now()}_${Math.random()}`,
         type: 'message',
         timestamp: new Date(),
         isRead: false,
         title: `${chatRoomTitle}`,
-        message: `${sender}님이 "${message}" 메시지를 보냈습니다.`,
+        message: `${finalSender}님이 "${message}" 메시지를 보냈습니다.`,
         action: 'chat',
         chatId: chatRoomId,
         userId: targetUserId, // 알림을 받을 사용자 ID

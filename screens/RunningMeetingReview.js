@@ -29,28 +29,45 @@ const COLORS = {
 };
 
 const RunningMeetingReview = ({ route, navigation }) => {
-  const { event, participants: eventParticipants } = route.params;
+  const { event: rawEvent, participants: eventParticipants, onEvaluationComplete } = route.params;
   const { user } = useAuth();
 
+  // 문자열로 받은 날짜를 Date 객체로 변환
+  const event = {
+    ...rawEvent,
+    date: rawEvent.date ? new Date(rawEvent.date) : null,
+    createdAt: rawEvent.createdAt ? new Date(rawEvent.createdAt) : null,
+    updatedAt: rawEvent.updatedAt ? new Date(rawEvent.updatedAt) : null
+  };
+
   
-  // 호스트가 현재 사용자인지 확인
-  const isCurrentUserHost = user && (
-    user.displayName === event.organizer || 
-    user.email?.split('@')[0] === event.organizer ||
-    event.organizer === '나' ||
-    event.isCreatedByUser
-  );
-  
-  // 호스트를 제외한 참여자 목록 (호스트는 자신을 평가할 수 없음)
+  // 현재 사용자 본인을 제외한 참여자 목록 (자신은 자신을 평가할 수 없음)
   const [participants] = useState(() => {
     if (!eventParticipants) return [];
     
-    // 호스트가 현재 사용자인 경우 호스트를 제외
-    if (isCurrentUserHost) {
-      return eventParticipants.filter(participant => !participant.isHost);
-    }
-    
-    return eventParticipants;
+    return eventParticipants.filter(participant => {
+      // 현재 사용자 본인인지 확인
+      const isCurrentUser = (
+        participant.id === user?.uid ||
+        participant.name === user?.displayName ||
+        participant.name === user?.email?.split('@')[0] ||
+        // 예전 모임들을 위한 추가 조건들
+        (user?.displayName && participant.name && participant.name.includes(user.displayName)) ||
+        (user?.email && participant.name && participant.name.includes(user.email.split('@')[0]))
+      );
+      
+      console.log('🔍 RunningMeetingReview - 참여자 필터링:', {
+        participantName: participant.name,
+        participantId: participant.id,
+        userDisplayName: user?.displayName,
+        userEmail: user?.email,
+        userUid: user?.uid,
+        isCurrentUser,
+        willInclude: !isCurrentUser
+      });
+      
+      return !isCurrentUser; // 현재 사용자 본인은 제외
+    });
   });
 
   // 평가 상태 관리
@@ -119,6 +136,14 @@ const RunningMeetingReview = ({ route, navigation }) => {
         ? currentTags.filter(t => t !== tag)
         : [...currentTags, tag];
       
+      console.log('🔍 태그 선택/해제:', {
+        participantId,
+        tag,
+        currentTags,
+        newTags,
+        isSelected: !currentTags.includes(tag)
+      });
+      
       return {
         ...prev,
         [participantId]: {
@@ -154,20 +179,55 @@ const RunningMeetingReview = ({ route, navigation }) => {
     }
 
     try {
+      console.log('🔍 평가 제출 시작:', {
+        eventId: event.id,
+        evaluatorId: user.uid,
+        evaluations,
+        participants: participants.map(p => ({ id: p.id, name: p.name }))
+      });
+
+      // 각 평가 데이터 상세 확인
+      Object.entries(evaluations).forEach(([participantId, evaluation]) => {
+        console.log('🔍 평가 데이터 상세:', {
+          participantId,
+          mannerScore: evaluation.mannerScore,
+          selectedTags: evaluation.selectedTags,
+          tagsCount: evaluation.selectedTags?.length || 0
+        });
+      });
+
       // 평가 결과를 Firebase에 저장
       await evaluationService.saveEvaluationResults(
-        event.id || 'temp_meeting_id', // 실제 모임 ID로 교체 필요
+        event.id, // event.id 사용
         evaluations,
         user.uid
       );
     
     Alert.alert(
       '평가 완료',
-      '모임 후기가 성공적으로 제출되었습니다!',
+      '러닝매너가 성공적으로 제출되었습니다!',
       [
         {
           text: '확인',
-          onPress: () => navigation.goBack()
+          onPress: () => {
+            // 콜백 함수가 있으면 호출 (ScheduleCard에서 전달된 경우)
+            if (onEvaluationComplete) {
+              onEvaluationComplete();
+            }
+            
+            // EventDetailScreen으로 돌아가면서 평가 완료 상태를 전달
+            navigation.navigate('EventDetail', {
+              event: {
+                ...event,
+                date: event.date.toISOString(),
+                createdAt: event.createdAt.toISOString(),
+                updatedAt: event.updatedAt.toISOString()
+              },
+              isJoined: true,
+              isCreatedByMe: true,
+              evaluationCompleted: true // 평가 완료 상태 전달
+            });
+          }
         }
       ]
     );
@@ -425,7 +485,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
             styles.submitButtonText,
             isAllComplete() ? styles.submitButtonTextActive : styles.submitButtonTextInactive
           ]}>
-            모임 후기 완료하기
+            러닝매너 제출하기
           </Text>
         </TouchableOpacity>
         {!isAllComplete() && (

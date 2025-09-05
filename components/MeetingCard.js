@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -19,6 +20,7 @@ const COLORS = {
 
 const MeetingCard = ({ meeting, onClose, onJoin }) => {
   if (!meeting) return null;
+
 
   // 연도를 제거하고 요일을 추가하는 함수 (ScheduleCard와 동일)
   const formatDateWithoutYear = (dateString) => {
@@ -129,33 +131,51 @@ const MeetingCard = ({ meeting, onClose, onJoin }) => {
         <View style={styles.footer}>
           <View style={styles.organizerInfo}>
             <View style={styles.organizerAvatar}>
-              <Text style={styles.organizerAvatarText}>
-                {meeting.organizer.charAt(0)}
-              </Text>
+              {meeting.organizerImage && !meeting.organizerImage.startsWith('file://') ? (
+                <Image 
+                  source={{ uri: meeting.organizerImage }} 
+                  style={styles.organizerAvatarImage}
+                />
+              ) : (
+                <Ionicons name="person" size={14} color="#ffffff" />
+              )}
             </View>
             <View style={styles.organizerDetails}>
-              <Text style={styles.organizerName}>{meeting.organizer}</Text>
-              <Text style={styles.organizerLevel}>{meeting.organizerLevel}</Text>
+              <Text style={styles.organizerName}>
+                {meeting.organizer}
+              </Text>
+              <Text style={styles.organizerLevel}>
+                {meeting.organizerLevel || '러너'}
+              </Text>
             </View>
           </View>
 
           <View style={styles.rightSection}>
-            <Text style={styles.participantInfo}>
-              참여자 {meeting.participants}/{meeting.maxParticipants}
+            <Text style={[styles.participantInfo, { color: '#ffffff' }]}>
+              {(() => {
+                const participantCount = Array.isArray(meeting.participants) ? meeting.participants.length : (meeting.participants || 1);
+                const maxParticipantText = meeting.maxParticipants ? `/${meeting.maxParticipants}` : '';
+                const finalParticipantText = `참여자 ${participantCount}${maxParticipantText}`;
+                return finalParticipantText;
+              })()}
             </Text>
             <TouchableOpacity
               style={[
                 styles.joinButton, 
-                { backgroundColor: meeting.canJoin ? COLORS.PRIMARY : COLORS.SECONDARY }
+                { backgroundColor: meeting.canJoin ? COLORS.PRIMARY : COLORS.SECONDARY },
+                // 참여 마감된 경우 버튼 비활성화 스타일
+                !meeting.canJoin ? styles.disabledButton : {}
               ]}
               onPress={onJoin}
               disabled={!meeting.canJoin}
             >
               <Text style={[
                 styles.joinButtonText,
-                { color: meeting.canJoin ? COLORS.BACKGROUND : COLORS.TEXT }
+                { color: meeting.canJoin ? COLORS.BACKGROUND : COLORS.TEXT },
+                // 참여 마감된 경우 텍스트 스타일 변경
+                !meeting.canJoin ? styles.disabledButtonText : {}
               ]}>
-                {meeting.canJoin ? '참여하기' : '참여 마감'}
+                {meeting.canJoin ? '참여하기' : '마감되었습니다'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -296,11 +316,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
+    overflow: 'hidden',
+  },
+  organizerAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   organizerAvatarText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: '#ffffff',
   },
   organizerDetails: {
     flex: 1,
@@ -335,6 +361,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.BACKGROUND,
+  },
+  disabledButton: {
+    backgroundColor: COLORS.SECONDARY,
+    opacity: 0.7,
+  },
+  disabledButtonText: {
+    color: COLORS.SECONDARY,
   },
 });
 

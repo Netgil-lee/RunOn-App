@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,16 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import weatherAlertService from '../services/weatherAlertService';
+import updateService from '../services/updateService';
 import Animated, { 
   useSharedValue, 
   withTiming,
@@ -37,8 +40,8 @@ const COLORS = {
 const NotificationScreen = () => {
   const navigation = useNavigation();
   const { isTabEnabled, isNotificationTypeEnabled, settings } = useNotificationSettings();
-  const { meetingNotifications, setMeetingNotifications, chatRooms, addChatMessage } = useEvents();
-  const { notifications: communityNotifications, markNotificationAsRead, getPostById, createLikeNotification, createCommentNotification, createChatNotification } = useCommunity();
+  const { meetingNotifications, setMeetingNotifications, chatRooms, addChatMessage, setUpdateNotification: setEventUpdateNotification, clearUpdateNotification, checkUpdateNotificationStatus, checkMeetingNotifications } = useEvents();
+  const { notifications: communityNotifications, markNotificationAsRead, getPostById, createLikeNotification, createCommentNotification, createChatNotification, handleChatTabClick, handleBoardTabClick } = useCommunity();
   
   // 탭 상태
   const [activeTab, setActiveTab] = useState('general');
@@ -50,12 +53,87 @@ const NotificationScreen = () => {
     chat: []
   });
 
+  // 업데이트 알림 상태
+  const [updateNotification, setUpdateNotification] = useState(null);
+  const [updateReadStatus, setUpdateReadStatus] = useState(false);
+
   // 탭 데이터
   const tabs = [
     { id: 'general', name: '일반' },
     { id: 'meeting', name: '모임' },
     { id: 'chat', name: '커뮤니티' }
   ];
+
+  // 앱 업데이트 체크
+  useEffect(() => {
+    const checkForUpdate = async () => {
+      try {
+        // AsyncStorage에서 업데이트 읽음 상태 확인
+        const updateRead = await AsyncStorage.getItem('updateNotificationRead');
+        if (updateRead === 'true') {
+          setUpdateReadStatus(true);
+          return; // 이미 읽었으면 업데이트 알림을 표시하지 않음
+        }
+
+        const updateInfo = await updateService.checkForUpdate();
+        if (updateInfo.showNotification) {
+          setUpdateNotification({
+            id: 'update_notification',
+            type: 'update',
+            title: '앱 업데이트',
+            message: updateInfo.message || '새로운 업데이트가 있습니다.',
+            isRead: false,
+            timestamp: new Date()
+          });
+          // EventContext에도 업데이트 알림 상태 설정
+          setEventUpdateNotification(true);
+          console.log('🔔 업데이트 알림 설정됨:', updateInfo);
+        }
+      } catch (error) {
+        console.error('❌ 업데이트 체크 실패:', error);
+      }
+    };
+
+    checkForUpdate();
+  }, []);
+
+  // 화면 포커스 시 알림 상태 동기화
+  useFocusEffect(
+    useCallback(() => {
+      const syncNotificationStatus = async () => {
+        try {
+          // EventContext 상태 동기화
+          await checkUpdateNotificationStatus();
+          checkMeetingNotifications();
+          
+          // AsyncStorage에서 업데이트 읽음 상태 확인
+          const updateRead = await AsyncStorage.getItem('updateNotificationRead');
+          
+          if (updateRead === 'true') {
+            // 이미 읽었으면 읽음 상태로 알림 유지
+            setUpdateReadStatus(true);
+            const updateInfo = await updateService.checkForUpdate();
+            if (updateInfo.showNotification) {
+              setUpdateNotification({
+                id: 'update_notification',
+                type: 'update',
+                title: '앱 업데이트',
+                message: updateInfo.message || '새로운 업데이트가 있습니다.',
+                isRead: true,
+                timestamp: new Date()
+              });
+            }
+          }
+          
+          console.log('🔄 화면 포커스 - 알림 상태 동기화 완료');
+        } catch (error) {
+          console.error('❌ 화면 포커스 - 알림 동기화 실패:', error);
+        }
+      };
+
+      syncNotificationStatus();
+    }, [])
+  );
 
   // 설정에 따라 필터링된 알림 가져오기
   const getFilteredNotifications = (tabType) => {
@@ -92,11 +170,17 @@ const NotificationScreen = () => {
       );
     }
     
-    // 일반 탭의 경우 날씨 알림도 포함
+    // 일반 탭의 경우 날씨 알림과 업데이트 알림 포함
     if (tabType === 'general') {
       const generalNotifications = notifications[tabType].filter(notif => 
         isNotificationTypeEnabled(notif.type)
       );
+      
+      // 업데이트 알림 추가 (읽음 상태와 관계없이 표시)
+      const notificationsWithUpdate = [...generalNotifications];
+      if (updateNotification) {
+        notificationsWithUpdate.unshift(updateNotification);
+      }
       
       // 날씨 알림이 활성화되어 있으면 날씨 알림도 추가
       if (settings.notifications.weatherAlert) {
@@ -104,7 +188,7 @@ const NotificationScreen = () => {
         // 현재는 정적 데이터만 사용
       }
       
-      return generalNotifications;
+      return notificationsWithUpdate;
     }
     
     return notifications[tabType].filter(notif => 
@@ -147,6 +231,21 @@ const NotificationScreen = () => {
     slideAnim.value = withTiming(tabIndex, {
       duration: 300,
     });
+
+    // 탭 변경 시 해당 탭의 모든 알림을 읽음 처리 (업데이트 알림 제외)
+    if (tabId === 'meeting') {
+      // 모임 탭 클릭 시 모든 모임 알림을 읽음 처리
+      setMeetingNotifications(prev => 
+        prev.map(notif => ({ ...notif, isRead: true }))
+      );
+      checkMeetingNotifications();
+      console.log('✅ 모임 탭 클릭 - 모든 모임 알림 읽음 처리');
+    } else if (tabId === 'chat') {
+      // 커뮤니티 탭 클릭 시 모든 커뮤니티 알림을 읽음 처리
+      handleBoardTabClick(); // 자유게시판 알림 읽음 처리
+      handleChatTabClick(); // 채팅 알림 읽음 처리
+      console.log('✅ 커뮤니티 탭 클릭 - 모든 커뮤니티 알림 읽음 처리');
+    }
   };
 
   // 알림 읽음 처리
@@ -158,6 +257,9 @@ const NotificationScreen = () => {
           notif.id === notificationId ? { ...notif, isRead: true } : notif
         )
       );
+      // EventContext의 알림 상태 업데이트
+      checkMeetingNotifications();
+      console.log('✅ 모임 알림 읽음 처리 완료:', notificationId);
     } else {
       // 일반/커뮤니티 알림 읽음 처리
       setNotifications(prev => ({
@@ -166,6 +268,7 @@ const NotificationScreen = () => {
           notif.id === notificationId ? { ...notif, isRead: true } : notif
         )
       }));
+      console.log('✅ 일반/커뮤니티 알림 읽음 처리 완료:', notificationId);
     }
   };
 
@@ -176,16 +279,14 @@ const NotificationScreen = () => {
     console.log('🔗 알림 액션:', notification.action);
     console.log('🧭 네비게이션 데이터:', notification.navigationData);
     
-    // 읽음 처리 (rating 알림은 제외)
-    if (notification.type === 'rating') {
+    // 읽음 처리 (업데이트 알림만 클릭 시 처리, 나머지는 탭 클릭 시 자동 처리)
+    if (notification.type === 'update') {
+      console.log('🔄 update 알림은 별도 처리 (클릭 시에만 읽음 처리)');
+    } else if (notification.type === 'rating') {
       console.log('📊 rating 알림은 읽음 처리하지 않음');
-    } else if (activeTab === 'chat') {
-      // 커뮤니티 알림은 CommunityContext에서 처리
-      console.log('📖 커뮤니티 알림 읽음 처리:', notification.id);
-      markNotificationAsRead(notification.id);
     } else {
-      console.log('📖 일반 알림 읽음 처리:', notification.id);
-      markAsRead(activeTab, notification.id);
+      // 업데이트 알림이 아닌 경우는 탭 클릭 시 자동 처리되므로 여기서는 처리하지 않음
+      console.log('📖 일반 알림은 탭 클릭 시 자동 처리됨');
     }
     
     // 액션에 따른 네비게이션
@@ -193,6 +294,31 @@ const NotificationScreen = () => {
     console.log('🎯 처리할 액션:', action);
     
     switch (action) {
+      case 'update':
+        // 업데이트 알림 클릭 시 확인만
+        Alert.alert(
+          '앱 업데이트',
+          notification.message || '새로운 업데이트가 있습니다.',
+          [
+            { 
+              text: '확인', 
+              onPress: () => {
+                // 업데이트 알림을 읽음 처리 (삭제하지 않고 상태만 변경)
+                setUpdateReadStatus(true);
+                setUpdateNotification(prev => prev ? { ...prev, isRead: true } : null);
+                // EventContext의 업데이트 알림 해제 (AppNavigator 아이콘 제거)
+                clearUpdateNotification();
+                // AsyncStorage에 업데이트 읽음 상태 저장
+                AsyncStorage.setItem('updateNotificationRead', 'true');
+                // 현재 업데이트 메시지와 타임스탬프도 저장
+                AsyncStorage.setItem('lastUpdateMessage', notification.message);
+                AsyncStorage.setItem('lastUpdateTimestamp', notification.timestamp.toISOString());
+                console.log('✅ 업데이트 알림 읽음 처리 완료 (알림 유지)');
+              }
+            }
+          ]
+        );
+        break;
       case 'meeting':
         navigation.navigate('EventDetail', { eventId: notification.meetingId });
         break;
@@ -258,9 +384,7 @@ const NotificationScreen = () => {
           console.log('❌ navigationData 또는 postId가 없음:', notification);
         }
         break;
-      case 'update':
-        Alert.alert('앱 업데이트', '최신 버전으로 업데이트하시겠습니까?');
-        break;
+
       case 'weather':
         // 날씨 알림은 단순히 읽음 처리만 (복잡한 네비게이션 없음)
         break;
@@ -334,6 +458,8 @@ const NotificationScreen = () => {
           return 'heart';
         case 'comment':
           return 'chatbubble-ellipses';
+        case 'update':
+          return 'rocket';
         default:
           return notification.icon || 'notifications';
       }
@@ -351,7 +477,7 @@ const NotificationScreen = () => {
           <View style={styles.notificationIconContainer}>
             <Ionicons 
               name={getIcon(notification.type)} 
-              size={20} 
+              size={28} 
               color={notification.isRead ? COLORS.SECONDARY : COLORS.PRIMARY} 
             />
           </View>
@@ -429,32 +555,7 @@ const NotificationScreen = () => {
       >
 
 
-        {/* 채팅 알림 테스트 버튼 (커뮤니티 탭에서만 표시) */}
-        {activeTab === 'chat' && (
-          <View style={styles.testSection}>
-            <Text style={styles.testSectionTitle}>채팅 알림 테스트</Text>
-            <View style={styles.testButtons}>
-              {chatRooms.slice(0, 2).map((chatRoom, index) => (
-                <TouchableOpacity 
-                  key={chatRoom.id}
-                  style={styles.testButton}
-                  onPress={() => {
-                    console.log(`🧪 NotificationScreen - 채팅 알림 테스트 버튼 클릭 (채팅방 ${index + 1})`);
-                    const testMessage = `테스트 메시지 ${Date.now()}`;
-                    // 실제 메시지 추가 (EventContext의 addChatMessage 사용)
-                    addChatMessage(chatRoom.id, testMessage, '테스트 사용자');
-                    // 커뮤니티 탭에 채팅 알림 생성
-                    createChatNotification(chatRoom.id.toString(), chatRoom.title, testMessage, '테스트 사용자');
-                    console.log(`✅ 채팅방 ${chatRoom.id}에 실제 메시지 추가 및 알림 생성 완료`);
-                    Alert.alert('테스트', `채팅방 "${chatRoom.title}"에 실제 메시지가 추가되었습니다!`);
-                  }}
-                >
-                  <Text style={styles.testButtonText}>채팅 {index + 1} 알림</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
+
         
         {getFilteredNotifications(activeTab).length > 0 ? (
           getFilteredNotifications(activeTab).map((notification) => (
@@ -591,10 +692,13 @@ const styles = StyleSheet.create({
   },
   readNotification: {
     borderLeftColor: COLORS.SURFACE,
+    backgroundColor: COLORS.CARD,
+    opacity: 0.85,  // 0.6에서 0.85로 증가하여 더 밝게
   },
   unreadNotification: {
     borderLeftColor: COLORS.PRIMARY,
     backgroundColor: COLORS.SURFACE,
+    opacity: 1,
   },
   notificationHeader: {
     flexDirection: 'row',
@@ -619,10 +723,12 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   readTitle: {
-    color: COLORS.SECONDARY,
+    color: '#AAAAAA',  // COLORS.SECONDARY(#666666)에서 더 밝은 회색으로 변경
+    fontWeight: '500',  // 400에서 500으로 증가하여 더 굵게
   },
   unreadTitle: {
     color: COLORS.TEXT,
+    fontWeight: '600',
   },
   notificationTime: {
     fontSize: 12,
@@ -634,10 +740,12 @@ const styles = StyleSheet.create({
     fontWeight: '250',
   },
   readMessage: {
-    color: COLORS.SECONDARY,
+    color: '#AAAAAA',  // COLORS.SECONDARY(#666666)에서 더 밝은 회색으로 변경
+    fontWeight: '400',  // 300에서 400으로 증가하여 더 굵게
   },
   unreadMessage: {
     color: COLORS.TEXT,
+    fontWeight: '400',
   },
   emptyState: {
     alignItems: 'center',

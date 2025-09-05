@@ -16,17 +16,8 @@ import { NotificationSettingsProvider } from './contexts/NotificationSettingsCon
 
 SplashScreen.preventAutoHideAsync();
 
-// 전역 폰트 설정 - 간단한 방법
-const originalTextRender = Text.render;
-Text.render = function (...args) {
-  const origin = originalTextRender.call(this, ...args);
-  return React.cloneElement(origin, {
-    style: [
-      { fontFamily: 'Pretendard-Regular' },
-      origin.props.style
-    ]
-  });
-};
+// 안전한 폰트 설정 (Text.render 오버라이드 제거)
+// Timestamp 처리는 각 컴포넌트에서 개별적으로 수행
 
 export default function App() {
   const [isFirebaseInitialized, setIsFirebaseInitialized] = useState(false);
@@ -54,30 +45,43 @@ export default function App() {
 
       await initializeFirebase();
       
+      // 스플래시 스크린 즉시 숨기기
+      await SplashScreen.hideAsync();
+      
     } catch (error) {
       console.warn('앱 초기화 중 에러 발생:', error);
       if (error.message.includes('font')) {
         console.error('❌ 폰트 로딩 실패:', error.message);
       }
+      // 에러가 발생해도 스플래시 스크린 숨기기
+      await SplashScreen.hideAsync();
     }
   };
 
   const initializeFirebase = async () => {
     try {
-      // Firebase가 완전히 초기화될 때까지 잠시 대기
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Firebase가 완전히 초기화될 때까지 대기 (자동 로그인을 위해 충분한 시간)
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Firebase 초기화 상태 확인 (자동 로그인 지원 확인)
+      if (!firebaseService.isInitialized()) {
+        console.warn('Firebase 초기화 미완료. 자동 로그인을 위해 재시도 중...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
       
       const auth = firebaseService.getAuth();
       if (!auth) {
-        console.warn('Firebase Auth 객체가 없습니다. 초기화 대기 중...');
+        console.warn('Firebase Auth 객체가 없습니다. 자동 로그인 지원 불가');
         setIsFirebaseInitialized(false);
         return;
       }
       
+      console.log('✅ Firebase 초기화 완료');
       setIsFirebaseInitialized(true);
     } catch (error) {
       console.warn('Firebase 초기화 실패:', error);
-      setIsFirebaseInitialized(false);
+      // Firebase 초기화 실패해도 앱은 계속 실행 (크래시 방지)
+      setIsFirebaseInitialized(true);
     }
   };
 
