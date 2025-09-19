@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../contexts/NetworkContext';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import firebaseService from '../config/firebase';
+import firestoreService from '../services/firestoreService';
 
 const PhoneAuthScreen = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -43,11 +44,6 @@ const PhoneAuthScreen = ({ navigation }) => {
   };
 
   const handleSendVerificationCode = async () => {
-    if (__DEV__) {
-      console.log('🚀 인증번호 발송 버튼 클릭됨');
-      console.log('📱 입력된 휴대폰번호:', phoneNumber);
-      console.log('🌐 온라인 상태:', isOnline);
-    }
     
     if (!isOnline) {
       Alert.alert('오프라인 상태', '인터넷 연결을 확인해주세요.');
@@ -68,13 +64,14 @@ const PhoneAuthScreen = ({ navigation }) => {
       setIsLoading(true);
       setError('');
       
-      if (__DEV__) {
-        console.log('📞 sendPhoneVerification 호출 중...');
+      // 휴대전화번호 중복 체크
+      const phoneCheckResult = await firestoreService.checkPhoneNumberAvailability(phoneNumber);
+      if (!phoneCheckResult.available) {
+        setError(phoneCheckResult.reason);
+        return;
       }
+      
       const confirmationResult = await sendPhoneVerification(phoneNumber, recaptchaVerifierRef.current);
-      if (__DEV__) {
-        console.log('✅ confirmationResult 받음:', confirmationResult ? '성공' : '실패');
-      }
       
       // confirmationResult를 전역 상태로 저장
       setConfirmationResult(confirmationResult);
@@ -92,9 +89,6 @@ const PhoneAuthScreen = ({ navigation }) => {
     }
   };
 
-  const handleEmailSignup = () => {
-    navigation.navigate('EmailSignup');
-  };
 
   const isButtonDisabled = !validatePhoneNumber(phoneNumber) || isLoading;
 
@@ -107,10 +101,12 @@ const PhoneAuthScreen = ({ navigation }) => {
       <View style={styles.content}>
         <Text style={styles.title}>RunOn</Text>
         <Text style={styles.subtitle}>너와 나의 러닝 커뮤니티</Text>
+        
+        {/* 제목과 라벨 사이 여백 */}
+        <View style={{ height: 40 }} />
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>휴대폰번호를 입력해주세요</Text>
-          <Text style={styles.description}>인증번호를 받을 휴대폰번호를 입력하세요</Text>
           
           <TextInput
             style={[styles.input, error && styles.inputError]}
@@ -140,13 +136,6 @@ const PhoneAuthScreen = ({ navigation }) => {
           )}
         </TouchableOpacity>
 
-        {/* 이메일 회원가입 버튼 추가 */}
-        <TouchableOpacity
-          style={styles.emailSignupButton}
-          onPress={handleEmailSignup}
-        >
-          <Text style={styles.emailSignupButtonText}>이메일로 회원가입</Text>
-        </TouchableOpacity>
 
       </View>
     </SafeAreaView>
@@ -180,6 +169,8 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   label: {
     fontSize: 18,
@@ -219,25 +210,14 @@ const styles = StyleSheet.create({
     padding: 15,
     alignItems: 'center',
     marginBottom: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   disabledButton: {
     opacity: 0.5,
   },
   sendButtonText: {
     color: '#000',
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Pretendard-SemiBold',
-  },
-  emailSignupButton: {
-    backgroundColor: '#666',
-    borderRadius: 8,
-    padding: 15,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  emailSignupButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',

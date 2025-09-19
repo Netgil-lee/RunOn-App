@@ -1,11 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { auth } from '../config/firebase';
 import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  sendPasswordResetEmail,
   updateProfile
 } from 'firebase/auth';
 import { doc, setDoc, updateDoc, getFirestore, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -21,11 +18,7 @@ const defaultContextValue = {
   initializing: true,
   loading: false,
   error: null,
-  signIn: async () => {},
-  signUp: async () => {},
-  signInWithGoogle: async () => {},
   logout: async () => {},
-  resetPassword: async () => {},
   sendPhoneVerification: async () => {},
   verifyPhoneCode: async () => {},
 
@@ -70,9 +63,6 @@ export const AuthProvider = ({ children }) => {
     const unsubscribeAuth = onAuthStateChanged(auth, 
       async (user) => {
         // 자동 로그인 상태 감지
-        if (user && !__DEV__) {
-          console.log('✅ 자동 로그인 성공');
-        }
         
         const handleAuthChange = async () => {
           // 새로 로그인한 사용자의 경우 초기 커뮤니티 통계 설정
@@ -234,9 +224,8 @@ export const AuthProvider = ({ children }) => {
         Object.entries(profileData).filter(([_, value]) => value !== undefined)
       );
       
-      // Firestore에 프로필 데이터 저장 (profile 필드 안에 저장)
-      console.log('📝 Firestore 프로필 데이터 저장 시작');
-      await setDoc(userRef, {
+      // Firestore에 프로필 데이터 저장 (profile 필드 안에 저장 + profileImage는 최상위에도 저장)
+      const updateData = {
         profile: {
           ...cleanProfileData,
           updatedAt: new Date().toISOString(),
@@ -244,10 +233,14 @@ export const AuthProvider = ({ children }) => {
         uid: user.uid,
         email: user.email,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
-      console.log('✅ Firestore 프로필 데이터 저장 완료');
-
-      console.log('✅ 프로필 업데이트 완료');
+      };
+      
+      // profileImage가 있으면 최상위 레벨에도 저장 (AppBar에서 쉽게 접근할 수 있도록)
+      if (cleanProfileData.profileImage) {
+        updateData.profileImage = cleanProfileData.profileImage;
+      }
+      
+      await setDoc(userRef, updateData, { merge: true });
       
       // 사용자 상태 즉시 업데이트
       if (profileData.profileImage) {
@@ -257,13 +250,7 @@ export const AuthProvider = ({ children }) => {
         }));
       }
     } catch (error) {
-      console.error('❌ 프로필 업데이트 실패:', error);
-      console.error('❌ 에러 상세:', {
-        code: error.code,
-        message: error.message,
-        environment: __DEV__ ? 'development' : 'production',
-        userUid: user?.uid
-      });
+      console.error('프로필 업데이트 실패:', error);
       throw error;
     }
   };
@@ -271,20 +258,14 @@ export const AuthProvider = ({ children }) => {
   // 로그아웃 함수
   const handleLogout = async () => {
     try {
-      console.log('🚪 로그아웃 시작', { userUid: user?.uid });
-      
-      // AuthViewModel의 logout 호출
-      console.log('🔐 Firebase 로그아웃 실행');
       await authViewModel.logout();
       
       // 로그아웃 후 상태 초기화
-      console.log('🔄 로그아웃 후 상태 초기화 시작');
       setConfirmationResult(null);
       setOnboardingCompleted(false);
       setUser(null);
-      console.log('✅ 로그아웃 완료 및 상태 초기화');
     } catch (error) {
-      console.error('❌ 로그아웃 처리 중 오류:', error);
+      console.error('로그아웃 처리 중 오류:', error);
       // 에러가 발생해도 상태는 초기화
       setUser(null);
       setOnboardingCompleted(false);
@@ -297,30 +278,13 @@ export const AuthProvider = ({ children }) => {
   const completeOnboarding = async () => {
     try {
       if (!user) {
-        console.warn('⚠️ 사용자 정보가 없어 온보딩 완료 처리 불가');
+        console.warn('사용자 정보가 없어 온보딩 완료 처리 불가');
         return false;
       }
 
-      console.log('🔐 AuthContext: 온보딩 완료 처리 시작', { 
-        uid: user.uid,
-        environment: __DEV__ ? 'development' : 'production'
-      });
       
 
       
-              // TestFlight 환경에서 추가 검증
-        if (!__DEV__) {
-          console.log('🔍 TestFlight: Firebase 연결 상태 확인 중...');
-          
-          // Firebase 연결 상태 확인
-          try {
-            const db = getFirestore();
-            console.log('✅ TestFlight: Firebase 연결 성공');
-          } catch (firebaseError) {
-            console.error('❌ TestFlight: Firebase 연결 실패:', firebaseError);
-            throw new Error('Firebase 연결에 실패했습니다');
-          }
-        }
       
       const db = getFirestore();
       const userRef = doc(db, 'users', user.uid);
@@ -333,18 +297,16 @@ export const AuthProvider = ({ children }) => {
         if (storedData) {
           try {
             onboardingData = JSON.parse(storedData);
-            console.log('📥 AsyncStorage에서 온보딩 데이터 로드:', onboardingData);
           } catch (parseError) {
-            console.error('❌ 온보딩 데이터 JSON 파싱 실패:', parseError, '원본 데이터:', storedData);
+            console.error('온보딩 데이터 JSON 파싱 실패:', parseError);
             // 잘못된 데이터 삭제
             await AsyncStorage.removeItem('onboarding_form_data');
             onboardingData = null;
           }
         } else {
-          console.warn('⚠️ AsyncStorage에 온보딩 데이터가 없음');
         }
       } catch (storageError) {
-        console.error('❌ AsyncStorage 온보딩 데이터 로드 실패:', storageError);
+        console.error('AsyncStorage 온보딩 데이터 로드 실패:', storageError);
       }
 
       // Firestore 업데이트 데이터 준비
@@ -422,7 +384,6 @@ export const AuthProvider = ({ children }) => {
         if (calculatedAge !== null && calculatedAge !== undefined) {
           updateData.profile.age = calculatedAge;
         }
-        console.log('📝 Firestore에 저장할 프로필 데이터:', updateData.profile);
       }
       
       // Firestore 업데이트 (재시도 로직 포함)
@@ -433,17 +394,14 @@ export const AuthProvider = ({ children }) => {
       
       while (retryCount < maxRetries) {
         try {
-          console.log(`🔍 Firestore 업데이트 시도 ${retryCount + 1}/${maxRetries}`);
           
           await updateDoc(userRef, updateData);
           
-          console.log('✅ Firestore 업데이트 완료 (시도:', retryCount + 1, ')');
           
           // 성공적으로 저장되면 AsyncStorage 정리
           if (onboardingData) {
             try {
               await AsyncStorage.removeItem('onboarding_form_data');
-              console.log('🧹 AsyncStorage 온보딩 데이터 정리 완료');
             } catch (cleanupError) {
               console.warn('⚠️ AsyncStorage 정리 실패:', cleanupError);
             }
@@ -453,7 +411,6 @@ export const AuthProvider = ({ children }) => {
           
         } catch (firestoreError) {
           retryCount++;
-          console.error('❌ Firestore 업데이트 실패 (시도:', retryCount, '):', firestoreError);
           
           // TestFlight 환경에서 더 자세한 에러 정보
           if (!__DEV__) {
@@ -471,39 +428,21 @@ export const AuthProvider = ({ children }) => {
           
           // 재시도 전 대기 시간 (TestFlight에서는 더 길게)
           const waitTime = !__DEV__ ? 2000 : 1000;
-          console.log(`⏳ ${waitTime}ms 대기 후 재시도...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
         }
       }
       
       // 로컬 상태 업데이트
       setOnboardingCompleted(true);
-      console.log('🔐 AuthContext: 온보딩 완료 상태로 업데이트 완료');
       
-      // 상태 동기화를 위한 대기 시간 (TestFlight에서는 더 길게)
+      // 상태 동기화를 위한 대기 시간
       const syncWaitTime = !__DEV__ ? 1000 : 500;
-      console.log(`⏳ 상태 동기화 대기 중... (${syncWaitTime}ms)`);
       await new Promise(resolve => setTimeout(resolve, syncWaitTime));
       
       return true;
       
     } catch (error) {
-      console.error('❌ 온보딩 완료 처리 실패:', error);
-      console.error('❌ 에러 상세:', {
-        code: error.code,
-        message: error.message,
-        environment: __DEV__ ? 'development' : 'production',
-        timestamp: new Date().toISOString()
-      });
-      
-      // TestFlight 환경에서 추가 에러 컨텍스트
-      if (!__DEV__) {
-        console.error('❌ TestFlight 에러 컨텍스트:', {
-          userExists: !!user,
-          userUid: user?.uid,
-          currentOnboardingStatus: onboardingCompleted
-        });
-      }
+      console.error('온보딩 완료 처리 실패:', error);
       
       throw error;
     }
@@ -515,11 +454,7 @@ export const AuthProvider = ({ children }) => {
     initializing,
     loading: authViewModel.loading,
     error: authViewModel.error,
-    signIn: authViewModel.signIn,
-    signUp: authViewModel.signUp,
-    signInWithGoogle: authViewModel.signInWithGoogle,
     logout: authViewModel.logout,
-    resetPassword: authViewModel.resetPassword,
     sendPhoneVerification: authViewModel.sendPhoneVerification,
     verifyPhoneCode: authViewModel.verifyPhoneCode,
     confirmationResult,

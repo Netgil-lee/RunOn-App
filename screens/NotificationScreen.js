@@ -153,7 +153,7 @@ const NotificationScreen = () => {
         console.log('📊 NotificationScreen - rating 알림 상태:', 
           ratingNotifications.map(n => ({
             id: n.id,
-            eventId: n.event?.id,
+            eventId: n.eventId || n.event?.id || 'N/A',
             isRead: n.isRead,
             title: n.title
           }))
@@ -232,20 +232,8 @@ const NotificationScreen = () => {
       duration: 300,
     });
 
-    // 탭 변경 시 해당 탭의 모든 알림을 읽음 처리 (업데이트 알림 제외)
-    if (tabId === 'meeting') {
-      // 모임 탭 클릭 시 모든 모임 알림을 읽음 처리
-      setMeetingNotifications(prev => 
-        prev.map(notif => ({ ...notif, isRead: true }))
-      );
-      checkMeetingNotifications();
-      console.log('✅ 모임 탭 클릭 - 모든 모임 알림 읽음 처리');
-    } else if (tabId === 'chat') {
-      // 커뮤니티 탭 클릭 시 모든 커뮤니티 알림을 읽음 처리
-      handleBoardTabClick(); // 자유게시판 알림 읽음 처리
-      handleChatTabClick(); // 채팅 알림 읽음 처리
-      console.log('✅ 커뮤니티 탭 클릭 - 모든 커뮤니티 알림 읽음 처리');
-    }
+    // 탭 클릭 시 자동 읽음 처리 제거 - 개별 알림 클릭 시에만 읽음 처리
+    console.log(`📋 ${tabId} 탭 클릭 - 자동 읽음 처리 없음, 개별 알림 클릭 필요`);
   };
 
   // 알림 읽음 처리
@@ -279,14 +267,30 @@ const NotificationScreen = () => {
     console.log('🔗 알림 액션:', notification.action);
     console.log('🧭 네비게이션 데이터:', notification.navigationData);
     
-    // 읽음 처리 (업데이트 알림만 클릭 시 처리, 나머지는 탭 클릭 시 자동 처리)
+    // 개별 알림 클릭 시 읽음 처리 (탭 클릭 자동 처리 제거됨)
     if (notification.type === 'update') {
       console.log('🔄 update 알림은 별도 처리 (클릭 시에만 읽음 처리)');
     } else if (notification.type === 'rating') {
       console.log('📊 rating 알림은 읽음 처리하지 않음');
     } else {
-      // 업데이트 알림이 아닌 경우는 탭 클릭 시 자동 처리되므로 여기서는 처리하지 않음
-      console.log('📖 일반 알림은 탭 클릭 시 자동 처리됨');
+      // 일반 알림들은 개별 클릭 시 읽음 처리
+      console.log('📖 개별 알림 클릭 - 읽음 처리 실행');
+      
+      // 알림 타입에 따라 읽음 처리
+      if (notification.type === 'like' || notification.type === 'comment') {
+        // 커뮤니티 알림 읽음 처리
+        markNotificationAsRead(notification.id);
+        console.log('✅ 커뮤니티 알림 읽음 처리:', notification.id);
+      } else if (notification.type === 'cancel' || notification.type === 'reminder' || notification.type === 'new_participant') {
+        // 모임 알림 읽음 처리
+        setMeetingNotifications(prev => 
+          prev.map(notif => 
+            notif.id === notification.id ? { ...notif, isRead: true } : notif
+          )
+        );
+        checkMeetingNotifications();
+        console.log('✅ 모임 알림 읽음 처리:', notification.id);
+      }
     }
     
     // 액션에 따른 네비게이션
@@ -321,6 +325,10 @@ const NotificationScreen = () => {
         break;
       case 'meeting':
         navigation.navigate('EventDetail', { eventId: notification.meetingId });
+        break;
+      case 'new_participant':
+        // 새로운 참여자 입장 알림 클릭 시 해당 모임 상세 화면으로 이동
+        navigation.navigate('EventDetail', { eventId: notification.eventId });
         break;
       case 'chat':
         // 채팅 알림 클릭 시 해당 채팅방으로 이동

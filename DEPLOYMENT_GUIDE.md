@@ -154,7 +154,6 @@ eas submit --platform android --profile production
 
 #### 5.1 기능 테스트 체크리스트
 - [ ] 회원가입/로그인 플로우
-- [ ] SMS 인증
 - [ ] 모임 생성/참여/취소
 - [ ] 채팅 기능
 - [ ] 푸시 알림

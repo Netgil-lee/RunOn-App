@@ -8,11 +8,11 @@ import {
   Dimensions,
   Image,
   ScrollView,
+  SafeAreaView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-// NetGill 디자인 시스템
+// RunOn 디자인 시스템
 const COLORS = {
   PRIMARY: '#3AF8FF',
   BACKGROUND: '#000000',
@@ -219,18 +219,20 @@ const AppGuideScreen = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>앱 사용 가이드</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <SafeAreaView style={styles.header}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>앱 사용 가이드</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </SafeAreaView>
 
       {/* 컨텐츠 */}
       <View style={styles.content}>
@@ -246,36 +248,39 @@ const AppGuideScreen = ({ navigation }) => {
           {renderFeatureButtons()}
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: COLORS.BACKGROUND,
   },
   header: {
+    backgroundColor: COLORS.SURFACE,
+  },
+  headerContent: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.SURFACE,
-    backgroundColor: COLORS.SURFACE,
+    paddingHorizontal: 16,
   },
   backButton: {
-    padding: 5,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '600',
     color: COLORS.TEXT,
-    fontFamily: 'Pretendard-Bold',
+    fontFamily: 'Pretendard-SemiBold',
   },
   headerSpacer: {
-    width: 34,
+    width: 44,
   },
   content: {
     flex: 1,

@@ -28,8 +28,7 @@ import SearchScreen from '../screens/SearchScreen';
 
 import AppIntroScreen from '../screens/AppIntroScreen';
 import AppGuideScreen from '../screens/AppGuideScreen';
-import EmailSignupScreen from '../screens/EmailSignupScreen';
-import EmailLoginScreen from '../screens/EmailLoginScreen';
+import BlacklistManagementScreen from '../screens/BlacklistManagementScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -155,8 +154,6 @@ const AppNavigator = () => {
         }}
       >
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="EmailSignup" component={EmailSignupScreen} />
-        <Stack.Screen name="EmailLogin" component={EmailLoginScreen} />
 
         <Stack.Screen name="PhoneAuth" component={PhoneAuthScreen} />
         <Stack.Screen name="Verification" component={VerificationScreen} />
@@ -200,6 +197,7 @@ const AppNavigator = () => {
         <Stack.Screen name="PostDetail" component={PostDetailScreen} />
         <Stack.Screen name="Notification" component={NotificationScreen} />
         <Stack.Screen name="Search" component={SearchScreen} />
+        <Stack.Screen name="BlacklistManagement" component={BlacklistManagementScreen} />
       </Stack.Navigator>
     );
   }

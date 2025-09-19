@@ -13,6 +13,7 @@ import { NetworkProvider } from './contexts/NetworkContext';
 import { EventProvider } from './contexts/EventContext';
 import { CommunityProvider } from './contexts/CommunityContext';
 import { NotificationSettingsProvider } from './contexts/NotificationSettingsContext';
+import { GuideProvider } from './contexts/GuideContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -126,11 +127,13 @@ export default function App() {
         <NetworkProvider>
           <AuthProvider>
             <NotificationSettingsProvider>
-            <EventProvider>
+              <EventProvider>
                 <CommunityProvider>
-              <AppNavigator />
+                  <GuideProvider>
+                    <AppNavigator />
+                  </GuideProvider>
                 </CommunityProvider>
-            </EventProvider>
+              </EventProvider>
             </NotificationSettingsProvider>
           </AuthProvider>
         </NetworkProvider>

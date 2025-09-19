@@ -42,6 +42,9 @@ const OnboardingLevelSelector = ({
 const styles = StyleSheet.create({
   stepContainer: {
     marginBottom: 24,
+    marginTop: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   stepTitle: {
     fontSize: 20,
@@ -50,10 +53,10 @@ const styles = StyleSheet.create({
   },
   stepSubtitle: {
     fontSize: 15,
-    marginBottom: 18,
+    marginBottom: 30,
   },
   levelOptionsContainer: {
-    gap: 16,
+    gap: 4,
   },
   levelCard: {
     backgroundColor: '#171719',

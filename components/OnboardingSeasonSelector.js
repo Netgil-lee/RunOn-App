@@ -28,6 +28,8 @@ const OnboardingSeasonSelector = ({ value = [], onChange }) => {
 
   return (
     <View style={styles.container}>
+      <Text style={styles.stepTitle}>선호하는 계절을 선택해주세요</Text>
+      <Text style={styles.stepSubtitle}>여러 개 선택 가능해요</Text>
       <View style={styles.optionsContainer}>
         {SEASON_OPTIONS.map((season) => (
           <TouchableOpacity
@@ -56,11 +58,23 @@ const OnboardingSeasonSelector = ({ value = [], onChange }) => {
 
 const styles = StyleSheet.create({
   container: {
-    // flex: 1,
+    width: '85%',
+    alignSelf: 'center',
+  },
+  stepTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    color: '#ffffff',
+  },
+  stepSubtitle: {
+    fontSize: 15,
+    marginBottom: 30,
+    color: '#666666',
   },
 
   optionsContainer: {
-    gap: 16,
+    gap: 12,
   },
   seasonCard: {
     backgroundColor: COLORS.CARD,

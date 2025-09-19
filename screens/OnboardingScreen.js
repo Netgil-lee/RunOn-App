@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../contexts/AuthContext';
+import firestoreService from '../services/firestoreService';
 import OnboardingTimeSelector from '../components/OnboardingTimeSelector';
 import OnboardingStyleSelector from '../components/OnboardingStyleSelector';
 import OnboardingSeasonSelector from '../components/OnboardingSeasonSelector';
@@ -366,17 +367,30 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
 
   // 온보딩 완료
   const handleComplete = async () => {
-    // 온보딩 데이터를 AsyncStorage에 저장 (AppIntroScreen에서 사용할 수 있도록)
-    const onboardingData = {
-      timestamp: new Date().toISOString(),
-      step: 7,
-      formData: formData,
-      currentGoals: formData.currentGoals,
-      canProceed: canProceed, // 이미 값이므로 함수 호출 불필요
-      message: 'handleComplete 함수 실행됨'
-    };
-    
+    // 닉네임 최종 검증
+    if (!formData.nickname || formData.nickname.trim().length < 2) {
+      Alert.alert('닉네임 오류', '닉네임을 2자 이상 입력해주세요.');
+      return;
+    }
+
     try {
+      // 닉네임 중복 최종 체크
+      const nicknameCheck = await firestoreService.checkNicknameAvailability(formData.nickname.trim());
+      if (!nicknameCheck.available) {
+        Alert.alert('닉네임 중복', nicknameCheck.reason || '이미 사용 중인 닉네임입니다.');
+        return;
+      }
+
+      // 온보딩 데이터를 AsyncStorage에 저장 (AppIntroScreen에서 사용할 수 있도록)
+      const onboardingData = {
+        timestamp: new Date().toISOString(),
+        step: 7,
+        formData: formData,
+        currentGoals: formData.currentGoals,
+        canProceed: canProceed, // 이미 값이므로 함수 호출 불필요
+        message: 'handleComplete 함수 실행됨'
+      };
+      
       // 온보딩 데이터를 저장 (completeOnboarding에서 Firestore에 업로드할 수 있도록)
       await AsyncStorage.setItem('onboarding_form_data', JSON.stringify(formData));
       await AsyncStorage.setItem('onboarding_debug_log', JSON.stringify(onboardingData));
@@ -457,7 +471,6 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
               formData.gender === 'male' && styles.genderButtonActive
             ]}
             onPress={() => {
-              console.log('👤 성별 선택: 남성');
               setFormData(prev => ({ ...prev, gender: 'male' }));
             }}
           >
@@ -477,7 +490,6 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
               formData.gender === 'female' && styles.genderButtonActive
             ]}
             onPress={() => {
-              console.log('👤 성별 선택: 여성');
               setFormData(prev => ({ ...prev, gender: 'female' }));
             }}
           >
@@ -497,6 +509,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
       {/* 생년월일 입력 */}
       <View style={styles.inputSection}>
         <Text style={[styles.inputLabel, { fontSize: 20 }]}>생년월일 *</Text>
+        <Text style={styles.inputHint}>주민등록번호 앞 6자리를 입력해주세요</Text>
         <TextInput
           style={styles.birthDateInput}
           value={formData.birthDate}
@@ -505,17 +518,15 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
             const cleaned = text.replace(/[^0-9]/g, '');
             const formatted = cleaned.slice(0, 6);
             
-            console.log('📅 생년월일 입력:', { text, cleaned, formatted });
             setFormData(prev => ({ ...prev, birthDate: formatted }));
           }}
-          placeholder="YYMMDD (예: 940119)"
+          placeholder="YYMMDD (예: 920101)"
           placeholderTextColor={COLORS.TEXT_SECONDARY}
           keyboardType="numeric"
           maxLength={6}
         />
-        <Text style={styles.inputHint}>주민등록번호 앞 6자리를 입력해주세요 (예: 940119)</Text>
         {formData.birthDate.length === 6 && calculateAge(formData.birthDate) && (
-          <Text style={styles.ageText}>나이: {calculateAge(formData.birthDate)}세</Text>
+          <Text style={styles.ageText}>만 {calculateAge(formData.birthDate)}세</Text>
         )}
       </View>
 
@@ -523,12 +534,19 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
       <OnboardingBioInput
         nickname={formData.nickname}
         bio={formData.bio}
+        isNicknameImmutable={false} // 온보딩에서는 닉네임 입력 가능
         onChangeNickname={nickname => {
-          console.log('👤 닉네임 입력:', nickname);
           setFormData(prev => ({ ...prev, nickname }));
         }}
         onChangeBio={bio => setFormData(prev => ({ ...prev, bio }))}
-        colors={{ TEXT: COLORS.TEXT, PRIMARY: COLORS.PRIMARY, CARD: COLORS.CARD, TEXT_SECONDARY: COLORS.TEXT_SECONDARY }}
+        colors={{ 
+          TEXT: COLORS.TEXT, 
+          PRIMARY: COLORS.PRIMARY, 
+          CARD: COLORS.CARD, 
+          TEXT_SECONDARY: COLORS.TEXT_SECONDARY,
+          ERROR: COLORS.ERROR,
+          SUCCESS: COLORS.SUCCESS
+        }}
       />
     </View>
   );
@@ -774,6 +792,8 @@ const styles = StyleSheet.create({
   profileImageSection: {
     alignItems: 'center',
     marginBottom: 32,
+    width: '85%',
+    alignSelf: 'center',
   },
   profileImageButton: {
     width: 100,
@@ -844,6 +864,8 @@ const styles = StyleSheet.create({
   // 성별 및 나이 입력 스타일
   inputSection: {
     marginBottom: 24,
+    width: '85%',
+    alignSelf: 'center',
   },
   genderContainer: {
     flexDirection: 'row',
@@ -885,7 +907,8 @@ const styles = StyleSheet.create({
   inputHint: {
     fontSize: 16,
     color: COLORS.TEXT_SECONDARY,
-    marginTop: 4,
+    marginTop: 0,
+    marginBottom: 8,
   },
   ageText: {
     fontSize: 14,
@@ -908,6 +931,8 @@ const styles = StyleSheet.create({
   nextButton: {
     borderRadius: 12,
     overflow: 'hidden',
+    width: '85%',
+    alignSelf: 'center',
   },
   nextButtonGradient: {
     paddingVertical: 16,

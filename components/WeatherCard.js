@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { WEATHER_CONFIG } from '../config/weather';
 import weatherAlertService from '../services/weatherAlertService';
+import airQualityService from '../services/airQualityService';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -25,6 +26,7 @@ const COLORS = {
 const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
   const [weather, setWeather] = useState(null);
   const [forecast, setForecast] = useState([]);
+  const [airQuality, setAirQuality] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [location, setLocation] = useState({
@@ -200,7 +202,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
       // 좌표가 없으면 현재 위치 가져오기
       let { latitude, longitude } = coords || await getCurrentLocation();
 
-      // 현재 날씨와 예보 데이터를 병렬로 가져오기
+      // 현재 날씨, 예보 데이터를 먼저 가져오기
       const [currentResponse, forecastResponse] = await Promise.all([
         fetch(
           `${WEATHER_CONFIG.API_BASE_URL}/weather?lat=${latitude}&lon=${longitude}&appid=${API_KEY}&units=metric&lang=kr`
@@ -210,12 +212,35 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
         )
       ]);
 
+      // 미세먼지 데이터는 별도로 처리 (실패해도 날씨는 표시)
+      let airQualityData = null;
+      try {
+        airQualityData = await airQualityService.fetchAirQuality(latitude, longitude);
+      } catch (airQualityError) {
+        console.warn('미세먼지 데이터 로딩 실패:', airQualityError.message);
+        // 미세먼지 데이터 실패는 무시하고 계속 진행
+      }
+
       if (!currentResponse.ok || !forecastResponse.ok) {
+        const currentErrorText = await currentResponse.text();
+        const forecastErrorText = await forecastResponse.text();
+        console.error('날씨 API 응답 오류:', {
+          current: { status: currentResponse.status, text: currentErrorText },
+          forecast: { status: forecastResponse.status, text: forecastErrorText }
+        });
         throw new Error('날씨 데이터를 가져올 수 없습니다.');
       }
 
-      const currentData = await currentResponse.json();
-      const forecastData = await forecastResponse.json();
+      let currentData, forecastData;
+      try {
+        const currentText = await currentResponse.text();
+        const forecastText = await forecastResponse.text();
+        
+        currentData = JSON.parse(currentText);
+        forecastData = JSON.parse(forecastText);
+      } catch (parseError) {
+        throw new Error('날씨 API 응답 형식이 올바르지 않습니다.');
+      }
       
       // 현재 날씨 설정
       const currentWeather = {
@@ -231,6 +256,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
       };
 
       setWeather(currentWeather);
+      setAirQuality(airQualityData || null);
       
       // 부모 컴포넌트에 날씨 데이터 전달
       if (onWeatherDataUpdate) {
@@ -251,15 +277,21 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
       setForecast(next4Hours);
 
       // 날씨 알림 확인
-      const alerts = await weatherAlertService.checkAllAlerts(currentWeather, {
+      const weatherAlerts = await weatherAlertService.checkAllAlerts(currentWeather, {
         latitude,
         longitude,
         name: location.name
       });
 
+      // 미세먼지 알림 확인 (데이터가 있을 때만)
+      const airQualityAlerts = airQualityData ? airQualityService.checkAirQualityAlerts(airQualityData) : [];
+
+      // 모든 알림을 합쳐서 표시
+      const allAlerts = [...weatherAlerts, ...airQualityAlerts];
+
       // 알림이 있으면 표시
-      if (alerts.length > 0) {
-        alerts.forEach(alert => {
+      if (allAlerts.length > 0) {
+        allAlerts.forEach(alert => {
           Alert.alert(
             alert.title,
             alert.message,
@@ -335,55 +367,159 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="location" size={16} color={COLORS.PRIMARY} />
+        <Ionicons name="location" size={16} color={COLORS.TEXT} />
         <Text style={styles.locationText}>{location.name}</Text>
       </View>
       
-      <View style={styles.weatherInfo}>
-        <View style={styles.leftSection}>
-          <View style={styles.mainWeather}>
-            <Ionicons 
-              name={weather.icon} 
-              size={32} 
-              color={COLORS.PRIMARY} 
-            />
-            <View style={styles.temperatureContainer}>
-              <Text style={styles.temperature}>{weather.temperature}°C</Text>
-              <Text style={styles.description}>{weather.description}</Text>
+      {/* 날씨 섹션 */}
+      <View style={styles.weatherSection}>
+        <View style={styles.weatherInfo}>
+          <View style={styles.leftSection}>
+            <View style={styles.mainWeather}>
+              <Ionicons 
+                name={weather.icon} 
+                size={32} 
+                color={COLORS.PRIMARY} 
+              />
+              <View style={styles.temperatureContainer}>
+                <Text style={styles.temperature}>{weather.temperature}°C</Text>
+                <Text style={styles.description}>{weather.description}</Text>
+              </View>
             </View>
+            
+            <Text style={styles.detailText}>
+              체감 {weather.feelsLike}°C • 습도 {weather.humidity}%
+            </Text>
           </View>
           
-          <Text style={styles.detailText}>
-            체감 {weather.feelsLike}°C • 습도 {weather.humidity}%
-          </Text>
-        </View>
-        
-        <View style={styles.forecastContainer}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.forecastScroll}
-          >
-            {forecast.map((item, index) => (
-              <View key={index} style={styles.forecastItem}>
-                <Text style={styles.forecastTime}>{item.time}</Text>
-                <Ionicons 
-                  name={item.icon} 
-                  size={20} 
-                  color={item.rainVolume > 0 ? COLORS.PRIMARY : COLORS.SECONDARY} 
-                />
-                <Text style={styles.forecastRain}>
-                  {item.rainProbability}%
-                </Text>
-                {item.rainVolume > 0 && (
-                  <Text style={styles.forecastVolume}>
-                    {item.rainVolume.toFixed(1)}mm
+          <View style={styles.forecastContainer}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.forecastScroll}
+            >
+              {forecast.map((item, index) => (
+                <View key={index} style={styles.forecastItem}>
+                  <Text style={styles.forecastTime}>{item.time}</Text>
+                  <Ionicons 
+                    name={item.icon} 
+                    size={20} 
+                    color={item.rainVolume > 0 ? COLORS.PRIMARY : COLORS.SECONDARY} 
+                  />
+                  <Text style={styles.forecastRain}>
+                    {item.rainProbability}%
                   </Text>
-                )}
-              </View>
-            ))}
-          </ScrollView>
+                  {item.rainVolume > 0 && (
+                    <Text style={styles.forecastVolume}>
+                      {item.rainVolume.toFixed(1)}mm
+                    </Text>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
         </View>
+      </View>
+
+      {/* 미세먼지 섹션 */}
+      <View style={styles.airQualitySection}>
+        <View style={styles.sectionDivider} />
+        
+        {airQuality ? (
+          <View style={styles.airQualityInfo}>
+            {/* 대기질 지수 - 수치 + 프로그레스바 */}
+            <View style={styles.aqiMainContainer}>
+              <View style={styles.aqiInfo}>
+                <View style={styles.aqiLabelRow}>
+                  <Text style={styles.aqiLabel}>대기질 지수</Text>
+                  <View style={styles.tag}>
+                    <Text style={styles.tagText}>
+                      {airQualityService.getRecommendation(airQuality.aqiLevel)}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.aqiValueRow}>
+                  <Text style={styles.aqiValue}>
+                    {airQuality.aqi}
+                  </Text>
+                  <View style={styles.progressBarContainer}>
+                    <View style={styles.progressBarBackground}>
+                      <View 
+                        style={[
+                          styles.progressBarFill, 
+                          { 
+                            width: `${Math.min((airQuality.aqi / 500) * 100, 100)}%`,
+                            backgroundColor: COLORS.PRIMARY
+                          }
+                        ]} 
+                      />
+                    </View>
+                    <Text style={styles.progressBarLabel}>0 - 500</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* 3x1 그리드 - 미세먼지, 초미세먼지, 건강영향 수준 */}
+            <View style={styles.airQualityGrid}>
+              {/* 미세먼지 농도 */}
+              <View style={styles.gridItem}>
+                <Text style={styles.gridItemLabel}>미세먼지</Text>
+                <View style={styles.gridItemValueContainer}>
+                  <Text style={styles.gridItemValue}>
+                    {airQuality.pm10}
+                  </Text>
+                  <Text style={styles.gridItemUnit}>μg/m³</Text>
+                </View>
+              </View>
+
+              <View style={styles.gridDivider} />
+
+              {/* 초미세먼지 농도 */}
+              <View style={styles.gridItem}>
+                <Text style={styles.gridItemLabel}>초미세먼지</Text>
+                <View style={styles.gridItemValueContainer}>
+                  <Text style={styles.gridItemValue}>
+                    {airQuality.pm25}
+                  </Text>
+                  <Text style={styles.gridItemUnit}>μg/m³</Text>
+                </View>
+              </View>
+
+              <View style={styles.gridDivider} />
+
+              {/* 건강 영향 수준 */}
+              <View style={styles.gridItem}>
+                <Text style={styles.gridItemLabel}>건강 영향</Text>
+                <View style={styles.gridItemValueContainer}>
+                  <Text style={[styles.gridItemValue, styles.healthImpactValue]}>
+                    {airQualityService.getLevelDescription(airQuality.aqiLevel)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            
+            {/* 출처 표기 */}
+            <View style={styles.sourceContainer}>
+              <Text style={styles.sourceText}>출처 : 환경부/한국환경공단</Text>
+            </View>
+          </View>
+        ) : (
+          /* 네트워크 오류 시 표시할 화면 */
+          <View style={styles.airQualityErrorContainer}>
+            <View style={styles.errorIconContainer}>
+              <Ionicons name="cloud-offline-outline" size={32} color={COLORS.SECONDARY} />
+            </View>
+            <Text style={styles.errorTitle}>대기질 정보를 불러올 수 없습니다</Text>
+            <Text style={styles.errorMessage}>
+              데이터는 실시간 관측된 자료이며 측정소 현지 사정이나{'\n'}
+              데이터의 수신상태에 따라 미수신될 수 있음
+            </Text>
+            <View style={styles.errorSourceContainer}>
+              <Text style={styles.errorSourceText}>출처 : 환경부/한국환경공단</Text>
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -394,6 +530,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD,
     borderRadius: 12,
     padding: 16,
+    paddingBottom: 12,
     marginHorizontal: 0,
     marginTop: 16,
     marginBottom: 8,
@@ -461,7 +598,7 @@ const styles = StyleSheet.create({
   },
   forecastVolume: {
     fontSize: 10,
-    color: COLORS.PRIMARY,
+    color: COLORS.TEXT,
     marginTop: 2,
   },
 
@@ -492,6 +629,212 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.SECONDARY,
     marginLeft: 8,
+  },
+  // 날씨 섹션 스타일
+  weatherSection: {
+    marginBottom: 8,
+  },
+  // 미세먼지 섹션 스타일
+  airQualitySection: {
+    marginTop: 8,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: COLORS.SURFACE,
+    marginVertical: 12,
+  },
+  airQualityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    color: COLORS.TEXT,
+    marginLeft: 6,
+    fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
+  },
+  airQualityInfo: {
+    flexDirection: 'column',
+  },
+  // 대기질 지수 메인 컨테이너
+  aqiMainContainer: {
+    paddingVertical: 2,
+    marginBottom: 8,
+  },
+  aqiInfo: {
+    flex: 1,
+  },
+  aqiLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  aqiLabel: {
+    fontSize: 14,
+    color: COLORS.TEXT,
+    fontFamily: 'Pretendard',
+  },
+  aqiValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 0,
+  },
+  aqiValue: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    fontFamily: 'Pretendard-Bold',
+    marginRight: 12,
+    color: COLORS.TEXT,
+  },
+  aqiLevel: {
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  // 프로그레스바 스타일
+  progressBarContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 16,
+  },
+  progressBarBackground: {
+    width: '100%',
+    height: 8,
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressBarLabel: {
+    fontSize: 10,
+    color: COLORS.SECONDARY,
+    fontFamily: 'Pretendard',
+  },
+  // 3x1 그리드 스타일
+  airQualityGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2A2A2A',
+    borderRadius: 8,
+    padding: 4,
+  },
+  gridItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  gridDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#3A3A3A',
+  },
+  gridItemLabel: {
+    fontSize: 15,
+    color: COLORS.TEXT,
+    fontWeight: '400',
+    fontFamily: 'Pretendard',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  gridItemValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridItemValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    fontFamily: 'Pretendard-Bold',
+    marginBottom: 0,
+    textAlign: 'center',
+    color: COLORS.TEXT,
+  },
+  healthImpactValue: {
+    textAlign: 'center',
+  },
+  gridItemUnit: {
+    fontSize: 12,
+    color: COLORS.SECONDARY,
+    fontFamily: 'Pretendard',
+    textAlign: 'center',
+    marginLeft: 4,
+  },
+  // 태그 스타일 (모임카드와 동일)
+  tagContainer: {
+    marginTop: 6,
+    alignItems: 'center',
+  },
+  tag: {
+    backgroundColor: '#1C3336',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  tagText: {
+    fontSize: 12,
+    color: COLORS.PRIMARY,
+    fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
+  },
+  // 출처 표기 스타일
+  sourceContainer: {
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 8,
+  },
+  sourceText: {
+    fontSize: 11,
+    color: COLORS.SECONDARY,
+    fontFamily: 'Pretendard',
+    fontWeight: '400',
+  },
+  // 오류 화면 스타일
+  airQualityErrorContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  errorIconContainer: {
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    fontFamily: 'Pretendard-SemiBold',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  errorMessage: {
+    fontSize: 13,
+    color: COLORS.SECONDARY,
+    fontFamily: 'Pretendard',
+    fontWeight: '400',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  errorSourceContainer: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.SURFACE,
+    width: '100%',
+    alignItems: 'center',
+  },
+  errorSourceText: {
+    fontSize: 11,
+    color: COLORS.SECONDARY,
+    fontFamily: 'Pretendard',
+    fontWeight: '400',
   },
 });
 

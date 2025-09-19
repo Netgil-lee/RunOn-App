@@ -22,6 +22,7 @@ import { useNetwork } from '../contexts/NetworkContext';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import firebaseService from '../config/firebase';
+import firestoreService from '../services/firestoreService';
 
 const LoginScreen = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -33,7 +34,10 @@ const LoginScreen = ({ navigation }) => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [nextSlideIndex, setNextSlideIndex] = useState(1);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isButtonHovered, setIsButtonHovered] = useState(false);
   const backgroundFadeAnim = useRef(new Animated.Value(1)).current;
+  const errorFadeAnim = useRef(new Animated.Value(0)).current;
+  const errorSlideAnim = useRef(new Animated.Value(-20)).current;
   const { sendPhoneVerification, verifyPhoneCode, setConfirmationResult, confirmationResult, error: authError, clearError } = useAuth();
   const { isOnline } = useNetwork();
   const recaptchaVerifierRef = useRef(null);
@@ -165,11 +169,25 @@ const LoginScreen = ({ navigation }) => {
     }
   };
 
-  // 에러 표시
+  // 에러 표시 애니메이션
   const showErrorAnimation = () => {
     if (errorTimeoutRef.current) {
       clearTimeout(errorTimeoutRef.current);
     }
+    
+    // 오류 메시지 등장 애니메이션
+    Animated.parallel([
+      Animated.timing(errorFadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(errorSlideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   // 에러 해제 함수
@@ -178,11 +196,26 @@ const LoginScreen = ({ navigation }) => {
       clearTimeout(errorTimeoutRef.current);
       errorTimeoutRef.current = null;
     }
-    setLocalError(null);
-    setErrorType(null);
-    if (clearError) {
-      clearError();
-    }
+    
+    // 오류 메시지 사라짐 애니메이션
+    Animated.parallel([
+      Animated.timing(errorFadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(errorSlideAnim, {
+        toValue: -20,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setLocalError(null);
+      setErrorType(null);
+      if (clearError) {
+        clearError();
+      }
+    });
   };
 
   // 사용자 친화적 에러 메시지 변환
@@ -194,28 +227,34 @@ const LoginScreen = ({ navigation }) => {
     // 네트워크 관련 에러
     if (!isOnline || errorString.includes('network') || errorString.includes('연결')) {
       return {
-        title: '인터넷 연결 확인',
-        message: '인터넷 연결을 확인하고 다시 시도해주세요.',
-        icon: '🌐',
+        title: '인터넷 연결을 확인해주세요',
         actionText: '확인'
       };
     }
 
     // 휴대폰번호 관련 에러
     if (type === 'phone') {
+      if (errorString.includes('이미 가입된') || errorString.includes('중복')) {
+        return {
+          title: '이미 가입된 휴대전화번호입니다',
+          actionText: '확인'
+        };
+      }
+      if (errorString.includes('회원가입한 휴대전화번호가 아닙') || errorString.includes('다시 확인해주세요') || errorString.includes('가입된 계정이 없습니다')) {
+        return {
+          title: '회원가입한 휴대전화번호가 아닙니다',
+          actionText: '회원가입하기'
+        };
+      }
       if (errorString.includes('기존 회원이 아닙')) {
         return {
-          title: '기존 회원이 아닙니다',
-          message: '입력하신 휴대폰번호로 가입된 계정이 없습니다.',
-          icon: '📱',
+          title: '가입된 계정이 없습니다',
           actionText: '회원가입하기'
         };
       }
       if (errorString.includes('휴대폰번호') || errorString.includes('올바른')) {
         return {
-          title: '휴대폰번호 확인',
-          message: '올바른 휴대폰번호 형식을 입력해주세요.',
-          icon: '📱',
+          title: '올바른 휴대폰번호 형식을 입력해주세요',
           actionText: '확인'
         };
       }
@@ -225,17 +264,13 @@ const LoginScreen = ({ navigation }) => {
     if (type === 'verification') {
       if (errorString.includes('인증번호') || errorString.includes('올바르지 않')) {
         return {
-          title: '인증번호 확인',
-          message: '인증번호를 다시 확인해주세요.',
-          icon: '🔢',
+          title: '인증번호를 다시 확인해주세요',
           actionText: '확인'
         };
       }
       if (errorString.includes('만료') || errorString.includes('세션')) {
         return {
-          title: '인증 세션 만료',
-          message: '인증 세션이 만료되었습니다. 다시 시도해주세요.',
-          icon: '⏰',
+          title: '인증 세션이 만료되었습니다',
           actionText: '확인'
         };
       }
@@ -243,9 +278,7 @@ const LoginScreen = ({ navigation }) => {
 
     // 기본 에러 메시지
     return {
-      title: '로그인 실패',
-      message: '로그인 중 문제가 발생했습니다. 다시 시도해주세요.',
-      icon: '⚠️',
+      title: '로그인 중 문제가 발생했습니다',
       actionText: '확인'
     };
   };
@@ -253,15 +286,23 @@ const LoginScreen = ({ navigation }) => {
   // 1단계: 휴대폰번호 확인 및 기존 회원 여부 확인
   const checkExistingUser = async (phoneNumber) => {
     try {
-
-
-      // 실제 구현에서는 Firestore에서 해당 휴대폰번호로 가입된 사용자를 찾아야 합니다
-      // 현재는 인증번호 확인 단계에서 실제 사용자 여부를 판단하도록 처리
+      // Firestore에서 해당 휴대폰번호로 가입된 사용자 확인
+      const phoneCheckResult = await firestoreService.checkPhoneNumberExists(phoneNumber);
       
-      // 임시로 모든 유효한 휴대폰번호를 허용 (실제로는 데이터베이스 조회 필요)
+      if (!phoneCheckResult.exists) {
+        // 회원가입하지 않은 번호인 경우
+        setErrorType('phone');
+        setLocalError(phoneCheckResult.reason);
+        showErrorAnimation();
+        return false;
+      }
+      
       return true;
     } catch (error) {
       console.error('기존 회원 확인 중 오류:', error);
+      setErrorType('phone');
+      setLocalError('휴대폰번호 확인 중 오류가 발생했습니다.');
+      showErrorAnimation();
       return false;
     }
   };
@@ -283,7 +324,10 @@ const LoginScreen = ({ navigation }) => {
 
   // 로그인 처리
   const handleLogin = async () => {
-    handleClearError();
+    // 입력값 검증 전에만 에러 클리어
+    if (!phoneNumber || !validatePhoneNumber(phoneNumber)) {
+      handleClearError();
+    }
 
     if (!isOnline) {
       setErrorType('network');
@@ -313,9 +357,7 @@ const LoginScreen = ({ navigation }) => {
       const isExistingUser = await checkExistingUser(phoneNumber);
       
       if (!isExistingUser) {
-        setErrorType('phone');
-        setLocalError('기존 회원이 아닙니다. 회원가입을 먼저 해주세요.');
-        showErrorAnimation();
+        setIsLoading(false);
         return;
       }
 
@@ -343,7 +385,10 @@ const LoginScreen = ({ navigation }) => {
 
   // 회원가입 처리
   const handleSignupProcess = async () => {
-    handleClearError();
+    // 입력값 검증 전에만 에러 클리어
+    if (!phoneNumber || !validatePhoneNumber(phoneNumber)) {
+      handleClearError();
+    }
 
     if (!isOnline) {
       setErrorType('network');
@@ -369,7 +414,17 @@ const LoginScreen = ({ navigation }) => {
     try {
       setIsLoading(true);
 
-      // 회원가입: 바로 인증번호 발송 (기존 회원 여부 확인 없음)
+      // 휴대전화번호 중복 체크
+      const phoneCheckResult = await firestoreService.checkPhoneNumberAvailability(phoneNumber);
+      
+      if (!phoneCheckResult.available) {
+        setErrorType('phone');
+        setLocalError(phoneCheckResult.reason);
+        showErrorAnimation();
+        return;
+      }
+
+      // 회원가입: 중복 체크 통과 후 인증번호 발송
       const confirmationResult = await sendPhoneVerification(phoneNumber, recaptchaVerifierRef.current);
       setConfirmationResult(confirmationResult);
       
@@ -483,57 +538,61 @@ const LoginScreen = ({ navigation }) => {
                 <Text style={styles.hintText}>가입 시 이용약관 및 개인정보 취급방침에 동의하게 됩니다.</Text>
               </View>
 
-              {/* 버튼들 */}
-              <View style={styles.buttonContainer}>
-                {/* 시작하기 버튼 */}
-                <TouchableOpacity
-                  style={styles.signupButton}
-                  onPress={handleSignup}
-                >
-                  <Text style={styles.signupButtonText}>시작하기</Text>
-                </TouchableOpacity>
+              {/* 시작하기 버튼 */}
+              <TouchableOpacity
+                style={styles.signupButton}
+                onPress={handleSignup}
+              >
+                <Text style={styles.signupButtonText}>시작하기</Text>
+              </TouchableOpacity>
 
-
-
-                {/* 로그인 버튼 */}
-                <TouchableOpacity
-                  style={styles.loginButton}
-                  onPress={handleLoginButtonClick}
-                >
-                  <Text style={styles.loginButtonText}>로그인</Text>
-                </TouchableOpacity>
-
-
-              </View>
+              {/* 로그인 버튼 */}
+              <TouchableOpacity
+                style={styles.loginButton}
+                onPress={handleLoginButtonClick}
+              >
+                <Text style={styles.loginButtonText}>로그인</Text>
+              </TouchableOpacity>
             </>
           ) : (
             // 두 번째 화면: 휴대폰번호 입력
             <>
               <Text style={styles.title}>{isSignupMode ? '회원가입' : '로그인'}</Text>
-              <Text style={styles.subtitle}>
-                {isSignupMode 
-                  ? '휴대폰번호를 입력하세요' 
-                  : '가입 시 사용한 휴대폰번호를 입력하세요'
-                }
-              </Text>
+              
+              {/* 제목과 라벨 사이 여백 */}
+              <View style={{ height: 40 }} />
 
               {/* 에러 표시 영역 */}
               {errorInfo && localError && (
-                <View style={styles.errorContainer}>
+                <Animated.View 
+                  style={[
+                    styles.errorContainer,
+                    {
+                      opacity: errorFadeAnim,
+                      transform: [{ translateY: errorSlideAnim }]
+                    }
+                  ]}
+                >
                   <View style={styles.errorContent}>
-                    <Text style={styles.errorIcon}>{errorInfo.icon}</Text>
-                    <View style={styles.errorTextContainer}>
-                      <Text style={styles.errorTitle}>{errorInfo.title}</Text>
-                      <Text style={styles.errorMessage}>{errorInfo.message}</Text>
-                    </View>
+                    <Text style={styles.errorTitle}>{errorInfo.title}</Text>
                   </View>
                   <TouchableOpacity 
-                    style={styles.errorActionButton}
+                    style={[
+                      styles.errorActionButton,
+                      isButtonHovered && styles.errorActionButtonHovered
+                    ]}
                     onPress={handleErrorAction}
+                    onPressIn={() => setIsButtonHovered(true)}
+                    onPressOut={() => setIsButtonHovered(false)}
                   >
-                    <Text style={styles.errorActionText}>{errorInfo.actionText}</Text>
+                    <Text style={[
+                      styles.errorActionText,
+                      isButtonHovered && styles.errorActionTextHovered
+                    ]}>
+                      {errorInfo.actionText}
+                    </Text>
                   </TouchableOpacity>
-                </View>
+                </Animated.View>
               )}
 
               <Animated.View 
@@ -654,9 +713,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-Regular',
     lineHeight: 20,
   },
-  buttonContainer: {
-    paddingBottom: 50,
-  },
   title: {
     fontSize: 42,
     fontWeight: 'bold',
@@ -672,55 +728,71 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     fontFamily: 'Pretendard-Regular',
   },
-  // 에러 관련 스타일
+  // 에러 관련 스타일 (앱 테마와 일치)
   errorContainer: {
-    backgroundColor: '#2a1f1f',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ff6b6b',
+    width: '85%',
+    alignSelf: 'center',
     overflow: 'hidden',
   },
   errorContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 16,
-  },
-  errorIcon: {
-    fontSize: 24,
-    marginRight: 12,
-    marginTop: 2,
-  },
-  errorTextContainer: {
-    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
   },
   errorTitle: {
-    color: '#ff6b6b',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-    fontFamily: 'Pretendard-SemiBold',
-  },
-  errorMessage: {
     color: '#fff',
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: 'Pretendard-Regular',
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
+    fontFamily: 'Pretendard-Medium',
+    textAlign: 'center',
   },
   errorActionButton: {
-    backgroundColor: '#ff6b6b',
+    backgroundColor: '#3AF8FF',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    marginHorizontal: 4,
+    marginBottom: 4,
+    borderTopWidth: 0,
+    borderTopColor: 'transparent',
+    minHeight: 48,
+    shadowColor: '#3AF8FF',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  errorActionButtonHovered: {
+    backgroundColor: '#2EE5E5',
+    transform: [{ scale: 0.98 }],
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
   },
   errorActionText: {
-    color: '#fff',
-    fontSize: 14,
+    color: '#000',
+    fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  errorActionTextHovered: {
+    color: '#000',
   },
   inputContainer: {
     marginBottom: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   label: {
     fontSize: 18,
@@ -740,15 +812,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-Regular',
   },
   inputError: {
-    borderColor: '#ff6b6b',
-    backgroundColor: '#2a1f1f',
+    borderColor: '#3AF8FF',
+    backgroundColor: '#1a1a1a',
   },
   signupButton: {
     backgroundColor: '#3AF8FF',
     borderRadius: 8,
     padding: 15,
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   signupButtonText: {
     color: '#000',
@@ -764,6 +838,8 @@ const styles = StyleSheet.create({
     padding: 15,
     alignItems: 'center',
     marginBottom: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   disabledButton: {
     opacity: 0.7,

@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   Image,
   Switch,
-  ImageBackground,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
@@ -33,6 +32,8 @@ import OnboardingCourseSelector from '../components/OnboardingCourseSelector';
 import evaluationService from '../services/evaluationService';
 import storageService from '../services/storageService';
 import updateService from '../services/updateService';
+import mannerDistanceService from '../services/mannerDistanceService';
+import MannerDistanceDisplay from '../components/MannerDistanceDisplay';
 import { 
   HAN_RIVER_PARKS, 
   RIVER_SIDES, 
@@ -165,6 +166,7 @@ const ProfileScreen = ({ navigation }) => {
   const [editBtnPressed, setEditBtnPressed] = useState(false);
   const [profileImagePressed, setProfileImagePressed] = useState(false);
   const [activeTab, setActiveTab] = useState('runningProfile'); // 'runningProfile' 또는 'community'
+  const [mannerDistance, setMannerDistance] = useState(null);
 
   // 실제 알림 데이터 (NotificationScreen과 동일)
   const [notifications] = useState({
@@ -240,6 +242,28 @@ const ProfileScreen = ({ navigation }) => {
     mannerScore: 5.0, // 초기값 5.0
     tags: [],
   });
+
+  // 매너거리 데이터 가져오기
+  const fetchMannerDistance = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const distanceData = await mannerDistanceService.getUserMannerDistance(user.uid);
+      
+      if (distanceData) {
+        setMannerDistance(distanceData);
+      } else {
+        // 매너거리 데이터가 없으면 마이그레이션 시도
+        console.log('매너거리 데이터가 없음, 마이그레이션 시도');
+        const migratedData = await mannerDistanceService.migrateUserToMannerDistance(user.uid);
+        if (migratedData) {
+          setMannerDistance(migratedData);
+        }
+      }
+    } catch (error) {
+      console.error('매너거리 데이터 가져오기 실패:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -347,9 +371,27 @@ const ProfileScreen = ({ navigation }) => {
         // console.log('📊 실제 사용자: 커뮤니티 통계 가져오기 시작');
         const communityStats = await evaluationService.getUserCommunityStats(user.uid);
         
-        // 태그를 형식에 맞게 변환
+        // 긍정적 태그를 형식에 맞게 변환
         const formattedTags = Object.entries(communityStats.receivedTags || {})
           .map(([tag, count]) => `[${count} #${tag}]`)
+          .sort((a, b) => {
+            const countA = parseInt(a.match(/\[(\d+)/)[1]);
+            const countB = parseInt(b.match(/\[(\d+)/)[1]);
+            return countB - countA; // 내림차순 정렬
+          });
+
+        // 부정적 태그를 형식에 맞게 변환
+        const formattedNegativeTags = Object.entries(communityStats.receivedNegativeTags || {})
+          .map(([tag, count]) => `[${count} #${tag}]`)
+          .sort((a, b) => {
+            const countA = parseInt(a.match(/\[(\d+)/)[1]);
+            const countB = parseInt(b.match(/\[(\d+)/)[1]);
+            return countB - countA; // 내림차순 정렬
+          });
+
+        // 특별상황을 형식에 맞게 변환
+        const formattedSpecialSituations = Object.entries(communityStats.receivedSpecialSituations || {})
+          .map(([situation, count]) => `[${count} #${situation}]`)
           .sort((a, b) => {
             const countA = parseInt(a.match(/\[(\d+)/)[1]);
             const countB = parseInt(b.match(/\[(\d+)/)[1]);
@@ -362,7 +404,12 @@ const ProfileScreen = ({ navigation }) => {
           hostedEvents: communityStats.hostedEvents || 0,
           mannerScore: communityStats.averageMannerScore || 5.0, // 기본값 5.0
           tags: formattedTags,
+          negativeTags: formattedNegativeTags,
+          specialSituations: formattedSpecialSituations,
         });
+
+        // 매너거리 데이터 가져오기
+        await fetchMannerDistance();
       } catch (e) {
         console.error('❌ 실제 사용자: 프로필 로딩 오류:', e);
         Alert.alert('오류', '프로필 정보를 불러오지 못했습니다.');
@@ -431,8 +478,11 @@ const ProfileScreen = ({ navigation }) => {
 
   const handleEdit = () => {
     if (profile) {
+      // 닉네임은 profile.nickname 또는 profile.displayName에서 가져오기
+      const currentNickname = profile.profile?.nickname || profile.displayName || '';
+      
       setEditData({
-        nickname: profile.displayName || '',
+        nickname: currentNickname,
         bio: profile.bio || '',
         birthDate: profile.birthDate || '',
         gender: profile.gender || '',
@@ -542,10 +592,18 @@ const ProfileScreen = ({ navigation }) => {
       const uploadResult = await storageService.uploadProfileImage(user.uid, imageFile);
       
       if (uploadResult.success) {
+        if (__DEV__) {
+          console.log('✅ Storage 업로드 성공, Firestore 업데이트 시작:', uploadResult.url);
+        }
+        
         // 프로필 정보 업데이트
         await updateUserProfile({
           profileImage: uploadResult.url
         });
+
+        if (__DEV__) {
+          console.log('✅ Firestore 업데이트 완료');
+        }
 
         // 로컬 상태 업데이트
         setProfile(prev => ({
@@ -574,9 +632,19 @@ const ProfileScreen = ({ navigation }) => {
         console.log('💾 프로필 저장 시작 (시도:', retryCount + 1, ')');
         setLoading(true);
         
-        // undefined 값 제거하고 프로필 업데이트 시도
+        // 닉네임 변경 방지: 기존 닉네임과 다르면 원래 닉네임으로 복원
+        const originalNickname = profile?.profile?.nickname || profile?.displayName;
+        if (editData.nickname !== originalNickname) {
+          console.log('⚠️ 닉네임 변경 시도 감지, 원래 닉네임으로 복원:', {
+            original: originalNickname,
+            attempted: editData.nickname
+          });
+          setEditData(prev => ({ ...prev, nickname: originalNickname }));
+        }
+        
+        // undefined 값 제거하고 프로필 업데이트 시도 (닉네임 제외)
         const profileUpdateData = {
-          nickname: editData.nickname,
+          // nickname: editData.nickname, // 닉네임은 변경하지 않음
           bio: editData.bio,
           birthDate: editData.birthDate,
           gender: editData.gender,
@@ -598,10 +666,10 @@ const ProfileScreen = ({ navigation }) => {
         
         console.log('✅ 프로필 업데이트 성공 (시도:', retryCount + 1, ')');
         
-        // 로컬 상태 업데이트
+        // 로컬 상태 업데이트 (닉네임은 변경하지 않음)
         setProfile((prev) => ({
           ...prev,
-          displayName: editData.nickname,
+          // displayName: editData.nickname, // 닉네임은 변경하지 않음
           bio: editData.bio,
           birthDate: editData.birthDate,
           gender: editData.gender,
@@ -675,12 +743,7 @@ const ProfileScreen = ({ navigation }) => {
   }
 
   return (
-    <ImageBackground 
-      source={require('../assets/images/profile-bg.png')}
-      style={[styles.container, { width: '100%', height: '100%' }]}
-      resizeMode="cover"
-      imageStyle={{ width: '100%', height: '100%' }}
-    >
+    <View style={styles.container}>
       {/* AppBar */}
       <AppBar
         user={user}
@@ -783,6 +846,18 @@ const ProfileScreen = ({ navigation }) => {
         {/* 러닝 프로필 탭 */}
         {activeTab === 'runningProfile' && (
           <View style={styles.tabContent}>
+            {/* 매너거리 카드 */}
+            {mannerDistance && (
+              <View style={styles.mannerDistanceCard}>
+                <MannerDistanceDisplay 
+                  currentDistance={mannerDistance.currentDistance}
+                  animated={true}
+                  showGoal={true}
+                  size="medium"
+                />
+              </View>
+            )}
+
             {/* 선호 코스 카드 */}
             <View style={styles.runningProfileCard}>
               <View style={styles.cardHeader}>
@@ -921,28 +996,74 @@ const ProfileScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* 매너 태그 카드 */}
+            {/* 긍정적 매너 태그 카드 */}
             <View style={styles.mannerTagsCard}>
               <View style={styles.cardHeader}>
                 <Ionicons name="star" size={20} color={COLORS.PRIMARY} />
-                <Text style={styles.cardTitle}>매너 태그</Text>
+                <Text style={styles.cardTitle}>좋았던 점</Text>
+                <Text style={styles.tagCountText}>({activity.tags.length}개)</Text>
               </View>
               <View style={styles.tagRow}>
                 {activity.tags.length > 0 ? (
                   activity.tags.map((tag, i) => {
-                    // [1 #태그명] 형태에서 태그명만 추출
-                    const cleanTag = tag.replace(/^\[\d+\s*#\s*/, '').replace(/\]$/, '');
+                    // [1 #태그명] 형태에서 태그명과 개수 추출
+                    const match = tag.match(/^\[(\d+)\s*#\s*(.+)\]$/);
+                    const count = match ? match[1] : '1';
+                    const cleanTag = match ? match[2] : tag.replace(/^\[\d+\s*#\s*/, '').replace(/\]$/, '');
                     return (
                       <View key={i} style={styles.tagOutline}> 
                         <Text style={styles.tagTextOutline}>{cleanTag}</Text>
+                        <Text style={styles.tagCountBadge}>{count}</Text>
                       </View>
                     );
                   })
                 ) : (
-                  <Text style={styles.noTagsText}>아직 받은 태그가 없습니다.</Text>
+                  <Text style={styles.noTagsText}>아직 받은 긍정적 태그가 없습니다.</Text>
                 )}
               </View>
             </View>
+
+            {/* 부정적 태그 카드 */}
+            {activity.negativeTags && activity.negativeTags.length > 0 && (
+              <View style={styles.mannerTagsCard}>
+                <View style={styles.cardHeader}>
+                  <Ionicons name="alert-circle" size={20} color="#FF6B6B" />
+                  <Text style={styles.cardTitle}>아쉬웠던 점</Text>
+                </View>
+                <View style={styles.tagRow}>
+                  {activity.negativeTags.map((tag, i) => {
+                    // [1 #태그명] 형태에서 태그명만 추출
+                    const cleanTag = tag.replace(/^\[\d+\s*#\s*/, '').replace(/\]$/, '');
+                    return (
+                      <View key={i} style={styles.negativeTagOutline}> 
+                        <Text style={styles.negativeTagTextOutline}>{cleanTag}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {/* 특별상황 카드 */}
+            {activity.specialSituations && activity.specialSituations.length > 0 && (
+              <View style={styles.mannerTagsCard}>
+                <View style={styles.cardHeader}>
+                  <Ionicons name="warning" size={20} color="#FFA500" />
+                  <Text style={styles.cardTitle}>특별 상황</Text>
+                </View>
+                <View style={styles.tagRow}>
+                  {activity.specialSituations.map((situation, i) => {
+                    // [1 #상황명] 형태에서 상황명만 추출
+                    const cleanSituation = situation.replace(/^\[\d+\s*#\s*/, '').replace(/\]$/, '');
+                    return (
+                      <View key={i} style={styles.specialSituationTagOutline}> 
+                        <Text style={styles.specialSituationTagTextOutline}>{cleanSituation}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -975,9 +1096,18 @@ const ProfileScreen = ({ navigation }) => {
                   <OnboardingBioInput
                     nickname={editData.nickname}
                     bio={editData.bio}
+                    isNicknameImmutable={true} // 기존 사용자는 닉네임 변경 불가능
+                    isProfileEdit={true} // 프로필 편집 모달임을 표시
                     onChangeNickname={text => setEditData(d => ({ ...d, nickname: text }))}
                     onChangeBio={text => setEditData(d => ({ ...d, bio: text }))}
-                    colors={{ TEXT: COLORS.TEXT, PRIMARY: COLORS.PRIMARY, CARD: COLORS.CARD, TEXT_SECONDARY: COLORS.TEXT_SECONDARY }}
+                    colors={{ 
+                      TEXT: COLORS.TEXT, 
+                      PRIMARY: COLORS.PRIMARY, 
+                      CARD: COLORS.CARD, 
+                      TEXT_SECONDARY: COLORS.TEXT_SECONDARY,
+                      ERROR: COLORS.ERROR,
+                      SUCCESS: COLORS.SUCCESS
+                    }}
                   />
                 </View>
                 
@@ -1097,14 +1227,14 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
-    </ImageBackground>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // backgroundColor 제거하여 배경 이미지가 완전히 보이도록 함
+    backgroundColor: '#0A0A0A',
   },
   scrollView: {
     flex: 1,
@@ -1379,6 +1509,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tagOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#97DCDE',
     borderRadius: 12,
@@ -1392,6 +1524,38 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '200',
     color: '#fff',
+    fontFamily: 'Pretendard-Light',
+  },
+  negativeTagOutline: {
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 6,
+    marginBottom: 6,
+    backgroundColor: 'transparent',
+  },
+  negativeTagTextOutline: {
+    fontSize: 15,
+    fontWeight: '200',
+    color: '#FF6B6B',
+    fontFamily: 'Pretendard-Light',
+  },
+  specialSituationTagOutline: {
+    borderWidth: 1,
+    borderColor: '#FFA500',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 6,
+    marginBottom: 6,
+    backgroundColor: 'transparent',
+  },
+  specialSituationTagTextOutline: {
+    fontSize: 15,
+    fontWeight: '200',
+    color: '#FFA500',
     fontFamily: 'Pretendard-Light',
   },
   activityRowGrid: {
@@ -1496,6 +1660,13 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'Pretendard-Bold',
   },
+  modalSubtitle: {
+    fontSize: 14,
+    color: COLORS.TEXT_SECONDARY,
+    textAlign: 'center',
+    marginTop: 4,
+    fontFamily: 'Pretendard-Regular',
+  },
   input: {
     backgroundColor: COLORS.BACKGROUND,
     borderRadius: 8,
@@ -1596,6 +1767,37 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontFamily: 'Pretendard-Regular',
   },
+  tagCountText: {
+    fontSize: 12,
+    color: COLORS.TEXT_SECONDARY,
+    marginLeft: 4,
+    fontFamily: 'Pretendard-Regular',
+  },
+  tagCountBadge: {
+    fontSize: 10,
+    color: COLORS.PRIMARY,
+    backgroundColor: COLORS.PRIMARY + '20',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 6,
+    marginLeft: 4,
+    fontWeight: 'bold',
+    fontFamily: 'Pretendard-Bold',
+  },
+  // 매너거리 카드 스타일
+  mannerDistanceCard: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 18,
+    marginHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 2,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+
   // 매너 태그 카드 전용 스타일 (불투명)
   mannerTagsCard: {
     backgroundColor: COLORS.CARD,

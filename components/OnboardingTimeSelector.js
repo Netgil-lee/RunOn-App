@@ -35,8 +35,9 @@ const OnboardingTimeSelector = ({
             ]}
             onPress={() => toggle(opt.id)}
           >
-            <Text style={[styles.timeTitle, { color: colors.TEXT }]}>{opt.title}</Text>
-            <Text style={[styles.timeText, { color: colors.TEXT_SECONDARY }]}>({opt.time})</Text>
+            <Text style={[styles.timeTitle, { color: colors.TEXT }]}>
+              {opt.title} <Text style={[styles.timeText, { color: colors.TEXT_SECONDARY }]}>({opt.time})</Text>
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -47,6 +48,9 @@ const OnboardingTimeSelector = ({
 const styles = StyleSheet.create({
   stepContainer: {
     marginBottom: 24,
+    marginTop: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   stepTitle: {
     fontSize: 20,
@@ -54,12 +58,11 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   stepSubtitle: {
-    fontSize: 18,
-    marginBottom: 18,
+    fontSize: 15,
+    marginBottom: 30,
   },
   timeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: 12,
   },
   timeCard: {
@@ -68,17 +71,15 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#333',
-    marginBottom: 8,
-    marginRight: 8,
-    minWidth: 120,
+    width: '100%',
   },
   timeTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 4,
   },
   timeText: {
-    fontSize: 15,
+    fontSize: 18,
+    fontWeight: '300',
   },
 });
 

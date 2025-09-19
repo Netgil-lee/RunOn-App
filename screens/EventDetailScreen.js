@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -9,11 +9,14 @@ import {
   Alert,
   StyleSheet,
   Image,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
+import { useGuide } from '../contexts/GuideContext';
+import GuideOverlay from '../components/GuideOverlay';
 import evaluationService from '../services/evaluationService';
 import ENV from '../config/environment';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
@@ -34,10 +37,28 @@ const EventDetailScreen = ({ route, navigation }) => {
   const { event: rawEvent, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe, returnToScreen, evaluationCompleted = false } = route.params;
   const [isJoinedState, setIsJoinedState] = useState(isJoined);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
-  const [isEvaluationCompleted, setIsEvaluationCompleted] = useState(false);
+  const [isEvaluationCompleted, setIsEvaluationCompleted] = useState(evaluationCompleted);
   const [isCheckingEvaluation, setIsCheckingEvaluation] = useState(false);
   const { user } = useAuth();
   const { endEvent, joinEvent, leaveEvent, allEvents, chatRooms } = useEvents();
+  const { guideStates, currentGuide, currentStep, setCurrentGuide, setCurrentStep, completeGuide } = useGuide();
+  
+  // 6단계 가이드 관련 상태
+  const [hasShownStep6Guide, setHasShownStep6Guide] = useState(false);
+  
+  // 6단계 가이드 정의
+  const step6Guide = {
+    id: 'endMeetingButton',
+    title: '모임 종료하기',
+    description: `러닝 모임이 끝나면 '종료하기' 버튼을 클릭하세요!\n 러닝매너를 작성할 수 있습니다.`,
+    targetId: 'endMeetingButton',
+    highlightShape: 'rectangle',
+    showArrow: false,
+    arrowDirection: 'up',
+  };
+  
+  // EventDetailScreen에서는 6단계 가이드를 자동으로 시작하지 않음
+  // 6단계는 ScheduleScreen에서 5단계 완료 후 자동으로 시작됨
   
 
   
@@ -113,7 +134,6 @@ const EventDetailScreen = ({ route, navigation }) => {
   // 평가 완료 상태 파라미터 처리
   useEffect(() => {
     if (evaluationCompleted) {
-      console.log('🔍 EventDetailScreen - 평가 완료 상태 파라미터 받음, 즉시 업데이트');
       setIsEvaluationCompleted(true);
     }
   }, [evaluationCompleted]);
@@ -134,7 +154,6 @@ const EventDetailScreen = ({ route, navigation }) => {
       const unsubscribe = navigation.addListener('beforeRemove', (e) => {
         // 뒤로가기 시 이전 화면 상태로 복원
         if (returnToScreen) {
-          console.log('🔍 EventDetailScreen - 뒤로가기 시 이전 화면으로 복원:', returnToScreen);
           // 기본 뒤로가기 동작을 막고 직접 네비게이션
           e.preventDefault();
           navigation.navigate('ScheduleTab', { 
@@ -174,61 +193,60 @@ const EventDetailScreen = ({ route, navigation }) => {
 
   // 평가 완료 여부 확인 함수
   const checkEvaluationStatus = async () => {
-    if (!user?.uid || !event.id) return;
+    if (!user?.uid || !event.id) {
+      console.log('⚠️ checkEvaluationStatus - 필수 데이터 누락:', { 
+        userId: user?.uid, 
+        eventId: event.id 
+      });
+      return;
+    }
+    
+    console.log('🔍 EventDetailScreen - 평가 완료 상태 확인 시작:', {
+      eventId: event.id,
+      userId: user.uid,
+      eventTitle: event.title,
+      organizer: event.organizer
+    });
     
     setIsCheckingEvaluation(true);
     try {
       const completed = await evaluationService.isEvaluationCompleted(event.id, user.uid);
+      console.log('🔍 EventDetailScreen - 평가 완료 상태 결과:', {
+        eventId: event.id,
+        userId: user.uid,
+        completed
+      });
       setIsEvaluationCompleted(completed);
     } catch (error) {
-      console.error('❌ 평가 완료 여부 확인 실패:', error);
+      console.error('❌ EventDetailScreen - 평가 완료 여부 확인 실패:', error);
+      console.error('❌ 오류 상세:', {
+        eventId: event.id,
+        userId: user.uid,
+        errorMessage: error.message,
+        errorCode: error.code
+      });
       setIsEvaluationCompleted(false);
     } finally {
       setIsCheckingEvaluation(false);
     }
   };
 
-  // 평가 완료 여부 확인
+  // 평가 완료 상태 파라미터 처리
   useEffect(() => {
-    checkEvaluationStatus();
-  }, [user?.uid, event.id]);
+    if (evaluationCompleted) {
+      setIsEvaluationCompleted(true);
+    }
+  }, [evaluationCompleted]);
 
-  // 종료된 모임 여부 확인 - EventContext의 endedEvents와 비교하여 정확한 상태 확인
-  const isEnded = (() => {
-    // 1. event.status가 'ended'인 경우
-    if (event.status === 'ended') {
-      return true;
+  // 평가 완료 여부 확인 (파라미터가 없을 때만 Firebase 조회)
+  useEffect(() => {
+    if (!evaluationCompleted) {
+      checkEvaluationStatus();
     }
-    
-    // 2. EventContext의 allEvents에서 해당 모임이 'ended' 상태인지 확인
-    const matchingEndedEvent = allEvents.find(e => e.id === event.id && e.status === 'ended');
-    if (matchingEndedEvent) {
-      return true;
-    }
-    
-    // 3. 날짜/시간이 지난 모임인지 확인 (자동 종료 로직)
-    if (event.date && event.time) {
-      try {
-        const eventDateTime = new Date(`${event.date} ${event.time}`);
-        const now = new Date();
-        const threeHoursAfterEvent = new Date(eventDateTime.getTime() + (3 * 60 * 60 * 1000)); // 이벤트 후 3시간
-        
-        if (now > threeHoursAfterEvent) {
-          console.log('🔍 EventDetailScreen - 자동 종료된 모임 감지:', {
-            eventId: event.id,
-            eventDateTime: eventDateTime,
-            threeHoursAfterEvent: threeHoursAfterEvent,
-            now: now
-          });
-          return true;
-        }
-      } catch (error) {
-        console.warn('⚠️ EventDetailScreen - 날짜 파싱 오류:', error);
-      }
-    }
-    
-    return false;
-  })();
+  }, [user?.uid, event.id, evaluationCompleted]);
+
+  // 종료된 모임 여부 확인 - status가 'ended'인 경우만
+  const isEnded = event.status === 'ended';
   
 
   const getEventTypeEmoji = (type) => {
@@ -674,6 +692,30 @@ const EventDetailScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* 6단계 가이드 오버레이 */}
+      {currentGuide === 'meeting' && currentStep === 5 && (
+        <GuideOverlay
+          visible={true}
+          title={step6Guide.title}
+          description={step6Guide.description}
+          targetPosition={
+            step6Guide.highlightShape === 'none' ? null : 
+            { x: Dimensions.get('window').width / 2, y: Dimensions.get('window').height - 50 }
+          }
+          targetSize={
+            step6Guide.highlightShape === 'none' ? null : 
+            { width: 370, height: 60 }
+          }
+          highlightShape={step6Guide.highlightShape}
+          showArrow={step6Guide.showArrow}
+          arrowDirection={step6Guide.arrowDirection}
+          onNext={() => {
+            completeGuide('meeting');
+          }}
+          isLastStep={true}
+          targetId={step6Guide.targetId}
+        />
+      )}
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => {
@@ -694,9 +736,15 @@ const EventDetailScreen = ({ route, navigation }) => {
         <View style={styles.titleSection}>
           <View style={styles.titleRow}>
             <Text style={styles.eventTitle}>{event.title}</Text>
-            <View style={styles.typeContainer}>
-              <Text style={styles.typeEmoji}>{getEventTypeEmoji(event.type)}</Text>
-              <Text style={styles.typeText}>{event.type}</Text>
+            <View style={styles.titleRightSection}>
+              {event.difficulty && (
+                <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(event.difficulty) }]}>
+                  <Text style={styles.difficultyText}>{event.difficulty}</Text>
+                </View>
+              )}
+              <View style={styles.typeContainer}>
+                <Text style={styles.typeText}>{event.type}</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -765,12 +813,6 @@ const EventDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
 
-          <View style={styles.difficultyContainer}>
-            <Text style={styles.difficultyLabel}>난이도</Text>
-            <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(event.difficulty) }]}>
-              <Text style={styles.difficultyText}>{event.difficulty}</Text>
-            </View>
-          </View>
 
           {/* 해시태그를 러닝 정보 카드 내부로 이동 */}
           {event.hashtags && parseHashtags(event.hashtags).length > 0 && (
@@ -816,6 +858,19 @@ const EventDetailScreen = ({ route, navigation }) => {
 
       {/* 하단 버튼 */}
       <View style={styles.bottomActions}>
+        {(() => {
+          console.log('🔍 EventDetailScreen - 버튼 표시 조건 확인:', {
+            eventId: event.id,
+            eventTitle: event.title,
+            isEnded,
+            isEvaluationCompleted,
+            isCheckingEvaluation,
+            evaluationCompleted,
+            isCreatedByMe,
+            isJoinedState
+          });
+          return null;
+        })()}
         {isEnded && !isEvaluationCompleted ? (
           <TouchableOpacity 
             style={[styles.actionButton, styles.endButton]} 
@@ -881,6 +936,7 @@ const EventDetailScreen = ({ route, navigation }) => {
           </View>
         ) : (
           <TouchableOpacity 
+            id={isCreatedByMe ? 'endMeetingButton' : undefined}
             style={[
               styles.actionButton, 
               isCreatedByMe ? styles.endButton : (isJoinedState ? styles.leaveButton : styles.joinButton),
@@ -998,17 +1054,16 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
-  typeContainer: {
+  titleRightSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  typeContainer: {
     backgroundColor: COLORS.CARD,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-  },
-  typeEmoji: {
-    fontSize: 16,
-    marginRight: 6,
   },
   typeText: {
     fontSize: 14,
@@ -1089,16 +1144,6 @@ const styles = StyleSheet.create({
     width: 1,
     backgroundColor: COLORS.BORDER,
     marginHorizontal: 20,
-  },
-  difficultyContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  difficultyLabel: {
-    fontSize: 16,
-    color: COLORS.TEXT,
-    marginRight: 12,
   },
   difficultyBadge: {
     paddingHorizontal: 12,

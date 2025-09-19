@@ -55,8 +55,8 @@ export const RUNNING_LEVELS = [
 export const TIME_OPTIONS = [
   { id: 'dawn', title: '새벽', time: '5-7시', description: '상쾌한 아침 공기' },
   { id: 'morning', title: '아침', time: '7-9시', description: '활기찬 하루 시작' },
-  { id: 'evening', title: '저녁', time: '6-8시', description: '하루를 마무리하며' },
-  { id: 'night', title: '야간', time: '8-10시', description: '조용한 밤 러닝' },
+  { id: 'evening', title: '저녁', time: '6-9시', description: '하루를 마무리하며' },
+  { id: 'night', title: '야간', time: '9-11시', description: '조용한 밤 러닝' },
 ];
 
 // 러닝 스타일 옵션

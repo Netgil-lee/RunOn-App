@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,12 @@ import {
   ScrollView,
   Alert,
   Switch,
-  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import blacklistService from '../services/blacklistService';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -37,7 +37,7 @@ const COLORS = {
 };
 
 const SettingsScreen = ({ navigation }) => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { settings, toggleSetting, updateSetting } = useNotificationSettings();
   
   const [otherSettings, setOtherSettings] = useState({
@@ -58,6 +58,9 @@ const SettingsScreen = ({ navigation }) => {
     }
   });
 
+  const [blacklist, setBlacklist] = useState([]);
+  const [loadingBlacklist, setLoadingBlacklist] = useState(false);
+
   const toggleOtherSetting = (category, key) => {
     setOtherSettings(prev => ({
       ...prev,
@@ -77,6 +80,69 @@ const SettingsScreen = ({ navigation }) => {
       }
     }));
   };
+
+  // 블랙리스트 조회
+  const fetchBlacklist = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      setLoadingBlacklist(true);
+      const blacklistData = await blacklistService.getBlacklist(user.uid);
+      setBlacklist(blacklistData);
+    } catch (error) {
+      console.log('블랙리스트 조회 실패 (빈 배열로 처리):', error.message);
+      setBlacklist([]); // 빈 배열로 설정
+    } finally {
+      setLoadingBlacklist(false);
+    }
+  };
+
+  // 차단 해제
+  const handleUnblockUser = (blockedUser) => {
+    Alert.alert(
+      '차단 해제',
+      `"${blockedUser.blockedUserName}"님의 차단을 해제하시겠습니까?`,
+      [
+        {
+          text: '취소',
+          style: 'cancel'
+        },
+        {
+          text: '해제',
+          style: 'default',
+          onPress: async () => {
+            try {
+              await blacklistService.unblockUser(user.uid, blockedUser.blockedUserId);
+              await fetchBlacklist(); // 블랙리스트 다시 조회
+              Alert.alert('해제 완료', '차단이 해제되었습니다.');
+            } catch (error) {
+              console.error('차단 해제 실패:', error);
+              Alert.alert('해제 실패', error.message || '차단 해제 중 오류가 발생했습니다.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // 차단된 사용자 관리 화면으로 이동
+  const handleBlacklistManagement = () => {
+    // Date 객체를 문자열로 변환하여 직렬화 문제 해결
+    const serializedBlacklist = blacklist.map(item => ({
+      ...item,
+      blockedAt: item.blockedAt instanceof Date ? item.blockedAt.toISOString() : item.blockedAt
+    }));
+    
+    navigation.navigate('BlacklistManagement', { 
+      blacklist: serializedBlacklist, 
+      onRefresh: fetchBlacklist 
+    });
+  };
+
+  // 컴포넌트 마운트 시 블랙리스트 조회
+  useEffect(() => {
+    fetchBlacklist();
+  }, [user?.uid]);
 
   const handleChildSafetyPolicy = () => {
     Alert.alert(
@@ -125,29 +191,32 @@ const SettingsScreen = ({ navigation }) => {
   const handleDeleteAccount = () => {
     Alert.alert(
       '계정 삭제',
-      '계정 삭제를 요청하시겠습니까? 이메일로 요청을 보내드리겠습니다.',
+      '계정을 영구적으로 삭제하시겠습니까?\n\n삭제된 계정은 복구할 수 없습니다.',
       [
         { text: '취소', style: 'cancel' },
         { 
-          text: '요청하기', 
+          text: '삭제', 
           style: 'destructive',
           onPress: () => {
-            // 사용자 정보 가져오기
-            const user = useAuth().user;
-            const userInfo = user ? `사용자 ID: ${user.uid}\n휴대폰번호: ${user.phoneNumber || '알 수 없음'}` : '사용자 정보를 가져올 수 없습니다.';
-            
-            // 이메일 링크 생성
-            const emailSubject = encodeURIComponent('RunOn 앱 계정 삭제 요청');
-            const emailBody = encodeURIComponent(
-              `안녕하세요,\n\nRunOn 앱에서 계정 삭제를 요청합니다.\n\n사용자 정보:\n${userInfo}\n\n요청 일시: ${new Date().toLocaleString('ko-KR')}\n\n계정 삭제를 확인합니다.\n\n감사합니다.`
+            Alert.alert(
+              '최종 확인',
+              '정말로 계정을 삭제하시겠습니까?',
+              [
+                { text: '취소', style: 'cancel' },
+                { 
+                  text: '삭제', 
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      // TODO: 실제 계정 삭제 로직 구현
+                      Alert.alert('계정 삭제', '계정 삭제 기능이 곧 추가됩니다.');
+                    } catch (error) {
+                      Alert.alert('오류', '계정 삭제 중 오류가 발생했습니다.');
+                    }
+                  }
+                }
+              ]
             );
-            
-                         const emailUrl = `mailto:dlrhdkgml12@gmail.com?subject=${emailSubject}&body=${emailBody}`;
-            
-                         // 이메일 앱 열기
-             Linking.openURL(emailUrl).catch(() => {
-               Alert.alert('오류', '이메일 앱을 열 수 없습니다. 수동으로 dlrhdkgml12@gmail.com으로 계정 삭제 요청을 보내주세요.');
-             });
           }
         }
       ]
@@ -246,13 +315,25 @@ const SettingsScreen = ({ navigation }) => {
           <SettingItem
             icon="people-outline"
             title="커뮤니티 알림"
-            subtitle="채팅, 작성한 글의 좋아요와 댓글 알림을 받습니다."
+            subtitle="작성한 글의 좋아요와 댓글 알림을 받습니다."
             onPress={() => toggleSetting('notifications', 'newMember')}
             showArrow={false}
           >
             <ToggleSwitch 
               enabled={settings.notifications.newMember}
               onToggle={() => toggleSetting('notifications', 'newMember')}
+            />
+          </SettingItem>
+          <SettingItem
+            icon="chatbubbles-outline"
+            title="채팅 알림"
+            subtitle="채팅 메시지 알림을 휴대전화에서 받습니다."
+            onPress={() => toggleSetting('notifications', 'chatNotification')}
+            showArrow={false}
+          >
+            <ToggleSwitch 
+              enabled={settings.notifications.chatNotification}
+              onToggle={() => toggleSetting('notifications', 'chatNotification')}
             />
           </SettingItem>
           <SettingItem
@@ -286,6 +367,12 @@ const SettingsScreen = ({ navigation }) => {
         {/* 앱 */}
         <SectionTitle title="앱" />
         <View style={styles.section}>
+          <SettingItem
+            icon="ban-outline"
+            title="차단된 사용자"
+            subtitle={`차단된 사용자 ${blacklist.length}명 (최대 3명)`}
+            onPress={handleBlacklistManagement}
+          />
           <SettingItem
             icon="help-circle-outline"
             title="앱 사용 가이드"
@@ -328,12 +415,6 @@ const SettingsScreen = ({ navigation }) => {
         {/* 계정 */}
         <SectionTitle title="계정" />
         <View style={styles.section}>
-          <SettingItem
-            icon="shield-outline"
-            title="비밀번호 변경"
-            subtitle="계정 보안을 위해 비밀번호를 변경하세요"
-            onPress={() => Alert.alert('비밀번호 변경', '비밀번호 변경 기능이 곧 추가됩니다.')}
-          />
           <SettingItem
             icon="diamond-outline"
             title="프리미엄"
@@ -408,7 +489,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 20,
   },
   sectionTitleText: {
     fontSize: 16,
@@ -420,7 +501,7 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: COLORS.CARD,
-    marginBottom: 8,
+    marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
   },

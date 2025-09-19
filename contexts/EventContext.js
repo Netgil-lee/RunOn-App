@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import firestoreService from '../services/firestoreService';
 import storageService from '../services/storageService';
 import evaluationService from '../services/evaluationService';
+import blacklistService from '../services/blacklistService';
 import { useAuth } from './AuthContext';
 import { firestore } from '../config/firebase';
 import { doc, updateDoc, serverTimestamp, arrayUnion, arrayRemove, collection, query, where, getDocs } from 'firebase/firestore';
@@ -20,6 +21,24 @@ export const EventProvider = ({ children }) => {
   const [endedEvents, setEndedEvents] = useState([]);
   const [chatRooms, setChatRooms] = useState([]);
   const [meetingNotifications, setMeetingNotifications] = useState([]);
+  const [blacklist, setBlacklist] = useState([]);
+
+  // 블랙리스트 가져오기
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const fetchBlacklist = async () => {
+      try {
+        const blacklistData = await blacklistService.getBlacklist(user.uid);
+        setBlacklist(blacklistData);
+      } catch (error) {
+        console.log('블랙리스트 조회 실패 (빈 배열로 처리):', error.message);
+        setBlacklist([]); // 빈 배열로 설정
+      }
+    };
+
+    fetchBlacklist();
+  }, [user?.uid]);
 
   // Firebase에서 실시간으로 이벤트 데이터 가져오기
   useEffect(() => {
@@ -48,15 +67,17 @@ export const EventProvider = ({ children }) => {
       
       // 디버깅: allEvents 데이터 확인
       
+      // 블랙리스트 필터링 적용
+      const filteredEvents = blacklistService.filterEventsByBlacklist(events, blacklist);
       
-      setAllEvents(events);
+      setAllEvents(filteredEvents);
       
       // 사용자가 생성한 이벤트 필터링
-      const userCreated = events.filter(event => event.organizerId === user.uid);
+      const userCreated = filteredEvents.filter(event => event.organizerId === user.uid);
       setUserCreatedEvents(userCreated);
       
       // 사용자가 참여한 이벤트 필터링 (생성자는 제외, 종료된 모임도 제외)
-      const userJoined = events.filter(event => 
+      const userJoined = filteredEvents.filter(event => 
         event.participants && 
         event.participants.includes(user.uid) && 
         event.organizerId !== user.uid && // 내가 만든 모임은 제외
@@ -65,52 +86,16 @@ export const EventProvider = ({ children }) => {
       setUserJoinedEvents(userJoined);
       
       // 사용자가 참여한 종료된 모임 필터링 (생성자는 제외)
-      const userJoinedEnded = events.filter(event => 
+      const userJoinedEnded = filteredEvents.filter(event => 
         event.participants && 
         event.participants.includes(user.uid) && 
         event.organizerId !== user.uid && // 내가 만든 모임은 제외
         event.status === 'ended' // 종료된 모임만
       );
       
-      // 종료된 모임 필터링 (status가 'ended'이거나 시간 기반으로 종료된 모임)
-      const now = new Date();
-      const allEndedEvents = events.filter(event => {
-        // 1. status가 'ended'인 모임
-        if (event.status === 'ended') {
-          return true;
-        }
-        
-        // 2. 시간 기반으로 종료된 모임 (기존 로직)
-        if (!event.date || !event.time) return false;
-        
-        try {
-          let eventDateTime;
-          if (typeof event.date === 'string') {
-            const [year, month, day] = event.date.split('-').map(Number);
-            const timeStr = event.time;
-            
-            let hours, minutes;
-            if (timeStr.includes('오전')) {
-              const timeMatch = timeStr.match(/(\d+):(\d+)/);
-              hours = parseInt(timeMatch[1]);
-              minutes = parseInt(timeMatch[2]);
-            } else if (timeStr.includes('오후')) {
-              const timeMatch = timeStr.match(/(\d+):(\d+)/);
-              hours = parseInt(timeMatch[1]) + 12;
-              minutes = parseInt(timeMatch[2]);
-            }
-            
-            eventDateTime = new Date(year, month - 1, day, hours, minutes);
-          } else {
-            eventDateTime = new Date(event.date);
-          }
-          
-          const eventEndTime = new Date(eventDateTime.getTime() + (3 * 60 * 60 * 1000));
-          return now > eventEndTime;
-        } catch (error) {
-          console.error('날짜 파싱 오류:', error, event);
-          return false;
-        }
+      // 종료된 모임 필터링 - status가 'ended'인 모임만
+      const allEndedEvents = filteredEvents.filter(event => {
+        return event.status === 'ended';
       });
       
       
@@ -118,7 +103,7 @@ export const EventProvider = ({ children }) => {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, blacklist]); // blacklist 의존성 추가
 
   // 기존 채팅방 데이터 마이그레이션 (한 번만 실행)
   const migrateChatRooms = async () => {
@@ -503,6 +488,10 @@ export const EventProvider = ({ children }) => {
             notification.title = '러닝매너점수 작성 요청';
             notification.message = `참여한 ${event.title} 모임이 종료되었습니다. 러닝매너점수를 작성해주세요.`;
             break;
+          case 'new_participant':
+            notification.title = '새로운 참여자가 입장했습니다';
+            notification.message = `${event.title} 모임에 새로운 참여자가 입장했습니다.`;
+            break;
         }
 
         try {
@@ -726,6 +715,16 @@ export const EventProvider = ({ children }) => {
         
         // 새로운 모임 참여 시 알림표시 활성화
         setHasUnreadJoinedMeetings(true);
+        
+        // 기존 참여자들에게 새로운 참여자 입장 알림 전송
+        const updatedEvent = {
+          ...targetEvent,
+          participants: Array.isArray(targetEvent.participants) 
+            ? [...targetEvent.participants, user.uid]
+            : [user.uid]
+        };
+        await addMeetingNotification('new_participant', updatedEvent);
+        console.log('✅ 새로운 참여자 입장 알림 전송 완료:', eventId);
       }
     } catch (error) {
       console.error('❌ 이벤트 참여 실패:', error);
@@ -809,11 +808,71 @@ export const EventProvider = ({ children }) => {
       const result = await firestoreService.createChatRoom(chatRoomData);
       if (result.success) {
         console.log('✅ 채팅방 생성 완료:', result.id);
+        
+        // 채팅방 생성 후 환영 메시지 자동 전송
+        const organizerName = user.displayName || user.email?.split('@')[0] || '모임장';
+        const welcomeMessage = {
+          text: `🎉 ${organizerName}님이 "${event.title}" 모임을 생성했습니다! 러닝 모임에 대해 자유롭게 이야기해보세요!`,
+          sender: '시스템',
+          senderId: 'system',
+          senderProfileImage: null,
+          timestamp: new Date(),
+          isSystemMessage: true
+        };
+        
+        try {
+          await firestoreService.sendMessage(result.id, welcomeMessage);
+          console.log('✅ 채팅방 환영 메시지 전송 완료');
+        } catch (messageError) {
+          console.error('❌ 환영 메시지 전송 실패:', messageError);
+          // 메시지 전송 실패해도 채팅방 생성은 성공으로 처리
+        }
+        
         return result;
       }
     } catch (error) {
       console.error('❌ 채팅방 생성 실패:', error);
       throw error;
+    }
+  };
+
+  // 채팅방 환영 메시지 전송 헬퍼 함수
+  const sendWelcomeMessageToChatRoom = async (chatRoomId, eventId) => {
+    try {
+      const event = allEvents.find(e => e.id === eventId);
+      if (!event) return;
+      
+      // 사용자 프로필에서 실제 닉네임 가져오기
+      let participantName = '새 참여자';
+      try {
+        const userProfile = await firestoreService.getUserProfile(user.uid);
+        if (userProfile) {
+          participantName = userProfile.profile?.nickname || 
+                          userProfile.profile?.displayName ||
+                          userProfile.displayName || 
+                          user?.displayName || 
+                          user?.email?.split('@')[0] || 
+                          '새 참여자';
+        }
+      } catch (error) {
+        console.warn('⚠️ 사용자 프로필 조회 실패, 기본값 사용:', error);
+        participantName = user?.displayName || user?.email?.split('@')[0] || '새 참여자';
+      }
+      
+      const welcomeMessage = {
+        text: `👋 ${participantName}님이 "${event.title}" 모임에 참여했습니다!`,
+        sender: '시스템',
+        senderId: 'system',
+        senderProfileImage: null,
+        timestamp: new Date(),
+        isSystemMessage: true
+      };
+      
+      await firestoreService.sendMessage(chatRoomId, welcomeMessage);
+      console.log('✅ 채팅방 참여 환영 메시지 전송 완료');
+    } catch (error) {
+      console.error('❌ 환영 메시지 전송 실패:', error);
+      // 메시지 전송 실패해도 채팅방 참여는 성공으로 처리
     }
   };
 
@@ -849,6 +908,11 @@ export const EventProvider = ({ children }) => {
               : room
           )
         );
+        
+        // 참여자 추가 후 환영 메시지 전송 (약간의 지연을 두어 Firestore 업데이트가 완료되도록)
+        setTimeout(async () => {
+          await sendWelcomeMessageToChatRoom(existingChatRoom.id, eventId);
+        }, 1000);
         
         return;
       }
@@ -892,6 +956,11 @@ export const EventProvider = ({ children }) => {
             }];
           }
         });
+        
+        // 참여자 추가 후 환영 메시지 전송 (약간의 지연을 두어 Firestore 업데이트가 완료되도록)
+        setTimeout(async () => {
+          await sendWelcomeMessageToChatRoom(chatRoom.id, eventId);
+        }, 1000);
       } else {
         // 채팅방이 없으면 생성
         const event = allEvents.find(e => e.id === eventId);
@@ -1053,13 +1122,9 @@ export const EventProvider = ({ children }) => {
         // 내가 만든 모임을 종료하는 경우, 참여자들에게 rating 알림 생성
         addMeetingNotification('rating', createdEvent, true);
         
-        // 연결된 채팅방도 종료 상태로 변경
+        // 연결된 채팅방 삭제 (Firestore에서 삭제됨)
         setChatRooms(prev => 
-          prev.map(chatRoom => 
-            chatRoom.eventId === eventId 
-              ? { ...chatRoom, status: 'ended', title: `${chatRoom.title} (종료됨)` }
-              : chatRoom
-          )
+          prev.filter(chatRoom => chatRoom.eventId !== eventId)
         );
         
         // 상태 업데이트 후 즉시 확인
@@ -1387,6 +1452,14 @@ export const EventProvider = ({ children }) => {
       !notification.isRead && notification.type === 'cancel'
     );
     
+    const hasNewParticipantNotifications = meetingNotifications.some(notification => 
+      !notification.isRead && notification.type === 'new_participant'
+    );
+    
+    const hasReminderNotifications = meetingNotifications.some(notification => 
+      !notification.isRead && notification.type === 'reminder'
+    );
+    
     const hasUnresolvedRatingNotifications = meetingNotifications.some(notification => 
       !notification.isRead && 
       notification.type === 'rating' && 
@@ -1394,7 +1467,7 @@ export const EventProvider = ({ children }) => {
       !clickedEndedEventIds.has(notification.event.id)
     );
     
-    const hasUnreadNotifications = hasCancelNotifications || hasUnresolvedRatingNotifications;
+    const hasUnreadNotifications = hasCancelNotifications || hasNewParticipantNotifications || hasReminderNotifications || hasUnresolvedRatingNotifications;
     
     // 전체 모임 알림표시 상태 사용
     setHasMeetingNotification(hasUnreadJoinedMeetings || hasUnreadNotifications);

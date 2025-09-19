@@ -29,6 +29,8 @@ const OnboardingGoalSelector = ({ value = [], onChange }) => {
 
   return (
     <View style={styles.container}>
+      <Text style={styles.stepTitle}>현재 목표를 선택해주세요</Text>
+      <Text style={styles.stepSubtitle}>여러 개 선택 가능해요</Text>
       <View style={styles.optionsContainer}>
         {GOAL_OPTIONS.map((goal) => (
           <TouchableOpacity
@@ -52,11 +54,23 @@ const OnboardingGoalSelector = ({ value = [], onChange }) => {
 
 const styles = StyleSheet.create({
   container: {
-    // flex: 1,
+    width: '85%',
+    alignSelf: 'center',
+  },
+  stepTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    color: '#ffffff',
+  },
+  stepSubtitle: {
+    fontSize: 15,
+    marginBottom: 30,
+    color: '#666666',
   },
 
   optionsContainer: {
-    gap: 16,
+    gap: 12,
     marginBottom: 32,
   },
   goalCard: {

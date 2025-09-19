@@ -1,6 +1,6 @@
 // components/HanRiverMap.js
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Alert, Linking, ScrollView, Animated, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Animated, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -8,19 +8,17 @@ import MeetingCard from './MeetingCard';
 import { useEvents } from '../contexts/EventContext';
 import { useAuth } from '../contexts/AuthContext';
 
-const HanRiverMap = ({ navigation }) => {
+const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanriver', onHanriverLocationClick, onLocationButtonRef, onMapRef, onLocationListRef, onMeetingCardsRef, onMeetingCardRef, onStatisticsRef }) => {
   const { allEvents = [] } = useEvents() || {}; // EventContext에서 모임 데이터 가져오기 (안전한 기본값)
   const { user = null } = useAuth() || {}; // AuthContext 안전한 기본값
   
   const [isLoading, setIsLoading] = useState(true);
-  const [mapError, setMapError] = useState(false);
   const [useKakaoMap, setUseKakaoMap] = useState(true);
-  const [showKeyInput, setShowKeyInput] = useState(false);
   const [apiKey, setApiKey] = useState('464318d78ffeb1e52a1185498fe1af08'); // 기본 키
   const [refreshKey, setRefreshKey] = useState(Date.now()); // 강제 새로고침용
   
   // 탭 및 모임카드 상태
-  const [activeTab, setActiveTab] = useState('hanriver'); // 'hanriver' | 'riverside'
+  const [activeTab, setActiveTab] = useState(initialActiveTab); // 'hanriver' | 'riverside'
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null); // 선택된 위치
   const [showLocationList, setShowLocationList] = useState(true); // 위치 목록 표시 여부
@@ -33,6 +31,22 @@ const HanRiverMap = ({ navigation }) => {
   
   // 슬라이딩 애니메이션 값
   const slideAnim = useRef(new Animated.Value(0)).current;
+  
+  // 위치 버튼 ref
+  const locationButtonRef = useRef(null);
+  
+  // 지도 영역 ref
+  const mapRef = useRef(null);
+  
+  // 한강공원 목록 ref
+  const locationListRef = useRef(null);
+  
+  // 모임 카드들 ref
+  const meetingCardsRef = useRef(null);
+  const meetingCardRef = useRef(null);
+  
+  // 통계 부분 ref
+  const statisticsRef = useRef(null);
   
   // Runon 색상 시스템
   const COLORS = {
@@ -221,6 +235,11 @@ const HanRiverMap = ({ navigation }) => {
       const allMeetings = { ...meetingsData.hanriver, ...meetingsData.riverside };
       const locationMeetings = Object.values(allMeetings).filter(meeting => meeting.location === location.name);
       
+      console.log('🗺️ HanRiverMap - location.name:', location.name);
+      console.log('🗺️ HanRiverMap - allMeetings:', allMeetings);
+      console.log('🗺️ HanRiverMap - locationMeetings:', locationMeetings);
+      console.log('🗺️ HanRiverMap - locationMeetings.length:', locationMeetings.length);
+      
       // 웹뷰에 마커 클릭 이벤트 시뮬레이션하여 정보창 표시 (모임 데이터 유무와 관계없이)
       setTimeout(() => {
         const markerClickMessage = JSON.stringify({
@@ -237,8 +256,14 @@ const HanRiverMap = ({ navigation }) => {
         // 첫 번째 모임을 선택하여 simpleMeetingCard 표시
         setSelectedMeeting(locationMeetings[0]);
         setSelectedLocation(location.name); // 확장된 정보창 표시
-        
-
+      }
+      
+      // 광나루한강공원 클릭 시 가이드 진행 (모임 데이터 유무와 관계없이)
+      if (location.name === '광나루한강공원' && onHanriverLocationClick) {
+        // selectedLocation이 설정된 후 약간의 지연을 두고 가이드 진행
+        setTimeout(() => {
+          onHanriverLocationClick();
+        }, 100);
       }
     }
   };
@@ -272,6 +297,49 @@ const HanRiverMap = ({ navigation }) => {
   useEffect(() => {
     getCurrentLocation();
   }, []);
+
+  // 위치 버튼 ref를 부모 컴포넌트에 전달
+  useEffect(() => {
+    if (onLocationButtonRef && locationButtonRef.current) {
+      onLocationButtonRef(locationButtonRef.current);
+    }
+  }, [onLocationButtonRef]);
+
+  // 지도 ref를 부모 컴포넌트에 전달
+  useEffect(() => {
+    if (onMapRef && mapRef.current) {
+      onMapRef(mapRef.current);
+    }
+  }, [onMapRef]);
+
+  // 한강공원 목록 ref를 부모 컴포넌트에 전달
+  useEffect(() => {
+    if (onLocationListRef && locationListRef.current) {
+      onLocationListRef(locationListRef.current);
+    }
+  }, [onLocationListRef]);
+
+  // 모임 카드들 ref를 부모 컴포넌트에 전달 (selectedLocation과 모임 데이터 변경 시에도 전달)
+  useEffect(() => {
+    if (onMeetingCardsRef && meetingCardsRef.current) {
+      onMeetingCardsRef(meetingCardsRef.current);
+      console.log('📋 meetingCardsRef 연결됨:', meetingCardsRef.current);
+    }
+  }, [onMeetingCardsRef, selectedLocation, allEvents]); // 의존성 추가
+
+  useEffect(() => {
+    if (onMeetingCardRef && meetingCardRef.current) {
+      onMeetingCardRef(meetingCardRef.current);
+      console.log('🎯 meetingCardRef 연결됨:', meetingCardRef.current);
+    }
+  }, [onMeetingCardRef, selectedLocation, allEvents]); // 의존성 추가
+
+  useEffect(() => {
+    if (onStatisticsRef && statisticsRef.current) {
+      onStatisticsRef(statisticsRef.current);
+      console.log('📊 statisticsRef 연결됨:', statisticsRef.current);
+    }
+  }, [onStatisticsRef, selectedLocation]); // selectedLocation 의존성 추가
 
   // 모임 통계 계산 함수
   const calculateMeetingStats = (location) => {
@@ -429,9 +497,6 @@ const HanRiverMap = ({ navigation }) => {
                                    lng >= SEOUL_BOUNDARY.west && 
                                    lng <= SEOUL_BOUNDARY.east;
                                    
-                log('🔍 경계 체크 - 위도: ' + lat + ' (범위: ' + SEOUL_BOUNDARY.south + ' ~ ' + SEOUL_BOUNDARY.north + ')', 'debug');
-                log('🔍 경계 체크 - 경도: ' + lng + ' (범위: ' + SEOUL_BOUNDARY.west + ' ~ ' + SEOUL_BOUNDARY.east + ')', 'debug');
-                log('🔍 경계 체크 결과: ' + withinBoundary, 'debug');
                 
                 return withinBoundary;
             }
@@ -679,7 +744,6 @@ const HanRiverMap = ({ navigation }) => {
                     if (checkKakaoSDK()) {
                         initializeMap();
                     } else if (attempts >= maxAttempts) {
-                        log('⏰ Kakao SDK 로딩 타임아웃 (10초)', 'error');
                         
                         if (window.ReactNativeWebView) {
                             window.ReactNativeWebView.postMessage('kakaoMapError: SDK 로딩 타임아웃 - API 키 또는 도메인 설정 확인 필요');
@@ -1025,15 +1089,7 @@ const HanRiverMap = ({ navigation }) => {
   `;
 
   // 간단한 모임카드 컴포넌트
-  const SimpleMeetingCard = ({ meeting, navigation }) => {
-    // 모임 상태 로깅 추가
-    console.log('🔍 SimpleMeetingCard - 모임 상태 확인:', {
-      meetingId: meeting.id,
-      meetingTitle: meeting.title,
-      meetingStatus: meeting.status,
-      allEventsLength: allEvents.length,
-      endedEventsCount: allEvents.filter(e => e.status === 'ended').length
-    });
+  const SimpleMeetingCard = ({ meeting, navigation, isFirstCard = false }) => {
     
     // EventDetailScreen에서 기대하는 형식으로 데이터 변환
     const convertToEventDetailFormat = (meetingData) => {
@@ -1062,18 +1118,14 @@ const HanRiverMap = ({ navigation }) => {
         updatedAt: meetingData.updatedAt
       };
       
-      console.log('🔍 SimpleMeetingCard - 변환된 이벤트 데이터:', {
-        eventId: eventData.id,
-        eventTitle: eventData.title,
-        eventStatus: eventData.status,
-        originalStatus: meetingData.status
-      });
       
       return eventData;
     };
 
     return (
       <TouchableOpacity 
+        ref={isFirstCard ? meetingCardRef : null}
+        id={isFirstCard ? "meetingCard" : undefined}
         style={styles.simpleMeetingCard}
         onPress={() => {
           const eventData = convertToEventDetailFormat(meeting);
@@ -1166,7 +1218,6 @@ const HanRiverMap = ({ navigation }) => {
     
     if (data === 'mapLoaded') {
       setIsLoading(false);
-      setMapError(false);
       
       // 지도 로드 완료 후 현재 위치 전송
       if (currentLocation && webViewRef.current) {
@@ -1185,7 +1236,6 @@ const HanRiverMap = ({ navigation }) => {
     } else if (data.startsWith('kakaoMapError')) {
       const errorMessage = data.substring(14); // 'kakaoMapError: ' 제거
       console.error('❌ 카카오맵 로딩 실패:', errorMessage);
-      setMapError(true);
       setUseKakaoMap(false);
       setIsLoading(false);
     } else if (data === 'outOfSeoulBoundary') {
@@ -1268,7 +1318,6 @@ const HanRiverMap = ({ navigation }) => {
       if (isLoading) {
         setIsLoading(false);
         if (useKakaoMap) {
-          setMapError(true);
           setUseKakaoMap(false);
         }
       }
@@ -1276,7 +1325,6 @@ const HanRiverMap = ({ navigation }) => {
   };
 
   const handleError = (error) => {
-    setMapError(true);
     setUseKakaoMap(false);
     setIsLoading(false);
   };
@@ -1289,7 +1337,9 @@ const HanRiverMap = ({ navigation }) => {
           <Text style={styles.title}>한강 러닝 코스</Text>
           
           {/* 현재 위치 버튼 */}
-          <TouchableOpacity 
+          <TouchableOpacity
+            ref={locationButtonRef}
+            id="locationButton"
             style={styles.currentLocationButton}
             onPress={moveToCurrentLocation}
             disabled={isLocationLoading}
@@ -1362,6 +1412,8 @@ const HanRiverMap = ({ navigation }) => {
             {locationData[activeTab].map((location, index) => (
               <TouchableOpacity
                 key={index}
+                ref={location.name === '광나루한강공원' ? locationListRef : undefined}
+                id={location.name === '광나루한강공원' ? 'hanriverLocationList' : undefined}
                 style={[
                   styles.locationItem,
                   selectedLocationItem === location.name && styles.locationItemSelected
@@ -1382,88 +1434,17 @@ const HanRiverMap = ({ navigation }) => {
         </View>
       )}
       
-      {mapError && (
-        <View style={styles.errorContainer}>
-          <TouchableOpacity 
-            style={styles.retryButton} 
-            onPress={() => {
-              setMapError(false);
-              setUseKakaoMap(true);
-              setIsLoading(true);
-              setRefreshKey(Date.now()); // 강제 새로고침
-            }}
-          >
-            <Ionicons name="refresh" size={16} color="#3AF8FF" />
-            <Text style={[styles.retryText, { color: '#3AF8FF' }]}>카카오맵 재시도</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.keyButton} 
-            onPress={() => setShowKeyInput(!showKeyInput)}
-          >
-            <Ionicons name="key" size={16} color="#3AF8FF" />
-            <Text style={[styles.retryText, { color: '#3AF8FF' }]}>API 키 설정</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.helpButton} 
-            onPress={() => {
-              Alert.alert(
-                '카카오 개발자 센터 설정',
-                '1. developers.kakao.com 접속\n2. 내 애플리케이션 > 앱 설정 > 플랫폼\n3. Web 플랫폼 등록\n4. 사이트 도메인 추가:\n   - http://localhost:8081\n   - https://localhost:8081\n   - about:blank\n   - file://\n5. JavaScript 키 복사',
-                [
-                  { text: '취소', style: 'cancel' },
-                  { text: '개발자 센터 열기', onPress: () => Linking.openURL('https://developers.kakao.com/') }
-                ]
-              );
-            }}
-          >
-            <Ionicons name="help-circle" size={16} color="#3AF8FF" />
-            <Text style={[styles.retryText, { color: '#3AF8FF' }]}>설정 도움말</Text>
-          </TouchableOpacity>
-        </View>
-      )}
       
-      {showKeyInput && (
-        <View style={styles.keyInputContainer}>
-          <Text style={styles.keyInputLabel}>JavaScript 키 입력:</Text>
-          <TextInput
-            style={styles.keyInput}
-            value={apiKey}
-            onChangeText={setApiKey}
-            placeholder="JavaScript 키를 입력하세요"
-            placeholderTextColor="#666666"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <View style={styles.keyInputButtons}>
-            <TouchableOpacity 
-              style={[styles.keyInputButton, { backgroundColor: COLORS.PRIMARY }]}
-              onPress={() => {
-                setShowKeyInput(false);
-                setMapError(false);
-                setUseKakaoMap(true);
-                setIsLoading(true);
-                setRefreshKey(Date.now()); // 강제 새로고침
-              }}
-            >
-              <Text style={styles.keyInputButtonText}>적용</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.keyInputButton}
-              onPress={() => setShowKeyInput(false)}
-            >
-              <Text style={[styles.keyInputButtonText, { color: '#999999' }]}>취소</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
 
       {/* 지도 WebView */}
-      <View style={styles.mapContainer}>
+      <View 
+        ref={mapRef}
+        id="hanRiverMap"
+        style={styles.mapContainer}
+      >
         <WebView
           ref={webViewRef}
-          key={`${useKakaoMap ? 'kakao' : 'fallback'}-${refreshKey}-${activeTab}-seoul-boundary-debug-v6`} // 탭 변경 시에도 리렌더링
+          key={`${useKakaoMap ? 'kakao' : 'fallback'}-${refreshKey}-${activeTab}`} // 탭 변경 시에도 리렌더링
           source={{ html: useKakaoMap ? createKakaoMapHTML(apiKey) : fallbackMapHTML }}
           style={styles.webview}
           javaScriptEnabled={true}
@@ -1496,9 +1477,12 @@ const HanRiverMap = ({ navigation }) => {
       {selectedLocation && (
         <View style={styles.expandedInfoContainer}>
           {/* 위치명 및 통계 정보 */}
-          <View style={styles.locationHeader}>
+          <View ref={statisticsRef} style={styles.locationHeader}>
             <Text style={styles.locationTitle}>{selectedLocation}</Text>
-            <View style={styles.statsContainer}>
+            <View 
+              id="meetingStats"
+              style={styles.statsContainer}
+            >
               {(() => {
                 const stats = calculateMeetingStats(selectedLocation);
                 return (
@@ -1524,25 +1508,32 @@ const HanRiverMap = ({ navigation }) => {
           </View>
 
           {/* 현재 모집중인 모임 리스트 */}
-          {(() => {
-            const allMeetings = getAllMeetings(selectedLocation);
-            if (allMeetings.length > 0) {
-              return (
-                <View style={styles.meetingsListContainer}>
-                  <Text style={styles.meetingsListTitle}>전체 모임</Text>
-                  {allMeetings.map((meeting, index) => (
-                    <SimpleMeetingCard key={index} meeting={meeting} navigation={navigation} />
-                  ))}
-                </View>
-              );
-            } else {
-              return (
-                <View style={styles.noMeetingsContainer}>
-                  <Text style={styles.noMeetingsText}>전체 모임이 없습니다</Text>
-                </View>
-              );
-            }
-          })()}
+          <View 
+            ref={meetingCardsRef}
+            id="meetingCards"
+            style={styles.meetingsListContainer}
+          >
+            <Text style={styles.meetingsListTitle}>전체 모임</Text>
+            {(() => {
+              const allMeetings = getAllMeetings(selectedLocation);
+              if (allMeetings.length > 0) {
+                return allMeetings.map((meeting, index) => (
+                  <SimpleMeetingCard 
+                    key={index} 
+                    meeting={meeting} 
+                    navigation={navigation} 
+                    isFirstCard={index === 0} // 첫 번째 카드에만 meetingCardRef 연결
+                  />
+                ));
+              } else {
+                return (
+                  <View style={styles.noMeetingsContainer}>
+                    <Text style={styles.noMeetingsText}>전체 모임이 없습니다</Text>
+                  </View>
+                );
+              }
+            })()}
+          </View>
         </View>
       )}
 
@@ -1601,16 +1592,6 @@ const styles = StyleSheet.create({
   viewAllText: {
     fontSize: 14,
   },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    padding: 4,
-  },
-  retryText: {
-    fontSize: 12,
-    marginLeft: 4,
-  },
   mapContainer: {
     height: 250,
     position: 'relative',
@@ -1644,60 +1625,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  keyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
-    padding: 4,
-  },
-  helpButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
-    padding: 4,
-  },
-  keyInputContainer: {
-    padding: 16,
-    backgroundColor: '#1a1a1a',
-  },
-  keyInputLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#ffffff',
-    marginBottom: 8,
-  },
-  keyInput: {
-    borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 4,
-    padding: 12,
-    color: '#ffffff',
-    backgroundColor: '#2a2a2a',
-    fontSize: 14,
-  },
-  keyInputButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  keyInputButton: {
-    flex: 1,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 4,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  keyInputButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#ffffff',
-  },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: '#2a2a2a',
@@ -1707,7 +1634,7 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 6,
     alignItems: 'center',
@@ -1727,7 +1654,7 @@ const styles = StyleSheet.create({
     top: 2.5,
     left: 4,
     width: 195,
-    height: 32,
+    height: 39,
     backgroundColor: '#3AF8FF',
     borderRadius: 6,
     zIndex: 1,
