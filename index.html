@@ -117,10 +117,10 @@
         }
         
         .app-icon {
-            width: 80px;
-            height: 80px;
+            width: 120px;
+            height: 120px;
             background: #3AF8FF;
-            border-radius: 20px;
+            border-radius: 25px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -128,6 +128,14 @@
             font-weight: bold;
             font-size: 1.5em;
             box-shadow: 0 4px 15px rgba(58, 248, 255, 0.3);
+            overflow: hidden;
+        }
+        
+        .app-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 20px;
         }
         
         .features-section {
@@ -404,7 +412,7 @@
             </div>
             <div class="phone-mockup">
                 <div class="app-icon">
-                    <img src="assets/appicon.png" alt="RunOn 앱 아이콘" style="width: 100%; height: 100%; object-fit: contain;">
+                    <img src="assets/appicon.png" alt="RunOn 앱 아이콘">
                 </div>
             </div>
         </div>
