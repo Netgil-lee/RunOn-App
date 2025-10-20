@@ -271,21 +271,22 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
-            /* 글로우 효과는 의사 요소로 구현하여 테두리 느낌 없이 부드럽게 */
+            /* 글로우가 밖으로 퍼져 보이도록 클리핑 해제 */
+            overflow: visible;
             box-shadow: none;
             flex-shrink: 0;
             background: transparent;
             position: relative;
+            will-change: filter, transform;
         }
         
         .feature-screenshot::before {
             content: '';
             position: absolute;
-            inset: -12px;
-            border-radius: 28px;
-            background: radial-gradient(60% 60% at 50% 50%, rgba(58, 248, 255, 0.35) 0%, rgba(58, 248, 255, 0.12) 40%, rgba(58, 248, 255, 0) 70%);
-            filter: blur(18px);
+            inset: -30px;
+            border-radius: 40px;
+            background: radial-gradient(55% 55% at 50% 50%, rgba(58, 248, 255, 0.55) 0%, rgba(58, 248, 255, 0.25) 38%, rgba(58, 248, 255, 0) 72%);
+            filter: blur(24px);
             z-index: 0;
             pointer-events: none;
         }
@@ -326,7 +327,7 @@
         }
         
         .testimonials-section {
-            background: #3AF8FF;
+            background: #101318; /* 어두운 남색 톤으로 변경 */
             padding: 80px 40px;
             margin: 60px 0;
             border-radius: 30px;
@@ -353,8 +354,21 @@
         }
         
         .testimonial-role {
-            color: rgba(0,0,0,0.7);
+            color: rgba(255,255,255,0.7);
             font-size: 1em;
+        }
+
+        .testimonials-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            text-align: left;
+        }
+        
+        @media (max-width: 768px) {
+            .testimonials-grid {
+                grid-template-columns: 1fr;
+            }
         }
         
         .faq-section {
@@ -393,7 +407,7 @@
         }
         
         .contact-info {
-            background: linear-gradient(135deg, #3AF8FF, #00FF88);
+            background: #101318; /* 후기 배경과 통일 */
             color: white;
             padding: 30px;
             border-radius: 15px;
@@ -588,14 +602,30 @@
         </div>
 
         <!-- Testimonials Section -->
-        <div class="testimonials-section">
-            <h2 style="color: #000; margin-bottom: 40px; font-size: 2.5em;">러너들의 후기</h2>
-            <div class="testimonial">
-                <div class="testimonial-text">
-                    "RunOn 덕분에 혼자 달리던 러닝이 즐거운 소셜 활동이 되었어요! 비슷한 실력의 파트너를 만나서 함께 성장하고 있습니다."
+        <div class="testimonials-section fade-in">
+            <h2 style="color: #fff; margin-bottom: 40px; font-size: 2.5em;">러너들의 후기</h2>
+            <div class="testimonials-grid">
+                <div class="testimonial">
+                    <div class="testimonial-text">
+                        "RunOn 덕분에 혼자 달리던 러닝이 즐거운 소셜 활동이 되었어요! 비슷한 실력의 파트너를 만나서 함께 성장하고 있습니다."
+                    </div>
+                    <div class="testimonial-author">김수현</div>
+                    <div class="testimonial-role">러닝 입문자</div>
                 </div>
-                <div class="testimonial-author">김러너</div>
-                <div class="testimonial-role">마라톤 러너</div>
+                <div class="testimonial">
+                    <div class="testimonial-text">
+                        "러닝 매너 평가 기능 덕분에 믿을 수 있는 러너들과만 함께 뛰게 되었어요. 안전하고 즐거운 러닝 문화를 느끼고 있습니다."
+                    </div>
+                    <div class="testimonial-author">박지민</div>
+                    <div class="testimonial-role">동호회 리더</div>
+                </div>
+                <div class="testimonial">
+                    <div class="testimonial-text">
+                        "거리와 페이스가 비슷한 러너를 자동 매칭해줘서 목표 달성이 쉬워졌어요. 혼자였으면 포기했을 훈련도 끝냈습니다!"
+                    </div>
+                    <div class="testimonial-author">이도윤</div>
+                    <div class="testimonial-role">마라톤 러너</div>
+                </div>
             </div>
         </div>
 
@@ -643,14 +673,7 @@
             </div>
         </div>
 
-            <div class="section company-info">
-                <h2>🏢 회사 정보</h2>
-                <p><strong>회사명:</strong> RunOn 러논</p>
-                <p><strong>설립:</strong> 2025년</p>
-                <p><strong>업종:</strong> 러닝소셜플랫폼 비즈니스</p>
-                <p><strong>주요 사업:</strong> 스포츠/헬스케어 모바일 앱 개발 및 운영</p>
-                <p><strong>미션:</strong> 건강한 러닝 문화 확산과 안전한 운동 환경 조성</p>
-            </div>
+            <!-- 회사 정보 섹션 삭제 요청으로 제거 -->
 
             <div class="contact-info">
                 <h2>📞 연락처 정보</h2>
@@ -681,19 +704,7 @@
                 </div>
             </div>
 
-            <div class="section">
-                <h2>🛡️ 정책 및 규정</h2>
-                <p>
-                    RunOn은 사용자의 안전과 개인정보 보호를 최우선으로 생각합니다. 
-                    모든 서비스는 관련 법규를 준수하며, 특히 아동 안전 보호 정책을 엄격히 시행하고 있습니다.
-                </p>
-                <ul style="margin-top: 15px; padding-left: 20px;">
-                    <li>개인정보보호법 완전 준수</li>
-                    <li>아동 안전 보호 정책 시행</li>
-                    <li>24시간 신고 시스템 운영</li>
-                    <li>부적절한 콘텐츠 자동 필터링</li>
-                </ul>
-            </div>
+            <!-- 정책 및 규정 섹션 삭제 요청으로 제거 -->
         </div>
 
         <div class="footer">
