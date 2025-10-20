@@ -359,7 +359,7 @@
         
         @media (max-width: 768px) {
             .hero-section {
-                flex-direction: column;
+                flex-direction: column-reverse;
                 text-align: center;
                 gap: 40px;
             }
@@ -427,7 +427,7 @@
     <div class="container">
         <!-- Hero Section -->
         <div class="hero-section">
-            <div class="hero-content fade-in">
+            <div class="hero-content">
                 <h1 class="hero-title fade-in fade-in-delay-1">RunOn</h1>
                 <h2 class="hero-subtitle fade-in fade-in-delay-2">달린 만큼, 더 가까워지세요.</h2>
                 <p class="hero-description fade-in fade-in-delay-3">
@@ -611,10 +611,10 @@
     <script>
         // 페이지 로드 시 페이드인 애니메이션
         document.addEventListener('DOMContentLoaded', function() {
-            // 모든 fade-in 요소에 visible 클래스 추가 (순차적으로)
-            const fadeElements = document.querySelectorAll('.fade-in');
+            // Hero 섹션의 fade-in 요소들만 먼저 실행
+            const heroElements = document.querySelectorAll('.hero-section .fade-in');
             
-            fadeElements.forEach((element, index) => {
+            heroElements.forEach((element, index) => {
                 setTimeout(() => {
                     element.classList.add('visible');
                 }, index * 200); // 200ms 간격으로 순차 실행
@@ -636,8 +636,16 @@
             });
         }
         
-        // 스크롤 이벤트 리스너
-        window.addEventListener('scroll', handleScrollAnimation);
+        // 스크롤 이벤트 리스너 (throttle 적용)
+        let ticking = false;
+        function requestTick() {
+            if (!ticking) {
+                requestAnimationFrame(handleScrollAnimation);
+                ticking = true;
+            }
+        }
+        
+        window.addEventListener('scroll', requestTick);
         
         // 초기 로드 시에도 스크롤 애니메이션 체크
         window.addEventListener('load', handleScrollAnimation);
