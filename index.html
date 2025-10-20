@@ -15,8 +15,8 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
             line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+            color: #ffffff;
+            background: linear-gradient(135deg, #161616 0%, #0A0A0A 100%);
             min-height: 100vh;
         }
         
@@ -26,83 +26,226 @@
             padding: 20px;
         }
         
-        .header {
-            text-align: center;
-            padding: 60px 0;
+        .hero-section {
+            display: flex;
+            align-items: center;
+            min-height: 80vh;
+            padding: 80px 0;
+            gap: 60px;
+        }
+        
+        .hero-content {
+            flex: 1;
             color: white;
         }
         
-        .logo {
-            font-size: 4em;
-            font-weight: bold;
+        .hero-title {
+            font-size: 3.5em;
+            font-weight: 700;
+            margin-bottom: 20px;
             background: linear-gradient(45deg, #3AF8FF, #00FF88);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            margin-bottom: 20px;
         }
         
-        .tagline {
-            font-size: 1.5em;
+        .hero-subtitle {
+            font-size: 1.8em;
+            color: #ffffff;
+            margin-bottom: 20px;
+            font-weight: 300;
+        }
+        
+        .hero-description {
+            font-size: 1.2em;
             color: #cccccc;
-            margin-bottom: 10px;
-        }
-        
-        .subtitle {
-            font-size: 1.1em;
-            color: #999999;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        
-        .content {
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            margin: 40px 0;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-        }
-        
-        .section {
             margin-bottom: 40px;
+            line-height: 1.6;
         }
         
-        .section:last-child {
-            margin-bottom: 0;
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
         }
         
-        h2 {
-            color: #333;
-            font-size: 2em;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 3px solid #3AF8FF;
+        .download-btn {
+            background: linear-gradient(45deg, #3AF8FF, #00FF88);
+            color: #000;
+            padding: 18px 36px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
             display: inline-block;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(58, 248, 255, 0.3);
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(58, 248, 255, 0.4);
+        }
+        
+        .phone-mockup {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .phone-container {
+            position: relative;
+            width: 300px;
+            height: 600px;
+            background: #1a1a1a;
+            border-radius: 40px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #3AF8FF, #00FF88);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .features-section {
+            padding: 80px 0;
+            background: rgba(255,255,255,0.02);
+            margin: 60px 0;
+            border-radius: 30px;
+        }
+        
+        .section-title {
+            text-align: center;
+            color: white;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        
+        .section-subtitle {
+            text-align: center;
+            color: #cccccc;
+            font-size: 1.2em;
+            margin-bottom: 60px;
         }
         
         .features {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 40px;
+            margin: 60px 0;
         }
         
         .feature-card {
-            background: #f8f9fa;
-            padding: 25px;
-            border-radius: 15px;
-            border-left: 4px solid #3AF8FF;
+            background: rgba(255,255,255,0.05);
+            padding: 40px 30px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-10px);
+            background: rgba(255,255,255,0.08);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }
         
         .feature-icon {
-            font-size: 2em;
-            margin-bottom: 10px;
+            font-size: 3em;
+            margin-bottom: 20px;
+            display: block;
         }
         
         .feature-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: white;
+            font-size: 1.4em;
+        }
+        
+        .feature-description {
+            color: #cccccc;
+            line-height: 1.6;
+        }
+        
+        .testimonials-section {
+            background: linear-gradient(135deg, #3AF8FF, #00FF88);
+            padding: 80px 40px;
+            margin: 60px 0;
+            border-radius: 30px;
+            text-align: center;
+        }
+        
+        .testimonial {
+            max-width: 800px;
+            margin: 0 auto;
+            color: #000;
+        }
+        
+        .testimonial-text {
+            font-size: 1.4em;
+            font-style: italic;
+            margin-bottom: 30px;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+        
+        .testimonial-author {
+            font-weight: 700;
+            font-size: 1.2em;
+        }
+        
+        .testimonial-role {
+            color: rgba(0,0,0,0.7);
+            font-size: 1em;
+        }
+        
+        .faq-section {
+            padding: 80px 0;
+        }
+        
+        .faq-item {
+            background: rgba(255,255,255,0.05);
+            margin: 20px 0;
+            border-radius: 15px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .faq-question {
+            background: rgba(255,255,255,0.08);
+            padding: 25px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            text-align: left;
+            font-size: 1.1em;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .faq-question:hover {
+            background: rgba(255,255,255,0.12);
+        }
+        
+        .faq-answer {
+            padding: 25px;
+            color: #cccccc;
+            line-height: 1.6;
         }
         
         .contact-info {
@@ -149,80 +292,157 @@
         }
         
         @media (max-width: 768px) {
-            .logo {
-                font-size: 3em;
+            .hero-section {
+                flex-direction: column;
+                text-align: center;
+                gap: 40px;
             }
             
-            .tagline {
-                font-size: 1.2em;
+            .hero-title {
+                font-size: 2.5em;
             }
             
-            .content {
-                padding: 20px;
-                margin: 20px 0;
+            .hero-subtitle {
+                font-size: 1.4em;
+            }
+            
+            .phone-container {
+                width: 250px;
+                height: 500px;
             }
             
             .features {
                 grid-template-columns: 1fr;
+                gap: 30px;
+            }
+            
+            .testimonials-section {
+                padding: 60px 20px;
+            }
+            
+            .testimonial-text {
+                font-size: 1.2em;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .download-btn {
+                width: 200px;
+                text-align: center;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div class="logo">RunOn</div>
-            <div class="tagline">한강 러닝 파트너 매칭 앱</div>
-            <div class="subtitle">
-                건강한 러닝 문화 확산과 안전한 러닝 환경 조성을 위해 노력하는 개발팀입니다
-            </div>
-        </div>
-
-        <div class="content">
-            <div class="section">
-                <h2>🏃‍♂️ 회사 소개</h2>
-                <p>
-                    RunOn은 한강에서 러닝을 즐기는 사람들을 위한 파트너 매칭 앱을 개발하는 전문 팀입니다. 
-                    우리는 러너들이 안전하고 즐겁게 운동할 수 있는 환경을 만들고, 
-                    건강한 러닝 문화 확산에 기여하고자 합니다.
+        <!-- Hero Section -->
+        <div class="hero-section">
+            <div class="hero-content">
+                <h1 class="hero-title">RunOn</h1>
+                <h2 class="hero-subtitle">달린 만큼, 더 가까워지세요.</h2>
+                <p class="hero-description">
+                    RunOn이 당신의 러닝 파트너를 찾아 다음 목표까지의 최적 경로를 제시합니다.
                 </p>
+                <div class="cta-buttons">
+                    <a href="#" class="download-btn">iOS 다운로드</a>
+                    <a href="#" class="download-btn">Android 다운로드</a>
+                </div>
             </div>
-
-            <div class="section">
-                <h2>✨ 주요 서비스</h2>
-                <div class="features">
-                    <div class="feature-card">
-                        <div class="feature-icon">🗺️</div>
-                        <div class="feature-title">한강 러닝 코스 정보</div>
-                        <p>한강 11개 공원의 상세한 러닝 코스 정보와 실시간 위치 기반 추천 서비스를 제공합니다.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">👥</div>
-                        <div class="feature-title">러닝 파트너 매칭</div>
-                        <p>비슷한 실력과 관심사를 가진 러닝 파트너를 AI 기반으로 매칭해드립니다.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">📅</div>
-                        <div class="feature-title">실시간 러닝 모임</div>
-                        <p>실시간으로 러닝 모임을 생성하고 참여할 수 있는 소셜 러닝 플랫폼을 운영합니다.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">💬</div>
-                        <div class="feature-title">러닝 커뮤니티</div>
-                        <p>러닝 팁, 후기, 정보를 공유할 수 있는 건전한 커뮤니티 공간을 제공합니다.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">📊</div>
-                        <div class="feature-title">러닝 기록 관리</div>
-                        <p>개인 러닝 기록과 통계를 체계적으로 관리하고 분석할 수 있습니다.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🌤️</div>
-                        <div class="feature-title">날씨 정보</div>
-                        <p>실시간 날씨 정보를 통해 최적의 러닝 시간을 추천해드립니다.</p>
+            <div class="phone-mockup">
+                <div class="phone-container">
+                    <div class="phone-screen">
+                        📱 앱 스크린샷<br>(사용자 첨부 예정)
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="features-section">
+            <h2 class="section-title">핵심 기능</h2>
+            <p class="section-subtitle">AI 기반 러닝 파트너 매칭의 차별화된 기능</p>
+            <div class="features">
+                <div class="feature-card">
+                    <div class="feature-icon">🏃‍♂️</div>
+                    <div class="feature-title">달리기만 하세요.<br>RunOn이 안내할게요.</div>
+                    <div class="feature-description">훈련 기록을 자동으로 업데이트하고, 매 러닝마다 철저한 분석 리포트를 제공합니다.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <div class="feature-title">내 러닝 기록들을<br>한눈에!</div>
+                    <div class="feature-description">최근 훈련부터 누적 거리까지 클릭하면 분석 리포트가 바로 열립니다.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <div class="feature-title">RunOn이 제안하는<br>나만의 도전 과제</div>
+                    <div class="feature-description">러너님이 설정한 목표와 데이터를 바탕으로 꼭 맞는 훈련을 준비해드려요.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💡</div>
+                    <div class="feature-title">기록만 보는게 아니라,<br>인사이트까지</div>
+                    <div class="feature-description">단순한 기록 확인을 넘어, 달리기에 꼭 필요한 인사이트까지 전해드립니다.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Testimonials Section -->
+        <div class="testimonials-section">
+            <h2 style="color: #000; margin-bottom: 40px; font-size: 2.5em;">러너들의 후기</h2>
+            <div class="testimonial">
+                <div class="testimonial-text">
+                    "RunOn 덕분에 혼자 달리던 러닝이 즐거운 소셜 활동이 되었어요! 비슷한 실력의 파트너를 만나서 함께 성장하고 있습니다."
+                </div>
+                <div class="testimonial-author">김러너</div>
+                <div class="testimonial-role">마라톤 러너</div>
+            </div>
+        </div>
+
+        <!-- FAQ Section -->
+        <div class="faq-section">
+            <h2 class="section-title">자주 묻는 질문</h2>
+            <p class="section-subtitle">궁금한 점을 확인해보세요</p>
+            
+            <div class="faq-item">
+                <button class="faq-question">어떤 러닝 플랫폼과 연동되나요?</button>
+                <div class="faq-answer">
+                    Apple Health, Google Fit, Strava 등 주요 러닝 플랫폼과 연동하여 데이터를 자동으로 가져올 수 있습니다.
+                </div>
+            </div>
+            
+            <div class="faq-item">
+                <button class="faq-question">무료 체험 기간은 얼마나 되나요?</button>
+                <div class="faq-answer">
+                    모든 기능을 7일간 무료로 체험해보실 수 있습니다. 체험 기간 후에도 기본 기능은 계속 이용 가능합니다.
+                </div>
+            </div>
+            
+            <div class="faq-item">
+                <button class="faq-question">파트너 매칭은 어떻게 작동하나요?</button>
+                <div class="faq-answer">
+                    AI가 당신의 러닝 실력, 목표, 선호 시간대를 분석하여 최적의 러닝 파트너를 추천해드립니다.
+                </div>
+            </div>
+            
+            <div class="faq-item">
+                <button class="faq-question">정말 완전 무료인가요?</button>
+                <div class="faq-answer">
+                    기본 기능은 무료로 제공되며, 프리미엄 기능(고급 분석, 무제한 매칭 등)은 유료 구독으로 이용하실 수 있습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- Final CTA Section -->
+        <div style="text-align: center; margin: 80px 0;">
+            <h2 class="section-title">지금 시작하세요</h2>
+            <p class="section-subtitle">RunOn과 함께 새로운 러닝 경험을 시작해보세요</p>
+            <div class="cta-buttons">
+                <a href="#" class="download-btn">iOS 다운로드</a>
+                <a href="#" class="download-btn">Android 다운로드</a>
+            </div>
+        </div>
 
             <div class="section company-info">
                 <h2>🏢 회사 정보</h2>
