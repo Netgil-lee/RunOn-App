@@ -118,9 +118,7 @@
         
         .features-section {
             padding: 80px 0;
-            background: rgba(255,255,255,0.02);
             margin: 60px 0;
-            border-radius: 30px;
         }
         
         .section-title {
@@ -146,15 +144,15 @@
         }
         
         .feature-card {
-            background: rgba(255,255,255,0.05);
             padding: 40px 30px;
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.1);
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
             display: flex;
             align-items: center;
             gap: 30px;
+        }
+        
+        .feature-card.reverse {
+            flex-direction: row-reverse;
         }
         
         .feature-content {
@@ -177,9 +175,7 @@
         }
         
         .feature-card:hover {
-            transform: translateY(-10px);
-            background: rgba(255,255,255,0.08);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            transform: translateY(-5px);
         }
         
         
@@ -406,7 +402,7 @@
                         📱 앱 스크린샷 1<br>(사용자 첨부 예정)
                     </div>
                 </div>
-                <div class="feature-card">
+                <div class="feature-card reverse">
                     <div class="feature-content">
                         <div class="feature-icon">📊</div>
                         <div class="feature-title">내 러닝 기록들을<br>한눈에!</div>
@@ -426,7 +422,7 @@
                         📱 앱 스크린샷 3<br>(사용자 첨부 예정)
                     </div>
                 </div>
-                <div class="feature-card">
+                <div class="feature-card reverse">
                     <div class="feature-content">
                         <div class="feature-icon">💡</div>
                         <div class="feature-title">기록만 보는게 아니라,<br>인사이트까지</div>
