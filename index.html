@@ -20,6 +20,34 @@
             min-height: 100vh;
         }
         
+        /* 페이드인 애니메이션 */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s ease-out;
+        }
+        
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .fade-in-delay-1 {
+            transition-delay: 0.2s;
+        }
+        
+        .fade-in-delay-2 {
+            transition-delay: 0.4s;
+        }
+        
+        .fade-in-delay-3 {
+            transition-delay: 0.6s;
+        }
+        
+        .fade-in-delay-4 {
+            transition-delay: 0.8s;
+        }
+        
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -331,7 +359,7 @@
         
         @media (max-width: 768px) {
             .hero-section {
-                flex-direction: column-reverse;
+                flex-direction: column;
                 text-align: center;
                 gap: 40px;
             }
@@ -399,18 +427,18 @@
     <div class="container">
         <!-- Hero Section -->
         <div class="hero-section">
-            <div class="hero-content">
-                <h1 class="hero-title">RunOn</h1>
-                <h2 class="hero-subtitle">달린 만큼, 더 가까워지세요.</h2>
-                <p class="hero-description">
+            <div class="hero-content fade-in">
+                <h1 class="hero-title fade-in fade-in-delay-1">RunOn</h1>
+                <h2 class="hero-subtitle fade-in fade-in-delay-2">달린 만큼, 더 가까워지세요.</h2>
+                <p class="hero-description fade-in fade-in-delay-3">
                     RunOn이 당신의 러닝 파트너를 찾아 다음 목표까지의 최적 경로를 제시합니다.
                 </p>
-                <div class="cta-buttons">
+                <div class="cta-buttons fade-in fade-in-delay-4">
                     <a href="#" class="download-btn">iOS 다운로드</a>
                     <a href="#" class="download-btn">Android 다운로드</a>
                 </div>
             </div>
-            <div class="phone-mockup">
+            <div class="phone-mockup fade-in fade-in-delay-2">
                 <div class="app-icon">
                     <img src="assets/appicon.png" alt="RunOn 앱 아이콘">
                 </div>
@@ -419,10 +447,10 @@
 
         <!-- Features Section -->
         <div class="features-section">
-            <h2 class="section-title">핵심 기능</h2>
-            <p class="section-subtitle">AI 기반 러닝 파트너 매칭의 차별화된 기능</p>
+            <h2 class="section-title fade-in">핵심 기능</h2>
+            <p class="section-subtitle fade-in">AI 기반 러닝 파트너 매칭의 차별화된 기능</p>
             <div class="features">
-                <div class="feature-card">
+                <div class="feature-card fade-in">
                     <div class="feature-content">
                         <div class="feature-icon">🏃‍♂️</div>
                         <div class="feature-title">달리기만 하세요.<br>RunOn이 안내할게요.</div>
@@ -432,7 +460,7 @@
                         📱 앱 스크린샷 1<br>(사용자 첨부 예정)
                     </div>
                 </div>
-                <div class="feature-card reverse">
+                <div class="feature-card reverse fade-in">
                     <div class="feature-content">
                         <div class="feature-icon">📊</div>
                         <div class="feature-title">내 러닝 기록들을<br>한눈에!</div>
@@ -442,7 +470,7 @@
                         📱 앱 스크린샷 2<br>(사용자 첨부 예정)
                     </div>
                 </div>
-                <div class="feature-card">
+                <div class="feature-card fade-in">
                     <div class="feature-content">
                         <div class="feature-icon">🎯</div>
                         <div class="feature-title">RunOn이 제안하는<br>나만의 도전 과제</div>
@@ -452,7 +480,7 @@
                         📱 앱 스크린샷 3<br>(사용자 첨부 예정)
                     </div>
                 </div>
-                <div class="feature-card reverse">
+                <div class="feature-card reverse fade-in">
                     <div class="feature-content">
                         <div class="feature-icon">💡</div>
                         <div class="feature-title">기록만 보는게 아니라,<br>인사이트까지</div>
@@ -579,5 +607,40 @@
             <p>건강한 러닝 문화를 만들어가는 RunOn과 함께하세요!</p>
         </div>
     </div>
+    
+    <script>
+        // 페이지 로드 시 페이드인 애니메이션
+        document.addEventListener('DOMContentLoaded', function() {
+            // 모든 fade-in 요소에 visible 클래스 추가 (순차적으로)
+            const fadeElements = document.querySelectorAll('.fade-in');
+            
+            fadeElements.forEach((element, index) => {
+                setTimeout(() => {
+                    element.classList.add('visible');
+                }, index * 200); // 200ms 간격으로 순차 실행
+            });
+        });
+        
+        // 스크롤 시 페이드인 애니메이션
+        function handleScrollAnimation() {
+            const elements = document.querySelectorAll('.fade-in');
+            const windowHeight = window.innerHeight;
+            
+            elements.forEach(element => {
+                const elementTop = element.getBoundingClientRect().top;
+                const elementVisible = 150;
+                
+                if (elementTop < windowHeight - elementVisible) {
+                    element.classList.add('visible');
+                }
+            });
+        }
+        
+        // 스크롤 이벤트 리스너
+        window.addEventListener('scroll', handleScrollAnimation);
+        
+        // 초기 로드 시에도 스크롤 애니메이션 체크
+        window.addEventListener('load', handleScrollAnimation);
+    </script>
 </body>
 </html>
