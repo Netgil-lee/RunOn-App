@@ -106,7 +106,7 @@
         .phone-screen {
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #3AF8FF, #00FF88);
+            background: #3AF8FF;
             border-radius: 30px;
             display: flex;
             align-items: center;
@@ -114,6 +114,20 @@
             color: #000;
             font-weight: bold;
             font-size: 1.2em;
+        }
+        
+        .app-icon {
+            width: 80px;
+            height: 80px;
+            background: #3AF8FF;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-weight: bold;
+            font-size: 1.5em;
+            box-shadow: 0 4px 15px rgba(58, 248, 255, 0.3);
         }
         
         .features-section {
@@ -309,7 +323,7 @@
         
         @media (max-width: 768px) {
             .hero-section {
-                flex-direction: column;
+                flex-direction: column-reverse;
                 text-align: center;
                 gap: 40px;
             }
@@ -325,6 +339,10 @@
             .phone-container {
                 width: 250px;
                 height: 500px;
+            }
+            
+            .phone-screen {
+                background: #3AF8FF;
             }
             
             .features {
@@ -363,6 +381,8 @@
             .download-btn {
                 width: 200px;
                 text-align: center;
+                white-space: nowrap;
+                padding: 15px 20px;
             }
         }
     </style>
@@ -383,10 +403,8 @@
                 </div>
             </div>
             <div class="phone-mockup">
-                <div class="phone-container">
-                    <div class="phone-screen">
-                        📱 앱 스크린샷<br>(사용자 첨부 예정)
-                    </div>
+                <div class="app-icon">
+                    🏃‍♂️
                 </div>
             </div>
         </div>
