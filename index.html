@@ -155,12 +155,31 @@
             border: 1px solid rgba(255,255,255,0.1);
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
         }
         
         .feature-card:hover {
             transform: translateY(-10px);
             background: rgba(255,255,255,0.08);
             box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        
+        .feature-screenshot {
+            width: 200px;
+            height: 400px;
+            background: linear-gradient(135deg, #3AF8FF, #00FF88);
+            border-radius: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-weight: bold;
+            font-size: 1.1em;
+            box-shadow: 0 10px 30px rgba(58, 248, 255, 0.3);
         }
         
         .feature-icon {
@@ -316,6 +335,12 @@
                 gap: 30px;
             }
             
+            .feature-screenshot {
+                width: 150px;
+                height: 300px;
+                font-size: 0.9em;
+            }
+            
             .testimonials-section {
                 padding: 60px 20px;
             }
@@ -366,21 +391,33 @@
             <p class="section-subtitle">AI 기반 러닝 파트너 매칭의 차별화된 기능</p>
             <div class="features">
                 <div class="feature-card">
+                    <div class="feature-screenshot">
+                        📱 앱 스크린샷 1<br>(사용자 첨부 예정)
+                    </div>
                     <div class="feature-icon">🏃‍♂️</div>
                     <div class="feature-title">달리기만 하세요.<br>RunOn이 안내할게요.</div>
                     <div class="feature-description">훈련 기록을 자동으로 업데이트하고, 매 러닝마다 철저한 분석 리포트를 제공합니다.</div>
                 </div>
                 <div class="feature-card">
+                    <div class="feature-screenshot">
+                        📱 앱 스크린샷 2<br>(사용자 첨부 예정)
+                    </div>
                     <div class="feature-icon">📊</div>
                     <div class="feature-title">내 러닝 기록들을<br>한눈에!</div>
                     <div class="feature-description">최근 훈련부터 누적 거리까지 클릭하면 분석 리포트가 바로 열립니다.</div>
                 </div>
                 <div class="feature-card">
+                    <div class="feature-screenshot">
+                        📱 앱 스크린샷 3<br>(사용자 첨부 예정)
+                    </div>
                     <div class="feature-icon">🎯</div>
                     <div class="feature-title">RunOn이 제안하는<br>나만의 도전 과제</div>
                     <div class="feature-description">러너님이 설정한 목표와 데이터를 바탕으로 꼭 맞는 훈련을 준비해드려요.</div>
                 </div>
                 <div class="feature-card">
+                    <div class="feature-screenshot">
+                        📱 앱 스크린샷 4<br>(사용자 첨부 예정)
+                    </div>
                     <div class="feature-icon">💡</div>
                     <div class="feature-title">기록만 보는게 아니라,<br>인사이트까지</div>
                     <div class="feature-description">단순한 기록 확인을 넘어, 달리기에 꼭 필요한 인사이트까지 전해드립니다.</div>
