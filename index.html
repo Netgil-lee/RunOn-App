@@ -364,10 +364,6 @@
         .testimonial-slider {
             max-width: 1000px;
             margin: 0 auto;
-            display: grid;
-            grid-template-columns: 60px 1fr 60px;
-            align-items: center;
-            gap: 12px;
         }
         .testimonial-card {
             background: rgba(255,255,255,0.03);
@@ -375,10 +371,18 @@
             border-radius: 24px;
             padding: 36px 28px;
             backdrop-filter: blur(2px);
+            position: relative;
+        }
+        .testimonial-controls {
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
         }
         .testimonial-arrow {
-            width: 48px;
-            height: 48px;
+            width: 56px;
+            height: 56px;
             border-radius: 50%;
             background: rgba(255,255,255,0.08);
             color: #ffffff;
@@ -389,17 +393,28 @@
             user-select: none;
             border: 1px solid rgba(255,255,255,0.12);
             transition: background .2s ease, transform .2s ease;
+            font-size: 24px;
+            line-height: 1;
         }
         .testimonial-arrow:hover { background: rgba(255,255,255,0.16); transform: translateY(-2px); }
         .testimonial-arrow:active { transform: translateY(0); }
 
         @media (max-width: 768px) {
-            .testimonial-slider { grid-template-columns: 44px 1fr 44px; }
             .testimonial-card { padding: 28px 20px; }
         }
 
         /* 글로우 가시성 보완 */
-        .feature-card { position: relative; overflow: visible; }
+        .feature-card { position: relative; overflow: visible; z-index: 0; }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            inset: -28px;
+            border-radius: 28px;
+            background: radial-gradient(55% 55% at 50% 50%, rgba(58, 248, 255, 0.45) 0%, rgba(58, 248, 255, 0.18) 40%, rgba(58, 248, 255, 0) 72%);
+            filter: blur(22px);
+            z-index: -1;
+            pointer-events: none;
+        }
 
         .testimonials-grid {
             display: grid;
@@ -645,10 +660,9 @@
         </div>
 
         <!-- Testimonials Section -->
-        <h2 class="section-title" style="text-align:center; margin-bottom: 20px;">러너들의 후기</h2>
-        <div class="testimonials-section fade-in">
+        <h2 class="section-title" style="text-align:center; margin-bottom: 10px;">러너들의 후기</h2>
+        <div class="testimonials-section fade-in" style="padding-top: 30px;">
             <div class="testimonial-slider">
-                <div class="testimonial-arrow" id="testimonial-prev">‹</div>
                 <div class="testimonial-card">
                     <div class="testimonial" id="testimonial-current">
                         <div class="testimonial-text">"RunOn 덕분에 혼자 달리던 러닝이 즐거운 소셜 활동이 되었어요! 비슷한 실력의 파트너를 만나서 함께 성장하고 있습니다."</div>
@@ -656,7 +670,10 @@
                         <div class="testimonial-role">러닝 입문자</div>
                     </div>
                 </div>
-                <div class="testimonial-arrow" id="testimonial-next">›</div>
+                <div class="testimonial-controls">
+                    <div class="testimonial-arrow" id="testimonial-prev">‹</div>
+                    <div class="testimonial-arrow" id="testimonial-next">›</div>
+                </div>
             </div>
         </div>
 
@@ -668,7 +685,7 @@
             <div class="faq-item">
                 <button class="faq-question">어떤 러닝 플랫폼과 연동되나요?</button>
                 <div class="faq-answer">
-                    Apple Health, Google Fit, Strava 등 주요 러닝 플랫폼과 연동하여 데이터를 자동으로 가져올 수 있습니다.
+                    Apple Health 연동하여 데이터를 자동으로 가져올 수 있습니다. 그 데이터를 기반으로 공유 이미지를 생성합니다.
                 </div>
             </div>
             
@@ -680,16 +697,16 @@
             </div>
             
             <div class="faq-item">
-                <button class="faq-question">파트너 매칭은 어떻게 작동하나요?</button>
+                <button class="faq-question">러닝 모임은 어떻게 참여할 수 있나요?</button>
                 <div class="faq-answer">
-                    AI가 당신의 러닝 실력, 목표, 선호 시간대를 분석하여 최적의 러닝 파트너를 추천해드립니다.
+                    사용자가 직접 원하는 시간대와 날짜를 선택하여 러닝 모임을 생성할 수 있습니다. 모임 생성 시 상세한 정보를 입력하면 더 많은 참여자를 모을 수 있어요
                 </div>
             </div>
             
             <div class="faq-item">
                 <button class="faq-question">정말 완전 무료인가요?</button>
                 <div class="faq-answer">
-                    기본 기능은 무료로 제공되며, 프리미엄 기능(고급 분석, 무제한 매칭 등)은 유료 구독으로 이용하실 수 있습니다.
+                    기본 기능은 무료로 제공되며, 프리미엄 기능(블랙리스트 기능, 파트너십 할인 혜택 등)은 유료 구독으로 이용하실 수 있습니다.
                 </div>
             </div>
         </div>
@@ -707,17 +724,11 @@
             <!-- 회사 정보 섹션 삭제 요청으로 제거 -->
 
             <div class="contact-info">
-                <h2>📞 연락처 정보</h2>
+                <h2>협업 및 파트너십 문의</h2>
                 <div class="contact-item">
                     <span class="contact-icon">📧</span>
                     <div>
                         <strong>이메일:</strong> dlrhdkgml12@gmail.com
-                    </div>
-                </div>
-                <div class="contact-item">
-                    <span class="contact-icon">🌐</span>
-                    <div>
-                        <strong>웹사이트:</strong> <a href="https://netgil-lee.github.io/RunOn-App">https://netgil-lee.github.io/RunOn-App</a>
                     </div>
                 </div>
                 <div class="contact-item">
