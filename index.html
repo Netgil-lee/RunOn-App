@@ -23,8 +23,8 @@
         /* 페이드인 애니메이션 */
         .fade-in {
             opacity: 0;
-            transform: translateY(30px);
-            transition: all 0.8s ease-out;
+            transform: translateY(50px);
+            transition: all 1s ease-out;
         }
         
         .fade-in.visible {
@@ -609,46 +609,53 @@
     </div>
     
     <script>
-        // 페이지 로드 시 페이드인 애니메이션
+        // 페이지 로드 시 Hero 섹션 페이드인 애니메이션
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM 로드됨');
+            
             // Hero 섹션의 fade-in 요소들만 먼저 실행
             const heroElements = document.querySelectorAll('.hero-section .fade-in');
+            console.log('Hero 요소 개수:', heroElements.length);
             
             heroElements.forEach((element, index) => {
                 setTimeout(() => {
                     element.classList.add('visible');
+                    console.log('Hero 요소 애니메이션 실행:', element);
                 }, index * 200); // 200ms 간격으로 순차 실행
             });
         });
         
         // 스크롤 시 페이드인 애니메이션
         function handleScrollAnimation() {
-            const elements = document.querySelectorAll('.fade-in');
+            const elements = document.querySelectorAll('.fade-in:not(.visible)');
             const windowHeight = window.innerHeight;
+            
+            console.log('스크롤 애니메이션 체크 - 요소 개수:', elements.length);
             
             elements.forEach(element => {
                 const elementTop = element.getBoundingClientRect().top;
                 const elementVisible = 150;
                 
+                console.log('요소 위치:', elementTop, '화면 높이:', windowHeight, '가시 영역:', windowHeight - elementVisible);
+                
                 if (elementTop < windowHeight - elementVisible) {
                     element.classList.add('visible');
+                    console.log('요소 애니메이션 실행:', element);
                 }
             });
         }
         
-        // 스크롤 이벤트 리스너 (throttle 적용)
-        let ticking = false;
-        function requestTick() {
-            if (!ticking) {
-                requestAnimationFrame(handleScrollAnimation);
-                ticking = true;
-            }
-        }
-        
-        window.addEventListener('scroll', requestTick);
+        // 스크롤 이벤트 리스너
+        window.addEventListener('scroll', handleScrollAnimation);
         
         // 초기 로드 시에도 스크롤 애니메이션 체크
-        window.addEventListener('load', handleScrollAnimation);
+        window.addEventListener('load', function() {
+            console.log('페이지 로드 완료');
+            handleScrollAnimation();
+        });
+        
+        // 디버깅을 위한 로그
+        console.log('애니메이션 스크립트 로드됨');
     </script>
 </body>
 </html>
