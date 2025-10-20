@@ -265,17 +265,29 @@
         }
         
         .feature-screenshot {
-            width: 300px;
-            height: 600px;
-            border-radius: 20px;
+            width: 360px;
+            height: 720px;
+            border-radius: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            /* 그림자 제거: 어두운 배경에서 테두리처럼 보이는 현상 방지 */
+            /* 글로우 효과는 의사 요소로 구현하여 테두리 느낌 없이 부드럽게 */
             box-shadow: none;
             flex-shrink: 0;
             background: transparent;
+            position: relative;
+        }
+        
+        .feature-screenshot::before {
+            content: '';
+            position: absolute;
+            inset: -12px;
+            border-radius: 28px;
+            background: radial-gradient(60% 60% at 50% 50%, rgba(58, 248, 255, 0.35) 0%, rgba(58, 248, 255, 0.12) 40%, rgba(58, 248, 255, 0) 70%);
+            filter: blur(18px);
+            z-index: 0;
+            pointer-events: none;
         }
         
         .feature-screenshot img {
@@ -285,6 +297,8 @@
             border-radius: 20px;
             /* 모바일 브라우저에서 생길 수 있는 잔여 테두리 제거 */
             background: transparent;
+            position: relative;
+            z-index: 1;
         }
         
         .feature-card:hover {
@@ -459,11 +473,24 @@
             }
             
             .feature-screenshot {
-                width: 200px;
-                height: 400px;
+                width: 240px;
+                height: 480px;
                 margin: 0 auto;
                 background: transparent;
                 box-shadow: none;
+                position: relative;
+                border-radius: 20px;
+            }
+            
+            .feature-screenshot::before {
+                content: '';
+                position: absolute;
+                inset: -10px;
+                border-radius: 26px;
+                background: radial-gradient(60% 60% at 50% 50%, rgba(58, 248, 255, 0.35) 0%, rgba(58, 248, 255, 0.12) 40%, rgba(58, 248, 255, 0) 70%);
+                filter: blur(16px);
+                z-index: 0;
+                pointer-events: none;
             }
             
             .feature-screenshot img {
