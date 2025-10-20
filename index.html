@@ -20,6 +20,19 @@
             min-height: 100vh;
         }
         
+        /* 모든 링크에서 밑줄 제거 */
+        a {
+            text-decoration: none !important;
+        }
+        
+        a:visited,
+        a:active,
+        a:focus,
+        a:hover,
+        a:link {
+            text-decoration: none !important;
+        }
+        
         /* 페이드인 애니메이션 */
         .fade-in {
             opacity: 0;
@@ -83,7 +96,7 @@
         
         @media (max-width: 768px) {
             .hero-subtitle {
-                font-size: 4em;
+                font-size: 8em;
                 font-weight: 700;
                 margin-bottom: 30px;
             }
@@ -121,9 +134,17 @@
         
         .download-btn:visited,
         .download-btn:active,
-        .download-btn:focus {
-            text-decoration: none;
-            color: #000;
+        .download-btn:focus,
+        .download-btn:hover,
+        .download-btn:link {
+            text-decoration: none !important;
+            color: #000 !important;
+            border: none !important;
+            outline: none !important;
+        }
+        
+        .download-btn * {
+            text-decoration: none !important;
         }
         
         .download-btn:hover {
