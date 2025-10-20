@@ -36,13 +36,15 @@
         /* 페이드인 애니메이션 */
         .fade-in {
             opacity: 0;
-            transform: translateY(50px);
-            transition: all 1s ease-out;
+            transform: translateY(40px) scale(0.98);
+            filter: blur(6px);
+            transition: opacity .9s ease, transform .9s ease, filter .9s ease;
         }
         
         .fade-in.visible {
             opacity: 1;
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
+            filter: blur(0);
         }
         
         .fade-in-delay-1 {
@@ -732,16 +734,9 @@
                     </div>
                 </div>
                 <div class="contact-item">
-                    <span class="contact-icon">📱</span>
+                    <span class="contact-icon">📷</span>
                     <div>
-                        <strong>앱 스토어:</strong> 출시 예정 (iOS/Android)
-                    </div>
-                </div>
-                <div class="contact-item">
-                    <span class="contact-icon">🔒</span>
-                    <div>
-                        <strong>개인정보처리방침:</strong> 
-                        <a href="https://netgil-lee.github.io/RunOn-App/privacy-policy.html">보기</a>
+                        <strong>인스타그램:</strong> rectusframe
                     </div>
                 </div>
             </div>
