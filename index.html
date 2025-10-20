@@ -346,17 +346,60 @@
             margin-bottom: 30px;
             line-height: 1.6;
             font-weight: 500;
+            color: #ffffff; /* 흰색 텍스트 */
         }
         
         .testimonial-author {
             font-weight: 700;
             font-size: 1.2em;
+            color: #ffffff;
         }
         
         .testimonial-role {
             color: rgba(255,255,255,0.7);
             font-size: 1em;
         }
+
+        /* 후기 슬라이더 */
+        .testimonial-slider {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 60px 1fr 60px;
+            align-items: center;
+            gap: 12px;
+        }
+        .testimonial-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 24px;
+            padding: 36px 28px;
+            backdrop-filter: blur(2px);
+        }
+        .testimonial-arrow {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+            border: 1px solid rgba(255,255,255,0.12);
+            transition: background .2s ease, transform .2s ease;
+        }
+        .testimonial-arrow:hover { background: rgba(255,255,255,0.16); transform: translateY(-2px); }
+        .testimonial-arrow:active { transform: translateY(0); }
+
+        @media (max-width: 768px) {
+            .testimonial-slider { grid-template-columns: 44px 1fr 44px; }
+            .testimonial-card { padding: 28px 20px; }
+        }
+
+        /* 글로우 가시성 보완 */
+        .feature-card { position: relative; overflow: visible; }
 
         .testimonials-grid {
             display: grid;
@@ -602,30 +645,18 @@
         </div>
 
         <!-- Testimonials Section -->
+        <h2 class="section-title" style="text-align:center; margin-bottom: 20px;">러너들의 후기</h2>
         <div class="testimonials-section fade-in">
-            <h2 style="color: #fff; margin-bottom: 40px; font-size: 2.5em;">러너들의 후기</h2>
-            <div class="testimonials-grid">
-                <div class="testimonial">
-                    <div class="testimonial-text">
-                        "RunOn 덕분에 혼자 달리던 러닝이 즐거운 소셜 활동이 되었어요! 비슷한 실력의 파트너를 만나서 함께 성장하고 있습니다."
+            <div class="testimonial-slider">
+                <div class="testimonial-arrow" id="testimonial-prev">‹</div>
+                <div class="testimonial-card">
+                    <div class="testimonial" id="testimonial-current">
+                        <div class="testimonial-text">"RunOn 덕분에 혼자 달리던 러닝이 즐거운 소셜 활동이 되었어요! 비슷한 실력의 파트너를 만나서 함께 성장하고 있습니다."</div>
+                        <div class="testimonial-author">김수현</div>
+                        <div class="testimonial-role">러닝 입문자</div>
                     </div>
-                    <div class="testimonial-author">김수현</div>
-                    <div class="testimonial-role">러닝 입문자</div>
                 </div>
-                <div class="testimonial">
-                    <div class="testimonial-text">
-                        "러닝 매너 평가 기능 덕분에 믿을 수 있는 러너들과만 함께 뛰게 되었어요. 안전하고 즐거운 러닝 문화를 느끼고 있습니다."
-                    </div>
-                    <div class="testimonial-author">박지민</div>
-                    <div class="testimonial-role">동호회 리더</div>
-                </div>
-                <div class="testimonial">
-                    <div class="testimonial-text">
-                        "거리와 페이스가 비슷한 러너를 자동 매칭해줘서 목표 달성이 쉬워졌어요. 혼자였으면 포기했을 훈련도 끝냈습니다!"
-                    </div>
-                    <div class="testimonial-author">이도윤</div>
-                    <div class="testimonial-role">마라톤 러너</div>
-                </div>
+                <div class="testimonial-arrow" id="testimonial-next">›</div>
             </div>
         </div>
 
@@ -714,6 +745,57 @@
     </div>
     
     <script>
+        // 후기 슬라이더 데이터 및 동작
+        const testimonialsData = [
+            {
+                text: '"RunOn 덕분에 혼자 달리던 러닝이 즐거운 소셜 활동이 되었어요! 비슷한 실력의 파트너를 만나서 함께 성장하고 있습니다."',
+                author: '김수현',
+                role: '러닝 입문자'
+            },
+            {
+                text: '"러닝 매너 평가 기능 덕분에 믿을 수 있는 러너들과만 함께 뛰게 되었어요. 안전하고 즐거운 러닝 문화를 느끼고 있습니다."',
+                author: '박지민',
+                role: '동호회 리더'
+            },
+            {
+                text: '"거리와 페이스가 비슷한 러너를 자동 매칭해줘서 목표 달성이 쉬워졌어요. 혼자였으면 포기했을 훈련도 끝냈습니다!"',
+                author: '이도윤',
+                role: '마라톤 러너'
+            }
+        ];
+
+        let testimonialIndex = 0;
+        function renderTestimonial(index) {
+            const t = testimonialsData[index];
+            const container = document.getElementById('testimonial-current');
+            if (!container) return;
+            container.classList.remove('visible');
+            container.style.opacity = 0;
+            setTimeout(() => {
+                container.innerHTML = `
+                    <div class="testimonial-text">${t.text}</div>
+                    <div class="testimonial-author">${t.author}</div>
+                    <div class="testimonial-role">${t.role}</div>
+                `;
+                container.style.opacity = 1;
+                container.classList.add('visible');
+            }, 150);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const prev = document.getElementById('testimonial-prev');
+            const next = document.getElementById('testimonial-next');
+            if (prev && next) {
+                prev.addEventListener('click', function() {
+                    testimonialIndex = (testimonialIndex - 1 + testimonialsData.length) % testimonialsData.length;
+                    renderTestimonial(testimonialIndex);
+                });
+                next.addEventListener('click', function() {
+                    testimonialIndex = (testimonialIndex + 1) % testimonialsData.length;
+                    renderTestimonial(testimonialIndex);
+                });
+            }
+        });
         // 페이지 로드 시 Hero 섹션 페이드인 애니메이션
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM 로드됨');
