@@ -209,12 +209,12 @@
         }
         
         .manual-content {
-            display: none;
+            display: block;
             margin-top: 20px;
         }
         
-        .manual-section.active .manual-content {
-            display: block;
+        .manual-section:not(.active) .manual-content {
+            display: none;
         }
         
         .manual-section p {
@@ -1338,23 +1338,21 @@
                 showPage('homePage');
             });
             
-            // 메뉴얼 아코디언 기능 - 더 간단한 방법
-            document.addEventListener('click', function(e) {
-                if (e.target.closest('.manual-section')) {
-                    const section = e.target.closest('.manual-section');
-                    const allSections = document.querySelectorAll('.manual-section');
-                    
-                    // 다른 섹션들 닫기
-                    allSections.forEach(otherSection => {
-                        if (otherSection !== section) {
-                            otherSection.classList.remove('active');
-                        }
+            // 메뉴얼 아코디언 기능 - 가장 간단한 방법
+            function initManualAccordion() {
+                const sections = document.querySelectorAll('.manual-section');
+                sections.forEach(section => {
+                    section.addEventListener('click', function() {
+                        // 모든 섹션에서 active 클래스 제거
+                        sections.forEach(s => s.classList.remove('active'));
+                        // 클릭된 섹션에 active 클래스 추가
+                        this.classList.add('active');
                     });
-                    
-                    // 현재 섹션 토글
-                    section.classList.toggle('active');
-                }
-            });
+                });
+            }
+            
+            // 페이지 로드 시 초기화
+            initManualAccordion();
             
             // 스크린샷 썸네일 클릭 이벤트 - 더 간단한 방법
             document.addEventListener('click', function(e) {
