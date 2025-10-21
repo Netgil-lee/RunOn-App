@@ -33,6 +33,209 @@
             text-decoration: none !important;
         }
         
+        /* 상단 내비게이터 */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        
+        .menu-icon {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+        
+        .menu-icon:hover {
+            transform: scale(1.1);
+        }
+        
+        .menu-line {
+            width: 100%;
+            height: 3px;
+            background: #3AF8FF;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+        
+        .menu-icon.active .menu-line:nth-child(1) {
+            transform: rotate(45deg) translate(6px, 6px);
+        }
+        
+        .menu-icon.active .menu-line:nth-child(2) {
+            opacity: 0;
+        }
+        
+        .menu-icon.active .menu-line:nth-child(3) {
+            transform: rotate(-45deg) translate(6px, -6px);
+        }
+        
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 10px;
+            padding: 20px;
+            min-width: 200px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+        
+        .dropdown-menu.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .dropdown-item {
+            display: block;
+            color: white;
+            text-decoration: none;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(58, 248, 255, 0.2);
+            transition: color 0.3s ease;
+        }
+        
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+        
+        .dropdown-item:hover {
+            color: #3AF8FF;
+        }
+        
+        /* 모달 스타일 */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            background: #1a1a1a;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            margin: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+        
+        .modal.active .modal-content {
+            transform: scale(1);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .modal-title {
+            color: #3AF8FF;
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: #ccc;
+            font-size: 2em;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        
+        .modal-close:hover {
+            color: #3AF8FF;
+        }
+        
+        .manual-section {
+            margin-bottom: 30px;
+        }
+        
+        .manual-section h3 {
+            color: #3AF8FF;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+        }
+        
+        .manual-section p {
+            color: #ccc;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        
+        .policy-links {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .policy-link {
+            display: block;
+            background: rgba(58, 248, 255, 0.1);
+            border: 1px solid rgba(58, 248, 255, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        
+        .policy-link:hover {
+            background: rgba(58, 248, 255, 0.2);
+            border-color: #3AF8FF;
+            transform: translateY(-2px);
+        }
+        
+        .policy-link h4 {
+            color: #3AF8FF;
+            margin-bottom: 8px;
+        }
+        
+        .policy-link p {
+            color: #ccc;
+            font-size: 0.9em;
+        }
+        
         /* 페이드인 애니메이션 */
         .fade-in {
             opacity: 0;
@@ -597,6 +800,20 @@
     </style>
 </head>
 <body>
+    <!-- 상단 내비게이터 -->
+    <nav class="navbar">
+        <div class="menu-icon" id="menuIcon">
+            <div class="menu-line"></div>
+            <div class="menu-line"></div>
+            <div class="menu-line"></div>
+        </div>
+        <div class="dropdown-menu" id="dropdownMenu">
+            <a href="#" class="dropdown-item" id="homeLink">홈</a>
+            <a href="#" class="dropdown-item" id="manualLink">메뉴얼</a>
+            <a href="#" class="dropdown-item" id="policyLink">방침</a>
+        </div>
+    </nav>
+
     <div class="container">
         <!-- Hero Section -->
         <div class="hero-section">
@@ -608,8 +825,7 @@
             <div class="hero-content">
                 <h2 class="hero-subtitle fade-in fade-in-delay-2">너와 나의 러닝소셜플랫폼</h2>
                 <p class="hero-description fade-in fade-in-delay-3">
-                    '러논'이 여러분들의 러닝파트너를 찾아 건강한 한강러닝문화를 제공합니다.<br>
-                    <strong>안전하고 즐거운 러닝 경험</strong>을 위해 17세 미만 사용자는 서비스 이용이 제한됩니다.
+                    '러논'이 여러분들의 러닝파트너를 찾아 건강한 한강러닝문화를 제공합니다.
                 </p>
             </div>
             <div class="cta-buttons fade-in fade-in-delay-4">
@@ -713,19 +929,6 @@
                 </div>
             </div>
             
-            <div class="faq-item">
-                <button class="faq-question">17세 미만도 사용할 수 있나요?</button>
-                <div class="faq-answer">
-                    RunOn은 17세 미만 사용자의 안전을 위해 서비스 이용을 제한합니다. 17세 이상 사용자만 가입 및 이용이 가능합니다.
-                </div>
-            </div>
-            
-            <div class="faq-item">
-                <button class="faq-question">개인정보는 어떻게 보호되나요?</button>
-                <div class="faq-answer">
-                    모든 개인정보는 암호화되어 저장되며, 서비스 이용에 필요한 최소한의 정보만 수집합니다. 자세한 내용은 개인정보처리방침을 확인해주세요.
-                </div>
-            </div>
         </div>
 
         <!-- Final CTA Section -->
@@ -754,18 +957,6 @@
                         <strong>인스타그램:</strong> rectusframe
                     </div>
                 </div>
-                <div class="contact-item">
-                    <span class="contact-icon">🛡️</span>
-                    <div>
-                        <strong>개인정보처리방침:</strong> <a href="docs/privacy-policy.html" style="color: #3AF8FF;">개인정보처리방침 보기</a>
-                    </div>
-                </div>
-                <div class="contact-item">
-                    <span class="contact-icon">👶</span>
-                    <div>
-                        <strong>아동 안전 정책:</strong> <a href="CHILD_SAFETY_POLICY.md" style="color: #3AF8FF;">아동 안전 정책 보기</a>
-                    </div>
-                </div>
             </div>
 
             <!-- 정책 및 규정 섹션 삭제 요청으로 제거 -->
@@ -774,6 +965,72 @@
         <div class="footer">
             <p>&copy; 2025 RunOn 개발팀. All rights reserved.</p>
             <p>건강한 러닝 문화를 만들어가는 RunOn과 함께하세요!</p>
+        </div>
+    </div>
+    
+    <!-- 메뉴얼 모달 -->
+    <div class="modal" id="manualModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">러논 사용설명서</h2>
+                <button class="modal-close" id="closeManual">&times;</button>
+            </div>
+            <div class="manual-section">
+                <h3>1. 회원가입 절차</h3>
+                <p>• 이메일 또는 소셜 로그인으로 간편 가입</p>
+                <p>• 러닝 레벨과 선호 지역 설정</p>
+                <p>• 프로필 정보 입력 및 사진 등록</p>
+            </div>
+            <div class="manual-section">
+                <h3>2. 홈화면 기능</h3>
+                <p>• 오늘의 러닝 현황 및 목표 달성률 확인</p>
+                <p>• 추천 러닝 모임 및 파트너 제안</p>
+                <p>• 최근 활동 기록 및 성과 요약</p>
+            </div>
+            <div class="manual-section">
+                <h3>3. 모임생성</h3>
+                <p>• 원하는 날짜, 시간, 장소 설정</p>
+                <p>• 러닝 거리와 페이스 범위 지정</p>
+                <p>• 모임 설명 및 참가 조건 설정</p>
+            </div>
+            <div class="manual-section">
+                <h3>4. 모임관리</h3>
+                <p>• 참여 중인 모임 목록 확인</p>
+                <p>• 모임원들과의 채팅 및 소통</p>
+                <p>• 모임 일정 변경 및 취소</p>
+            </div>
+            <div class="manual-section">
+                <h3>5. 커뮤니티 기능</h3>
+                <p>• 러닝 후기 및 사진 공유</p>
+                <p>• 다른 러너들과의 팁 교환</p>
+                <p>• 러닝 이벤트 및 챌린지 참여</p>
+            </div>
+            <div class="manual-section">
+                <h3>6. 러논멤버스 기능</h3>
+                <p>• 프리미엄 러닝 파트너 매칭</p>
+                <p>• 개인 맞춤형 러닝 계획 제공</p>
+                <p>• 전문 코치와의 1:1 상담</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 방침 모달 -->
+    <div class="modal" id="policyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">정책 및 규정</h2>
+                <button class="modal-close" id="closePolicy">&times;</button>
+            </div>
+            <div class="policy-links">
+                <a href="docs/privacy-policy.html" class="policy-link" target="_blank">
+                    <h4>개인정보처리방침</h4>
+                    <p>RunOn에서 수집, 사용, 보관하는 개인정보에 대한 상세한 정책을 확인하세요.</p>
+                </a>
+                <a href="CHILD_SAFETY_POLICY.md" class="policy-link" target="_blank">
+                    <h4>아동 안전 정책</h4>
+                    <p>17세 미만 사용자 보호를 위한 안전 정책 및 이용 제한 사항을 확인하세요.</p>
+                </a>
+            </div>
         </div>
     </div>
     
@@ -876,6 +1133,79 @@
         
         // 디버깅을 위한 로그
         console.log('애니메이션 스크립트 로드됨');
+        
+        // 내비게이터 메뉴 기능
+        document.addEventListener('DOMContentLoaded', function() {
+            const menuIcon = document.getElementById('menuIcon');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            const homeLink = document.getElementById('homeLink');
+            const manualLink = document.getElementById('manualLink');
+            const policyLink = document.getElementById('policyLink');
+            const manualModal = document.getElementById('manualModal');
+            const policyModal = document.getElementById('policyModal');
+            const closeManual = document.getElementById('closeManual');
+            const closePolicy = document.getElementById('closePolicy');
+            
+            // 메뉴 토글
+            menuIcon.addEventListener('click', function() {
+                menuIcon.classList.toggle('active');
+                dropdownMenu.classList.toggle('active');
+            });
+            
+            // 홈 링크 - 페이지 상단으로 스크롤
+            homeLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                menuIcon.classList.remove('active');
+                dropdownMenu.classList.remove('active');
+            });
+            
+            // 메뉴얼 링크
+            manualLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                manualModal.classList.add('active');
+                menuIcon.classList.remove('active');
+                dropdownMenu.classList.remove('active');
+            });
+            
+            // 방침 링크
+            policyLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                policyModal.classList.add('active');
+                menuIcon.classList.remove('active');
+                dropdownMenu.classList.remove('active');
+            });
+            
+            // 모달 닫기
+            closeManual.addEventListener('click', function() {
+                manualModal.classList.remove('active');
+            });
+            
+            closePolicy.addEventListener('click', function() {
+                policyModal.classList.remove('active');
+            });
+            
+            // 모달 배경 클릭시 닫기
+            manualModal.addEventListener('click', function(e) {
+                if (e.target === manualModal) {
+                    manualModal.classList.remove('active');
+                }
+            });
+            
+            policyModal.addEventListener('click', function(e) {
+                if (e.target === policyModal) {
+                    policyModal.classList.remove('active');
+                }
+            });
+            
+            // ESC 키로 모달 닫기
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    manualModal.classList.remove('active');
+                    policyModal.classList.remove('active');
+                }
+            });
+        });
     </script>
 </body>
 </html>
