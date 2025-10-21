@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "RunOn",
+    "name": "RunOn - 한강 러닝 파트너",
     "slug": "runon",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/appicon.png",
     "userInterfaceStyle": "light",
+    "description": "RunOn은 한강에서 함께 뛸 러닝 파트너를 찾아주는 소셜 러닝 플랫폼입니다. 17세 이상 사용자만 이용 가능하며, 안전하고 즐거운 러닝 경험을 제공합니다.",
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -18,7 +19,8 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
         "NSCameraUsageDescription": "프로필 사진 업로드를 위해 카메라 권한이 필요합니다.",
         "NSPhotoLibraryUsageDescription": "프로필 사진 업로드를 위해 사진 라이브러리 접근 권한이 필요합니다.",
-        "NSContactsUsageDescription": "친구 추가 기능을 위해 연락처 접근 권한이 필요합니다."
+        "NSContactsUsageDescription": "친구 추가 기능을 위해 연락처 접근 권한이 필요합니다.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
