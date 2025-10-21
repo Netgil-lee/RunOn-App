@@ -174,6 +174,7 @@
             padding: 30px;
             margin-bottom: 30px;
             transition: all 0.3s ease;
+            cursor: pointer;
         }
         
         .manual-section:hover {
@@ -182,11 +183,38 @@
             transform: translateY(-2px);
         }
         
+        .manual-section.active {
+            background: rgba(58, 248, 255, 0.1);
+            border-color: rgba(58, 248, 255, 0.4);
+        }
+        
         .manual-section h3 {
             color: #3AF8FF;
             font-size: 1.5em;
             margin-bottom: 20px;
             font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .manual-section h3::after {
+            content: '▼';
+            transition: transform 0.3s ease;
+            font-size: 0.8em;
+        }
+        
+        .manual-section.active h3::after {
+            transform: rotate(180deg);
+        }
+        
+        .manual-content {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .manual-section.active .manual-content {
+            display: block;
         }
         
         .manual-section p {
@@ -194,6 +222,69 @@
             line-height: 1.8;
             margin-bottom: 12px;
             font-size: 1.1em;
+        }
+        
+        .screenshot-gallery {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            overflow-x: auto;
+            padding: 10px 0;
+        }
+        
+        .screenshot-thumbnail {
+            width: 120px;
+            height: 200px;
+            border-radius: 10px;
+            object-fit: cover;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            border: 2px solid rgba(58, 248, 255, 0.3);
+        }
+        
+        .screenshot-thumbnail:hover {
+            transform: scale(1.05);
+            border-color: #3AF8FF;
+        }
+        
+        .screenshot-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .screenshot-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .screenshot-modal img {
+            max-width: 90vw;
+            max-height: 90vh;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 2em;
+            cursor: pointer;
+            z-index: 3001;
         }
         
         .policy-links {
@@ -977,52 +1068,88 @@
                 <h1 class="section-title">러논 사용설명서</h1>
             </div>
             
-            <div class="manual-section">
-                <h3>1. 회원가입 절차</h3>
-                <p>• 이메일 또는 소셜 로그인으로 간편 가입</p>
-                <p>• 러닝 레벨과 선호 지역 설정</p>
-                <p>• 프로필 정보 입력 및 사진 등록</p>
-                <p>• 개인정보 수집 및 이용에 동의</p>
+            <div class="manual-section" data-section="signup">
+                <h3>1. 회원가입</h3>
+                <div class="manual-content">
+                    <div class="screenshot-gallery">
+                        <img src="assets/images/manual/signup1.jpg" alt="회원가입 1단계" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/signup2.jpg" alt="회원가입 2단계" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/signup3.jpg" alt="회원가입 3단계" class="screenshot-thumbnail">
+                    </div>
+                    <p>• 간단한 본인인증 가능한 휴대폰으로 가입해주세요.</p>
+                    <p>• 프로필 정보 및 내 러닝 정보를 입력해주세요.</p>
+                    <p>• 개인정보수집을 위한 권한(알림, 위치, 건강데이터 등)을 설정해주세요.</p>
+                </div>
             </div>
             
-            <div class="manual-section">
-                <h3>2. 홈화면 기능</h3>
-                <p>• 오늘의 러닝 현황 및 목표 달성률 확인</p>
-                <p>• 추천 러닝 모임 및 파트너 제안</p>
-                <p>• 최근 활동 기록 및 성과 요약</p>
-                <p>• 날씨 정보 및 러닝 조건 확인</p>
+            <div class="manual-section" data-section="home">
+                <h3>2. 홈화면기능</h3>
+                <div class="manual-content">
+                    <div class="screenshot-gallery">
+                        <img src="assets/images/manual/home1.jpg" alt="홈화면 1" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/home2.jpg" alt="홈화면 2" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/home3.jpg" alt="홈화면 3" class="screenshot-thumbnail">
+                    </div>
+                    <p>• 오늘의 러닝 현황 및 목표 달성률 확인을 할 수 있어요.</p>
+                    <p>• 날씨 정보를 확인할 수 있어요.</p>
+                    <p>• 각 지역별 가능한 모임을 지도로 한 번에 확인할 수 있어요.</p>
+                </div>
             </div>
             
-            <div class="manual-section">
+            <div class="manual-section" data-section="create">
                 <h3>3. 모임생성</h3>
-                <p>• 원하는 날짜, 시간, 장소 설정</p>
-                <p>• 러닝 거리와 페이스 범위 지정</p>
-                <p>• 모임 설명 및 참가 조건 설정</p>
-                <p>• 모임원 수 제한 및 신청 마감일 설정</p>
+                <div class="manual-content">
+                    <div class="screenshot-gallery">
+                        <img src="assets/images/manual/create1.jpg" alt="모임생성 1" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/create2.jpg" alt="모임생성 2" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/create3.jpg" alt="모임생성 3" class="screenshot-thumbnail">
+                    </div>
+                    <p>• 러닝 컨셉, 날짜, 시간, 장소를 설정할 수 있어요.</p>
+                    <p>• 러닝 거리와 페이스 범위를 지정할 수 있어요.</p>
+                    <p>• 모임 인원수 및 태그를 통한 모임을 개별화할 수 있어요.</p>
+                </div>
             </div>
             
-            <div class="manual-section">
+            <div class="manual-section" data-section="manage">
                 <h3>4. 모임관리</h3>
-                <p>• 참여 중인 모임 목록 확인</p>
-                <p>• 모임원들과의 채팅 및 소통</p>
-                <p>• 모임 일정 변경 및 취소</p>
-                <p>• 러닝 후기 작성 및 사진 공유</p>
+                <div class="manual-content">
+                    <div class="screenshot-gallery">
+                        <img src="assets/images/manual/manage1.jpg" alt="모임관리 1" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/manage2.jpg" alt="모임관리 2" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/manage3.jpg" alt="모임관리 3" class="screenshot-thumbnail">
+                    </div>
+                    <p>• 참여중인 모임 목록을 확인할 수 있어요.</p>
+                    <p>• 내가 생성한 모임 목록을 확인할 수 있어요.</p>
+                    <p>• 종료된 모임 목록에서 러닝매너를 작성하고 사진을 공유하세요.</p>
+                </div>
             </div>
             
-            <div class="manual-section">
-                <h3>5. 커뮤니티 기능</h3>
-                <p>• 러닝 후기 및 사진 공유</p>
-                <p>• 다른 러너들과의 팁 교환</p>
-                <p>• 러닝 이벤트 및 챌린지 참여</p>
-                <p>• 러닝 루트 추천 및 공유</p>
+            <div class="manual-section" data-section="community">
+                <h3>5. 커뮤니티기능</h3>
+                <div class="manual-content">
+                    <div class="screenshot-gallery">
+                        <img src="assets/images/manual/community1.jpg" alt="커뮤니티 1" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/community2.jpg" alt="커뮤니티 2" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/community3.jpg" alt="커뮤니티 3" class="screenshot-thumbnail">
+                    </div>
+                    <p>• 모든 모임을 한 눈에 볼 수 있어요.</p>
+                    <p>• 내가 참여한 모임 채팅을 통해 원활한 의사소통을 해보세요.</p>
+                    <p>• 자유롭게 러닝과 관련된 게시글을 올려보세요.</p>
+                </div>
             </div>
             
-            <div class="manual-section">
+            <div class="manual-section" data-section="members">
                 <h3>6. 러논멤버스 기능</h3>
-                <p>• 프리미엄 러닝 파트너 매칭</p>
-                <p>• 개인 맞춤형 러닝 계획 제공</p>
-                <p>• 전문 코치와의 1:1 상담</p>
-                <p>• 고급 러닝 분석 및 인사이트</p>
+                <div class="manual-content">
+                    <div class="screenshot-gallery">
+                        <img src="assets/images/manual/members1.jpg" alt="멤버스 1" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/members2.jpg" alt="멤버스 2" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/members3.jpg" alt="멤버스 3" class="screenshot-thumbnail">
+                    </div>
+                    <p>• 내가 차단하고 싶은 사람을 등록함으로써 블랙리스트 기능을 사용할 수 있어요.</p>
+                    <p>• 러논 인증을 통해 지도에 표시되는 러논파트너의 혜택을 받을 수 있어요.</p>
+                    <p>• 각종 러닝 이벤트에 쉽게 참여할 수 있는 권한이 부여됩니다.</p>
+                </div>
             </div>
         </div>
         
@@ -1209,6 +1336,54 @@
             
             backToHomeFromPolicy.addEventListener('click', function() {
                 showPage('homePage');
+            });
+            
+            // 메뉴얼 아코디언 기능
+            const manualSections = document.querySelectorAll('.manual-section');
+            manualSections.forEach(section => {
+                section.addEventListener('click', function() {
+                    // 다른 섹션들 닫기
+                    manualSections.forEach(otherSection => {
+                        if (otherSection !== section) {
+                            otherSection.classList.remove('active');
+                        }
+                    });
+                    // 현재 섹션 토글
+                    section.classList.toggle('active');
+                });
+            });
+            
+            // 스크린샷 썸네일 클릭 이벤트
+            const thumbnails = document.querySelectorAll('.screenshot-thumbnail');
+            thumbnails.forEach(thumbnail => {
+                thumbnail.addEventListener('click', function() {
+                    const modal = document.createElement('div');
+                    modal.className = 'screenshot-modal active';
+                    modal.innerHTML = `
+                        <button class="modal-close">&times;</button>
+                        <img src="${this.src}" alt="${this.alt}">
+                    `;
+                    document.body.appendChild(modal);
+                    
+                    // 모달 닫기
+                    const closeBtn = modal.querySelector('.modal-close');
+                    closeBtn.addEventListener('click', function() {
+                        modal.remove();
+                    });
+                    
+                    modal.addEventListener('click', function(e) {
+                        if (e.target === modal) {
+                            modal.remove();
+                        }
+                    });
+                    
+                    // ESC 키로 닫기
+                    document.addEventListener('keydown', function(e) {
+                        if (e.key === 'Escape') {
+                            modal.remove();
+                        }
+                    });
+                });
             });
         });
     </script>
