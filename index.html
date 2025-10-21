@@ -121,100 +121,89 @@
             color: #3AF8FF;
         }
         
-        /* 모달 스타일 */
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(5px);
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
+        /* 페이지 섹션 전환 */
+        .page-section {
+            display: none;
+            min-height: 100vh;
+            padding: 100px 20px 40px;
         }
         
-        .modal.active {
-            opacity: 1;
-            visibility: visible;
+        .page-section.active {
+            display: block;
         }
         
-        .modal-content {
-            background: #1a1a1a;
-            border-radius: 20px;
-            padding: 40px;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-            margin: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            transform: scale(0.9);
-            transition: transform 0.3s ease;
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
         }
         
-        .modal.active .modal-content {
-            transform: scale(1);
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        
-        .modal-title {
+        .section-title {
             color: #3AF8FF;
-            font-size: 1.8em;
+            font-size: 2.5em;
             font-weight: 700;
+            margin-bottom: 20px;
         }
         
-        .modal-close {
-            background: none;
+        .back-button {
+            background: linear-gradient(135deg, #3AF8FF 0%, #00D4FF 100%);
+            color: #000;
+            padding: 12px 24px;
             border: none;
-            color: #ccc;
-            font-size: 2em;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: 600;
             cursor: pointer;
-            transition: color 0.3s ease;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(58, 248, 255, 0.3);
         }
         
-        .modal-close:hover {
-            color: #3AF8FF;
+        .back-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(58, 248, 255, 0.4);
         }
         
         .manual-section {
+            background: rgba(58, 248, 255, 0.05);
+            border: 1px solid rgba(58, 248, 255, 0.2);
+            border-radius: 15px;
+            padding: 30px;
             margin-bottom: 30px;
+            transition: all 0.3s ease;
+        }
+        
+        .manual-section:hover {
+            background: rgba(58, 248, 255, 0.1);
+            border-color: rgba(58, 248, 255, 0.4);
+            transform: translateY(-2px);
         }
         
         .manual-section h3 {
             color: #3AF8FF;
-            font-size: 1.3em;
-            margin-bottom: 15px;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            font-weight: 700;
         }
         
         .manual-section p {
             color: #ccc;
-            line-height: 1.6;
-            margin-bottom: 10px;
+            line-height: 1.8;
+            margin-bottom: 12px;
+            font-size: 1.1em;
         }
         
         .policy-links {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
         }
         
         .policy-link {
             display: block;
             background: rgba(58, 248, 255, 0.1);
             border: 1px solid rgba(58, 248, 255, 0.3);
-            border-radius: 10px;
-            padding: 20px;
+            border-radius: 15px;
+            padding: 30px;
             color: white;
             text-decoration: none;
             transition: all 0.3s ease;
@@ -223,17 +212,21 @@
         .policy-link:hover {
             background: rgba(58, 248, 255, 0.2);
             border-color: #3AF8FF;
-            transform: translateY(-2px);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(58, 248, 255, 0.2);
         }
         
         .policy-link h4 {
             color: #3AF8FF;
-            margin-bottom: 8px;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            font-weight: 700;
         }
         
         .policy-link p {
             color: #ccc;
-            font-size: 0.9em;
+            font-size: 1em;
+            line-height: 1.6;
         }
         
         /* 페이드인 애니메이션 */
@@ -815,6 +808,8 @@
     </nav>
 
     <div class="container">
+        <!-- 메인 페이지 -->
+        <div class="page-section active" id="homePage">
         <!-- Hero Section -->
         <div class="hero-section">
             <div class="phone-mockup fade-in fade-in-delay-1">
@@ -966,73 +961,84 @@
             <p>&copy; 2025 RunOn 개발팀. All rights reserved.</p>
             <p>건강한 러닝 문화를 만들어가는 RunOn과 함께하세요!</p>
         </div>
-    </div>
-    
-    <!-- 메뉴얼 모달 -->
-    <div class="modal" id="manualModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">러논 사용설명서</h2>
-                <button class="modal-close" id="closeManual">&times;</button>
+        </div>
+        
+        <!-- 메뉴얼 페이지 -->
+        <div class="page-section" id="manualPage">
+            <div class="section-header">
+                <button class="back-button" id="backToHome">← 홈으로 돌아가기</button>
+                <h1 class="section-title">러논 사용설명서</h1>
             </div>
+            
             <div class="manual-section">
                 <h3>1. 회원가입 절차</h3>
                 <p>• 이메일 또는 소셜 로그인으로 간편 가입</p>
                 <p>• 러닝 레벨과 선호 지역 설정</p>
                 <p>• 프로필 정보 입력 및 사진 등록</p>
+                <p>• 개인정보 수집 및 이용에 동의</p>
             </div>
+            
             <div class="manual-section">
                 <h3>2. 홈화면 기능</h3>
                 <p>• 오늘의 러닝 현황 및 목표 달성률 확인</p>
                 <p>• 추천 러닝 모임 및 파트너 제안</p>
                 <p>• 최근 활동 기록 및 성과 요약</p>
+                <p>• 날씨 정보 및 러닝 조건 확인</p>
             </div>
+            
             <div class="manual-section">
                 <h3>3. 모임생성</h3>
                 <p>• 원하는 날짜, 시간, 장소 설정</p>
                 <p>• 러닝 거리와 페이스 범위 지정</p>
                 <p>• 모임 설명 및 참가 조건 설정</p>
+                <p>• 모임원 수 제한 및 신청 마감일 설정</p>
             </div>
+            
             <div class="manual-section">
                 <h3>4. 모임관리</h3>
                 <p>• 참여 중인 모임 목록 확인</p>
                 <p>• 모임원들과의 채팅 및 소통</p>
                 <p>• 모임 일정 변경 및 취소</p>
+                <p>• 러닝 후기 작성 및 사진 공유</p>
             </div>
+            
             <div class="manual-section">
                 <h3>5. 커뮤니티 기능</h3>
                 <p>• 러닝 후기 및 사진 공유</p>
                 <p>• 다른 러너들과의 팁 교환</p>
                 <p>• 러닝 이벤트 및 챌린지 참여</p>
+                <p>• 러닝 루트 추천 및 공유</p>
             </div>
+            
             <div class="manual-section">
                 <h3>6. 러논멤버스 기능</h3>
                 <p>• 프리미엄 러닝 파트너 매칭</p>
                 <p>• 개인 맞춤형 러닝 계획 제공</p>
                 <p>• 전문 코치와의 1:1 상담</p>
+                <p>• 고급 러닝 분석 및 인사이트</p>
+            </div>
+        </div>
+        
+        <!-- 방침 페이지 -->
+        <div class="page-section" id="policyPage">
+            <div class="section-header">
+                <button class="back-button" id="backToHomeFromPolicy">← 홈으로 돌아가기</button>
+                <h1 class="section-title">정책 및 규정</h1>
+            </div>
+            
+            <div class="policy-links">
+                <a href="docs/privacy-policy.html" class="policy-link" target="_blank">
+                    <h4>개인정보처리방침</h4>
+                    <p>RunOn에서 수집, 사용, 보관하는 개인정보에 대한 상세한 정책을 확인하세요. 개인정보의 수집 목적, 이용 방법, 보관 기간 등이 명시되어 있습니다.</p>
+                </a>
+                <a href="CHILD_SAFETY_POLICY.md" class="policy-link" target="_blank">
+                    <h4>아동 안전 정책</h4>
+                    <p>17세 미만 사용자 보호를 위한 안전 정책 및 이용 제한 사항을 확인하세요. 아동의 안전한 러닝 환경 조성을 위한 정책입니다.</p>
+                </a>
             </div>
         </div>
     </div>
     
-    <!-- 방침 모달 -->
-    <div class="modal" id="policyModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">정책 및 규정</h2>
-                <button class="modal-close" id="closePolicy">&times;</button>
-            </div>
-            <div class="policy-links">
-                <a href="docs/privacy-policy.html" class="policy-link" target="_blank">
-                    <h4>개인정보처리방침</h4>
-                    <p>RunOn에서 수집, 사용, 보관하는 개인정보에 대한 상세한 정책을 확인하세요.</p>
-                </a>
-                <a href="CHILD_SAFETY_POLICY.md" class="policy-link" target="_blank">
-                    <h4>아동 안전 정책</h4>
-                    <p>17세 미만 사용자 보호를 위한 안전 정책 및 이용 제한 사항을 확인하세요.</p>
-                </a>
-            </div>
-        </div>
-    </div>
     
     <script>
         // 후기 슬라이더 데이터 및 동작
@@ -1134,6 +1140,21 @@
         // 디버깅을 위한 로그
         console.log('애니메이션 스크립트 로드됨');
         
+        // 페이지 섹션 전환 기능
+        function showPage(pageId) {
+            // 모든 페이지 섹션 숨기기
+            const allPages = document.querySelectorAll('.page-section');
+            allPages.forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            // 선택된 페이지 보이기
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) {
+                targetPage.classList.add('active');
+            }
+        }
+        
         // 내비게이터 메뉴 기능
         document.addEventListener('DOMContentLoaded', function() {
             const menuIcon = document.getElementById('menuIcon');
@@ -1141,10 +1162,8 @@
             const homeLink = document.getElementById('homeLink');
             const manualLink = document.getElementById('manualLink');
             const policyLink = document.getElementById('policyLink');
-            const manualModal = document.getElementById('manualModal');
-            const policyModal = document.getElementById('policyModal');
-            const closeManual = document.getElementById('closeManual');
-            const closePolicy = document.getElementById('closePolicy');
+            const backToHome = document.getElementById('backToHome');
+            const backToHomeFromPolicy = document.getElementById('backToHomeFromPolicy');
             
             // 메뉴 토글
             menuIcon.addEventListener('click', function() {
@@ -1152,58 +1171,37 @@
                 dropdownMenu.classList.toggle('active');
             });
             
-            // 홈 링크 - 페이지 상단으로 스크롤
+            // 홈 링크 - 메인 페이지로 전환
             homeLink.addEventListener('click', function(e) {
                 e.preventDefault();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                showPage('homePage');
                 menuIcon.classList.remove('active');
                 dropdownMenu.classList.remove('active');
             });
             
-            // 메뉴얼 링크
+            // 메뉴얼 링크 - 메뉴얼 페이지로 전환
             manualLink.addEventListener('click', function(e) {
                 e.preventDefault();
-                manualModal.classList.add('active');
+                showPage('manualPage');
                 menuIcon.classList.remove('active');
                 dropdownMenu.classList.remove('active');
             });
             
-            // 방침 링크
+            // 방침 링크 - 방침 페이지로 전환
             policyLink.addEventListener('click', function(e) {
                 e.preventDefault();
-                policyModal.classList.add('active');
+                showPage('policyPage');
                 menuIcon.classList.remove('active');
                 dropdownMenu.classList.remove('active');
             });
             
-            // 모달 닫기
-            closeManual.addEventListener('click', function() {
-                manualModal.classList.remove('active');
+            // 뒤로가기 버튼들
+            backToHome.addEventListener('click', function() {
+                showPage('homePage');
             });
             
-            closePolicy.addEventListener('click', function() {
-                policyModal.classList.remove('active');
-            });
-            
-            // 모달 배경 클릭시 닫기
-            manualModal.addEventListener('click', function(e) {
-                if (e.target === manualModal) {
-                    manualModal.classList.remove('active');
-                }
-            });
-            
-            policyModal.addEventListener('click', function(e) {
-                if (e.target === policyModal) {
-                    policyModal.classList.remove('active');
-                }
-            });
-            
-            // ESC 키로 모달 닫기
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    manualModal.classList.remove('active');
-                    policyModal.classList.remove('active');
-                }
+            backToHomeFromPolicy.addEventListener('click', function() {
+                showPage('homePage');
             });
         });
     </script>
