@@ -167,57 +167,51 @@
             box-shadow: 0 6px 20px rgba(58, 248, 255, 0.4);
         }
         
-        .manual-section {
+        .manual-item {
             background: rgba(58, 248, 255, 0.05);
             border: 1px solid rgba(58, 248, 255, 0.2);
             border-radius: 15px;
-            padding: 30px;
             margin-bottom: 30px;
-            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .manual-header {
+            background: rgba(58, 248, 255, 0.1);
+            padding: 20px 30px;
             cursor: pointer;
-        }
-        
-        .manual-section:hover {
-            background: rgba(58, 248, 255, 0.1);
-            border-color: rgba(58, 248, 255, 0.4);
-            transform: translateY(-2px);
-        }
-        
-        .manual-section.active {
-            background: rgba(58, 248, 255, 0.1);
-            border-color: rgba(58, 248, 255, 0.4);
-        }
-        
-        .manual-section h3 {
-            color: #3AF8FF;
-            font-size: 1.5em;
-            margin-bottom: 20px;
-            font-weight: 700;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: all 0.3s ease;
         }
         
-        .manual-section h3::after {
-            content: '▼';
+        .manual-header:hover {
+            background: rgba(58, 248, 255, 0.2);
+        }
+        
+        .manual-header h3 {
+            color: #3AF8FF;
+            font-size: 1.5em;
+            margin: 0;
+            font-weight: 700;
+        }
+        
+        .toggle-arrow {
+            color: #3AF8FF;
+            font-size: 1.2em;
             transition: transform 0.3s ease;
-            font-size: 0.8em;
         }
         
-        .manual-section.active h3::after {
-            transform: rotate(180deg);
-        }
-        
-        .manual-content {
-            display: block;
-            margin-top: 20px;
-        }
-        
-        .manual-section:not(.active) .manual-content {
+        .manual-body {
+            padding: 30px;
             display: none;
         }
         
-        .manual-section p {
+        .manual-body.active {
+            display: block;
+        }
+        
+        .manual-body p {
             color: #ccc;
             line-height: 1.8;
             margin-bottom: 12px;
@@ -1068,13 +1062,16 @@
                 <h1 class="section-title">러논 사용설명서</h1>
             </div>
             
-            <div class="manual-section" data-section="signup">
-                <h3>1. 회원가입</h3>
-                <div class="manual-content">
+            <div class="manual-item">
+                <div class="manual-header" onclick="toggleManual('signup')">
+                    <h3>1. 회원가입</h3>
+                    <span class="toggle-arrow">▼</span>
+                </div>
+                <div class="manual-body" id="signup-content">
                     <div class="screenshot-gallery">
-                        <img src="assets/images/manual/signup1.jpg" alt="회원가입 1단계" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/signup2.jpg" alt="회원가입 2단계" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/signup3.jpg" alt="회원가입 3단계" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/signup1.jpg" alt="회원가입 1단계" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/signup2.jpg" alt="회원가입 2단계" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/signup3.jpg" alt="회원가입 3단계" class="screenshot-thumbnail" onclick="showScreenshot(this)">
                     </div>
                     <p>• 간단한 본인인증 가능한 휴대폰으로 가입해주세요.</p>
                     <p>• 프로필 정보 및 내 러닝 정보를 입력해주세요.</p>
@@ -1082,13 +1079,16 @@
                 </div>
             </div>
             
-            <div class="manual-section" data-section="home">
-                <h3>2. 홈화면기능</h3>
-                <div class="manual-content">
+            <div class="manual-item">
+                <div class="manual-header" onclick="toggleManual('home')">
+                    <h3>2. 홈화면기능</h3>
+                    <span class="toggle-arrow">▼</span>
+                </div>
+                <div class="manual-body" id="home-content">
                     <div class="screenshot-gallery">
-                        <img src="assets/images/manual/home1.jpg" alt="홈화면 1" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/home2.jpg" alt="홈화면 2" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/home3.jpg" alt="홈화면 3" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/home1.jpg" alt="홈화면 1" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/home2.jpg" alt="홈화면 2" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/home3.jpg" alt="홈화면 3" class="screenshot-thumbnail" onclick="showScreenshot(this)">
                     </div>
                     <p>• 오늘의 러닝 현황 및 목표 달성률 확인을 할 수 있어요.</p>
                     <p>• 날씨 정보를 확인할 수 있어요.</p>
@@ -1096,13 +1096,16 @@
                 </div>
             </div>
             
-            <div class="manual-section" data-section="create">
-                <h3>3. 모임생성</h3>
-                <div class="manual-content">
+            <div class="manual-item">
+                <div class="manual-header" onclick="toggleManual('create')">
+                    <h3>3. 모임생성</h3>
+                    <span class="toggle-arrow">▼</span>
+                </div>
+                <div class="manual-body" id="create-content">
                     <div class="screenshot-gallery">
-                        <img src="assets/images/manual/create1.jpg" alt="모임생성 1" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/create2.jpg" alt="모임생성 2" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/create3.jpg" alt="모임생성 3" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/create1.jpg" alt="모임생성 1" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/create2.jpg" alt="모임생성 2" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/create3.jpg" alt="모임생성 3" class="screenshot-thumbnail" onclick="showScreenshot(this)">
                     </div>
                     <p>• 러닝 컨셉, 날짜, 시간, 장소를 설정할 수 있어요.</p>
                     <p>• 러닝 거리와 페이스 범위를 지정할 수 있어요.</p>
@@ -1110,13 +1113,16 @@
                 </div>
             </div>
             
-            <div class="manual-section" data-section="manage">
-                <h3>4. 모임관리</h3>
-                <div class="manual-content">
+            <div class="manual-item">
+                <div class="manual-header" onclick="toggleManual('manage')">
+                    <h3>4. 모임관리</h3>
+                    <span class="toggle-arrow">▼</span>
+                </div>
+                <div class="manual-body" id="manage-content">
                     <div class="screenshot-gallery">
-                        <img src="assets/images/manual/manage1.jpg" alt="모임관리 1" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/manage2.jpg" alt="모임관리 2" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/manage3.jpg" alt="모임관리 3" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/manage1.jpg" alt="모임관리 1" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/manage2.jpg" alt="모임관리 2" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/manage3.jpg" alt="모임관리 3" class="screenshot-thumbnail" onclick="showScreenshot(this)">
                     </div>
                     <p>• 참여중인 모임 목록을 확인할 수 있어요.</p>
                     <p>• 내가 생성한 모임 목록을 확인할 수 있어요.</p>
@@ -1124,13 +1130,16 @@
                 </div>
             </div>
             
-            <div class="manual-section" data-section="community">
-                <h3>5. 커뮤니티기능</h3>
-                <div class="manual-content">
+            <div class="manual-item">
+                <div class="manual-header" onclick="toggleManual('community')">
+                    <h3>5. 커뮤니티기능</h3>
+                    <span class="toggle-arrow">▼</span>
+                </div>
+                <div class="manual-body" id="community-content">
                     <div class="screenshot-gallery">
-                        <img src="assets/images/manual/community1.jpg" alt="커뮤니티 1" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/community2.jpg" alt="커뮤니티 2" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/community3.jpg" alt="커뮤니티 3" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/community1.jpg" alt="커뮤니티 1" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/community2.jpg" alt="커뮤니티 2" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/community3.jpg" alt="커뮤니티 3" class="screenshot-thumbnail" onclick="showScreenshot(this)">
                     </div>
                     <p>• 모든 모임을 한 눈에 볼 수 있어요.</p>
                     <p>• 내가 참여한 모임 채팅을 통해 원활한 의사소통을 해보세요.</p>
@@ -1138,13 +1147,16 @@
                 </div>
             </div>
             
-            <div class="manual-section" data-section="members">
-                <h3>6. 러논멤버스 기능</h3>
-                <div class="manual-content">
+            <div class="manual-item">
+                <div class="manual-header" onclick="toggleManual('members')">
+                    <h3>6. 러논멤버스 기능</h3>
+                    <span class="toggle-arrow">▼</span>
+                </div>
+                <div class="manual-body" id="members-content">
                     <div class="screenshot-gallery">
-                        <img src="assets/images/manual/members1.jpg" alt="멤버스 1" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/members2.jpg" alt="멤버스 2" class="screenshot-thumbnail">
-                        <img src="assets/images/manual/members3.jpg" alt="멤버스 3" class="screenshot-thumbnail">
+                        <img src="assets/images/manual/members1.jpg" alt="멤버스 1" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/members2.jpg" alt="멤버스 2" class="screenshot-thumbnail" onclick="showScreenshot(this)">
+                        <img src="assets/images/manual/members3.jpg" alt="멤버스 3" class="screenshot-thumbnail" onclick="showScreenshot(this)">
                     </div>
                     <p>• 내가 차단하고 싶은 사람을 등록함으로써 블랙리스트 기능을 사용할 수 있어요.</p>
                     <p>• 러논 인증을 통해 지도에 표시되는 러논파트너의 혜택을 받을 수 있어요.</p>
@@ -1338,46 +1350,50 @@
                 showPage('homePage');
             });
             
-            // 메뉴얼 아코디언 기능 - 가장 간단한 방법
-            function initManualAccordion() {
-                const sections = document.querySelectorAll('.manual-section');
-                sections.forEach(section => {
-                    section.addEventListener('click', function() {
-                        // 모든 섹션에서 active 클래스 제거
-                        sections.forEach(s => s.classList.remove('active'));
-                        // 클릭된 섹션에 active 클래스 추가
-                        this.classList.add('active');
+            // 간단한 아코디언 함수들
+            window.toggleManual = function(id) {
+                const content = document.getElementById(id + '-content');
+                const arrow = document.querySelector(`[onclick="toggleManual('${id}')"] .toggle-arrow`);
+                
+                if (content.classList.contains('active')) {
+                    content.classList.remove('active');
+                    arrow.textContent = '▼';
+                } else {
+                    // 다른 모든 섹션 닫기
+                    document.querySelectorAll('.manual-body').forEach(body => {
+                        body.classList.remove('active');
                     });
-                });
-            }
-            
-            // 페이지 로드 시 초기화
-            initManualAccordion();
-            
-            // 스크린샷 썸네일 클릭 이벤트 - 더 간단한 방법
-            document.addEventListener('click', function(e) {
-                if (e.target.classList.contains('screenshot-thumbnail')) {
-                    const modal = document.createElement('div');
-                    modal.className = 'screenshot-modal active';
-                    modal.innerHTML = `
-                        <button class="modal-close">&times;</button>
-                        <img src="${e.target.src}" alt="${e.target.alt}">
-                    `;
-                    document.body.appendChild(modal);
-                    
-                    // 모달 닫기
-                    const closeBtn = modal.querySelector('.modal-close');
-                    closeBtn.addEventListener('click', function() {
-                        modal.remove();
+                    document.querySelectorAll('.toggle-arrow').forEach(arrow => {
+                        arrow.textContent = '▼';
                     });
                     
-                    modal.addEventListener('click', function(e) {
-                        if (e.target === modal) {
-                            modal.remove();
-                        }
-                    });
+                    // 현재 섹션 열기
+                    content.classList.add('active');
+                    arrow.textContent = '▲';
                 }
-            });
+            };
+            
+            window.showScreenshot = function(img) {
+                const modal = document.createElement('div');
+                modal.className = 'screenshot-modal active';
+                modal.innerHTML = `
+                    <button class="modal-close">&times;</button>
+                    <img src="${img.src}" alt="${img.alt}">
+                `;
+                document.body.appendChild(modal);
+                
+                // 모달 닫기
+                const closeBtn = modal.querySelector('.modal-close');
+                closeBtn.addEventListener('click', function() {
+                    modal.remove();
+                });
+                
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+            };
         });
     </script>
 </body>
