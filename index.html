@@ -1338,30 +1338,32 @@
                 showPage('homePage');
             });
             
-            // 메뉴얼 아코디언 기능
-            const manualSections = document.querySelectorAll('.manual-section');
-            manualSections.forEach(section => {
-                section.addEventListener('click', function() {
+            // 메뉴얼 아코디언 기능 - 더 간단한 방법
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('.manual-section')) {
+                    const section = e.target.closest('.manual-section');
+                    const allSections = document.querySelectorAll('.manual-section');
+                    
                     // 다른 섹션들 닫기
-                    manualSections.forEach(otherSection => {
+                    allSections.forEach(otherSection => {
                         if (otherSection !== section) {
                             otherSection.classList.remove('active');
                         }
                     });
+                    
                     // 현재 섹션 토글
                     section.classList.toggle('active');
-                });
+                }
             });
             
-            // 스크린샷 썸네일 클릭 이벤트
-            const thumbnails = document.querySelectorAll('.screenshot-thumbnail');
-            thumbnails.forEach(thumbnail => {
-                thumbnail.addEventListener('click', function() {
+            // 스크린샷 썸네일 클릭 이벤트 - 더 간단한 방법
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('screenshot-thumbnail')) {
                     const modal = document.createElement('div');
                     modal.className = 'screenshot-modal active';
                     modal.innerHTML = `
                         <button class="modal-close">&times;</button>
-                        <img src="${this.src}" alt="${this.alt}">
+                        <img src="${e.target.src}" alt="${e.target.alt}">
                     `;
                     document.body.appendChild(modal);
                     
@@ -1376,14 +1378,7 @@
                             modal.remove();
                         }
                     });
-                    
-                    // ESC 키로 닫기
-                    document.addEventListener('keydown', function(e) {
-                        if (e.key === 'Escape') {
-                            modal.remove();
-                        }
-                    });
-                });
+                }
             });
         });
     </script>
