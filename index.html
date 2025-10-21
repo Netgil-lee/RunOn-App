@@ -44,8 +44,13 @@
             z-index: 1000;
             padding: 15px 20px;
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
             align-items: center;
+        }
+        
+        .navbar-logo {
+            height: 40px;
+            width: auto;
         }
         
         .menu-icon {
@@ -297,7 +302,7 @@
                 font-size: 6em;
                 font-weight: 700;
                 margin-bottom: 30px;
-                line-height: 0.8;
+                line-height: 1;
             }
         }
         
@@ -795,6 +800,7 @@
 <body>
     <!-- 상단 내비게이터 -->
     <nav class="navbar">
+        <img src="assets/navbar-logo.png" alt="RunOn 로고" class="navbar-logo">
         <div class="menu-icon" id="menuIcon">
             <div class="menu-line"></div>
             <div class="menu-line"></div>
