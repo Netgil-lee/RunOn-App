@@ -10,7 +10,7 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.runon.app",
       "buildNumber": "111",
       "infoPlist": {
