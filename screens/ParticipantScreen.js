@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { 
@@ -18,6 +19,10 @@ import {
   getStyleTitle
 } from '../constants/onboardingOptions';
 import evaluationService from '../services/evaluationService';
+import mannerDistanceService from '../services/mannerDistanceService';
+import MannerDistanceDisplay from '../components/MannerDistanceDisplay';
+import blacklistService from '../services/blacklistService';
+import { useAuth } from '../contexts/AuthContext';
 
 const COLORS = {
   PRIMARY: '#3AF8FF',
@@ -38,6 +43,7 @@ const COLORS = {
 
 const ParticipantScreen = ({ route, navigation }) => {
   const { participant } = route.params;
+  const { user } = useAuth();
   
   const [communityStats, setCommunityStats] = useState({
     totalParticipated: 0,
@@ -46,6 +52,8 @@ const ParticipantScreen = ({ route, navigation }) => {
     mannerScore: 5.0, // 초기값 5.0
     tags: [],
   });
+  const [mannerDistance, setMannerDistance] = useState(null);
+  const [isBlocking, setIsBlocking] = useState(false);
 
   const getLevelInfo = (level) => {
     const levelMap = {
@@ -54,6 +62,63 @@ const ParticipantScreen = ({ route, navigation }) => {
       '고급': { title: '고급', subtitle: '러닝 고급자' },
     };
     return levelMap[level] || { title: '미설정', subtitle: '레벨 미설정' };
+  };
+
+  // 사용자 차단 함수
+  const handleBlockUser = () => {
+    if (!user || !participant) {
+      Alert.alert('오류', '사용자 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    // 자기 자신을 차단하려는 경우
+    if (user.uid === participant.id) {
+      Alert.alert('오류', '자기 자신을 차단할 수 없습니다.');
+      return;
+    }
+
+    Alert.alert(
+      '사용자 차단',
+      `"${participant.name}"님을 차단하시겠습니까?\n\n차단된 사용자는 최대 3명까지 가능합니다.`,
+      [
+        {
+          text: '취소',
+          style: 'cancel'
+        },
+        {
+          text: '차단',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsBlocking(true);
+              
+              await blacklistService.blockUser(
+                user.uid,
+                participant.id,
+                participant.name,
+                participant.profileImage
+              );
+              
+              Alert.alert(
+                '차단 완료',
+                `"${participant.name}"님을 차단했습니다.`,
+                [
+                  {
+                    text: '확인',
+                    onPress: () => navigation.goBack()
+                  }
+                ]
+              );
+            } catch (error) {
+              console.error('사용자 차단 실패:', error);
+              Alert.alert('차단 실패', error.message || '사용자 차단 중 오류가 발생했습니다.');
+            } finally {
+              setIsBlocking(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // 참여자의 커뮤니티 통계 가져오기
@@ -65,7 +130,7 @@ const ParticipantScreen = ({ route, navigation }) => {
         const stats = await evaluationService.getUserCommunityStats(participant.id);
         
         
-        // 태그를 형식에 맞게 변환
+        // 긍정적 태그를 형식에 맞게 변환
         const formattedTags = Object.entries(stats.receivedTags || {})
           .map(([tag, count]) => `[${count} #${tag}]`)
           .sort((a, b) => {
@@ -74,6 +139,23 @@ const ParticipantScreen = ({ route, navigation }) => {
             return countB - countA; // 내림차순 정렬
           });
 
+        // 부정적 태그를 형식에 맞게 변환
+        const formattedNegativeTags = Object.entries(stats.receivedNegativeTags || {})
+          .map(([tag, count]) => `[${count} #${tag}]`)
+          .sort((a, b) => {
+            const countA = parseInt(a.match(/\[(\d+)/)[1]);
+            const countB = parseInt(b.match(/\[(\d+)/)[1]);
+            return countB - countA; // 내림차순 정렬
+          });
+
+        // 특별상황을 형식에 맞게 변환
+        const formattedSpecialSituations = Object.entries(stats.receivedSpecialSituations || {})
+          .map(([situation, count]) => `[${count} #${situation}]`)
+          .sort((a, b) => {
+            const countA = parseInt(a.match(/\[(\d+)/)[1]);
+            const countB = parseInt(b.match(/\[(\d+)/)[1]);
+            return countB - countA; // 내림차순 정렬
+          });
 
         setCommunityStats({
           totalParticipated: stats.totalParticipated || 0,
@@ -81,7 +163,25 @@ const ParticipantScreen = ({ route, navigation }) => {
           hostedEvents: stats.hostedEvents || 0,
           mannerScore: stats.averageMannerScore || 5.0, // 기본값 5.0
           tags: formattedTags,
+          negativeTags: formattedNegativeTags,
+          specialSituations: formattedSpecialSituations,
         });
+
+        // 매너거리 데이터 가져오기
+        try {
+          const distanceData = await mannerDistanceService.getUserMannerDistance(participant.id);
+          if (distanceData) {
+            setMannerDistance(distanceData);
+          } else {
+            // 매너거리 데이터가 없으면 마이그레이션 시도
+            const migratedData = await mannerDistanceService.migrateUserToMannerDistance(participant.id);
+            if (migratedData) {
+              setMannerDistance(migratedData);
+            }
+          }
+        } catch (error) {
+          console.error('매너거리 데이터 로딩 오류:', error);
+        }
       } catch (error) {
         console.error('커뮤니티 통계 로딩 오류:', error);
       }
@@ -156,6 +256,19 @@ const ParticipantScreen = ({ route, navigation }) => {
           </View>
         </View>
 
+        {/* 매너거리 */}
+        {mannerDistance && (
+          <View style={styles.mannerDistanceCard}>
+            <MannerDistanceDisplay 
+              currentDistance={mannerDistance.currentDistance}
+              animated={true}
+              showGoal={true}
+              size="medium"
+              titleSize="large"
+            />
+          </View>
+        )}
+
         {/* 커뮤니티 활동 */}
         {participant && (
           <View style={styles.activityCard}>
@@ -184,21 +297,33 @@ const ParticipantScreen = ({ route, navigation }) => {
                 <Text style={styles.activityLabel}>주최 모임</Text>
               </View>
             </View>
-            <View style={styles.tagRow}>
-              {communityStats.tags.length > 0 ? (
-                communityStats.tags.map((tag, i) => {
-                  // [1 #태그명] 형태에서 태그명만 추출
-                  const cleanTag = tag.replace(/^\[\d+\s*#\s*/, '').replace(/\]$/, '');
-                  return (
-                    <View key={i} style={styles.tagOutline}> 
-                      <Text style={styles.tagTextOutline}>{cleanTag}</Text>
-                    </View>
-                  );
-                })
-              ) : (
-                <Text style={styles.tagTextOutline}>아직 받은 태그가 없습니다</Text>
-              )}
+            {/* 긍정적 태그 */}
+            <View style={styles.tagSection}>
+              <View style={styles.tagSectionHeader}>
+                <Ionicons name="star" size={16} color={COLORS.PRIMARY} />
+                <Text style={styles.tagSectionTitle}>좋았던 점</Text>
+                <Text style={styles.tagCountText}>({communityStats.tags.length}개)</Text>
+              </View>
+              <View style={styles.tagRow}>
+                {communityStats.tags.length > 0 ? (
+                  communityStats.tags.map((tag, i) => {
+                    // [1 #태그명] 형태에서 태그명과 개수 추출
+                    const match = tag.match(/^\[(\d+)\s*#\s*(.+)\]$/);
+                    const count = match ? match[1] : '1';
+                    const cleanTag = match ? match[2] : tag.replace(/^\[\d+\s*#\s*/, '').replace(/\]$/, '');
+                    return (
+                      <View key={i} style={styles.tagOutline}> 
+                        <Text style={styles.tagTextOutline}>{cleanTag}</Text>
+                        <Text style={styles.tagCountBadge}>{count}</Text>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <Text style={styles.noTagsText}>아직 받은 긍정적 태그가 없습니다</Text>
+                )}
+              </View>
             </View>
+
           </View>
         )}
 
@@ -280,6 +405,27 @@ const ParticipantScreen = ({ route, navigation }) => {
           </View>
         </View>
 
+        {/* 차단 버튼 섹션 */}
+        {user && participant && user.uid !== participant.id && (
+          <View style={styles.blockSection}>
+            <TouchableOpacity 
+              style={[styles.blockButton, isBlocking && styles.blockButtonDisabled]}
+              onPress={handleBlockUser}
+              disabled={isBlocking}
+            >
+              <Ionicons 
+                name="ban-outline" 
+                size={20} 
+                color={isBlocking ? COLORS.SECONDARY : "#FF6B6B"} 
+                style={{ marginRight: 8 }}
+              />
+              <Text style={[styles.blockButtonText, isBlocking && styles.blockButtonTextDisabled]}>
+                {isBlocking ? '차단 중...' : '사용자 차단'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* 추가 정보 섹션 */}
         <View style={styles.infoSection}>
           <Text style={styles.infoTitle}>💡 이 사용자와 함께 뛰어보세요!</Text>
@@ -326,7 +472,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 0,
   },
   profileCard: {
     backgroundColor: COLORS.CARD,
@@ -393,6 +540,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.TEXT,
     lineHeight: 24,
+  },
+  mannerDistanceCard: {
+    marginBottom: 16,
+    backgroundColor: COLORS.CARD,
+    borderRadius: 16,
+    padding: 8,
   },
   activityCard: {
     backgroundColor: COLORS.CARD,
@@ -492,6 +645,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tagOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#97DCDE',
     borderRadius: 12,
@@ -505,6 +660,70 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '200',
     color: '#fff',
+  },
+  tagSection: {
+    marginTop: 16,
+  },
+  tagSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 6,
+  },
+  tagSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+  },
+  tagCountText: {
+    fontSize: 12,
+    color: COLORS.SECONDARY,
+    marginLeft: 4,
+  },
+  tagCountBadge: {
+    fontSize: 10,
+    color: COLORS.PRIMARY,
+    backgroundColor: COLORS.PRIMARY + '20',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 6,
+    marginLeft: 4,
+    fontWeight: 'bold',
+  },
+  noTagsText: {
+    fontSize: 14,
+    color: COLORS.SECONDARY,
+    fontStyle: 'italic',
+  },
+  negativeTagOutline: {
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 6,
+    marginBottom: 6,
+    backgroundColor: 'transparent',
+  },
+  negativeTagTextOutline: {
+    fontSize: 15,
+    fontWeight: '200',
+    color: '#FF6B6B',
+  },
+  specialSituationTagOutline: {
+    borderWidth: 1,
+    borderColor: '#FFA500',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 6,
+    marginBottom: 6,
+    backgroundColor: 'transparent',
+  },
+  specialSituationTagTextOutline: {
+    fontSize: 15,
+    fontWeight: '200',
+    color: '#FFA500',
   },
   activityNumPrimary: {
     fontSize: 22,
@@ -536,6 +755,36 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 2,
+  },
+  // 차단 버튼 스타일
+  blockSection: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+  },
+  blockButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  blockButtonDisabled: {
+    borderColor: COLORS.SECONDARY,
+    opacity: 0.6,
+  },
+  blockButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FF6B6B',
+  },
+  blockButtonTextDisabled: {
+    color: COLORS.SECONDARY,
   },
 });
 

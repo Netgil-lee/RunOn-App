@@ -110,16 +110,6 @@ const InsightCard = ({ user, weather }) => {
 
   return (
     <View style={styles.container} key={`insight-${user?.displayName || 'default'}`}>
-            <View style={styles.header}>
-        <Text style={styles.greetingText} key={`greeting-${user?.displayName || 'default'}`}>
-          {(() => {
-            const greeting = getGreeting();
-            const displayName = getUserDisplayName();
-            return `${greeting}, ${displayName}님!`;
-          })()}
-        </Text>
-      </View>
-      
       <View style={styles.content}>
 
 
@@ -196,9 +186,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   progressLabel: {
-    fontSize: 16,
-    color: COLORS.SECONDARY,
-    fontFamily: 'Pretendard',
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+    fontFamily: 'Pretendard-SemiBold',
   },
   progressText: {
     fontSize: 14,
@@ -237,15 +228,15 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: COLORS.TEXT,
     marginBottom: 4,
     fontFamily: 'Pretendard',
   },
   infoValue: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.TEXT,
-    fontFamily: 'Pretendard-Medium',
+    fontFamily: 'Pretendard-Bold',
   },
 
 });

@@ -7,12 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0128E5D9F91A4A8F9BB3ACA5 /* Pretendard-Light.otf in Resources */ = {isa = PBXBuildFile; fileRef = D73F0646003F478ABB73570D /* Pretendard-Light.otf */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		2F90739944F746359B87B415 /* Pretendard-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 85A6F77D39104552831CBA86 /* Pretendard-SemiBold.otf */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		4F151106FDE8415585A594DD /* Pretendard-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = EE476E1048BA4BD1AC855202 /* Pretendard-Regular.otf */; };
+		54A208CC2EA8B95F00726B3B /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54A208CB2EA8B95F00726B3B /* HealthKit.framework */; };
+		54A208CE2EA8B96800726B3B /* HealthKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54A208CD2EA8B96800726B3B /* HealthKitUI.framework */; };
 		669DFAF4B9F4E710E91E615F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C445D2182ABDE4BBD13F3F25 /* PrivacyInfo.xcprivacy */; };
+		8B2882DF390A401C9667BFB4 /* Pretendard-Thin.otf in Resources */ = {isa = PBXBuildFile; fileRef = 33F18D74C09E4D26B23DEBCA /* Pretendard-Thin.otf */; };
+		AF286E26754448018AAC2F66 /* Gold-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7D03948F1BE04A56B1B85E82 /* Gold-Regular.ttf */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		C950CCA8CD1A45529D98AFD3 /* Pretendard-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 66FB4F63DFD34B38A327696E /* Pretendard-Bold.otf */; };
 		CE9AAB49F23BBAA03E8841A4 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F22D97B99A8E26C37F9231D /* ExpoModulesProvider.swift */; };
 		DE7B335B77A691C70E4223B0 /* libPods-RunOn.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CF6BA4F40D4801CCC6851F54 /* libPods-RunOn.a */; };
+		E8F32B17F85A45E896521362 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 1C153631496541919D410663 /* Pretendard-Medium.otf */; };
+		EDB67908A7694558A2113EDE /* Gold-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F1492DDB95364DB599F427E3 /* Gold-Bold.ttf */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -20,15 +30,25 @@
 		13B07F961A680F5B00A75B9A /* RunOn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RunOn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = RunOn/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = RunOn/Info.plist; sourceTree = "<group>"; };
+		1C153631496541919D410663 /* Pretendard-Medium.otf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Pretendard-Medium.otf"; path = "../assets/fonts/Pretendard-Medium.otf"; sourceTree = "<group>"; };
+		33F18D74C09E4D26B23DEBCA /* Pretendard-Thin.otf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Pretendard-Thin.otf"; path = "../assets/fonts/Pretendard-Thin.otf"; sourceTree = "<group>"; };
+		54A208CB2EA8B95F00726B3B /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
+		54A208CD2EA8B96800726B3B /* HealthKitUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKitUI.framework; path = System/Library/Frameworks/HealthKitUI.framework; sourceTree = SDKROOT; };
+		66FB4F63DFD34B38A327696E /* Pretendard-Bold.otf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Pretendard-Bold.otf"; path = "../assets/fonts/Pretendard-Bold.otf"; sourceTree = "<group>"; };
+		7D03948F1BE04A56B1B85E82 /* Gold-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Gold-Regular.ttf"; path = "../assets/fonts/Gold-Regular.ttf"; sourceTree = "<group>"; };
+		85A6F77D39104552831CBA86 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Pretendard-SemiBold.otf"; path = "../assets/fonts/Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
 		8F22D97B99A8E26C37F9231D /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-RunOn/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = RunOn/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		C445D2182ABDE4BBD13F3F25 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = RunOn/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		CF6BA4F40D4801CCC6851F54 /* libPods-RunOn.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-RunOn.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CF7A463E0348B061EE902453 /* Pods-RunOn.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunOn.release.xcconfig"; path = "Target Support Files/Pods-RunOn/Pods-RunOn.release.xcconfig"; sourceTree = "<group>"; };
+		D73F0646003F478ABB73570D /* Pretendard-Light.otf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Pretendard-Light.otf"; path = "../assets/fonts/Pretendard-Light.otf"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		EE476E1048BA4BD1AC855202 /* Pretendard-Regular.otf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Pretendard-Regular.otf"; path = "../assets/fonts/Pretendard-Regular.otf"; sourceTree = "<group>"; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = RunOn/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* RunOn-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "RunOn-Bridging-Header.h"; path = "RunOn/RunOn-Bridging-Header.h"; sourceTree = "<group>"; };
+		F1492DDB95364DB599F427E3 /* Gold-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Gold-Bold.ttf"; path = "../assets/fonts/Gold-Bold.ttf"; sourceTree = "<group>"; };
 		FCEA0AAEB6968103C01D16A3 /* Pods-RunOn.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunOn.debug.xcconfig"; path = "Target Support Files/Pods-RunOn/Pods-RunOn.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -37,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				54A208CE2EA8B96800726B3B /* HealthKitUI.framework in Frameworks */,
+				54A208CC2EA8B95F00726B3B /* HealthKit.framework in Frameworks */,
 				DE7B335B77A691C70E4223B0 /* libPods-RunOn.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -61,6 +83,8 @@
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				54A208CD2EA8B96800726B3B /* HealthKitUI.framework */,
+				54A208CB2EA8B95F00726B3B /* HealthKit.framework */,
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				CF6BA4F40D4801CCC6851F54 /* libPods-RunOn.a */,
 			);
@@ -91,6 +115,7 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				F33C7B41D80774A2B342E56A /* Pods */,
 				526B0FF1ADDB425F1FAB71AD /* ExpoModulesProviders */,
+				AB50BDDBF89341FF8B8CEB82 /* Resources */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -103,6 +128,22 @@
 				13B07F961A680F5B00A75B9A /* RunOn.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AB50BDDBF89341FF8B8CEB82 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				66FB4F63DFD34B38A327696E /* Pretendard-Bold.otf */,
+				D73F0646003F478ABB73570D /* Pretendard-Light.otf */,
+				1C153631496541919D410663 /* Pretendard-Medium.otf */,
+				EE476E1048BA4BD1AC855202 /* Pretendard-Regular.otf */,
+				85A6F77D39104552831CBA86 /* Pretendard-SemiBold.otf */,
+				33F18D74C09E4D26B23DEBCA /* Pretendard-Thin.otf */,
+				F1492DDB95364DB599F427E3 /* Gold-Bold.ttf */,
+				7D03948F1BE04A56B1B85E82 /* Gold-Regular.ttf */,
+			);
+			name = Resources;
+			path = "";
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -196,6 +237,14 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				669DFAF4B9F4E710E91E615F /* PrivacyInfo.xcprivacy in Resources */,
+				C950CCA8CD1A45529D98AFD3 /* Pretendard-Bold.otf in Resources */,
+				0128E5D9F91A4A8F9BB3ACA5 /* Pretendard-Light.otf in Resources */,
+				E8F32B17F85A45E896521362 /* Pretendard-Medium.otf in Resources */,
+				4F151106FDE8415585A594DD /* Pretendard-Regular.otf in Resources */,
+				2F90739944F746359B87B415 /* Pretendard-SemiBold.otf in Resources */,
+				8B2882DF390A401C9667BFB4 /* Pretendard-Thin.otf in Resources */,
+				EDB67908A7694558A2113EDE /* Gold-Bold.ttf in Resources */,
+				AF286E26754448018AAC2F66 /* Gold-Regular.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -228,7 +277,9 @@
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXNotifications/ExpoNotifications_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoDevice/ExpoDevice_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoMediaLibrary/ExpoMediaLibrary_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/GoogleDataTransport/GoogleDataTransport_Privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/GoogleUtilities/GoogleUtilities_Privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/PromisesObjC/FBLPromises_Privacy.bundle",
@@ -248,7 +299,9 @@
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoNotifications_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoDevice_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoMediaLibrary_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleDataTransport_Privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleUtilities_Privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FBLPromises_Privacy.bundle",

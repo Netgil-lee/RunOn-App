@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,15 @@ import {
   ScrollView,
   Alert,
   Switch,
-  Linking,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import blacklistService from '../services/blacklistService';
+import appleFitnessService from '../services/appleFitnessService';
+import TermsPrivacyModal from '../components/TermsPrivacyModal';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -37,8 +40,11 @@ const COLORS = {
 };
 
 const SettingsScreen = ({ navigation }) => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { settings, toggleSetting, updateSetting } = useNotificationSettings();
+  
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalType, setModalType] = useState('privacy'); // 'privacy' or 'child-safety'
   
   const [otherSettings, setOtherSettings] = useState({
     privacy: {
@@ -56,6 +62,14 @@ const SettingsScreen = ({ navigation }) => {
       theme: 'light',
       language: 'ko'
     }
+  });
+
+  const [blacklist, setBlacklist] = useState([]);
+  const [loadingBlacklist, setLoadingBlacklist] = useState(false);
+  const [healthKitStatus, setHealthKitStatus] = useState({
+    isAvailable: false,
+    hasPermissions: false,
+    isChecking: false
   });
 
   const toggleOtherSetting = (category, key) => {
@@ -78,23 +92,152 @@ const SettingsScreen = ({ navigation }) => {
     }));
   };
 
-  const handleChildSafetyPolicy = () => {
+  // 블랙리스트 조회
+  const fetchBlacklist = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      setLoadingBlacklist(true);
+      const blacklistData = await blacklistService.getBlacklist(user.uid);
+      setBlacklist(blacklistData);
+    } catch (error) {
+      console.log('블랙리스트 조회 실패 (빈 배열로 처리):', error.message);
+      setBlacklist([]); // 빈 배열로 설정
+    } finally {
+      setLoadingBlacklist(false);
+    }
+  };
+
+  // 차단 해제
+  const handleUnblockUser = (blockedUser) => {
     Alert.alert(
-      '아동 안전 정책',
-      'RunOn은 아동의 안전과 보호를 최우선으로 합니다.\n\n• 아동성적학대착취(CSAE) 콘텐츠 금지\n• 만 13세 미만 사용자 보호자 동의 필요\n• 24시간 신고 시스템 운영\n• 부적절한 콘텐츠 자동 필터링\n\n신고: safety@runon.app\n긴급신고: 02-0000-0000',
+      '차단 해제',
+      `"${blockedUser.blockedUserName}"님의 차단을 해제하시겠습니까?`,
       [
-        { text: '확인', style: 'default' },
         {
-          text: '상세보기',
-          onPress: () => {
-            Linking.openURL('https://netgil-lee.github.io/RunOn-App/')
-              .catch(() => Alert.alert('오류', '링크를 열 수 없습니다.'));
+          text: '취소',
+          style: 'cancel'
+        },
+        {
+          text: '해제',
+          style: 'default',
+          onPress: async () => {
+            try {
+              await blacklistService.unblockUser(user.uid, blockedUser.blockedUserId);
+              await fetchBlacklist(); // 블랙리스트 다시 조회
+              Alert.alert('해제 완료', '차단이 해제되었습니다.');
+            } catch (error) {
+              console.error('차단 해제 실패:', error);
+              Alert.alert('해제 실패', error.message || '차단 해제 중 오류가 발생했습니다.');
+            }
           }
         }
       ]
     );
   };
 
+  // 차단된 사용자 관리 화면으로 이동
+  const handleBlacklistManagement = () => {
+    // Date 객체를 문자열로 변환하여 직렬화 문제 해결
+    const serializedBlacklist = blacklist.map(item => ({
+      ...item,
+      blockedAt: item.blockedAt instanceof Date ? item.blockedAt.toISOString() : item.blockedAt
+    }));
+    
+    navigation.navigate('BlacklistManagement', { 
+      blacklist: serializedBlacklist, 
+      onRefresh: fetchBlacklist 
+    });
+  };
+
+  // 컴포넌트 마운트 시 블랙리스트 조회 및 HealthKit 상태 확인
+  useEffect(() => {
+    fetchBlacklist();
+    checkHealthKitStatus();
+  }, [user?.uid]);
+
+  // HealthKit 상태 확인
+  const checkHealthKitStatus = async () => {
+    try {
+      setHealthKitStatus(prev => ({ ...prev, isChecking: true }));
+      
+      const status = await appleFitnessService.checkPermissions();
+      
+      setHealthKitStatus({
+        isAvailable: status.isAvailable,
+        hasPermissions: status.hasPermissions,
+        isChecking: false
+      });
+      
+      console.log('🏥 HealthKit 상태:', status);
+    } catch (error) {
+      console.error('❌ HealthKit 상태 확인 실패:', error);
+      setHealthKitStatus({
+        isAvailable: false,
+        hasPermissions: false,
+        isChecking: false
+      });
+    }
+  };
+
+  // HealthKit 권한 요청
+  const handleHealthKitAccess = async () => {
+    try {
+      if (healthKitStatus.hasPermissions) {
+        Alert.alert(
+          '건강데이터 접근',
+          '이미 HealthKit 권한이 허용되어 있습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
+          [{ text: '확인' }]
+        );
+        return;
+      }
+
+      Alert.alert(
+        '건강데이터 접근',
+        'HealthKit에서 러닝 데이터를 가져오기 위해 건강 데이터 접근 권한이 필요합니다.\n\n허용하시겠습니까?',
+        [
+          { text: '취소', style: 'cancel' },
+          { 
+            text: '허용', 
+            onPress: async () => {
+              try {
+                const success = await appleFitnessService.requestPermissions();
+                if (success) {
+                  Alert.alert(
+                    '권한 허용 완료',
+                    'HealthKit 권한이 허용되었습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
+                    [{ text: '확인' }]
+                  );
+                  // 상태 다시 확인
+                  await checkHealthKitStatus();
+                } else {
+                  Alert.alert(
+                    '권한 허용 실패',
+                    'HealthKit 권한 허용에 실패했습니다.\n\n설정 > 개인정보 보호 및 보안 > 건강에서 수동으로 허용해주세요.',
+                    [{ text: '확인' }]
+                  );
+                }
+              } catch (error) {
+                console.error('❌ HealthKit 권한 요청 실패:', error);
+                Alert.alert(
+                  '오류',
+                  'HealthKit 권한 요청 중 오류가 발생했습니다.',
+                  [{ text: '확인' }]
+                );
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('❌ HealthKit 접근 처리 실패:', error);
+      Alert.alert(
+        '오류',
+        'HealthKit 접근 처리 중 오류가 발생했습니다.',
+        [{ text: '확인' }]
+      );
+    }
+  };
 
 
   const handleLogout = async () => {
@@ -125,29 +268,32 @@ const SettingsScreen = ({ navigation }) => {
   const handleDeleteAccount = () => {
     Alert.alert(
       '계정 삭제',
-      '계정 삭제를 요청하시겠습니까? 이메일로 요청을 보내드리겠습니다.',
+      '계정을 영구적으로 삭제하시겠습니까?\n\n삭제된 계정은 복구할 수 없습니다.',
       [
         { text: '취소', style: 'cancel' },
         { 
-          text: '요청하기', 
+          text: '삭제', 
           style: 'destructive',
           onPress: () => {
-            // 사용자 정보 가져오기
-            const user = useAuth().user;
-            const userInfo = user ? `사용자 ID: ${user.uid}\n휴대폰번호: ${user.phoneNumber || '알 수 없음'}` : '사용자 정보를 가져올 수 없습니다.';
-            
-            // 이메일 링크 생성
-            const emailSubject = encodeURIComponent('RunOn 앱 계정 삭제 요청');
-            const emailBody = encodeURIComponent(
-              `안녕하세요,\n\nRunOn 앱에서 계정 삭제를 요청합니다.\n\n사용자 정보:\n${userInfo}\n\n요청 일시: ${new Date().toLocaleString('ko-KR')}\n\n계정 삭제를 확인합니다.\n\n감사합니다.`
+            Alert.alert(
+              '최종 확인',
+              '정말로 계정을 삭제하시겠습니까?',
+              [
+                { text: '취소', style: 'cancel' },
+                { 
+                  text: '삭제', 
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      // TODO: 실제 계정 삭제 로직 구현
+                      Alert.alert('계정 삭제', '계정 삭제 기능이 곧 추가됩니다.');
+                    } catch (error) {
+                      Alert.alert('오류', '계정 삭제 중 오류가 발생했습니다.');
+                    }
+                  }
+                }
+              ]
             );
-            
-                         const emailUrl = `mailto:dlrhdkgml12@gmail.com?subject=${emailSubject}&body=${emailBody}`;
-            
-                         // 이메일 앱 열기
-             Linking.openURL(emailUrl).catch(() => {
-               Alert.alert('오류', '이메일 앱을 열 수 없습니다. 수동으로 dlrhdkgml12@gmail.com으로 계정 삭제 요청을 보내주세요.');
-             });
           }
         }
       ]
@@ -191,6 +337,15 @@ const SettingsScreen = ({ navigation }) => {
       <Text style={styles.sectionTitleText}>{title}</Text>
     </View>
   );
+
+  const openModal = (type) => {
+    setModalType(type);
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+  };
 
   return (
     <View style={styles.container}>
@@ -246,13 +401,25 @@ const SettingsScreen = ({ navigation }) => {
           <SettingItem
             icon="people-outline"
             title="커뮤니티 알림"
-            subtitle="채팅, 작성한 글의 좋아요와 댓글 알림을 받습니다."
+            subtitle="작성한 글의 좋아요와 댓글 알림을 받습니다."
             onPress={() => toggleSetting('notifications', 'newMember')}
             showArrow={false}
           >
             <ToggleSwitch 
               enabled={settings.notifications.newMember}
               onToggle={() => toggleSetting('notifications', 'newMember')}
+            />
+          </SettingItem>
+          <SettingItem
+            icon="chatbubbles-outline"
+            title="채팅 알림"
+            subtitle="채팅 메시지 알림을 휴대전화에서 받습니다."
+            onPress={() => toggleSetting('notifications', 'chatNotification')}
+            showArrow={false}
+          >
+            <ToggleSwitch 
+              enabled={settings.notifications.chatNotification}
+              onToggle={() => toggleSetting('notifications', 'chatNotification')}
             />
           </SettingItem>
           <SettingItem
@@ -287,6 +454,24 @@ const SettingsScreen = ({ navigation }) => {
         <SectionTitle title="앱" />
         <View style={styles.section}>
           <SettingItem
+            icon="heart-outline"
+            title="건강데이터 접근"
+            subtitle={
+              healthKitStatus.isChecking 
+                ? "상태 확인 중..." 
+                : healthKitStatus.hasPermissions 
+                  ? "HealthKit 권한 허용됨" 
+                  : "러닝 데이터 동기화 및 권한 관리"
+            }
+            onPress={handleHealthKitAccess}
+          />
+          <SettingItem
+            icon="ban-outline"
+            title="차단된 사용자"
+            subtitle={`차단된 사용자 ${blacklist.length}명 (최대 3명)`}
+            onPress={handleBlacklistManagement}
+          />
+          <SettingItem
             icon="help-circle-outline"
             title="앱 사용 가이드"
             subtitle="자주 묻는 질문과 사용법 안내"
@@ -308,13 +493,13 @@ const SettingsScreen = ({ navigation }) => {
             icon="shield-outline"
             title="개인정보 처리방침"
             subtitle="개인정보 수집 및 이용에 대한 안내"
-            onPress={() => Alert.alert('개인정보 처리방침', '개인정보 처리방침이 곧 추가됩니다.')}
+            onPress={() => openModal('privacy')}
           />
           <SettingItem
             icon="shield-checkmark-outline"
             title="아동 안전 정책"
             subtitle="아동 보호 및 안전에 관한 정책"
-            onPress={() => handleChildSafetyPolicy()}
+            onPress={() => openModal('child-safety')}
           />
 
           <SettingItem
@@ -329,19 +514,21 @@ const SettingsScreen = ({ navigation }) => {
         <SectionTitle title="계정" />
         <View style={styles.section}>
           <SettingItem
-            icon="shield-outline"
-            title="비밀번호 변경"
-            subtitle="계정 보안을 위해 비밀번호를 변경하세요"
-            onPress={() => Alert.alert('비밀번호 변경', '비밀번호 변경 기능이 곧 추가됩니다.')}
-          />
-          <SettingItem
             icon="diamond-outline"
-            title="프리미엄"
-            subtitle="고급 기능과 혜택을 이용해보세요"
-            onPress={() => Alert.alert('프리미엄', '프리미엄 서비스가 곧 출시됩니다.\n\n• 무제한 모임 생성\n• 고급 필터링 옵션\n• 우선 지원\n• 광고 제거\n\n더 많은 혜택이 준비 중입니다!')}
+            title="러논 멤버스"
+            subtitle="구독하고 다양한 혜택을 누려보세요"
+            onPress={() => navigation.navigate('Premium')}
             customIcon={
-              <View style={styles.premiumIconContainer}>
-                <Ionicons name="diamond-outline" size={20} color="#FFEA00" />
+              <View style={styles.premiumBadgeContainer}>
+                <View style={styles.premiumBadgeGlow}>
+                  <Image 
+                    source={require('../assets/images/Union.png')} 
+                    style={styles.premiumBadgeImage}
+                  />
+                </View>
+                <View style={styles.premiumIconOverlay}>
+                  <Ionicons name="diamond-outline" size={16} color="#FFFFFF" />
+                </View>
               </View>
             }
           />
@@ -366,6 +553,13 @@ const SettingsScreen = ({ navigation }) => {
         {/* 하단 여백 */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
+      
+      {/* 모달 */}
+      <TermsPrivacyModal
+        visible={modalVisible}
+        onClose={closeModal}
+        type={modalType}
+      />
     </View>
   );
 };
@@ -408,7 +602,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 20,
   },
   sectionTitleText: {
     fontSize: 16,
@@ -420,7 +614,7 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: COLORS.CARD,
-    marginBottom: 8,
+    marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -451,6 +645,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 234, 0, 0.1)',
     borderRadius: 20,
+  },
+  // 프리미엄 배지 스타일 (PremiumScreen과 동일)
+  premiumBadgeContainer: {
+    width: 60,
+    height: 24,
+    backgroundColor: 'transparent',
+    // 글로우 효과 - 핑크 색상
+    shadowColor: '#FF0073',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+  },
+  premiumBadgeGlow: {
+    backgroundColor: 'transparent',
+  },
+  premiumBadgeImage: {
+    width: 60,
+    height: 24,
+    resizeMode: 'contain',
+  },
+  premiumIconOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -8 }, { translateY: -8 }],
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   settingTextContainer: {
     flex: 1,

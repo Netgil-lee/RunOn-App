@@ -573,10 +573,36 @@ const CommunityScreen = ({ navigation, route }) => {
                         {/* 채팅방 목록 */}
             <View style={styles.chatSection}>
               {(() => {
-                // 종료된 모임의 채팅방 제외
+                // 종료된 모임의 채팅방 제외 (채팅방 상태와 모임 상태 모두 확인)
                 const activeChatRooms = chatRooms.filter(chatRoom => {
+                  // 1. 채팅방 자체가 'ended' 상태인지 확인
+                  if (chatRoom.status === 'ended') {
+                    console.log('🔍 CommunityScreen - 종료된 채팅방 제외 (status):', chatRoom.title);
+                    return false;
+                  }
+                  
+                  // 2. 관련 모임이 종료된 상태인지 확인
                   const relatedEvent = allEvents.find(event => event.id === chatRoom.eventId);
-                  return relatedEvent && relatedEvent.status !== 'ended';
+                  if (relatedEvent && relatedEvent.status === 'ended') {
+                    console.log('🔍 CommunityScreen - 종료된 모임의 채팅방 제외:', chatRoom.title);
+                    return false;
+                  }
+                  
+                  
+                  
+                  // 3. 채팅방 제목에 "(종료됨)"이 포함되어 있는지 확인
+                  if (chatRoom.title && chatRoom.title.includes('(종료됨)')) {
+                    console.log('🔍 CommunityScreen - 종료됨 표시가 있는 채팅방 제외:', chatRoom.title);
+                    return false;
+                  }
+                  
+                  // 4. 관련 모임이 존재하지 않는 경우도 제외 (삭제된 모임)
+                  if (!relatedEvent) {
+                    console.log('🔍 CommunityScreen - 관련 모임이 없는 채팅방 제외:', chatRoom.title);
+                    return false;
+                  }
+                  
+                  return true;
                 });
                 
                 // 채팅방 구분 로직

@@ -17,41 +17,53 @@ const COLORS = {
 };
 
 const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettingsPress, onSearchPress, hideProfile, title, unreadCount = 0, transparent = false }) => {
-  const displayName = profile?.displayName || user?.displayName;
+  const nickname = profile?.profile?.nickname || profile?.nickname || user?.displayName;
+  const [imageLoadFailed, setImageLoadFailed] = React.useState(false);
+  
+  // 프로필 이미지가 변경되면 로드 실패 상태 리셋
+  React.useEffect(() => {
+    setImageLoadFailed(false);
+  }, [profile?.profileImage]);
   
   
   return (
-    <SafeAreaView style={[styles.safeArea, transparent && styles.transparentSafeArea]}>
-      <View style={[styles.container, transparent && styles.transparentContainer]}>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
         {/* 왼쪽: 제목 또는 프로필 사진 */}
         <View style={styles.leftSection}>
           {title ? (
             <Text style={styles.title}>{title}</Text>
           ) : !hideProfile ? (
-            <TouchableOpacity style={styles.profileButton} onPress={onProfilePress} key={`profile-${user?.uid || 'default'}`}>
-              {(() => {
-                const hasImage = profile?.profileImage;
-                const imageUri = profile?.profileImage;
-                
-                return hasImage ? (
-                  <Image 
-                    key={`profile-image-${user?.uid || 'default'}`}
-                    source={{ uri: imageUri }} 
-                    style={styles.profileImage}
-                    onError={(error) => {
-                      // 프로필 이미지 로드 실패 시 기본 아이콘으로 대체
-                    }}
-                    onLoad={() => {
-                      // 이미지 로드 성공
-                    }}
-                  />
-                ) : (
-                  <View style={styles.profilePlaceholder} key={`profile-placeholder-${user?.uid || 'default'}`}>
-                    <Ionicons name="person" size={20} color="#ffffff" />
-                  </View>
-                );
-              })()}
-            </TouchableOpacity>
+            <View style={styles.profileSection}>
+              <TouchableOpacity style={styles.profileButton} onPress={onProfilePress} key={`profile-${user?.uid || 'default'}`}>
+                {(() => {
+                  const hasImage = profile?.profileImage && !imageLoadFailed;
+                  const imageUri = profile?.profileImage;
+                  
+                  
+                  return hasImage ? (
+                    <Image 
+                      key={`profile-image-${user?.uid || 'default'}`}
+                      source={{ uri: imageUri }} 
+                      style={styles.profileImage}
+                      onError={(error) => {
+                        setImageLoadFailed(true);
+                      }}
+                      onLoad={() => {
+                        setImageLoadFailed(false);
+                      }}
+                    />
+                  ) : (
+                    <View style={styles.profilePlaceholder} key={`profile-placeholder-${user?.uid || 'default'}`}>
+                      <Ionicons name="person" size={20} color="#ffffff" />
+                    </View>
+                  );
+                })()}
+              </TouchableOpacity>
+              <Text style={styles.nicknameText} numberOfLines={1}>
+                {nickname || '사용자'}
+              </Text>
+            </View>
           ) : null}
         </View>
 
@@ -97,6 +109,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  profileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -120,6 +136,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 18,
+  },
+  nicknameText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 12,
+    maxWidth: 120,
+    fontFamily: 'Pretendard-SemiBold',
   },
   logo: {
     fontSize: 24,

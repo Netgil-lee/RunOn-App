@@ -67,6 +67,9 @@ const OnboardingCourseSelector = ({
 const styles = StyleSheet.create({
   stepContainer: {
     marginBottom: 24,
+    marginTop: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   stepTitle: {
     fontSize: 20,
@@ -75,35 +78,37 @@ const styles = StyleSheet.create({
   },
   stepSubtitle: {
     fontSize: 15,
-    marginBottom: 18,
+    marginBottom: 30,
   },
   courseSection: {
     marginBottom: 18,
+    marginTop: 24,
   },
   courseSectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 20,
   },
   courseGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 4,
   },
   courseCard: {
-    width: 120,
+    width: '48%',
     backgroundColor: '#171719',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
     borderColor: '#333',
     marginBottom: 8,
-    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   courseName: {
     fontSize: 15,
     fontWeight: '600',
-    marginBottom: 2,
+    textAlign: 'center',
   },
   courseDescription: {
     fontSize: 13,

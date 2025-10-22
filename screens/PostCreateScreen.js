@@ -456,7 +456,7 @@ const PostCreateScreen = ({ navigation }) => {
 
           {/* 해시태그 */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>해시태그</Text>
+            <Text style={styles.sectionTitle}>해시태그 (최대 3개)</Text>
             <View style={styles.hashtagContainer}>
               <TextInput
                 ref={hashtagInputRef}
@@ -467,6 +467,7 @@ const PostCreateScreen = ({ navigation }) => {
                 onChangeText={setHashtagInput}
                 onSubmitEditing={() => addHashtag(hashtagInput.trim())}
                 maxLength={20}
+                editable={postData.hashtags.length < 3}
               />
             </View>
             
@@ -476,7 +477,10 @@ const PostCreateScreen = ({ navigation }) => {
                 {postData.hashtags.map((tag, index) => (
                   <View key={index} style={styles.selectedTag}>
                     <Text style={styles.selectedTagText}>#{tag}</Text>
-                    <TouchableOpacity onPress={() => removeHashtag(tag)}>
+                    <TouchableOpacity 
+                      style={styles.removeTagButton}
+                      onPress={() => removeHashtag(tag)}
+                    >
                       <Ionicons name="close" size={16} color={COLORS.TEXT} />
                     </TouchableOpacity>
                   </View>
@@ -776,6 +780,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   hashtagContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     position: 'relative',
   },
   hashtagInput: {
@@ -787,26 +793,30 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     fontSize: 16,
     color: COLORS.TEXT,
+    flex: 1,
   },
   selectedTags: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
     marginTop: 12,
   },
   selectedTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: '#1C3336',
     borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 8,
+    marginBottom: 4,
   },
   selectedTagText: {
     fontSize: 14,
-    color: COLORS.BACKGROUND,
-    marginRight: 6,
+    color: COLORS.PRIMARY,
     fontWeight: '500',
+    marginRight: 6,
+  },
+  removeTagButton: {
+    marginLeft: 4,
   },
   locationButton: {
     flexDirection: 'row',

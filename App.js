@@ -13,6 +13,7 @@ import { NetworkProvider } from './contexts/NetworkContext';
 import { EventProvider } from './contexts/EventContext';
 import { CommunityProvider } from './contexts/CommunityContext';
 import { NotificationSettingsProvider } from './contexts/NotificationSettingsContext';
+import { GuideProvider } from './contexts/GuideContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -33,15 +34,19 @@ export default function App() {
       const networkStatus = await Network.getNetworkStateAsync();
       setIsOnline(networkStatus.isConnected);
 
-      // 폰트 로딩
-      await Font.loadAsync({
-        'Pretendard': require('./assets/fonts/Pretendard-Regular.otf'),
-        'Pretendard-Medium': require('./assets/fonts/Pretendard-Medium.otf'),
-        'Pretendard-Bold': require('./assets/fonts/Pretendard-Bold.otf'),
-        'Pretendard-SemiBold': require('./assets/fonts/Pretendard-SemiBold.otf'),
-      });
+      // 폰트 로딩 (에러 처리 추가)
+      try {
+        await Font.loadAsync({
+          'Pretendard': require('./assets/fonts/Pretendard-Regular.otf'),
+          'Pretendard-Medium': require('./assets/fonts/Pretendard-Medium.otf'),
+          'Pretendard-Bold': require('./assets/fonts/Pretendard-Bold.otf'),
+          'Pretendard-SemiBold': require('./assets/fonts/Pretendard-SemiBold.otf'),
+        });
+        console.log('✅ Pretendard 폰트 로딩 완료');
+      } catch (fontError) {
+        console.warn('⚠️ 폰트 로딩 실패, 기본 폰트 사용:', fontError);
+      }
       setFontsLoaded(true);
-      console.log('✅ Pretendard 폰트 로딩 완료');
 
       await initializeFirebase();
       
@@ -100,7 +105,8 @@ export default function App() {
     );
   }
 
-  if (!fontsLoaded || (!isFirebaseInitialized && Platform.OS !== 'web')) {
+  // 폰트 로딩 실패 시에도 앱 실행 허용
+  if (!fontsLoaded) {
     return (
       <>
         <StatusBar 
@@ -126,11 +132,13 @@ export default function App() {
         <NetworkProvider>
           <AuthProvider>
             <NotificationSettingsProvider>
-            <EventProvider>
+              <EventProvider>
                 <CommunityProvider>
-              <AppNavigator />
+                  <GuideProvider>
+                    <AppNavigator />
+                  </GuideProvider>
                 </CommunityProvider>
-            </EventProvider>
+              </EventProvider>
             </NotificationSettingsProvider>
           </AuthProvider>
         </NetworkProvider>

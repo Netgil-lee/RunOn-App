@@ -110,10 +110,10 @@ const SplashScreen = ({ navigation }) => {
           style={styles.logoImage}
           resizeMode="contain"
         />
-        <Text style={styles.subtitle}>너와 나의 러닝 커뮤니티</Text>
       </Animated.View>
 
       <View style={styles.progressContainer}>
+        <Text style={styles.subtitle}>너와 나의 러닝 커뮤니티</Text>
         <Progress.Bar
           progress={progress}
           width={200}
@@ -150,7 +150,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     letterSpacing: 1,
     fontFamily: 'Pretendard-Regular',
-    marginTop: 4,
+    marginBottom: 20,
+    textAlign: 'center',
   },
   progressContainer: {
     position: 'absolute',

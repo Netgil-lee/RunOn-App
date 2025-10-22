@@ -41,6 +41,110 @@ class FirestoreService {
     }
   }
 
+  // 휴대전화번호 중복 체크 (회원가입용)
+  async checkPhoneNumberAvailability(phoneNumber) {
+    try {
+      if (!phoneNumber) {
+        return { available: false, reason: '휴대전화번호를 입력해주세요.' };
+      }
+
+      // 한국 전화번호를 국제 형식으로 변환 (010-1234-5678 → +821012345678)
+      const cleanNumber = phoneNumber.replace(/[^\d]/g, '');
+      const fullPhoneNumber = `+82${cleanNumber}`;
+      
+      const usersRef = collection(this.db, 'users');
+      
+      // 두 가지 형식으로 모두 검색 (기존 데이터와 새 데이터 모두 고려)
+      const queries = [
+        query(usersRef, where('phoneNumber', '==', fullPhoneNumber)), // 국제 형식
+        query(usersRef, where('phoneNumber', '==', phoneNumber))      // 한국 형식 (기존 데이터)
+      ];
+      
+      // 두 쿼리를 병렬로 실행
+      const [internationalQuerySnapshot, koreanQuerySnapshot] = await Promise.all([
+        getDocs(queries[0]),
+        getDocs(queries[1])
+      ]);
+      
+      // 둘 중 하나라도 결과가 있으면 중복
+      if (!internationalQuerySnapshot.empty || !koreanQuerySnapshot.empty) {
+        return { available: false, reason: '이미 가입된 휴대전화번호입니다.' };
+      } else {
+        return { available: true, reason: '사용 가능한 휴대전화번호입니다.' };
+      }
+    } catch (error) {
+      console.error('휴대전화번호 중복 체크 실패:', error);
+      return { available: false, reason: '휴대전화번호 확인 중 오류가 발생했습니다.' };
+    }
+  }
+
+  // 휴대전화번호 회원가입 여부 확인 (로그인용)
+  async checkPhoneNumberExists(phoneNumber) {
+    try {
+      if (!phoneNumber) {
+        return { exists: false, reason: '휴대전화번호를 입력해주세요.' };
+      }
+
+      // 한국 전화번호를 국제 형식으로 변환 (010-1234-5678 → +821012345678)
+      const cleanNumber = phoneNumber.replace(/[^\d]/g, '');
+      const fullPhoneNumber = `+82${cleanNumber}`;
+      
+      const usersRef = collection(this.db, 'users');
+      
+      // 두 가지 형식으로 모두 검색 (기존 데이터와 새 데이터 모두 고려)
+      const queries = [
+        query(usersRef, where('phoneNumber', '==', fullPhoneNumber)), // 국제 형식
+        query(usersRef, where('phoneNumber', '==', phoneNumber))      // 한국 형식 (기존 데이터)
+      ];
+      
+      // 두 쿼리를 병렬로 실행
+      const [internationalQuerySnapshot, koreanQuerySnapshot] = await Promise.all([
+        getDocs(queries[0]),
+        getDocs(queries[1])
+      ]);
+      
+      // 둘 중 하나라도 결과가 있으면 회원가입된 번호
+      if (!internationalQuerySnapshot.empty || !koreanQuerySnapshot.empty) {
+        return { exists: true, reason: '회원가입된 휴대전화번호입니다.' };
+      } else {
+        return { exists: false, reason: '회원가입한 휴대전화번호가 아닙니다. 다시 확인해주세요.' };
+      }
+    } catch (error) {
+      console.error('휴대전화번호 회원가입 여부 확인 실패:', error);
+      return { exists: false, reason: '휴대전화번호 확인 중 오류가 발생했습니다.' };
+    }
+  }
+
+  // 닉네임 중복 체크
+  async checkNicknameAvailability(nickname, excludeUserId = null) {
+    try {
+      if (!nickname || nickname.trim().length < 2) {
+        return { available: false, reason: '닉네임은 2자 이상이어야 합니다.' };
+      }
+
+      const usersRef = collection(this.db, 'users');
+      const q = query(usersRef, where('profile.nickname', '==', nickname.trim()));
+      const querySnapshot = await getDocs(q);
+
+      // excludeUserId가 있으면 해당 사용자는 제외 (닉네임 수정 시 사용)
+      const existingUsers = querySnapshot.docs.filter(doc => {
+        if (excludeUserId && doc.id === excludeUserId) {
+          return false; // 자신의 기존 닉네임은 제외
+        }
+        return true;
+      });
+
+      const isAvailable = existingUsers.length === 0;
+
+      return {
+        available: isAvailable,
+        reason: isAvailable ? null : '이미 사용 중인 닉네임입니다.'
+      };
+    } catch (error) {
+      return { available: false, reason: '닉네임 확인 중 오류가 발생했습니다.' };
+    }
+  }
+
   async getUserProfile(userId) {
     try {
       const userRef = doc(this.db, 'users', userId);
@@ -99,10 +203,6 @@ class FirestoreService {
     
     while (retryCount < maxRetries) {
       try {
-        console.log('🔍 FirestoreService.createEvent 호출됨 (시도:', retryCount + 1, ')');
-        console.log('🔍 FirestoreService.createEvent - eventData:', eventData);
-        console.log('🔍 FirestoreService.createEvent - eventData.date:', eventData.date, typeof eventData.date);
-        console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
         
         const eventsRef = collection(this.db, 'events');
         const docRef = await addDoc(eventsRef, {
@@ -111,7 +211,6 @@ class FirestoreService {
           updatedAt: serverTimestamp()
         });
         
-        console.log('✅ Firebase에 이벤트 저장 완료 (시도:', retryCount + 1, ') - ID:', docRef.id);
         return { success: true, id: docRef.id };
         
       } catch (error) {
@@ -129,7 +228,6 @@ class FirestoreService {
         }
         
         // 1초 대기 후 재시도
-        console.log('⏳ 재시도 대기 중... (1초)');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -262,7 +360,6 @@ class FirestoreService {
         }
         
         // 1초 대기 후 재시도
-        console.log('⏳ 재시도 대기 중... (1초)');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -318,7 +415,6 @@ class FirestoreService {
         }
         
         // 1초 대기 후 재시도
-        console.log('⏳ 재시도 대기 중... (1초)');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -454,7 +550,6 @@ class FirestoreService {
         }
         
         // 1초 대기 후 재시도
-        console.log('⏳ 재시도 대기 중... (1초)');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -504,7 +599,6 @@ class FirestoreService {
         }
         
         // 1초 대기 후 재시도
-        console.log('⏳ 재시도 대기 중... (1초)');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -546,7 +640,6 @@ class FirestoreService {
         }
         
         // 1초 대기 후 재시도
-        console.log('⏳ 재시도 대기 중... (1초)');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -588,7 +681,6 @@ class FirestoreService {
         }
         
         // 1초 대기 후 재시도
-        console.log('⏳ 재시도 대기 중... (1초)');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -628,7 +720,6 @@ class FirestoreService {
         }
         
         // 1초 대기 후 재시도
-        console.log('⏳ 재시도 대기 중... (1초)');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -692,7 +783,7 @@ class FirestoreService {
     return onSnapshot(messagesQuery, callback, errorCallback);
   }
 
-  // 모임 종료 시 상태를 'ended'로 변경 (데이터 보존)
+  // 모임 종료 시 상태를 'ended'로 변경 (채팅방 데이터 삭제)
   async endEvent(eventId) {
     try {
       console.log('🔍 FirestoreService.endEvent 호출됨:', eventId);
@@ -712,19 +803,26 @@ class FirestoreService {
           currentUser: this.auth.currentUser?.uid
         });
         
-        // 2. 채팅방 상태를 'ended'로 변경 (삭제 안함)
-        console.log('🔍 FirestoreService.endEvent - 채팅방 상태 변경 시작');
-        await updateDoc(chatRoom.ref, {
-          status: 'ended',
-          endedAt: serverTimestamp(),
-          title: `${chatRoom.data().title} (종료됨)`
-        });
-        console.log('✅ 채팅방 상태 변경 완료: ended');
+        // 2. 채팅방의 모든 메시지 삭제
+        console.log('🔍 FirestoreService.endEvent - 채팅방 메시지 삭제 시작');
+        const messagesRef = collection(this.db, 'chatRooms', chatRoomId, 'messages');
+        const messagesSnapshot = await getDocs(messagesRef);
+        
+        const deleteMessagePromises = messagesSnapshot.docs.map(messageDoc => 
+          deleteDoc(messageDoc.ref)
+        );
+        await Promise.all(deleteMessagePromises);
+        console.log('✅ 채팅방 메시지 삭제 완료');
+        
+        // 3. 채팅방 삭제
+        console.log('🔍 FirestoreService.endEvent - 채팅방 삭제 시작');
+        await deleteDoc(chatRoom.ref);
+        console.log('✅ 채팅방 삭제 완료');
       } else {
         console.log('🔍 FirestoreService.endEvent - 해당 모임의 채팅방이 없음');
       }
       
-      // 3. 모임 상태를 'ended'로 변경 (삭제 안함)
+      // 4. 모임 상태를 'ended'로 변경 (삭제 안함)
       console.log('🔍 FirestoreService.endEvent - 모임 상태 변경 시작');
       const eventRef = doc(this.db, 'events', eventId);
       await updateDoc(eventRef, {

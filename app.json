@@ -11,7 +11,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lee-gwang-hee.runon",
+      "bundleIdentifier": "com.runon.app",
       "buildNumber": "111",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
@@ -21,6 +21,16 @@
         "NSContactsUsageDescription": "친구 추가 기능을 위해 연락처 접근 권한이 필요합니다."
       }
     },
+    "fonts": [
+      "assets/fonts/Gold-Regular.ttf",
+      "assets/fonts/Gold-Bold.ttf",
+      "assets/fonts/Pretendard-Regular.otf",
+      "assets/fonts/Pretendard-Medium.otf",
+      "assets/fonts/Pretendard-SemiBold.otf",
+      "assets/fonts/Pretendard-Bold.otf",
+      "assets/fonts/Pretendard-Light.otf",
+      "assets/fonts/Pretendard-Thin.otf"
+    ],
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/appicon.png",
@@ -60,7 +70,7 @@
     "extra": {
       "firebaseApiKey": "AIzaSyDq24FyKrDTtomyNMcC3gZB7eqpr0OGZCg",
       "weatherApiKey": "c1861b48c1786a9ff6a37560f3b8c63c",
-      "kakaoMapApiKey": "a4e8824702e29ee6141edab0149ae982",
+      "kakaoMapApiKey": "464318d78ffeb1e52a1185498fe1af08",
       "eas": {
         "projectId": "b2ec1d33-1054-4404-b072-623c6cd66588"
       }

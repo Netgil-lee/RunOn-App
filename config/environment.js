@@ -14,25 +14,13 @@ const ENV = {
     
     // 외부 API
     weatherApiKey: Constants.expoConfig?.extra?.weatherApiKey || 'c1861b48c1786a9ff6a37560f3b8c63c',
-    kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08', // 올바른 API 키 강제 사용
-    
-    // 네이버 클라우드 SMS API
-    smsApiEndpoint: 'https://sens.apigw.ntruss.com',
-    smsApiKey: Constants.expoConfig?.extra?.smsApiKey || 'your-naver-cloud-access-key',
-    smsSecretKey: Constants.expoConfig?.extra?.smsSecretKey || 'your-naver-cloud-secret-key',
-    smsServiceId: Constants.expoConfig?.extra?.smsServiceId || 'your-naver-cloud-service-id',
-    smsFromNumber: Constants.expoConfig?.extra?.smsFromNumber || '01012345678',
+    kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08', // JavaScript 키 (웹뷰용)
   },
   staging: {
     // Staging 환경 설정 (dev와 동일하게 설정하거나 별도 키 사용)
     firebaseApiKey: 'staging_firebase_api_key',
     weatherApiKey: 'staging_weather_api_key',
     kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08',
-    smsApiEndpoint: 'https://sens.apigw.ntruss.com',
-    smsApiKey: 'staging_naver_cloud_access_key',
-    smsSecretKey: 'staging_naver_cloud_secret_key',
-    smsServiceId: 'staging_naver_cloud_service_id',
-    smsFromNumber: '01012345678',
     // ... 기타 설정
   },
   prod: {
@@ -49,23 +37,9 @@ const ENV = {
     // API 키들 - TestFlight에서 확실한 로딩을 위한 다중 fallback
     weatherApiKey: (Constants.expoConfig?.extra?.weatherApiKey) || 
                   (Constants.manifest?.extra?.weatherApiKey) || 
+                  (Constants.expoConfig?.extra?.weatherApiKey) ||
                   'c1861b48c1786a9ff6a37560f3b8c63c',
-    kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08', // 올바른 API 키 강제 사용
-    
-    // 네이버 클라우드 SMS API
-    smsApiEndpoint: 'https://sens.apigw.ntruss.com',
-    smsApiKey: (Constants.expoConfig?.extra?.smsApiKey) || 
-              (Constants.manifest?.extra?.smsApiKey) || 
-              'your-production-naver-cloud-access-key',
-    smsSecretKey: (Constants.expoConfig?.extra?.smsSecretKey) || 
-                 (Constants.manifest?.extra?.smsSecretKey) || 
-                 'your-production-naver-cloud-secret-key',
-    smsServiceId: (Constants.expoConfig?.extra?.smsServiceId) || 
-                 (Constants.manifest?.extra?.smsServiceId) || 
-                 'your-production-naver-cloud-service-id',
-    smsFromNumber: (Constants.expoConfig?.extra?.smsFromNumber) || 
-                  (Constants.manifest?.extra?.smsFromNumber) || 
-                  '01012345678',
+    kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08', // JavaScript 키 (웹뷰용)
   }
 };
 

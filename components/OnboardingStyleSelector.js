@@ -28,6 +28,8 @@ const OnboardingStyleSelector = ({ value = [], onChange }) => {
 
   return (
     <View style={styles.container}>
+      <Text style={styles.stepTitle}>러닝 스타일을 선택해주세요</Text>
+      <Text style={styles.stepSubtitle}>여러 개 선택 가능해요</Text>
       <View style={styles.optionsContainer}>
         {RUNNING_STYLE_OPTIONS.map((style) => (
           <TouchableOpacity
@@ -53,11 +55,23 @@ const OnboardingStyleSelector = ({ value = [], onChange }) => {
 
 const styles = StyleSheet.create({
   container: {
-    // flex: 1,
+    width: '85%',
+    alignSelf: 'center',
+  },
+  stepTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    color: '#ffffff',
+  },
+  stepSubtitle: {
+    fontSize: 15,
+    marginBottom: 30,
+    color: '#666666',
   },
 
   optionsContainer: {
-    gap: 16,
+    gap: 12,
   },
   styleCard: {
     backgroundColor: COLORS.CARD,
@@ -75,7 +89,7 @@ const styles = StyleSheet.create({
   },
   styleTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: COLORS.TEXT,
     marginBottom: 4,
   },

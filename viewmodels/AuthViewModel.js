@@ -118,7 +118,7 @@ export const useAuthViewModel = () => {
       // 휴대폰 인증
       'auth/invalid-phone-number': '유효하지 않은 휴대폰번호입니다. 📱',
       'auth/missing-phone-number': '휴대폰번호를 입력해주세요. 📱',
-      'auth/quota-exceeded': 'SMS 할당량을 초과했습니다. 나중에 다시 시도해주세요. 📱',
+      'auth/quota-exceeded': '인증 요청 할당량을 초과했습니다. 나중에 다시 시도해주세요. 📱',
       'auth/captcha-check-failed': '보안 인증에 실패했습니다. 🔒',
       'auth/invalid-verification-code': '인증번호가 올바르지 않습니다. 🔢',
       'auth/invalid-verification-id': '인증 세션이 만료되었습니다. 다시 시도해주세요. ⏰',
@@ -130,7 +130,7 @@ export const useAuthViewModel = () => {
     return errorMessages[errorCode] || '로그인 중 문제가 발생했습니다. 다시 시도해주세요. 🔄';
   };
 
-  // 📱 휴대폰 인증번호 발송 (서버 사이드 SMS)
+  // 📱 휴대폰 인증번호 발송 (Firebase Phone Auth)
   const sendPhoneVerification = async (phoneNumber, recaptchaVerifier) => {
     try {
       setLoading(true);
@@ -146,8 +146,8 @@ export const useAuthViewModel = () => {
       
       const auth = firebaseService.getAuth();
       
-      // 🚀 실제 Firebase Phone Auth SMS 발송
-      console.log('📞 Firebase Phone Auth SMS 발송 시작');
+      // 🚀 실제 Firebase Phone Auth 인증번호 발송
+      console.log('📞 Firebase Phone Auth 인증번호 발송 시작');
       
       if (!recaptchaVerifier) {
         throw new Error('보안 인증이 필요합니다. 잠시 후 다시 시도해주세요.');
@@ -155,7 +155,7 @@ export const useAuthViewModel = () => {
       
       try {
         const confirmationResult = await signInWithPhoneNumber(auth, fullPhoneNumber, recaptchaVerifier);
-        console.log('✅ Firebase Phone Auth SMS 발송 성공');
+        console.log('✅ Firebase Phone Auth 인증번호 발송 성공');
         return confirmationResult;
         
       } catch (firebaseError) {
@@ -167,15 +167,15 @@ export const useAuthViewModel = () => {
         } else if (firebaseError.code === 'auth/too-many-requests') {
           throw new Error('너무 많은 요청이 있었습니다. 잠시 후 다시 시도해주세요.');
         } else if (firebaseError.code === 'auth/quota-exceeded') {
-          throw new Error('일일 SMS 발송 한도를 초과했습니다.');
+          throw new Error('일일 인증 요청 한도를 초과했습니다.');
         } else if (firebaseError.code === 'auth/invalid-recaptcha-token') {
           throw new Error('보안 인증에 실패했습니다. 다시 시도해주세요.');
         }
         
-        throw new Error('SMS 발송에 실패했습니다. 다시 시도해주세요.');
+        throw new Error('인증번호 발송에 실패했습니다. 다시 시도해주세요.');
       }
     } catch (error) {
-      console.error('❌ Firebase Phone Auth SMS 발송 오류:', error);
+      console.error('❌ Firebase Phone Auth 인증번호 발송 오류:', error);
       console.error('❌ 에러 코드:', error.code);
       console.error('❌ 에러 메시지:', error.message);
       

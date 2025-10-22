@@ -18,7 +18,8 @@ export const NotificationSettingsProvider = ({ children }) => {
       meetingReminder: true,       // 모임 알림 (모임 탭)
       newMember: true,             // 커뮤니티 알림 (커뮤니티 탭)
       weatherAlert: true,          // 날씨 알림 (일반 탭)
-      safetyAlert: true            // 안전 알림 (일반 탭)
+      safetyAlert: true,           // 안전 알림 (일반 탭)
+      chatNotification: true       // 채팅 알림 (푸시 알림)
     }
   };
 
@@ -123,8 +124,10 @@ export const NotificationSettingsProvider = ({ children }) => {
       case 'reminder':
       case 'rating':
       case 'cancel':
+      case 'new_participant':
         return settings.notifications.meetingReminder;
       case 'message':
+        return settings.notifications.chatNotification;
       case 'like':
       case 'comment':
       case 'mention':

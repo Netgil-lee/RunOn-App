@@ -75,13 +75,29 @@ const RunningMeetingReview = ({ route, navigation }) => {
   const [completedCount, setCompletedCount] = useState(0);
 
   // 태그 옵션
-  const tagOptions = [
-    "같이 달리고 싶어요",
-    "분위기 메이커에요", 
-    "열정 러너에요",
-    "페이스메이커에요",
-    "러닝지식이 많아요",
-    "러닝코스를 많이 알아요"
+  const tagOptions = {
+    positive: [
+      "같이 달리고 싶어요",
+      "분위기 메이커에요", 
+      "열정 러너에요",
+      "페이스메이커에요",
+      "러닝지식이 많아요",
+      "러닝코스를 많이 알아요"
+    ],
+    negative: [
+      "페이스가 맞지 않았어요",
+      "소통이 부족했어요",
+      "약속을 지키지 않았어요",
+      "러닝 예티켓이 부족했어요",
+      "일정 변경을 미리 알려주지 않았어요"
+    ]
+  };
+
+  // 특별 상황 옵션
+  const specialSituations = [
+    "노쇼",
+    "지각",
+    "부적절한 행동"
   ];
 
   // 하트 점수 메시지
@@ -122,13 +138,15 @@ const RunningMeetingReview = ({ route, navigation }) => {
         ...prev[participantId],
         mannerScore: score,
         selectedTags: prev[participantId]?.selectedTags || [],
+        negativeTags: prev[participantId]?.negativeTags || [],
+        specialSituations: prev[participantId]?.specialSituations || [],
         isExpanded: prev[participantId]?.isExpanded || false
       }
     }));
   };
 
-  // 태그 선택/해제
-  const toggleTag = (participantId, tag) => {
+  // 긍정적 태그 선택/해제
+  const togglePositiveTag = (participantId, tag) => {
     setEvaluations(prev => {
       const current = prev[participantId] || {};
       const currentTags = current.selectedTags || [];
@@ -136,7 +154,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
         ? currentTags.filter(t => t !== tag)
         : [...currentTags, tag];
       
-      console.log('🔍 태그 선택/해제:', {
+      console.log('🔍 긍정적 태그 선택/해제:', {
         participantId,
         tag,
         currentTags,
@@ -149,6 +167,70 @@ const RunningMeetingReview = ({ route, navigation }) => {
         [participantId]: {
           ...current,
           selectedTags: newTags,
+          mannerScore: current.mannerScore || 0,
+          negativeTags: current.negativeTags || [],
+          specialSituations: current.specialSituations || [],
+          isExpanded: current.isExpanded || false
+        }
+      };
+    });
+  };
+
+  // 부정적 태그 선택/해제
+  const toggleNegativeTag = (participantId, tag) => {
+    setEvaluations(prev => {
+      const current = prev[participantId] || {};
+      const currentTags = current.negativeTags || [];
+      const newTags = currentTags.includes(tag)
+        ? currentTags.filter(t => t !== tag)
+        : [...currentTags, tag];
+      
+      console.log('🔍 부정적 태그 선택/해제:', {
+        participantId,
+        tag,
+        currentTags,
+        newTags,
+        isSelected: !currentTags.includes(tag)
+      });
+      
+      return {
+        ...prev,
+        [participantId]: {
+          ...current,
+          selectedTags: current.selectedTags || [],
+          negativeTags: newTags,
+          mannerScore: current.mannerScore || 0,
+          specialSituations: current.specialSituations || [],
+          isExpanded: current.isExpanded || false
+        }
+      };
+    });
+  };
+
+  // 특별 상황 선택/해제
+  const toggleSpecialSituation = (participantId, situation) => {
+    setEvaluations(prev => {
+      const current = prev[participantId] || {};
+      const currentSituations = current.specialSituations || [];
+      const newSituations = currentSituations.includes(situation)
+        ? currentSituations.filter(s => s !== situation)
+        : [...currentSituations, situation];
+      
+      console.log('🔍 특별 상황 선택/해제:', {
+        participantId,
+        situation,
+        currentSituations,
+        newSituations,
+        isSelected: !currentSituations.includes(situation)
+      });
+      
+      return {
+        ...prev,
+        [participantId]: {
+          ...current,
+          selectedTags: current.selectedTags || [],
+          negativeTags: current.negativeTags || [],
+          specialSituations: newSituations,
           mannerScore: current.mannerScore || 0,
           isExpanded: current.isExpanded || false
         }
@@ -215,18 +297,8 @@ const RunningMeetingReview = ({ route, navigation }) => {
               onEvaluationComplete();
             }
             
-            // EventDetailScreen으로 돌아가면서 평가 완료 상태를 전달
-            navigation.navigate('EventDetail', {
-              event: {
-                ...event,
-                date: event.date.toISOString(),
-                createdAt: event.createdAt.toISOString(),
-                updatedAt: event.updatedAt.toISOString()
-              },
-              isJoined: true,
-              isCreatedByMe: true,
-              evaluationCompleted: true // 평가 완료 상태 전달
-            });
+            // 러닝매너 작성 완료 후 모임탭으로 이동
+            navigation.navigate('ScheduleTab');
           }
         }
       ]
@@ -275,13 +347,13 @@ const RunningMeetingReview = ({ route, navigation }) => {
     );
   };
 
-  // 태그 선택 컴포넌트
-  const TagSelector = ({ participantId, selectedTags, onTagToggle }) => {
+  // 긍정적 태그 선택 컴포넌트
+  const PositiveTagSelector = ({ participantId, selectedTags, onTagToggle }) => {
     return (
       <View style={styles.tagContainer}>
-        <Text style={styles.tagTitle}>어떤 점이 좋았나요? (선택사항)</Text>
+        <Text style={styles.tagTitle}>좋았던 점 (선택사항)</Text>
         <View style={styles.tagGrid}>
-          {tagOptions.map((tag) => (
+          {tagOptions.positive.map((tag) => (
             <TouchableOpacity
               key={tag}
               style={[
@@ -305,6 +377,76 @@ const RunningMeetingReview = ({ route, navigation }) => {
         </View>
         <Text style={styles.tagCount}>
           {selectedTags.length}개 선택됨
+        </Text>
+      </View>
+    );
+  };
+
+  // 부정적 태그 선택 컴포넌트
+  const NegativeTagSelector = ({ participantId, selectedTags, onTagToggle }) => {
+    return (
+      <View style={styles.tagContainer}>
+        <Text style={styles.tagTitle}>아쉬웠던 점 (선택사항)</Text>
+        <View style={styles.tagGrid}>
+          {tagOptions.negative.map((tag) => (
+            <TouchableOpacity
+              key={tag}
+              style={[
+                styles.negativeTagButton,
+                selectedTags.includes(tag) && styles.negativeTagButtonSelected
+              ]}
+              onPress={() => onTagToggle(tag)}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                styles.negativeTagText,
+                selectedTags.includes(tag) && styles.negativeTagTextSelected
+              ]}>
+                {tag}
+              </Text>
+              {selectedTags.includes(tag) && (
+                <Ionicons name="checkmark" size={16} color="#FF6B6B" style={styles.tagCheck} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.tagCount}>
+          {selectedTags.length}개 선택됨
+        </Text>
+      </View>
+    );
+  };
+
+  // 특별 상황 선택 컴포넌트
+  const SpecialSituationSelector = ({ participantId, selectedSituations, onSituationToggle }) => {
+    return (
+      <View style={styles.tagContainer}>
+        <Text style={styles.tagTitle}>특별 상황 (선택사항)</Text>
+        <View style={styles.tagGrid}>
+          {specialSituations.map((situation) => (
+            <TouchableOpacity
+              key={situation}
+              style={[
+                styles.specialSituationButton,
+                selectedSituations.includes(situation) && styles.specialSituationButtonSelected
+              ]}
+              onPress={() => onSituationToggle(situation)}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                styles.specialSituationText,
+                selectedSituations.includes(situation) && styles.specialSituationTextSelected
+              ]}>
+                {situation}
+              </Text>
+              {selectedSituations.includes(situation) && (
+                <Ionicons name="checkmark" size={16} color="#FF6B6B" style={styles.tagCheck} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.tagCount}>
+          {selectedSituations.length}개 선택됨
         </Text>
       </View>
     );
@@ -376,14 +518,28 @@ const RunningMeetingReview = ({ route, navigation }) => {
             </View>
 
             <View style={styles.evaluationSection}>
-              <TagSelector
+              <PositiveTagSelector
                 participantId={participant.id}
                 selectedTags={evaluation.selectedTags || []}
-                onTagToggle={(tag) => toggleTag(participant.id, tag)}
+                onTagToggle={(tag) => togglePositiveTag(participant.id, tag)}
               />
             </View>
 
+            <View style={styles.evaluationSection}>
+              <NegativeTagSelector
+                participantId={participant.id}
+                selectedTags={evaluation.negativeTags || []}
+                onTagToggle={(tag) => toggleNegativeTag(participant.id, tag)}
+              />
+            </View>
 
+            <View style={styles.evaluationSection}>
+              <SpecialSituationSelector
+                participantId={participant.id}
+                selectedSituations={evaluation.specialSituations || []}
+                onSituationToggle={(situation) => toggleSpecialSituation(participant.id, situation)}
+              />
+            </View>
           </View>
         )}
       </View>
@@ -824,6 +980,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.SECONDARY,
     textAlign: 'center',
+  },
+
+  // 부정적 태그 스타일
+  negativeTagButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+    backgroundColor: COLORS.SURFACE,
+    minWidth: '48%',
+  },
+  negativeTagButtonSelected: {
+    borderColor: '#FF6B6B',
+    backgroundColor: '#FF6B6B20',
+  },
+  negativeTagText: {
+    fontSize: 14,
+    color: COLORS.TEXT,
+    flex: 1,
+  },
+  negativeTagTextSelected: {
+    color: '#FF6B6B',
+    fontWeight: 'bold',
+  },
+
+  // 특별 상황 스타일
+  specialSituationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+    backgroundColor: COLORS.SURFACE,
+    minWidth: '48%',
+  },
+  specialSituationButtonSelected: {
+    borderColor: '#FFA500',
+    backgroundColor: '#FFA50020',
+  },
+  specialSituationText: {
+    fontSize: 14,
+    color: COLORS.TEXT,
+    flex: 1,
+  },
+  specialSituationTextSelected: {
+    color: '#FFA500',
+    fontWeight: 'bold',
   },
 });
 

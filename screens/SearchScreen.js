@@ -16,6 +16,7 @@ import { useEvents } from '../contexts/EventContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import MeetingCard from '../components/MeetingCard';
+import blacklistService from '../services/blacklistService';
 
 // NetGill 디자인 시스템 - 홈화면과 동일한 색상 팔레트
 const COLORS = {
@@ -31,6 +32,7 @@ const SearchScreen = ({ navigation }) => {
   const { user } = useAuth();
   const { userCreatedEvents, userJoinedEvents, endedEvents } = useEvents();
   const { posts: communityPosts } = useCommunity(); // 실제 커뮤니티 데이터 사용
+  const [blacklist, setBlacklist] = useState([]);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -60,6 +62,24 @@ const SearchScreen = ({ navigation }) => {
     }).start();
   }, []);
 
+  // 블랙리스트 가져오기
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const fetchBlacklist = async () => {
+      try {
+        const blacklistData = await blacklistService.getBlacklist(user.uid);
+        setBlacklist(blacklistData);
+      } catch (error) {
+        console.log('블랙리스트 조회 실패 (빈 배열로 처리):', error.message);
+        setBlacklist([]); // 빈 배열로 설정
+      }
+    };
+
+    fetchBlacklist();
+  }, [user?.uid]);
+
+
   // 모든 모임 데이터 통합
   const allEvents = [
     ...userCreatedEvents,
@@ -80,8 +100,9 @@ const SearchScreen = ({ navigation }) => {
     // 검색어를 소문자로 변환
     const searchTerm = query.toLowerCase().trim();
     
-    // 모임 검색 결과
-    const eventResults = allEvents.filter(event => {
+    // 모임 검색 결과 (블랙리스트 필터링 적용)
+    const filteredEvents = blacklistService.filterEventsByBlacklist(allEvents, blacklist);
+    const eventResults = filteredEvents.filter(event => {
       // 제목 검색
       const titleMatch = event.title?.toLowerCase().includes(searchTerm);
       

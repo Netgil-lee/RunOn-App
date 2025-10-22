@@ -16,7 +16,7 @@ const COLORS = {
   CARD: '#171719',
 };
 
-const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasNotification = false }) => {
+const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasNotification = false, id, onMenuPress }) => {
   
   // 참여자수 계산
   const participantCount = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
@@ -151,42 +151,53 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
           <Text style={[styles.participantInfo, { color: '#ffffff', fontSize: 15 }]}>
             {finalParticipantText}
           </Text>
-          {showJoinButton && (
-            <TouchableOpacity 
-              style={[
-                styles.joinButton,
+          <View style={styles.buttonContainer}>
+            {showJoinButton && (
+              <TouchableOpacity 
+                style={[
+                  styles.joinButton,
+                  // 참여 마감된 경우 버튼 비활성화
+                  (() => {
+                    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
+                    const maxParticipants = event.maxParticipants || 6;
+                    return currentParticipants >= maxParticipants ? styles.disabledButton : {};
+                  })()
+                ]} 
+                onPress={() => onJoinPress(event)}
                 // 참여 마감된 경우 버튼 비활성화
-                (() => {
+                disabled={(() => {
                   const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
                   const maxParticipants = event.maxParticipants || 6;
-                  return currentParticipants >= maxParticipants ? styles.disabledButton : {};
-                })()
-              ]} 
-              onPress={() => onJoinPress(event)}
-              // 참여 마감된 경우 버튼 비활성화
-              disabled={(() => {
-                const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                const maxParticipants = event.maxParticipants || 6;
-                return currentParticipants >= maxParticipants;
-              })()}
-            >
-              <Text style={[
-                styles.joinButtonText,
-                // 참여 마감된 경우 텍스트 스타일 변경
-                (() => {
-                  const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                  const maxParticipants = event.maxParticipants || 6;
-                  return currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
-                })()
-              ]}>
-                {(() => {
-                  const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                  const maxParticipants = event.maxParticipants || 6;
-                  return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
+                  return currentParticipants >= maxParticipants;
                 })()}
-              </Text>
-            </TouchableOpacity>
-          )}
+              >
+                <Text style={[
+                  styles.joinButtonText,
+                  // 참여 마감된 경우 텍스트 스타일 변경
+                  (() => {
+                    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
+                    const maxParticipants = event.maxParticipants || 6;
+                    return currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
+                  })()
+                ]}>
+                  {(() => {
+                    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
+                    const maxParticipants = event.maxParticipants || 6;
+                    return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
+                  })()}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {onMenuPress && (
+              <TouchableOpacity 
+                style={styles.menuButton}
+                onPress={() => onMenuPress(event)}
+                id={id === 'meetingCard' ? 'meetingCardMenu' : undefined}
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color="#ffffff" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -279,16 +290,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tag: {
-    borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: '#1C3336',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     marginRight: 8,
     marginBottom: 4,
   },
   tagText: {
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.PRIMARY,
     fontWeight: '500',
   },
@@ -333,6 +343,16 @@ const styles = StyleSheet.create({
     gap: 12,
     minWidth: 80, // 최소 너비 설정
     justifyContent: 'flex-end', // 오른쪽 정렬
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  menuButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   participantInfo: {
     fontSize: 13,

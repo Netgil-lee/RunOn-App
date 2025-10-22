@@ -5,9 +5,23 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       allow read: if request.auth != null; // 다른 사용자의 기본 정보 읽기 허용
+      // 휴대전화번호 중복 체크를 위한 쿼리 허용 (인증되지 않은 사용자도 허용)
+      allow list: if true;
       // 러닝매너 평가를 통한 communityStats 업데이트 허용
       allow update: if request.auth != null && 
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['communityStats']);
+      // 매너거리 시스템 업데이트 허용
+      allow update: if request.auth != null && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mannerDistance']);
+      // communityStats와 mannerDistance 동시 업데이트 허용
+      allow update: if request.auth != null && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['communityStats', 'mannerDistance']);
+      
+      // 블랙리스트 하위 컬렉션
+      match /blacklist/{blacklistId} {
+        // 모든 인증된 사용자는 모든 블랙리스트에 접근 가능 (양방향 차단을 위해)
+        allow read, write: if request.auth != null;
+      }
     }
     
     // 이벤트/모임 문서
@@ -70,7 +84,10 @@ service cloud.firestore {
     match /chatRooms/{chatId}/messages/{messageId} {
       allow read, list: if request.auth != null;
       allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.senderId;
+        (request.auth.uid == request.resource.data.senderId ||
+         // 시스템 메시지 허용 (채팅방 참여자만)
+         (request.resource.data.senderId == 'system' && 
+          request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(chatId)).data.participants));
       allow delete: if request.auth != null && 
         (request.auth.uid == resource.data.senderId ||
          // 모임 생성자(채팅방 소유자)는 모든 메시지 삭제 가능

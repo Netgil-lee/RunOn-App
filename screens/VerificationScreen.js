@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../contexts/NetworkContext';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import firebaseService from '../config/firebase';
 
@@ -96,21 +96,56 @@ const VerificationScreen = ({ navigation, route }) => {
 
       const user = await verifyPhoneCode(confirmationResult, code);
 
-      console.log('✅ 인증 성공, 사용자 정보:', user);
       
       // 🚀 실제 Firebase 사용자 처리
       if (isLogin) {
-        // 로그인 모드: AuthContext 상태 변경으로 자동 네비게이션
-        console.log('🔥 Firebase 사용자 로그인 성공');
-        console.log('📱 전화번호:', user.phoneNumber);
-        console.log('🆔 사용자 UID:', user.uid);
-        // AuthContext의 상태 변경으로 AppNavigator가 자동으로 메인 화면으로 전환
+        // 로그인 모드: 온보딩 상태 확인 후 적절한 안내
+        
+        // 온보딩 상태 확인을 위해 Firestore에서 사용자 데이터 조회
+        const db = getFirestore();
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const isOnboardingCompleted = userData.onboardingCompleted || false;
+          
+          if (!isOnboardingCompleted) {
+            // 온보딩 미완료 사용자: 알럿 표시 후 온보딩으로 이동
+            Alert.alert(
+              '프로필 설정 필요',
+              '프로필을 설정하지 않았습니다.\n프로필 설정 단계로 이동합니다.',
+              [
+                {
+                  text: '확인',
+                  onPress: () => {
+                    // AuthContext의 상태 변경으로 AppNavigator가 온보딩 화면으로 전환
+                  }
+                }
+              ]
+            );
+          } else {
+            // 온보딩 완료 사용자: 정상적으로 메인 화면으로 이동
+          }
+        } else {
+          // 사용자 문서가 없는 경우 (이상한 상황)
+          Alert.alert(
+            '오류',
+            '사용자 정보를 찾을 수 없습니다. 다시 시도해주세요.',
+            [{ text: '확인' }]
+          );
+        }
+        
+        // AuthContext의 상태 변경으로 AppNavigator가 자동으로 적절한 화면으로 전환
       } else {
         // 회원가입 모드: Firestore에 사용자 기본 정보 저장 후 온보딩으로 이동
-        console.log('🔥 Firebase 사용자 회원가입, Firestore에 저장');
+        
+        // 한국 전화번호를 국제 형식으로 변환 (010-1234-5678 → +821012345678)
+        const cleanNumber = phoneNumber.replace(/[^\d]/g, '');
+        const fullPhoneNumber = `+82${cleanNumber}`;
+        
         const db = getFirestore();
         await setDoc(doc(db, 'users', user.uid), {
-          phoneNumber: phoneNumber,
+          phoneNumber: fullPhoneNumber, // 국제 형식으로 저장
           uid: user.uid,
           createdAt: serverTimestamp(),
           onboardingCompleted: false, // 새 사용자는 온보딩 미완료
@@ -124,9 +159,6 @@ const VerificationScreen = ({ navigation, route }) => {
           }
         });
 
-        console.log('✅ 사용자 정보 저장 완료');
-        console.log('📱 저장된 전화번호:', phoneNumber);
-        console.log('🆔 저장된 사용자 UID:', user.uid);
         // AuthContext의 상태 변경으로 AppNavigator가 자동으로 온보딩 화면으로 전환
       }
 
@@ -285,10 +317,11 @@ const styles = StyleSheet.create({
   codeContainer: {
     alignItems: 'center',
     marginBottom: 30,
-    paddingHorizontal: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   codeInput: {
-    width: 200,
+    width: '100%',
     height: 55,
     backgroundColor: '#1a1a1a',
     borderRadius: 8,
@@ -318,6 +351,8 @@ const styles = StyleSheet.create({
     padding: 15,
     alignItems: 'center',
     marginBottom: 20,
+    width: '85%',
+    alignSelf: 'center',
   },
   disabledButton: {
     opacity: 0.5,

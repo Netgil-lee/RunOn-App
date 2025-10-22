@@ -1,4 +1,5 @@
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, increment, setDoc, deleteDoc } from 'firebase/firestore';
+import mannerDistanceService from './mannerDistanceService';
 
 class EvaluationService {
   constructor() {
@@ -23,7 +24,15 @@ class EvaluationService {
         }
         
         // 평가 데이터를 별도의 evaluations 컬렉션에 저장
-        const evaluationRef = doc(this.db, 'evaluations', `${eventId}_${evaluatorId}`);
+        const docId = `${eventId}_${evaluatorId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const evaluationRef = doc(this.db, 'evaluations', docId);
+        
+        console.log('🔍 평가 데이터 저장 시도:', {
+          docId,
+          eventId,
+          evaluatorId,
+          evaluationsCount: Object.keys(evaluations).length
+        });
         
         // 평가 데이터 구조
         const evaluationData = {
@@ -36,6 +45,13 @@ class EvaluationService {
 
         // evaluations 컬렉션에 평가 결과 저장 (중복 방지)
         await setDoc(evaluationRef, evaluationData, { merge: true });
+        
+        console.log('✅ 평가 데이터 저장 완료:', {
+          docId,
+          eventId,
+          evaluatorId,
+          isCompleted: true
+        });
 
         console.log('✅ 평가 결과 저장 완료 (시도:', retryCount + 1, ')');
 
@@ -66,7 +82,7 @@ class EvaluationService {
     }
   }
 
-  // 참여자들의 통계 업데이트
+  // 참여자들의 통계 업데이트 (기존 시스템 + 매너거리 시스템)
   async updateParticipantStats(evaluations) {
     console.log('🔍 updateParticipantStats 호출됨:', evaluations);
     
@@ -84,7 +100,7 @@ class EvaluationService {
         // 현재 사용자 데이터 가져오기
         const userSnap = await getDoc(userRef);
         if (!userSnap.exists()) {
-          console.log('❌ 사용자 문서가 존재하지 않음:', participantId);
+          console.warn('⚠️ 사용자 문서가 존재하지 않음 (평가 서비스):', participantId, '- 평가 건너뜀');
           return;
         }
 
@@ -96,7 +112,9 @@ class EvaluationService {
           averageMannerScore: 5.0, // 초기값 5.0으로 설정
           totalMannerScores: 0,
           mannerScoreCount: 0,
-          receivedTags: {}
+          receivedTags: {},
+          receivedNegativeTags: {},
+          receivedSpecialSituations: {}
         };
 
         // 매너점수 통계 업데이트 (평균 기반 재계산)
@@ -105,9 +123,9 @@ class EvaluationService {
         const newCount = currentCount + 1;
         const newAverageScore = (currentAverage * currentCount + evaluation.mannerScore) / newCount;
 
-        // 태그 통계 업데이트
+        // 긍정적 태그 통계 업데이트
         const updatedTags = { ...currentStats.receivedTags };
-        console.log('🔍 태그 업데이트 시작:', {
+        console.log('🔍 긍정적 태그 업데이트 시작:', {
           participantId,
           currentTags: currentStats.receivedTags,
           selectedTags: evaluation.selectedTags,
@@ -117,21 +135,63 @@ class EvaluationService {
         if (evaluation.selectedTags && evaluation.selectedTags.length > 0) {
           evaluation.selectedTags.forEach(tag => {
             updatedTags[tag] = (updatedTags[tag] || 0) + 1;
-            console.log('🔍 태그 추가:', { tag, count: updatedTags[tag] });
+            console.log('🔍 긍정적 태그 추가:', { tag, count: updatedTags[tag] });
           });
         } else {
-          console.log('⚠️ 선택된 태그가 없음:', evaluation.selectedTags);
+          console.log('⚠️ 선택된 긍정적 태그가 없음:', evaluation.selectedTags);
         }
         
-        console.log('🔍 최종 업데이트된 태그:', updatedTags);
+        console.log('🔍 최종 업데이트된 긍정적 태그:', updatedTags);
 
-        // 업데이트할 데이터
+        // 부정적 태그 통계 업데이트
+        const updatedNegativeTags = { ...currentStats.receivedNegativeTags };
+        console.log('🔍 부정적 태그 업데이트 시작:', {
+          participantId,
+          currentNegativeTags: currentStats.receivedNegativeTags,
+          selectedNegativeTags: evaluation.negativeTags,
+          updatedNegativeTags
+        });
+        
+        if (evaluation.negativeTags && evaluation.negativeTags.length > 0) {
+          evaluation.negativeTags.forEach(tag => {
+            updatedNegativeTags[tag] = (updatedNegativeTags[tag] || 0) + 1;
+            console.log('🔍 부정적 태그 추가:', { tag, count: updatedNegativeTags[tag] });
+          });
+        } else {
+          console.log('⚠️ 선택된 부정적 태그가 없음:', evaluation.negativeTags);
+        }
+        
+        console.log('🔍 최종 업데이트된 부정적 태그:', updatedNegativeTags);
+
+        // 특별상황 통계 업데이트
+        const updatedSpecialSituations = { ...currentStats.receivedSpecialSituations };
+        console.log('🔍 특별상황 업데이트 시작:', {
+          participantId,
+          currentSpecialSituations: currentStats.receivedSpecialSituations,
+          selectedSpecialSituations: evaluation.specialSituations,
+          updatedSpecialSituations
+        });
+        
+        if (evaluation.specialSituations && evaluation.specialSituations.length > 0) {
+          evaluation.specialSituations.forEach(situation => {
+            updatedSpecialSituations[situation] = (updatedSpecialSituations[situation] || 0) + 1;
+            console.log('🔍 특별상황 추가:', { situation, count: updatedSpecialSituations[situation] });
+          });
+        } else {
+          console.log('⚠️ 선택된 특별상황이 없음:', evaluation.specialSituations);
+        }
+        
+        console.log('🔍 최종 업데이트된 특별상황:', updatedSpecialSituations);
+
+        // 업데이트할 데이터 (기존 시스템)
         const updatedStats = {
           communityStats: {
             ...currentStats,
             averageMannerScore: Math.round(newAverageScore * 10) / 10, // 소수점 첫째자리까지
             mannerScoreCount: newCount,
-            receivedTags: updatedTags
+            receivedTags: updatedTags,
+            receivedNegativeTags: updatedNegativeTags,
+            receivedSpecialSituations: updatedSpecialSituations
           }
         };
 
@@ -149,13 +209,35 @@ class EvaluationService {
         await updateDoc(userRef, updatedStats);
         console.log('✅ 사용자 통계 업데이트 완료:', participantId);
         
+        // 매너거리 시스템 업데이트
+        try {
+          const distanceChange = mannerDistanceService.calculateDistanceChange(evaluation);
+          const evaluationData = {
+            positiveTags: evaluation.selectedTags || [],
+            negativeTags: evaluation.negativeTags || [],
+            specialSituations: evaluation.specialSituations || []
+          };
+          
+          await mannerDistanceService.updateUserMannerDistance(
+            participantId, 
+            distanceChange, 
+            evaluationData
+          );
+          
+          console.log('✅ 매너거리 업데이트 완료:', { participantId, distanceChange });
+        } catch (mannerDistanceError) {
+          console.error('❌ 매너거리 업데이트 실패:', mannerDistanceError);
+          // 매너거리 업데이트 실패해도 기존 시스템은 정상 동작하도록 함
+        }
+        
         // 업데이트 후 데이터 확인
         const updatedUserSnap = await getDoc(userRef);
         if (updatedUserSnap.exists()) {
           const updatedUserData = updatedUserSnap.data();
           console.log('🔍 업데이트 후 사용자 데이터:', {
             participantId,
-            communityStats: updatedUserData.communityStats
+            communityStats: updatedUserData.communityStats,
+            mannerDistance: updatedUserData.mannerDistance
           });
         }
       } catch (error) {
@@ -170,13 +252,49 @@ class EvaluationService {
   // 특정 사용자가 특정 모임에 대해 평가를 완료했는지 확인
   async isEvaluationCompleted(eventId, evaluatorId) {
     try {
-      const evaluationRef = doc(this.db, 'evaluations', `${eventId}_${evaluatorId}`);
+      console.log('🔍 isEvaluationCompleted 호출:', { eventId, evaluatorId });
+      
+      // 입력값 유효성 검증
+      if (!eventId || !evaluatorId) {
+        console.warn('⚠️ isEvaluationCompleted - 필수 파라미터 누락:', { eventId, evaluatorId });
+        return false;
+      }
+      
+      // 문서 ID 생성 (특수문자 처리)
+      const docId = `${eventId}_${evaluatorId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+      console.log('🔍 생성된 문서 ID:', docId);
+      
+      const evaluationRef = doc(this.db, 'evaluations', docId);
       const evaluationSnap = await getDoc(evaluationRef);
       
-      const isCompleted = evaluationSnap.exists() && evaluationSnap.data().isCompleted;
+      if (!evaluationSnap.exists()) {
+        console.log('📄 평가 문서가 존재하지 않음:', docId);
+        return false;
+      }
+      
+      const evaluationData = evaluationSnap.data();
+      const isCompleted = evaluationData.isCompleted === true;
+      
+      console.log('✅ 평가 완료 상태 확인:', {
+        docId,
+        isCompleted,
+        evaluationData: {
+          eventId: evaluationData.eventId,
+          evaluatorId: evaluationData.evaluatorId,
+          isCompleted: evaluationData.isCompleted,
+          timestamp: evaluationData.timestamp
+        }
+      });
       
       return isCompleted;
     } catch (error) {
+      console.error('❌ isEvaluationCompleted 오류:', error);
+      console.error('❌ 오류 상세:', {
+        eventId,
+        evaluatorId,
+        errorMessage: error.message,
+        errorCode: error.code
+      });
       return false; // 오류 시 false 반환 (안전한 기본값)
     }
   }
@@ -193,7 +311,9 @@ class EvaluationService {
           thisMonthParticipated: 0,
           hostedEvents: 0,
           averageMannerScore: 5.0, // 초기값 5.0
-          receivedTags: {}
+          receivedTags: {},
+          receivedNegativeTags: {},
+          receivedSpecialSituations: {}
         };
       }
 
@@ -203,7 +323,9 @@ class EvaluationService {
         thisMonthParticipated: 0,
         hostedEvents: 0,
         averageMannerScore: 5.0, // 초기값 5.0
-        receivedTags: {}
+        receivedTags: {},
+        receivedNegativeTags: {},
+        receivedSpecialSituations: {}
       };
     } catch (error) {
       console.error('커뮤니티 통계 가져오기 실패:', error);
@@ -212,7 +334,9 @@ class EvaluationService {
         thisMonthParticipated: 0,
         hostedEvents: 0,
         averageMannerScore: 0,
-        receivedTags: {}
+        receivedTags: {},
+        receivedNegativeTags: {},
+        receivedSpecialSituations: {}
       };
     }
   }

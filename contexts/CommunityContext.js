@@ -73,7 +73,7 @@ export const CommunityProvider = ({ children }) => {
                       author: authorName
                     };
                   } else {
-                    console.warn('⚠️ 사용자 문서가 존재하지 않음:', comment.authorId);
+                    console.warn('⚠️ 사용자 문서가 존재하지 않음 (댓글 작성자):', comment.authorId, '- 기본값으로 처리');
                   }
                 } catch (error) {
                   console.warn('⚠️ 댓글 작성자 정보 조회 실패:', error);
@@ -171,10 +171,10 @@ export const CommunityProvider = ({ children }) => {
     checkBoardNotifications();
   }, [notifications]);
 
-  // 커뮤니티 알림이 있는지 확인하는 함수
+  // 커뮤니티 알림이 있는지 확인하는 함수 (채팅 알림 제외)
   const checkCommunityNotifications = () => {
     const hasUnreadNotifications = notifications.some(notification => 
-      !notification.isRead && (notification.type === 'like' || notification.type === 'comment' || notification.type === 'message')
+      !notification.isRead && (notification.type === 'like' || notification.type === 'comment')
     );
     setHasCommunityNotification(hasUnreadNotifications);
     return hasUnreadNotifications;
@@ -522,9 +522,14 @@ export const CommunityProvider = ({ children }) => {
     await createNotification('comment', postId, postTitle, authorName, targetUserId);
   };
 
-  // 채팅 알림 생성 함수 (Firestore에 저장)
+  // 채팅 알림 생성 함수 (DEPRECATED - 푸시 알림으로 대체됨)
   const createChatNotification = async (chatRoomId, chatRoomTitle, message, sender, targetUserId) => {
     try {
+      // DEPRECATED: 이 함수는 더 이상 사용되지 않습니다. 
+      // 채팅 알림은 pushNotificationService.sendNewMessageNotification으로 대체되었습니다.
+      console.warn('⚠️ createChatNotification은 deprecated되었습니다. pushNotificationService를 사용하세요.');
+      return;
+      
       // 알림 설정이 비활성화되어 있으면 알림 생성하지 않음
       if (!isNotificationTypeEnabled('message')) {
         return;

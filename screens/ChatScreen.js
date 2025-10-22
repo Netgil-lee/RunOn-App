@@ -18,7 +18,9 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
+import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import firestoreService from '../services/firestoreService';
+import pushNotificationService from '../services/pushNotificationService';
 
 // NetGill 디자인 시스템 색상
 const COLORS = {
@@ -52,6 +54,7 @@ const ChatScreen = ({ route, navigation }) => {
     (Array.isArray(event.participants) ? event.participants.length : event.participants) : 
     (Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 1);
   const { createChatNotification } = useCommunity();
+  const { isNotificationTypeEnabled } = useNotificationSettings();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
@@ -314,18 +317,23 @@ const ChatScreen = ({ route, navigation }) => {
           participantId !== user.uid
         );
         
-        // 각 참여자에게 알림 전송
+        // 각 참여자에게 푸시 알림 전송 (설정에 따라)
         for (const participantId of otherParticipants) {
           try {
-            await createChatNotification(
-              chatRoom.id,
-              chatRoom.title,
-              messageData.text,
-              senderName, // 정확한 발신자 이름 사용
-              participantId
-            );
+            // 채팅 알림 설정이 활성화된 경우에만 푸시 알림 전송
+            if (isNotificationTypeEnabled('message')) {
+              await pushNotificationService.sendNewMessageNotification(
+                participantId,
+                senderName, // 정확한 발신자 이름 사용
+                messageData.text,
+                chatRoom.id
+              );
+              console.log('✅ 채팅 푸시 알림 전송 완료:', participantId);
+            } else {
+              console.log('📵 채팅 알림 설정이 비활성화되어 푸시 알림 전송 안 함');
+            }
           } catch (error) {
-            console.warn('⚠️ 채팅 알림 생성 실패:', error);
+            console.warn('⚠️ 채팅 푸시 알림 전송 실패:', error);
           }
         }
       }
@@ -358,10 +366,22 @@ const ChatScreen = ({ route, navigation }) => {
     // item.sender는 이미 onChatMessagesSnapshot에서 처리된 정확한 닉네임
     const displaySender = item.sender;
     const isMyMessage = item.type === 'sent';
+    const isSystemMessage = item.isSystemMessage || item.senderId === 'system';
     
     // EventContext의 연속성 정보 사용
     const showAvatarAndName = !isMyMessage && item.isFirstInGroup; // 그룹의 첫 번째 메시지에만 표시
     const showTime = item.showTimestamp; // EventContext에서 결정한 시간 표시 여부
+    
+    // 시스템 메시지 렌더링
+    if (isSystemMessage) {
+      return (
+        <View style={styles.systemMessage}>
+          <Text style={styles.systemMessageText}>
+            {item.text}
+          </Text>
+        </View>
+      );
+    }
     
     if (isMyMessage) {
       // 내 메시지 (기존 스타일 유지)
@@ -632,15 +652,21 @@ const styles = StyleSheet.create({
   },
   systemMessage: {
     alignItems: 'center',
-    marginVertical: 8,
+    marginVertical: 12,
+    paddingHorizontal: 16,
   },
   systemMessageText: {
-    fontSize: 12,
-    color: COLORS.SECONDARY,
-    backgroundColor: COLORS.SURFACE,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    fontSize: 13,
+    color: COLORS.PRIMARY,
+    backgroundColor: 'rgba(58, 248, 255, 0.1)',
+    borderColor: COLORS.PRIMARY,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    textAlign: 'center',
+    fontWeight: '500',
+    maxWidth: '90%',
   },
   messageContainer: {
     marginVertical: 4,
