@@ -132,7 +132,7 @@ const MainTabNavigator = () => {
   );
 };
 
-const AppNavigator = () => {
+const AppNavigator = ({ isDemoMode = false }) => {
   const { user, initializing, onboardingCompleted } = useAuth();
 
 

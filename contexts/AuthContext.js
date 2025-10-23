@@ -29,7 +29,7 @@ const AuthContext = createContext(defaultContextValue);
 
 export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider = ({ children }) => {
+export const AuthProvider = ({ children, isDemoMode = false }) => {
   const [user, setUser] = useState(null);
   const [initializing, setInitializing] = useState(true);
   const [confirmationResult, setConfirmationResult] = useState(null);
@@ -41,6 +41,24 @@ export const AuthProvider = ({ children }) => {
   
 
   useEffect(() => {
+    // 데모 모드인 경우 데모 사용자 생성
+    if (isDemoMode) {
+      console.log('🎭 데모 모드: 데모 사용자 생성');
+      
+      const demoUser = {
+        uid: 'demo-user-12345',
+        email: 'demo@runon.app',
+        displayName: '데모 사용자',
+        phoneNumber: '010-0000-0000',
+        photoURL: null,
+        isDemo: true
+      };
+      
+      setUser(demoUser);
+      setOnboardingCompleted(true);
+      setInitializing(false);
+      return;
+    }
 
     
     // 최소 스플래시 표시 시간 (2.5초로 단축)

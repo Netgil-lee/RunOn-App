@@ -24,6 +24,7 @@ export default function App() {
   const [isFirebaseInitialized, setIsFirebaseInitialized] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
     initializeAppLogic();
@@ -47,6 +48,13 @@ export default function App() {
         console.warn('⚠️ 폰트 로딩 실패, 기본 폰트 사용:', fontError);
       }
       setFontsLoaded(true);
+
+      // 데모 모드 체크 (개발 환경에서만)
+      if (__DEV__) {
+        // 개발 환경에서 데모 모드 활성화
+        setIsDemoMode(true);
+        console.log('🎭 데모 모드 활성화');
+      }
 
       await initializeFirebase();
       
@@ -130,12 +138,12 @@ export default function App() {
       />
       <NavigationContainer>
         <NetworkProvider>
-          <AuthProvider>
+          <AuthProvider isDemoMode={isDemoMode}>
             <NotificationSettingsProvider>
               <EventProvider>
                 <CommunityProvider>
                   <GuideProvider>
-                    <AppNavigator />
+                    <AppNavigator isDemoMode={isDemoMode} />
                   </GuideProvider>
                 </CommunityProvider>
               </EventProvider>

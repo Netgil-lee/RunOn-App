@@ -768,6 +768,13 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      {/* 데모 모드 인디케이터 */}
+      {user && user.isDemo && (
+        <View style={styles.demoIndicator}>
+          <Text style={styles.demoText}>🎭 데모 모드</Text>
+        </View>
+      )}
+      
       {/* AppBar */}
       <AppBar
         user={user}
@@ -881,6 +888,21 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  demoIndicator: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: '#FF0073',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    zIndex: 1000,
+  },
+  demoText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   scrollContent: {
     paddingBottom: 100, // BottomTab을 위한 여백
