@@ -15,13 +15,13 @@ import blacklistService from '../services/blacklistService';
 
 // NetGill 디자인 시스템
 const COLORS = {
-  PRIMARY: '#3AF8FF',
+  PRIMARY: '#FF0073',
   BACKGROUND: '#000000',
   SURFACE: '#1F1F24',
   CARD: '#171719',
   TEXT: '#ffffff',
   TEXT_SECONDARY: '#666666',
-  BORDER: '#374151',
+  BORDER: '#1F2937',
   RED: '#FF6B6B',
 };
 
@@ -109,7 +109,7 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>차단된 사용자</Text>
+          <Text style={styles.headerTitle}>블랙리스트</Text>
           <View style={styles.headerSpacer} />
         </View>
       </SafeAreaView>

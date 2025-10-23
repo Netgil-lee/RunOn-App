@@ -31,7 +31,7 @@ const COLORS = {
   GRAY_400: '#9ca3af',
   GRAY_500: '#6b7280',
   GRAY_600: '#4b5563',
-  GRAY_700: '#374151',
+  GRAY_700: '#1F2937',
   GRAY_800: '#1f2937',
   GRAY_900: '#111827',
   BLUE_50: '#eff6ff',
@@ -467,9 +467,22 @@ const SettingsScreen = ({ navigation }) => {
           />
           <SettingItem
             icon="ban-outline"
-            title="차단된 사용자"
+            title="블랙리스트"
             subtitle={`차단된 사용자 ${blacklist.length}명 (최대 3명)`}
             onPress={handleBlacklistManagement}
+            customIcon={
+              <View style={styles.blacklistBadgeContainer}>
+                <View style={styles.blacklistBadgeGlow}>
+                  <Image 
+                    source={require('../assets/images/Union.png')} 
+                    style={styles.blacklistBadgeImage}
+                  />
+                </View>
+                <View style={styles.blacklistIconOverlay}>
+                  <Ionicons name="ban-outline" size={16} color="#FFFFFF" />
+                </View>
+              </View>
+            }
           />
           <SettingItem
             icon="help-circle-outline"
@@ -666,6 +679,33 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   premiumIconOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -8 }, { translateY: -8 }],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // 블랙리스트 배지 스타일 (프리미엄 배지와 동일)
+  blacklistBadgeContainer: {
+    width: 60,
+    height: 24,
+    backgroundColor: 'transparent',
+    // 글로우 효과 - 핑크 색상
+    shadowColor: '#FF0073',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+  },
+  blacklistBadgeGlow: {
+    backgroundColor: 'transparent',
+  },
+  blacklistBadgeImage: {
+    width: 60,
+    height: 24,
+    resizeMode: 'contain',
+  },
+  blacklistIconOverlay: {
     position: 'absolute',
     top: '50%',
     left: '50%',

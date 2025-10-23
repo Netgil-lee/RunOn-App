@@ -95,14 +95,14 @@ const styles = StyleSheet.create({
   spotLabel: {
     fontSize: 12,
     color: '#ffffff',
-    fontFamily: 'Gold',
+    fontFamily: 'Gold Regular',
     lineHeight: 12,
   },
   locationText: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#ffffff',
-    fontFamily: 'Gold',
+    fontFamily: 'Gold Bold',
     textAlign: 'center',
     lineHeight: 26,
   },
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     color: '#ffffff',
-    fontFamily: 'Gold',
+    fontFamily: 'Gold Regular',
     lineHeight: 12,
     marginBottom: 1,
   },
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: 'bold',
     color: '#ffffff',
-    fontFamily: 'Gold',
+    fontFamily: 'Gold Bold',
     lineHeight: 28,
   },
   logoSection: {
