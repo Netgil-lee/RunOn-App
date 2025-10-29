@@ -25,11 +25,27 @@ const RunningShareCard = forwardRef(({
     return `${km.toFixed(1)}km`;
   };
 
+  const formatPace = (pace) => {
+    if (!pace) return '0:00';
+    
+    // 이미 콜론 형식인 경우 그대로 반환
+    if (pace.includes(':')) {
+      return pace;
+    }
+    
+    // 작은따옴표와 큰따옴표를 콜론으로 변환
+    let formattedPace = pace
+      .replace(/'/g, ':')  // 작은따옴표를 콜론으로
+      .replace(/"/g, '');  // 큰따옴표 제거
+    
+    return formattedPace;
+  };
+
   return (
     <View ref={ref} style={styles.container}>
       {/* 상단: 위치 정보 */}
       <View style={styles.locationSection}>
-        <Text style={styles.spotLabel}>Spot</Text>
+        <Text style={styles.spotLabel}>Place</Text>
         <Text style={styles.locationText}>
           {location}
         </Text>
@@ -44,23 +60,23 @@ const RunningShareCard = forwardRef(({
         
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Pace</Text>
-          <Text style={styles.statValue}>{pace}/km</Text>
+          <Text style={styles.statValue}>{formatPace(pace)}/km</Text>
         </View>
         
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Time</Text>
           <Text style={styles.statValue}>{formatDuration(duration)}</Text>
         </View>
-        
-        {/* 이동경로 (Time 아래에 표시) */}
+      </View>
+
+      {/* 이동경로 (로고 위에 표시) - 항상 공간 할당 */}
+      <View style={styles.routeContainer}>
         {routeCoordinates && routeCoordinates.length > 0 && (
-          <View style={styles.routeContainer}>
-            <RouteMap 
-              coordinates={routeCoordinates} 
-              width={200} 
-              height={100} 
-            />
-          </View>
+          <RouteMap 
+            coordinates={routeCoordinates} 
+            width={200} 
+            height={100} 
+          />
         )}
       </View>
 
@@ -80,58 +96,59 @@ const styles = StyleSheet.create({
   container: {
     minWidth: 300,
     width: 'auto',
-    height: 400,
+    height: 'auto', // 고정 높이 제거
     backgroundColor: 'transparent', // 투명 배경으로 변경
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     overflow: 'hidden', // 렌더링 문제 방지
     zIndex: 2, // checkerboardBackground 위에 오도록 설정
+    paddingVertical: 20, // 여백 다시 늘림
   },
   locationSection: {
     alignItems: 'center',
-    marginTop: 10,  
-    marginBottom: -8, // location과 Distance 사이 여백을 다른 항목들과 통일
+    marginTop: 0,  
+    marginBottom: 15, // location과 Distance 사이 여백 늘림
   },
   spotLabel: {
     fontSize: 12,
     color: '#ffffff',
-    fontFamily: 'Gold Regular',
+    fontFamily: 'Gold-Regular',
     lineHeight: 12,
   },
   locationText: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     color: '#ffffff',
-    fontFamily: 'Gold Bold',
+    fontFamily: 'Gold-Regular',
     textAlign: 'center',
     lineHeight: 26,
   },
   statsSection: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -8, // location과 Distance 사이 여백을 다른 항목들과 통일
+    marginTop: 0, // location과 Distance 사이 여백 조정
   },
   statItem: {
     alignItems: 'center',
-    marginVertical: 8, // 각 항목 사이 여백을 16px로 통일
+    marginVertical: 8, // 각 항목 사이 여백을 적절하게 늘림
   },
   statLabel: {
     fontSize: 12,
     color: '#ffffff',
-    fontFamily: 'Gold Regular',
+    fontFamily: 'Gold-Regular',
     lineHeight: 12,
     marginBottom: 1,
   },
   statValue: {
     fontSize: 30,
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     color: '#ffffff',
-    fontFamily: 'Gold Bold',
+    fontFamily: 'Gold-Regular',
     lineHeight: 28,
   },
   logoSection: {
     alignItems: 'center',
+    marginBottom: 0, // 로고 아래 여백 제거
   },
   logo: {
     width: 80,
@@ -139,6 +156,7 @@ const styles = StyleSheet.create({
   },
   routeContainer: {
     marginTop: 20,
+    marginBottom: 20,
     alignItems: 'center',
     width: 200,
     height: 80,

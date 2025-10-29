@@ -41,24 +41,24 @@ export const AuthProvider = ({ children, isDemoMode = false }) => {
   
 
   useEffect(() => {
-    // 데모 모드인 경우 데모 사용자 생성
-    if (isDemoMode) {
-      console.log('🎭 데모 모드: 데모 사용자 생성');
-      
-      const demoUser = {
-        uid: 'demo-user-12345',
-        email: 'demo@runon.app',
-        displayName: '데모 사용자',
-        phoneNumber: '010-0000-0000',
-        photoURL: null,
-        isDemo: true
-      };
-      
-      setUser(demoUser);
-      setOnboardingCompleted(true);
-      setInitializing(false);
-      return;
-    }
+    // 데모 모드인 경우 데모 사용자 생성 (자동 활성화 비활성화)
+    // if (isDemoMode) {
+    //   console.log('🎭 데모 모드: 데모 사용자 생성');
+    //   
+    //   const demoUser = {
+    //     uid: 'demo-user-12345',
+    //     email: 'demo@runon.app',
+    //     displayName: '데모 사용자',
+    //     phoneNumber: '010-0000-0000',
+    //     photoURL: null,
+    //     isDemo: true
+    //   };
+    //   
+    //   setUser(demoUser);
+    //   setOnboardingCompleted(true);
+    //   setInitializing(false);
+    //   return;
+    // }
 
     
     // 최소 스플래시 표시 시간 (2.5초로 단축)

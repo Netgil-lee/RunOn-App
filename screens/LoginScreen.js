@@ -363,6 +363,23 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
+    // 데모모드 체크: 010-0000-0000 번호인 경우 바로 홈화면으로 이동
+    if (phoneNumber === '010-0000-0000') {
+      try {
+        setIsLoading(true);
+        // 데모모드: Firebase 인증 없이 바로 홈화면으로 이동
+        navigation.navigate('Home');
+        setIsLoading(false);
+        return;
+      } catch (error) {
+        setIsLoading(false);
+        setErrorType('verification');
+        setLocalError('데모모드 로그인 중 오류가 발생했습니다.');
+        showErrorAnimation();
+        return;
+      }
+    }
+
     try {
       setIsLoading(true);
 

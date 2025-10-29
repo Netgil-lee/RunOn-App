@@ -161,6 +161,17 @@ const SettingsScreen = ({ navigation }) => {
     try {
       setHealthKitStatus(prev => ({ ...prev, isChecking: true }));
       
+      // HealthKit 모듈 안전성 체크
+      if (!appleFitnessService || typeof appleFitnessService.checkPermissions !== 'function') {
+        console.warn('⚠️ HealthKit 서비스가 사용할 수 없습니다.');
+        setHealthKitStatus({
+          isAvailable: false,
+          hasPermissions: false,
+          isChecking: false
+        });
+        return;
+      }
+      
       const status = await appleFitnessService.checkPermissions();
       
       setHealthKitStatus({

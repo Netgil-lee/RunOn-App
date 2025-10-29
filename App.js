@@ -42,19 +42,22 @@ export default function App() {
           'Pretendard-Medium': require('./assets/fonts/Pretendard-Medium.otf'),
           'Pretendard-Bold': require('./assets/fonts/Pretendard-Bold.otf'),
           'Pretendard-SemiBold': require('./assets/fonts/Pretendard-SemiBold.otf'),
+          'Gold-Regular': require('./assets/fonts/Gold-Regular.ttf'),
+          'Gold-Bold': require('./assets/fonts/Gold-Bold.ttf'),
         });
-        console.log('✅ Pretendard 폰트 로딩 완료');
+        console.log('✅ Pretendard 및 Gold 폰트 로딩 완료');
       } catch (fontError) {
         console.warn('⚠️ 폰트 로딩 실패, 기본 폰트 사용:', fontError);
       }
       setFontsLoaded(true);
 
       // 데모 모드 체크 (개발 환경에서만)
-      if (__DEV__) {
-        // 개발 환경에서 데모 모드 활성화
-        setIsDemoMode(true);
-        console.log('🎭 데모 모드 활성화');
-      }
+      // 개발환경에서 자동 데모모드 활성화 비활성화
+      // if (__DEV__) {
+      //   // 개발 환경에서 데모 모드 활성화
+      //   setIsDemoMode(true);
+      //   console.log('🎭 데모 모드 활성화');
+      // }
 
       await initializeFirebase();
       

@@ -90,6 +90,22 @@ const VerificationScreen = ({ navigation, route }) => {
       return;
     }
 
+    // 데모모드 체크: 010-0000-0000 번호와 123456 인증번호 조합
+    if (phoneNumber === '010-0000-0000' && code === '123456') {
+      try {
+        setIsLoading(true);
+        setError('');
+        // 데모모드: Firebase 인증 없이 바로 홈화면으로 이동
+        navigation.navigate('Home');
+        setIsLoading(false);
+        return;
+      } catch (error) {
+        setIsLoading(false);
+        setError('데모모드 인증 중 오류가 발생했습니다.');
+        return;
+      }
+    }
+
     try {
       setIsLoading(true);
       setError('');

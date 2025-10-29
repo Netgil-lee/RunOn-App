@@ -13,6 +13,7 @@ import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 import RunningShareCard from './RunningShareCard';
 import { getEnglishLocation } from '../utils/locationMapper';
+import appleFitnessService from '../services/appleFitnessService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -25,6 +26,8 @@ const RunningShareModal = ({
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [isLoadingWorkout, setIsLoadingWorkout] = useState(false);
+  const [actualWorkoutData, setActualWorkoutData] = useState(null);
   const shareCardRef = useRef(null);
 
   // 권한 요청
@@ -36,8 +39,58 @@ const RunningShareModal = ({
     requestPermission();
   }, []);
 
-  // 공유카드 데이터 준비
-  const shareCardData = {
+  // 실제 운동기록 데이터 가져오기
+  useEffect(() => {
+    if (visible && eventData) {
+      fetchActualWorkoutData();
+    }
+  }, [visible, eventData]);
+
+  const fetchActualWorkoutData = async () => {
+    try {
+      setIsLoadingWorkout(true);
+      console.log('🔍 실제 운동기록 데이터 조회 시작:', eventData);
+      
+      const workoutData = await appleFitnessService.findMatchingWorkout(eventData);
+      
+      if (workoutData) {
+        console.log('✅ 매칭되는 운동기록 발견:', workoutData);
+        setActualWorkoutData(workoutData);
+      } else {
+        console.log('❌ 매칭되는 운동기록 없음');
+        Alert.alert(
+          '운동기록 없음',
+          '해당 시간대에 일치하는 운동기록이 없습니다.\n(모임 시간 ±30분 범위 내)',
+          [
+            { text: '확인', onPress: onClose }
+          ]
+        );
+        return;
+      }
+    } catch (error) {
+      console.error('❌ 운동기록 데이터 조회 실패:', error);
+      Alert.alert(
+        '데이터 조회 실패',
+        '운동기록을 가져오는 중 오류가 발생했습니다.',
+        [
+          { text: '확인', onPress: onClose }
+        ]
+      );
+    } finally {
+      setIsLoadingWorkout(false);
+    }
+  };
+
+  // 공유카드 데이터 준비 (실제 운동기록 우선 사용)
+  const shareCardData = actualWorkoutData ? {
+    distance: actualWorkoutData.distance || 0,
+    pace: actualWorkoutData.pace || '0:00',
+    duration: actualWorkoutData.duration || 0,
+    location: getEnglishLocation(eventData?.location || '한강'),
+    calories: actualWorkoutData.calories || 0,
+    routeCoordinates: actualWorkoutData.routeCoordinates || []
+  } : {
+    // fallback: 기존 데이터 사용
     distance: workoutData?.distance || 0,
     pace: workoutData?.pace || '0:00',
     duration: workoutData?.duration || 0,
@@ -131,27 +184,39 @@ const RunningShareModal = ({
 
             {/* 공유카드 */}
             <View style={styles.cardContainer}>
-            <RunningShareCard
-              ref={shareCardRef}
-              distance={shareCardData.distance}
-              pace={shareCardData.pace}
-              duration={shareCardData.duration}
-              location={shareCardData.location}
-              calories={shareCardData.calories}
-              routeCoordinates={shareCardData.routeCoordinates}
-            />
+              {isLoadingWorkout ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>운동기록을 조회하는 중...</Text>
+                </View>
+              ) : (
+                <RunningShareCard
+                  ref={shareCardRef}
+                  distance={shareCardData.distance}
+                  pace={shareCardData.pace}
+                  duration={shareCardData.duration}
+                  location={shareCardData.location}
+                  calories={shareCardData.calories}
+                  routeCoordinates={shareCardData.routeCoordinates}
+                />
+              )}
             </View>
 
              {/* 액션 버튼 */}
              <View style={styles.actionButtons}>
                <TouchableOpacity 
-                 style={[styles.actionButton, styles.saveButton]}
+                 style={[
+                   styles.actionButton, 
+                   styles.saveButton,
+                   (isGenerating || isLoadingWorkout || !actualWorkoutData) && styles.disabledButton
+                 ]}
                  onPress={handleSaveImage}
-                 disabled={isGenerating}
+                 disabled={isGenerating || isLoadingWorkout || !actualWorkoutData}
                >
                  <Ionicons name="download" size={20} color="#000000" />
                  <Text style={styles.saveButtonText}>
-                   {isGenerating ? '저장 중...' : '이미지 저장'}
+                   {isGenerating ? '저장 중...' : 
+                    isLoadingWorkout ? '데이터 조회 중...' : 
+                    !actualWorkoutData ? '데이터 없음' : '이미지 저장'}
                  </Text>
                </TouchableOpacity>
              </View>
@@ -233,6 +298,10 @@ const styles = StyleSheet.create({
   saveButton: {
     backgroundColor: '#3AF8FF',
   },
+  disabledButton: {
+    backgroundColor: '#666666',
+    opacity: 0.6,
+  },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
@@ -245,6 +314,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     fontFamily: 'Pretendard-Regular',
+  },
+  loadingContainer: {
+    width: 300,
+    height: 400,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#ffffff',
+    fontFamily: 'Pretendard-Regular',
+    textAlign: 'center',
   },
 });
 
