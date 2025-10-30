@@ -19,6 +19,9 @@ const PhoneAuthScreen = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [recaptchaReady, setRecaptchaReady] = useState(false);
+  const [recaptchaLoading, setRecaptchaLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const { sendPhoneVerification, setConfirmationResult } = useAuth();
   const { isOnline } = useNetwork();
   const recaptchaVerifierRef = useRef(null);
@@ -36,6 +39,8 @@ const PhoneAuthScreen = ({ navigation }) => {
     const phoneRegex = /^010-\d{4}-\d{4}$/;
     return phoneRegex.test(phone);
   };
+
+  // reCAPTCHA 초기화는 onLoad 콜백에서 처리
 
   const handlePhoneNumberChange = (value) => {
     const formatted = formatPhoneNumber(value);
@@ -62,7 +67,20 @@ const PhoneAuthScreen = ({ navigation }) => {
 
     try {
       setIsLoading(true);
+      setRecaptchaLoading(true);
       setError('');
+
+      // reCAPTCHA 준비 상태 확인
+      if (!recaptchaReady) {
+        throw new Error('보안 인증이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      }
+
+      // reCAPTCHA 모달 확인
+      if (!recaptchaVerifierRef.current) {
+        throw new Error('보안 인증 모달을 찾을 수 없습니다. 앱을 재시작해주세요.');
+      }
+
+      console.log('🔐 reCAPTCHA 검증 시작... (PhoneAuth)');
       
       // 휴대전화번호 중복 체크
       const phoneCheckResult = await firestoreService.checkPhoneNumberAvailability(phoneNumber);
@@ -71,7 +89,9 @@ const PhoneAuthScreen = ({ navigation }) => {
         return;
       }
       
+      console.log('📱 인증번호 발송 시작... (PhoneAuth)');
       const confirmationResult = await sendPhoneVerification(phoneNumber, recaptchaVerifierRef.current);
+      console.log('✅ 인증번호 발송 성공 (PhoneAuth)');
       
       // confirmationResult를 전역 상태로 저장
       setConfirmationResult(confirmationResult);
@@ -82,10 +102,29 @@ const PhoneAuthScreen = ({ navigation }) => {
         isLogin: false // 회원가입 모드임을 표시
       });
     } catch (error) {
-      console.error('❌ PhoneAuthScreen 에러:', error);
-      setError(error.message || '인증번호 발송에 실패했습니다. 다시 시도해주세요.');
+      console.error('❌ PhoneAuthScreen 오류 상세:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+
+      setIsLoading(false);
+      setRecaptchaLoading(false);
+      
+      // 구체적인 오류 메시지 제공
+      let errorMessage = '인증번호 발송에 실패했습니다.';
+      if (error.message.includes('recaptcha') || error.message.includes('보안 인증')) {
+        errorMessage = '보안 인증에 실패했습니다. 다시 시도해주세요.';
+      } else if (error.message.includes('network') || error.message.includes('네트워크')) {
+        errorMessage = '네트워크 연결을 확인해주세요.';
+      } else if (error.message.includes('phone') || error.message.includes('휴대폰')) {
+        errorMessage = '휴대폰번호를 확인해주세요.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
+      setRecaptchaLoading(false);
     }
   };
 
@@ -97,6 +136,17 @@ const PhoneAuthScreen = ({ navigation }) => {
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifierRef}
         firebaseConfig={firebaseService.getApp().options}
+        attemptInvisibleVerification={true}
+        androidHardwareAccelerationDisabled={true}
+        androidLayerType="software"
+        onLoad={() => {
+          console.log('✅ reCAPTCHA 모달 로드 완료 (PhoneAuth)');
+          setRecaptchaReady(true);
+        }}
+        onError={(error) => {
+          console.error('❌ reCAPTCHA 모달 오류 (PhoneAuth):', error);
+          setRecaptchaReady(false);
+        }}
       />
       <View style={styles.content}>
         <Text style={styles.title}>RunOn</Text>

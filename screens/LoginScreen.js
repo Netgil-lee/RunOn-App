@@ -518,6 +518,9 @@ const LoginScreen = ({ navigation }) => {
         <FirebaseRecaptchaVerifierModal
           ref={recaptchaVerifierRef}
           firebaseConfig={firebaseService.getApp().options}
+          attemptInvisibleVerification={false}
+          androidHardwareAccelerationDisabled={false}
+          androidLayerType="software"
         />
         {/* 배경 슬라이드 */}
         <View style={styles.backgroundContainer}>

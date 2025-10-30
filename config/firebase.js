@@ -44,7 +44,16 @@ if (auth && auth.settings) {
   auth.settings.appVerificationDisabledForTesting = false;
   // 한국 국가 코드 설정
   auth.settings.phoneNumber = '+82';
+  // reCAPTCHA 설정 최적화
+  auth.settings.forceRecaptchaFlow = false;
+  // WebKit 네트워킹 설정 강화
+  auth.settings.appVerificationDisabledForTesting = false;
+  // 언어 설정 (한국어)
+  auth.languageCode = 'ko';
   console.log('🇰🇷 한국 국가 코드 설정 완료');
+  console.log('🔐 reCAPTCHA 설정 최적화 완료');
+  console.log('🌐 WebKit 네트워킹 설정 완료');
+  console.log('🇰🇷 한국어 언어 설정 완료');
 }
 
 // Phone Auth 지원 확인

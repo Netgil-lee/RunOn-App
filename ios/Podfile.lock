@@ -14,7 +14,7 @@ PODS:
     - ExpoModulesCore
   - EXNotifications (0.32.12):
     - ExpoModulesCore
-  - Expo (54.0.19):
+  - Expo (54.0.21):
     - ExpoModulesCore
     - hermes-engine
     - RCTRequired
@@ -235,7 +235,7 @@ PODS:
   - ExpoMediaLibrary (18.2.0):
     - ExpoModulesCore
     - React-Core
-  - ExpoModulesCore (3.0.22):
+  - ExpoModulesCore (3.0.23):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1740,7 +1740,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-webview (13.13.5):
+  - react-native-webview (13.15.0):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2796,7 +2796,7 @@ SPEC CHECKSUMS:
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: 7469efed75d694ce3c43a6da9c6f3886f66d3c26
   EXNotifications: 7aab54f0e5f3023122bc95699eaff7c52bacb559
-  Expo: 7865a353c2c886eaaeed19db06bdd29ea9ee1cfc
+  Expo: 795e9f87aca407bf92895d54ae5f7777fc1f3fbc
   expo-dev-client: 41b64c03ffee842c8abd3f422389cd3c0d14ad7a
   expo-dev-launcher: 519527f4f66ae85a8f439a98faf0173884fdd688
   expo-dev-menu: 432c9ad88e9e2673781831602418117f98e20903
@@ -2813,7 +2813,7 @@ SPEC CHECKSUMS:
   ExpoLinking: f5c171877e118e792cb9a77e5ade0b080d899b14
   ExpoLocation: 1dc9e4c06ef66ed081348a11eb637d1dfecc7d61
   ExpoMediaLibrary: 648cee3f5dcba13410ec9cc8ac9a426e89a61a31
-  ExpoModulesCore: 08a1e47dfb85e295c67ecc98da58317d66f64818
+  ExpoModulesCore: ed46799cfdf75784ee3ca37dac982c5298683e83
   ExpoNetwork: 97073786edfe405aba5d0987a544617ed0671ad1
   ExpoSplashScreen: 9d2ff8fa08f2c00336a83f93bebffed3a8312519
   ExpoWebBrowser: 51218ce6ef35ea769e33409aac87fea3df4b919d
@@ -2867,7 +2867,7 @@ SPEC CHECKSUMS:
   react-native-netinfo: f0a9899081c185db1de5bb2fdc1c88c202a059ac
   react-native-safe-area-context: add9b4ba236fe95ec600604d0fc72f395433dd59
   react-native-view-shot: 26174e54ec6b4b7c5d70b86964b747919759adc1
-  react-native-webview: 118c305861075d4b1bf717c79ba9ca289c0b5bc3
+  react-native-webview: a4f0775a31b73cf13cfc3d2d2b119aa94ec76e49
   React-NativeModulesApple: 1664340b8750d64e0ef3907c5e53d9481f74bcbd
   React-oscompat: ce47230ed20185e91de62d8c6d139ae61763d09c
   React-perflogger: b1af3cfb3f095f819b2814910000392a8e17ba9f
@@ -2910,6 +2910,6 @@ SPEC CHECKSUMS:
   RNWorklets: 28ee7370ca8da356fcc914e3e68b97e9752196d2
   Yoga: 5934998fbeaef7845dbf698f698518695ab4cd1a
 
-PODFILE CHECKSUM: 78ee3b4d47b08c03f1ce7ab7ec212a0a1a064568
+PODFILE CHECKSUM: 0d5d78bc6dc5054ecae97fdc7fbf4ab0247c0e88
 
 COCOAPODS: 1.16.2

@@ -10,7 +10,7 @@ const ENV = {
     firebaseProjectId: 'runon-production-app',
     firebaseStorageBucket: 'runon-production-app.firebasestorage.app',
     firebaseMessagingSenderId: '936820129286',
-    firebaseAppId: '1:936820129286:web:8fe9ac2d95e1108cb14d87',
+    firebaseAppId: '1:936820129286:ios:1edd25b1f1cef603b14d87',
     
     // 외부 API
     weatherApiKey: Constants.expoConfig?.extra?.weatherApiKey || 'c1861b48c1786a9ff6a37560f3b8c63c',
@@ -32,7 +32,7 @@ const ENV = {
     firebaseProjectId: 'runon-production-app',
     firebaseStorageBucket: 'runon-production-app.firebasestorage.app',
     firebaseMessagingSenderId: '936820129286',
-    firebaseAppId: '1:936820129286:web:8fe9ac2d95e1108cb14d87',
+    firebaseAppId: '1:936820129286:ios:1edd25b1f1cef603b14d87',
     
     // API 키들 - TestFlight에서 확실한 로딩을 위한 다중 fallback
     weatherApiKey: (Constants.expoConfig?.extra?.weatherApiKey) || 

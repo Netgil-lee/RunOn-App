@@ -122,6 +122,7 @@ export const useAuthViewModel = () => {
       'auth/captcha-check-failed': '보안 인증에 실패했습니다. 🔒',
       'auth/invalid-verification-code': '인증번호가 올바르지 않습니다. 🔢',
       'auth/invalid-verification-id': '인증 세션이 만료되었습니다. 다시 시도해주세요. ⏰',
+      'auth/operation-not-allowed': 'Firebase Console에서 Phone Authentication이 활성화되지 않았거나, 한국 지역이 허용되지 않았습니다. 관리자에게 문의해주세요. 🇰🇷',
       
       // 보안
       'auth/too-many-requests': '너무 많은 로그인 시도가 있었습니다. 잠시 후 다시 시도해주세요. ⏰',
@@ -140,9 +141,11 @@ export const useAuthViewModel = () => {
       
       // 한국 전화번호를 국제 형식으로 변환 (010-1234-5678 → +821012345678)
       const cleanNumber = phoneNumber.replace(/[^\d]/g, '');
-      const fullPhoneNumber = `+82${cleanNumber}`; // 한국 국가 코드 +82 추가
+      // 앞자리 '0' 제거 (010 → 10)
+      const withoutLeadingZero = cleanNumber.startsWith('0') ? cleanNumber.slice(1) : cleanNumber;
+      const fullPhoneNumber = `+82${withoutLeadingZero}`; // 한국 국가 코드 +82 추가
       console.log('🌍 변환된 전화번호:', fullPhoneNumber);
-      console.log('🇰🇷 한국 국가 코드 적용됨');
+      console.log('🇰🇷 한국 국가 코드 적용됨 (E.164 형식)');
       
       const auth = firebaseService.getAuth();
       
@@ -160,6 +163,8 @@ export const useAuthViewModel = () => {
         
       } catch (firebaseError) {
         console.error('❌ Firebase Phone Auth 오류:', firebaseError);
+        console.error('❌ Firebase 오류 코드:', firebaseError.code);
+        console.error('❌ Firebase 오류 메시지:', firebaseError.message);
         
         // Firebase 특정 에러 처리
         if (firebaseError.code === 'auth/invalid-phone-number') {
@@ -170,9 +175,15 @@ export const useAuthViewModel = () => {
           throw new Error('일일 인증 요청 한도를 초과했습니다.');
         } else if (firebaseError.code === 'auth/invalid-recaptcha-token') {
           throw new Error('보안 인증에 실패했습니다. 다시 시도해주세요.');
+        } else if (firebaseError.code === 'auth/operation-not-allowed') {
+          // 더 구체적인 에러 메시지 제공
+          const errorMessage = getAuthErrorMessage(firebaseError.code);
+          throw new Error(errorMessage);
         }
         
-        throw new Error('인증번호 발송에 실패했습니다. 다시 시도해주세요.');
+        // 일반적인 에러 처리
+        const errorMessage = getAuthErrorMessage(firebaseError.code) || '인증번호 발송에 실패했습니다. 다시 시도해주세요.';
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('❌ Firebase Phone Auth 인증번호 발송 오류:', error);
