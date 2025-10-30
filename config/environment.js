@@ -15,6 +15,8 @@ const ENV = {
     // 외부 API
     weatherApiKey: Constants.expoConfig?.extra?.weatherApiKey || 'c1861b48c1786a9ff6a37560f3b8c63c',
     kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08', // JavaScript 키 (웹뷰용)
+    // 시뮬레이터에서 HealthKit 동작을 모의할지 여부
+    simulateHealthKitOnSimulator: true,
   },
   staging: {
     // Staging 환경 설정 (dev와 동일하게 설정하거나 별도 키 사용)
@@ -40,6 +42,7 @@ const ENV = {
                   (Constants.expoConfig?.extra?.weatherApiKey) ||
                   'c1861b48c1786a9ff6a37560f3b8c63c',
     kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08', // JavaScript 키 (웹뷰용)
+    simulateHealthKitOnSimulator: false,
   }
 };
 

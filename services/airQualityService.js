@@ -69,8 +69,24 @@ class AirQualityService {
     return recommendations[level] || '정보를 확인해주세요';
   }
 
-  // 미세먼지 데이터 가져오기 (한국환경공단 에어코리아 API)
+  // 미세먼지 데이터 가져오기 (한국환경공단 에어코리아 API + OpenWeatherMap fallback)
   async fetchAirQuality(latitude, longitude) {
+    try {
+      // 먼저 한국환경공단 API 시도
+      try {
+        return await this.fetchKoreanAirQuality(latitude, longitude);
+      } catch (koreanError) {
+        console.warn('한국환경공단 API 실패, OpenWeatherMap으로 fallback:', koreanError.message);
+        return await this.fetchOpenWeatherAirQuality(latitude, longitude);
+      }
+    } catch (error) {
+      console.error('모든 미세먼지 API 실패:', error);
+      throw error;
+    }
+  }
+
+  // 한국환경공단 에어코리아 API
+  async fetchKoreanAirQuality(latitude, longitude) {
     try {
       // API 키가 설정되지 않은 경우
       if (!this.API_KEY || this.API_KEY === 'YOUR_API_KEY_HERE') {
@@ -85,7 +101,7 @@ class AirQualityService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`미세먼지 데이터를 가져올 수 없습니다. (상태: ${response.status})`);
+        throw new Error(`한국환경공단 API 오류: ${response.status} - ${errorText}`);
       }
 
       const responseText = await response.text();
@@ -138,9 +154,56 @@ class AirQualityService {
         timestamp: new Date(nearestStation.dataTime),
       };
 
-      return processedData;
+      return {
+        ...processedData,
+        source: 'korean'
+      };
     } catch (error) {
-      console.error('미세먼지 데이터 가져오기 실패:', error);
+      console.error('한국환경공단 API 실패:', error);
+      throw error;
+    }
+  }
+
+  // OpenWeatherMap Air Pollution API (fallback)
+  async fetchOpenWeatherAirQuality(latitude, longitude) {
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/air_pollution?lat=${latitude}&lon=${longitude}&appid=c1861b48c1786a9ff6a37560f3b8c63c`
+      );
+
+      if (!response.ok) {
+        throw new Error(`OpenWeatherMap API 오류: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const components = data.list[0].components;
+      
+      const pm25 = components.pm2_5 || 0;
+      const pm10 = components.pm10 || 0;
+      const o3 = components.o3 || 0;
+      const no2 = components.no2 || 0;
+      const co = components.co || 0;
+      const so2 = components.so2 || 0;
+
+      const aqi = this.calculateAQI(pm25, pm10);
+      
+      return {
+        aqi: aqi,
+        aqiLevel: this.getAQILevel(aqi),
+        pm25: Math.round(pm25),
+        pm25Level: this.getPM25Level(pm25),
+        pm10: Math.round(pm10),
+        pm10Level: this.getPM10Level(pm10),
+        no2: Math.round(no2),
+        o3: Math.round(o3),
+        so2: Math.round(so2),
+        co: Math.round(co),
+        stationName: 'OpenWeatherMap',
+        timestamp: new Date(),
+        source: 'openweather'
+      };
+    } catch (error) {
+      console.error('OpenWeatherMap API 실패:', error);
       throw error;
     }
   }
