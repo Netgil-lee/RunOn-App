@@ -373,6 +373,26 @@
             transition-delay: 0.8s;
         }
         
+        /* 러논 멤버스 전체 화면 이미지 섹션 */
+        .members-full-section {
+            width: 100vw;
+            max-width: 100%;
+            margin: 40px 0;
+            padding: 0;
+            overflow: hidden;
+            position: relative;
+            left: 50%;
+            right: 50%;
+            margin-left: -50vw;
+            margin-right: -50vw;
+        }
+        
+        .members-full-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -988,24 +1008,14 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- RunOn Members Section -->
-        <div class="features-section">
-            <h2 class="section-title fade-in">러논 멤버스</h2>
-            <p class="section-subtitle fade-in">프리미엄 멤버십으로 더 특별한 러닝 경험을</p>
-            <div class="features">
-                <div class="feature-card fade-in">
-                    <div class="feature-content">
-                        <div class="feature-title">러논 멤버스</div>
-                        <div class="feature-description">특별한 혜택과 기능을 제공하는 프리미엄 멤버십입니다. 블랙리스트 기능, 러닝 이벤트 우선 참여, 러논 파트너 할인 혜택 등을 누릴 수 있습니다.</div>
-                    </div>
-                    <div class="feature-screenshot">
-                        <img src="assets/images/members-main.png" alt="러논 멤버스 스크린샷">
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- RunOn Members Section - Full Width -->
+    <div class="members-full-section fade-in">
+        <img src="assets/images/members-main.png" alt="러논 멤버스" class="members-full-image">
+    </div>
 
+    <div class="container">
         <!-- Testimonials Section -->
         <h2 class="section-title" style="text-align:center; margin-bottom: 10px;">러너들의 후기</h2>
         <div class="testimonials-section fade-in" style="padding-top: 30px;">
