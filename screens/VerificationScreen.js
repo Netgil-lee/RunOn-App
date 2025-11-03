@@ -28,7 +28,7 @@ const VerificationScreen = ({ navigation, route }) => {
   const [recaptchaReady, setRecaptchaReady] = useState(false);
   const [recaptchaLoading, setRecaptchaLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const { verifyPhoneCode, sendPhoneVerification, confirmationResult, setConfirmationResult } = useAuth();
+  const { verifyPhoneCode, sendPhoneVerification, confirmationResult, setConfirmationResult, loginAsDemo } = useAuth();
   const { isOnline } = useNetwork();
   const recaptchaVerifierRef = useRef(null);
 
@@ -100,9 +100,10 @@ const VerificationScreen = ({ navigation, route }) => {
       try {
         setIsLoading(true);
         setError('');
-        // 데모모드: Firebase 인증 없이 바로 홈화면으로 이동
-        navigation.navigate('Home');
+        // 데모모드: AuthContext의 loginAsDemo 함수 호출
+        await loginAsDemo();
         setIsLoading(false);
+        // user 상태가 설정되면 AppNavigator가 자동으로 홈 화면으로 이동시킴
         return;
       } catch (error) {
         setIsLoading(false);

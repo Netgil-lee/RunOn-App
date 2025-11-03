@@ -41,7 +41,7 @@ const LoginScreen = ({ navigation }) => {
   const backgroundFadeAnim = useRef(new Animated.Value(1)).current;
   const errorFadeAnim = useRef(new Animated.Value(0)).current;
   const errorSlideAnim = useRef(new Animated.Value(-20)).current;
-  const { sendPhoneVerification, verifyPhoneCode, setConfirmationResult, confirmationResult, error: authError, clearError } = useAuth();
+  const { sendPhoneVerification, verifyPhoneCode, setConfirmationResult, confirmationResult, error: authError, clearError, loginAsDemo } = useAuth();
   const { isOnline } = useNetwork();
   const recaptchaVerifierRef = useRef(null);
 
@@ -363,13 +363,14 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    // 데모모드 체크: 010-0000-0000 번호인 경우 바로 홈화면으로 이동
+    // 데모모드 체크: 010-0000-0000 번호인 경우 데모 사용자로 로그인
     if (phoneNumber === '010-0000-0000') {
       try {
         setIsLoading(true);
-        // 데모모드: Firebase 인증 없이 바로 홈화면으로 이동
-        navigation.navigate('Home');
+        // 데모모드: AuthContext의 loginAsDemo 함수 호출
+        await loginAsDemo();
         setIsLoading(false);
+        // user 상태가 설정되면 AppNavigator가 자동으로 홈 화면으로 이동시킴
         return;
       } catch (error) {
         setIsLoading(false);

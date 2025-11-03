@@ -21,7 +21,7 @@ const defaultContextValue = {
   logout: async () => {},
   sendPhoneVerification: async () => {},
   verifyPhoneCode: async () => {},
-
+  loginAsDemo: async () => {},
 };
 
 // AuthContext 생성
@@ -466,6 +466,102 @@ export const AuthProvider = ({ children, isDemoMode = false }) => {
     }
   };
 
+  // 데모 모드 로그인 함수
+  const loginAsDemo = async () => {
+    try {
+      console.log('🎭 데모 모드 로그인 시작');
+      
+      const demoUserId = 'demo-user-123456789';
+      const db = getFirestore();
+      const userRef = doc(db, 'users', demoUserId);
+      
+      // Firestore에서 데모 사용자 데이터 가져오기
+      let userSnap = await getDoc(userRef);
+      
+      // 데모 사용자 데이터가 없으면 생성
+      if (!userSnap.exists()) {
+        console.log('🎯 데모 사용자 데이터 생성 중...');
+        const demoUserData = {
+          uid: demoUserId,
+          phoneNumber: '010-0000-0000',
+          displayName: 'Apple 심사팀',
+          email: 'demo@apple-review.com',
+          emailVerified: true,
+          isAnonymous: false,
+          profile: {
+            nickname: 'Apple 심사팀',
+            bio: 'Apple App Store 심사팀 데모 계정',
+            gender: '기타',
+            age: 30,
+            runningLevel: '중급',
+            averagePace: '5분/km',
+            preferredCourses: ['한강공원', '올림픽공원', '여의도한강공원'],
+            preferredTimes: ['오전', '저녁'],
+            runningStyles: ['혼자', '그룹'],
+            favoriteSeasons: ['봄', '가을'],
+            currentGoals: ['건강관리', '체력향상'],
+            profileImage: null,
+            updatedAt: new Date().toISOString()
+          },
+          onboardingCompleted: true,
+          onboardingCompletedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          communityStats: {
+            totalParticipated: 5,
+            thisMonthParticipated: 2,
+            hostedEvents: 1,
+            averageMannerScore: 5.0,
+            mannerScoreCount: 3,
+            receivedTags: {
+              '친절함': 2,
+              '시간관리': 1
+            }
+          },
+          isPremium: true,
+          subscriptionType: 'com.runon.app.premium.monthly',
+          purchaseDate: serverTimestamp(),
+          transactionId: 'DEMO_' + Date.now(),
+          originalTransactionId: 'DEMO_' + Date.now(),
+          expiresDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          isActive: true,
+          blacklistCount: 0,
+          discountEligible: false,
+          monthlyCounts: {
+            '2024-10': 2,
+            '2024-09': 3
+          },
+          isDemo: true
+        };
+        
+        await setDoc(userRef, demoUserData, { merge: true });
+        userSnap = await getDoc(userRef);
+      }
+      
+      // 데모 사용자 객체 생성
+      const userData = userSnap.data();
+      const demoUser = {
+        uid: demoUserId,
+        email: userData.email || 'demo@apple-review.com',
+        displayName: userData.profile?.nickname || 'Apple 심사팀',
+        phoneNumber: userData.phoneNumber || '010-0000-0000',
+        photoURL: userData.profileImage || null,
+        isDemo: true,
+        ...userData
+      };
+      
+      // 사용자 상태 설정
+      setUser(demoUser);
+      setOnboardingCompleted(true);
+      
+      console.log('✅ 데모 모드 로그인 완료');
+      
+      return demoUser;
+    } catch (error) {
+      console.error('❌ 데모 모드 로그인 실패:', error);
+      throw error;
+    }
+  };
+
   // 컨텍스트 값 생성
   const contextValue = {
     user,
@@ -481,6 +577,7 @@ export const AuthProvider = ({ children, isDemoMode = false }) => {
     setOnboardingCompleted,
     completeOnboarding,
     updateUserProfile,
+    loginAsDemo,
   };
 
   return (
