@@ -79,7 +79,36 @@ target 'RunOn' do
         if config.name == 'Release'
           config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
           config.build_settings['GCC_GENERATE_DEBUGGING_SYMBOLS'] = 'YES'
+          # Do not strip symbols from the installed product to keep dSYMs consistent
           config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+        end
+      end
+      
+      # Fix script phases with paths containing parentheses (e.g., "RunOn-App (Production)")
+      target.build_phases.each do |phase|
+        if phase.is_a?(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)
+          if phase.shell_script && phase.shell_script.include?('$PODS_TARGET_SRCROOT')
+            # Fix bash -l -c commands that have issues with paths containing parentheses
+            # Replace: bash -l -c "...$PODS_TARGET_SRCROOT..."
+            # With: bash -c with properly quoted paths
+            original_script = phase.shell_script
+            
+            # Pattern 1: bash -l -c with double quotes
+            if original_script =~ /bash -l -c ["']([^"']+PODS_TARGET_SRCROOT[^"']+)["']/
+              script_path_part = $1
+              # Use bash -c instead of bash -l -c and properly quote the path
+              phase.shell_script = original_script.gsub(
+                /bash -l -c ["']([^"']+)["']/,
+                %Q{bash -c 'SCRIPT_PATH="\\$PODS_TARGET_SRCROOT"; bash -c "\\"\\"\\"$SCRIPT_PATH\\"\\"\\"" /../scripts/get-app-config-ios.sh"'}
+              )
+            end
+            
+            # Pattern 2: Handle the specific get-app-config-ios.sh case
+            if original_script.include?('get-app-config-ios.sh')
+              # Replace with a safer version that uses a variable
+              phase.shell_script = %Q{SCRIPT_PATH="$PODS_TARGET_SRCROOT/../scripts/get-app-config-ios.sh"\nbash "$SCRIPT_PATH"}
+            end
+          end
         end
       end
     end
