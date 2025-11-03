@@ -510,8 +510,8 @@ const SettingsScreen = ({ navigation }) => {
           <SettingItem
             icon="document-text-outline"
             title="이용약관"
-            subtitle="냇길 서비스 이용약관"
-            onPress={() => Alert.alert('이용약관', '이용약관이 곧 추가됩니다.')}
+            subtitle="러논 서비스 이용약관"
+            onPress={() => openModal('terms')}
           />
           <SettingItem
             icon="shield-outline"
@@ -529,7 +529,7 @@ const SettingsScreen = ({ navigation }) => {
           <SettingItem
             icon="information-circle-outline"
             title="버전 정보"
-            subtitle="RunOn v1.0.0"
+            subtitle="RunOn v1.0.1"
             onPress={() => Alert.alert('버전 정보', 'RunOn v1.0.0\n최신 버전입니다.')}
           />
         </View>
