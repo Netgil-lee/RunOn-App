@@ -10,36 +10,10 @@ const RunningShareCard = forwardRef(({
   calories,
   routeCoordinates // 이동경로 좌표 데이터
 }, ref) => {
-  const formatDuration = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
-
-  const formatDistance = (meters) => {
-    const km = meters / 1000;
-    return `${km.toFixed(1)}km`;
-  };
-
-  const formatPace = (pace) => {
-    if (!pace) return '0:00';
-    
-    // 이미 콜론 형식인 경우 그대로 반환
-    if (pace.includes(':')) {
-      return pace;
-    }
-    
-    // 작은따옴표와 큰따옴표를 콜론으로 변환
-    let formattedPace = pace
-      .replace(/'/g, ':')  // 작은따옴표를 콜론으로
-      .replace(/"/g, '');  // 큰따옴표 제거
-    
-    return formattedPace;
-  };
+  // distance, pace, duration은 이미 포맷팅된 문자열로 받음
+  // distance: "5.2km" 또는 "530m"
+  // pace: "6:40/km"
+  // duration: "34s" 또는 "54m 19s" 또는 "3h 21m"
 
   return (
     <View ref={ref} style={styles.container}>
@@ -55,17 +29,17 @@ const RunningShareCard = forwardRef(({
       <View style={styles.statsSection}>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Distance</Text>
-          <Text style={styles.statValue}>{formatDistance(distance)}</Text>
+          <Text style={styles.statValue}>{distance || '0m'}</Text>
         </View>
         
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Pace</Text>
-          <Text style={styles.statValue}>{formatPace(pace)}/km</Text>
+          <Text style={styles.statValue}>{pace || '0:00/km'}</Text>
         </View>
         
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Time</Text>
-          <Text style={styles.statValue}>{formatDuration(duration)}</Text>
+          <Text style={styles.statValue}>{duration || '0s'}</Text>
         </View>
       </View>
 
