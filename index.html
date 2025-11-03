@@ -375,22 +375,21 @@
         
         /* 러논 멤버스 전체 화면 이미지 섹션 */
         .members-full-section {
-            width: 100vw;
-            max-width: 100%;
-            margin: 40px 0;
+            width: 100%;
+            margin: 40px auto;
             padding: 0;
             overflow: hidden;
-            position: relative;
-            left: 50%;
-            right: 50%;
-            margin-left: -50vw;
-            margin-right: -50vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         
         .members-full-image {
-            width: 100%;
+            width: auto;
+            max-width: 100%;
             height: auto;
             display: block;
+            margin: 0 auto;
         }
         
         .container {
@@ -903,6 +902,23 @@
                 height: 100%;
                 object-fit: contain;
                 border-radius: 15px;
+            }
+            
+            .members-full-section {
+                width: 100vw;
+                margin: 0;
+                padding: 0;
+                position: relative;
+                left: 50%;
+                right: 50%;
+                margin-left: -50vw;
+                margin-right: -50vw;
+            }
+            
+            .members-full-image {
+                width: 100%;
+                max-width: 100%;
+                height: auto;
             }
             
             .testimonials-section {
