@@ -138,8 +138,14 @@ service cloud.firestore {
     // 신고 (Reports)
     match /reports/{reportId} {
       // 신고 생성: 모든 인증된 사용자 가능
+      // 필수 필드 확인 및 reportedBy가 요청한 사용자와 일치하는지 확인
       allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.reportedBy;
+        request.resource.data.reportedBy is string &&
+        request.auth.uid == request.resource.data.reportedBy &&
+        request.resource.data.contentType is string &&
+        request.resource.data.contentId is string &&
+        request.resource.data.reason is string &&
+        request.resource.data.status is string;
       // 신고 읽기: 신고한 사용자만 가능
       allow read: if request.auth != null && 
         request.auth.uid == resource.data.reportedBy;

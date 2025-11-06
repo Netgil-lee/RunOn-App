@@ -43,6 +43,12 @@ firebase-credentials.json
 firebase-debug.log
 firebase-debug.*.log
 
+# Firebase Functions
+functions/node_modules/
+functions/.env
+functions/.env.local
+functions/.runtimeconfig.json
+
 # Android Keystore
 *.jks
 keystore.properties
