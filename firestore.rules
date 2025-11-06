@@ -134,5 +134,21 @@ service cloud.firestore {
     match /app_config/{configId} {
       allow read: if request.auth != null;
     }
+    
+    // 신고 (Reports)
+    match /reports/{reportId} {
+      // 신고 생성: 모든 인증된 사용자 가능
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.reportedBy;
+      // 신고 읽기: 신고한 사용자만 가능
+      allow read: if request.auth != null && 
+        request.auth.uid == resource.data.reportedBy;
+      // 신고 업데이트: 신고한 사용자만 가능 (상태 업데이트는 관리자만 가능하도록 추후 구현)
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.reportedBy;
+      // 신고 삭제: 신고한 사용자만 가능
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.reportedBy;
+    }
   }
 } 

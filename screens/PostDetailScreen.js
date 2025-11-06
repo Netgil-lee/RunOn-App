@@ -19,6 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCommunity } from '../contexts/CommunityContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatRelativeTime } from '../utils/timestampUtils';
+import reportService from '../services/reportService';
+import contentFilterService from '../services/contentFilterService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -52,6 +54,10 @@ const PostDetailScreen = ({ route, navigation }) => {
   const [showCommentEditModal, setShowCommentEditModal] = useState(false);
   const [selectedComment, setSelectedComment] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
+  const [showPostReportModal, setShowPostReportModal] = useState(false);
+  const [showCommentReportModal, setShowCommentReportModal] = useState(false);
+  const [selectedReportReason, setSelectedReportReason] = useState('');
+  const [reportDescription, setReportDescription] = useState('');
   const [currentPost, setCurrentPost] = useState({
     id: safePost.id || '',
     title: safePost.title || '',
@@ -174,6 +180,20 @@ const PostDetailScreen = ({ route, navigation }) => {
   // 현재 사용자가 게시글 작성자인지 확인
   const isAuthor = user?.uid === currentPost.authorId;
 
+  // 신고 사유 리스트
+  const reportReasons = [
+    { id: 'spam', label: '스팸/광고' },
+    { id: 'profanity', label: '욕설/혐오 발언' },
+    { id: 'sexual', label: '성적/부적절한 콘텐츠' },
+    { id: 'violence', label: '폭력적인 콘텐츠' },
+    { id: 'harassment', label: '괴롭힘/따돌림' },
+    { id: 'false_info', label: '허위 정보' },
+    { id: 'privacy', label: '개인정보 유출' },
+    { id: 'illegal', label: '불법적 콘텐츠' },
+    { id: 'copyright', label: '저작권 침해' },
+    { id: 'other', label: '기타' },
+  ];
+
   // 좋아요 상태 초기화
   useEffect(() => {
     if (currentPost.likes && Array.isArray(currentPost.likes) && user?.uid) {
@@ -225,6 +245,35 @@ const PostDetailScreen = ({ route, navigation }) => {
   };
 
   const handleComment = async () => {
+    if (commentInput.trim() && user?.uid) {
+      // 콘텐츠 필터링 검사
+      const filterResult = contentFilterService.checkComment(commentInput.trim());
+      
+      if (filterResult.hasProfanity) {
+        // 경고 모달 표시 (제출은 가능)
+        Alert.alert(
+          '경고',
+          filterResult.warning,
+          [
+            { text: '취소', style: 'cancel' },
+            { 
+              text: '계속 작성', 
+              onPress: async () => {
+                await submitComment();
+              }
+            }
+          ]
+        );
+        return;
+      }
+      
+      // 필터링 통과 시 바로 제출
+      await submitComment();
+    }
+  };
+
+  // 댓글 제출 로직 (실제 저장)
+  const submitComment = async () => {
     if (commentInput.trim() && user?.uid) {
       try {
         // Firestore에서 사용자 프로필 정보 가져오기
@@ -388,6 +437,81 @@ const PostDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  // 게시글 신고 모달 열기
+  const handlePostReport = () => {
+    setShowPostReportModal(true);
+    setSelectedReportReason('');
+    setReportDescription('');
+  };
+
+  // 댓글 신고 모달 열기
+  const handleCommentReport = (comment) => {
+    setSelectedComment(comment);
+    setShowCommentReportModal(true);
+    setSelectedReportReason('');
+    setReportDescription('');
+  };
+
+  // 게시글 신고 제출
+  const handleSubmitPostReport = async () => {
+    if (!selectedReportReason) {
+      Alert.alert('알림', '신고 사유를 선택해주세요.');
+      return;
+    }
+
+    try {
+      const result = await reportService.reportPost(
+        currentPost.id,
+        currentPost.authorId,
+        selectedReportReason,
+        reportDescription
+      );
+
+      if (result.success) {
+        Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        setShowPostReportModal(false);
+        setSelectedReportReason('');
+        setReportDescription('');
+      } else {
+        Alert.alert('오류', result.error || '신고 제출에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('게시글 신고 실패:', error);
+      Alert.alert('오류', '신고 제출에 실패했습니다.');
+    }
+  };
+
+  // 댓글 신고 제출
+  const handleSubmitCommentReport = async () => {
+    if (!selectedReportReason || !selectedComment) {
+      Alert.alert('알림', '신고 사유를 선택해주세요.');
+      return;
+    }
+
+    try {
+      const result = await reportService.reportComment(
+        selectedComment.id,
+        currentPost.id,
+        selectedComment.authorId,
+        selectedReportReason,
+        reportDescription
+      );
+
+      if (result.success) {
+        Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        setShowCommentReportModal(false);
+        setSelectedComment(null);
+        setSelectedReportReason('');
+        setReportDescription('');
+      } else {
+        Alert.alert('오류', result.error || '신고 제출에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('댓글 신고 실패:', error);
+      Alert.alert('오류', '신고 제출에 실패했습니다.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
@@ -396,9 +520,11 @@ const PostDetailScreen = ({ route, navigation }) => {
           <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>게시글</Text>
-        <TouchableOpacity style={styles.shareButton}>
-          <Ionicons name="share-outline" size={24} color={COLORS.TEXT} />
-        </TouchableOpacity>
+        {!isAuthor && (
+          <TouchableOpacity style={styles.shareButton} onPress={handlePostReport}>
+            <Ionicons name="alert-circle-outline" size={24} color={COLORS.TEXT} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <KeyboardAvoidingView 
@@ -525,7 +651,12 @@ const PostDetailScreen = ({ route, navigation }) => {
             {currentPost.comments && Array.isArray(currentPost.comments) && currentPost.comments.length > 0 ? (
               <View style={styles.commentsList}>
                 {currentPost.comments.map((comment) => (
-                  <View key={comment.id} style={styles.commentItem}>
+                  <TouchableOpacity
+                    key={comment.id}
+                    style={styles.commentItem}
+                    onLongPress={() => handleCommentReport(comment)}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.commentHeader}>
                       <View style={styles.commentAuthorSection}>
                         <Text style={styles.commentAuthor}>{comment.author}</Text>
@@ -543,7 +674,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                       )}
                     </View>
                     <Text style={styles.commentText}>{comment.text}</Text>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             ) : (
@@ -702,9 +833,159 @@ const PostDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
         </Modal>
+
+        {/* 게시글 신고 모달 */}
+        <Modal
+          visible={showPostReportModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowPostReportModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowPostReportModal(false)}
+          >
+            <View style={styles.bottomModalContainer}>
+              <View style={styles.reportModal} onStartShouldSetResponder={() => true}>
+                <View style={styles.reportModalHeader}>
+                  <Text style={styles.reportModalTitle}>신고하기</Text>
+                  <TouchableOpacity onPress={() => setShowPostReportModal(false)}>
+                    <Ionicons name="close" size={24} color={COLORS.TEXT} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
+                  <Text style={styles.reportModalSubtitle}>신고 사유를 선택해주세요</Text>
+                  {reportReasons.map((reason) => (
+                    <TouchableOpacity
+                      key={reason.id}
+                      style={[
+                        styles.reportReasonItem,
+                        selectedReportReason === reason.id && styles.reportReasonItemSelected
+                      ]}
+                      onPress={() => setSelectedReportReason(reason.id)}
+                    >
+                      <Text style={[
+                        styles.reportReasonText,
+                        selectedReportReason === reason.id && styles.reportReasonTextSelected
+                      ]}>
+                        {reason.label}
+                      </Text>
+                      {selectedReportReason === reason.id && (
+                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                  <Text style={styles.reportDescriptionLabel}>추가 설명 (선택)</Text>
+                  <TextInput
+                    style={styles.reportDescriptionInput}
+                    placeholder="신고 사유에 대한 추가 설명을 입력해주세요"
+                    placeholderTextColor={COLORS.TEXT_SECONDARY}
+                    value={reportDescription}
+                    onChangeText={setReportDescription}
+                    multiline
+                    maxLength={500}
+                  />
+                </ScrollView>
+                <View style={styles.reportModalActions}>
+                  <TouchableOpacity 
+                    style={styles.reportCancelButton}
+                    onPress={() => setShowPostReportModal(false)}
+                  >
+                    <Text style={styles.reportCancelButtonText}>취소</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.reportSubmitButton, !selectedReportReason && styles.reportSubmitButtonDisabled]}
+                    onPress={handleSubmitPostReport}
+                    disabled={!selectedReportReason}
+                  >
+                    <Text style={[styles.reportSubmitButtonText, !selectedReportReason && styles.reportSubmitButtonTextDisabled]}>
+                      신고하기
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* 댓글 신고 모달 */}
+        <Modal
+          visible={showCommentReportModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowCommentReportModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowCommentReportModal(false)}
+          >
+            <View style={styles.bottomModalContainer}>
+              <View style={styles.reportModal} onStartShouldSetResponder={() => true}>
+                <View style={styles.reportModalHeader}>
+                  <Text style={styles.reportModalTitle}>댓글 신고하기</Text>
+                  <TouchableOpacity onPress={() => setShowCommentReportModal(false)}>
+                    <Ionicons name="close" size={24} color={COLORS.TEXT} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
+                  <Text style={styles.reportModalSubtitle}>신고 사유를 선택해주세요</Text>
+                  {reportReasons.map((reason) => (
+                    <TouchableOpacity
+                      key={reason.id}
+                      style={[
+                        styles.reportReasonItem,
+                        selectedReportReason === reason.id && styles.reportReasonItemSelected
+                      ]}
+                      onPress={() => setSelectedReportReason(reason.id)}
+                    >
+                      <Text style={[
+                        styles.reportReasonText,
+                        selectedReportReason === reason.id && styles.reportReasonTextSelected
+                      ]}>
+                        {reason.label}
+                      </Text>
+                      {selectedReportReason === reason.id && (
+                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                  <Text style={styles.reportDescriptionLabel}>추가 설명 (선택)</Text>
+                  <TextInput
+                    style={styles.reportDescriptionInput}
+                    placeholder="신고 사유에 대한 추가 설명을 입력해주세요"
+                    placeholderTextColor={COLORS.TEXT_SECONDARY}
+                    value={reportDescription}
+                    onChangeText={setReportDescription}
+                    multiline
+                    maxLength={500}
+                  />
+                </ScrollView>
+                <View style={styles.reportModalActions}>
+                  <TouchableOpacity 
+                    style={styles.reportCancelButton}
+                    onPress={() => setShowCommentReportModal(false)}
+                  >
+                    <Text style={styles.reportCancelButtonText}>취소</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.reportSubmitButton, !selectedReportReason && styles.reportSubmitButtonDisabled]}
+                    onPress={handleSubmitCommentReport}
+                    disabled={!selectedReportReason}
+                  >
+                    <Text style={[styles.reportSubmitButtonText, !selectedReportReason && styles.reportSubmitButtonTextDisabled]}>
+                      신고하기
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </SafeAreaView>
     );
-};
+  };
 
 const styles = StyleSheet.create({
   container: {
@@ -1096,6 +1377,124 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   updateButtonTextDisabled: {
+    color: COLORS.TEXT_SECONDARY,
+  },
+  // 신고 모달 스타일
+  reportModal: {
+    backgroundColor: COLORS.CARD,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    paddingBottom: 34,
+  },
+  reportModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 0.25,
+    borderBottomColor: COLORS.BORDER,
+  },
+  reportModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: COLORS.TEXT,
+  },
+  reportModalContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    maxHeight: 400,
+  },
+  reportModalSubtitle: {
+    fontSize: 16,
+    color: COLORS.TEXT_SECONDARY,
+    marginBottom: 16,
+  },
+  reportReasonItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+  },
+  reportReasonItemSelected: {
+    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: COLORS.PRIMARY,
+  },
+  reportReasonText: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    fontWeight: '500',
+  },
+  reportReasonTextSelected: {
+    color: COLORS.PRIMARY,
+    fontWeight: '600',
+  },
+  reportDescriptionLabel: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    fontWeight: '500',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  reportDescriptionInput: {
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: COLORS.TEXT,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+  },
+  reportModalActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
+    borderTopWidth: 0.25,
+    borderTopColor: COLORS.BORDER,
+  },
+  reportCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportCancelButtonText: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    fontWeight: '500',
+  },
+  reportSubmitButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: COLORS.PRIMARY,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportSubmitButtonDisabled: {
+    backgroundColor: COLORS.BORDER,
+    opacity: 0.5,
+  },
+  reportSubmitButtonText: {
+    fontSize: 16,
+    color: COLORS.BACKGROUND,
+    fontWeight: '600',
+  },
+  reportSubmitButtonTextDisabled: {
     color: COLORS.TEXT_SECONDARY,
   },
 });

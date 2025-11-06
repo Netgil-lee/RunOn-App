@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { HAN_RIVER_PARKS, RIVER_SIDES } from '../constants/onboardingOptions';
 import { useCommunity } from '../contexts/CommunityContext';
 import { useAuth } from '../contexts/AuthContext';
+import contentFilterService from '../services/contentFilterService';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -243,58 +244,85 @@ const PostCreateScreen = ({ navigation }) => {
   // 게시글 제출
   const handleSubmit = async () => {
     if (isPostValid()) {
-      try {
-        // 사용자 프로필 정보 가져오기
-        let authorName = '사용자';
-        let fetchedUserProfile = null;
-        try {
-          const firestoreService = require('../services/firestoreService').default;
-          fetchedUserProfile = await firestoreService.getUserProfile(user?.uid);
-          authorName = fetchedUserProfile?.profile?.nickname || fetchedUserProfile?.displayName || user?.displayName || user?.email?.split('@')[0] || '사용자';
-        } catch (error) {
-          console.error('사용자 프로필 가져오기 실패:', error);
-          authorName = user?.displayName || user?.email?.split('@')[0] || '사용자';
-        }
-
-        const newPost = {
-          ...postData,
-          createdAt: new Date().toISOString(),
-          author: authorName,
-          authorId: user?.uid || 'anonymous',
-          authorProfile: {
-            displayName: authorName,
-            profileImage: fetchedUserProfile?.profile?.profileImage || fetchedUserProfile?.profileImage || user?.photoURL || null
-          },
-          likes: [],
-          comments: []
-        };
-        
-        console.log('🔍 PostCreateScreen - 게시글 작성:', {
-          author: authorName,
-          authorId: user?.uid,
-          userDisplayName: user?.displayName,
-          userEmail: user?.email
-        });
-        
-        // Firestore에 게시글 저장
-        const firestoreService = require('../services/firestoreService').default;
-        const result = await firestoreService.createPost(newPost);
-        
-        if (result.success) {
-          // 로컬 상태에도 추가
-          addPost({ ...newPost, id: result.id });
-          Alert.alert('완료', '게시글이 작성되었습니다!', [
-            { text: '확인', onPress: () => navigation.goBack() }
-          ]);
-        } else {
-          Alert.alert('오류', '게시글 저장에 실패했습니다.');
-        }
-      } catch (error) {
-        console.error('게시글 작성 오류:', error);
-        Alert.alert('오류', '게시글 작성 중 오류가 발생했습니다.');
+      // 콘텐츠 필터링 검사
+      const filterResult = contentFilterService.checkPost(postData.title, postData.content);
+      
+      if (filterResult.hasProfanity) {
+        // 경고 모달 표시 (제출은 가능)
+        Alert.alert(
+          '경고',
+          filterResult.warning,
+          [
+            { text: '취소', style: 'cancel' },
+            { 
+              text: '계속 작성', 
+              onPress: async () => {
+                await submitPost();
+              }
+            }
+          ]
+        );
+        return;
       }
+      
+      // 필터링 통과 시 바로 제출
+      await submitPost();
     } else {
       Alert.alert('입력 오류', '필수 항목을 모두 입력해주세요.');
+    }
+  };
+
+  // 게시글 제출 로직 (실제 저장)
+  const submitPost = async () => {
+    try {
+      // 사용자 프로필 정보 가져오기
+      let authorName = '사용자';
+      let fetchedUserProfile = null;
+      try {
+        const firestoreService = require('../services/firestoreService').default;
+        fetchedUserProfile = await firestoreService.getUserProfile(user?.uid);
+        authorName = fetchedUserProfile?.profile?.nickname || fetchedUserProfile?.displayName || user?.displayName || user?.email?.split('@')[0] || '사용자';
+      } catch (error) {
+        console.error('사용자 프로필 가져오기 실패:', error);
+        authorName = user?.displayName || user?.email?.split('@')[0] || '사용자';
+      }
+
+      const newPost = {
+        ...postData,
+        createdAt: new Date().toISOString(),
+        author: authorName,
+        authorId: user?.uid || 'anonymous',
+        authorProfile: {
+          displayName: authorName,
+          profileImage: fetchedUserProfile?.profile?.profileImage || fetchedUserProfile?.profileImage || user?.photoURL || null
+        },
+        likes: [],
+        comments: []
+      };
+      
+      console.log('🔍 PostCreateScreen - 게시글 작성:', {
+        author: authorName,
+        authorId: user?.uid,
+        userDisplayName: user?.displayName,
+        userEmail: user?.email
+      });
+      
+      // Firestore에 게시글 저장
+      const firestoreService = require('../services/firestoreService').default;
+      const result = await firestoreService.createPost(newPost);
+      
+      if (result.success) {
+        // 로컬 상태에도 추가
+        addPost({ ...newPost, id: result.id });
+        Alert.alert('완료', '게시글이 작성되었습니다!', [
+          { text: '확인', onPress: () => navigation.goBack() }
+        ]);
+      } else {
+        Alert.alert('오류', '게시글 저장에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('게시글 작성 오류:', error);
+      Alert.alert('오류', '게시글 작성 중 오류가 발생했습니다.');
     }
   };
 
