@@ -430,7 +430,7 @@ const LoginScreen = ({ navigation }) => {
     // 약관 동의 확인
     if (!agreeToTerms || !agreeToPrivacy) {
       setErrorType('phone');
-      setLocalError('이용약관 및 개인정보처리방침에 동의해주세요.');
+      setLocalError('이용약관(EULA) 및 개인정보처리방침에 동의해주세요.');
       showErrorAnimation();
       return;
     }
@@ -638,7 +638,7 @@ const LoginScreen = ({ navigation }) => {
                     <View style={styles.checkboxTextContainer}>
                       <View style={styles.checkboxLabel}>
                         <TouchableOpacity onPress={() => openModal('terms')} style={styles.inlineLink}>
-                          <Text style={styles.underlinedText}>이용약관</Text>
+                          <Text style={styles.underlinedText}>이용약관(EULA)</Text>
                         </TouchableOpacity>
                         <Text style={styles.checkboxText}>에 동의합니다</Text>
                         <Text style={styles.requiredText}> (필수)</Text>
