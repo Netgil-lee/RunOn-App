@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
@@ -71,8 +72,18 @@ const AppIntroScreen = ({ navigation }) => {
     }
   };
 
-  // HealthKit 상태 확인
+  // HealthKit 상태 확인 (iOS 전용)
   const checkHealthKitStatus = async () => {
+    if (Platform.OS !== 'ios') {
+      // Android에서는 HealthKit을 사용하지 않음
+      setHealthKitStatus({
+        isChecking: false,
+        hasPermissions: false,
+        error: null
+      });
+      return;
+    }
+    
     try {
       setHealthKitStatus(prev => ({ ...prev, isChecking: true }));
       
@@ -440,38 +451,40 @@ const AppIntroScreen = ({ navigation }) => {
         알림 권한을 허용해야 개별 알림 설정이 가능합니다.
       </Text>
 
-      {/* 건강데이터 권한 섹션 */}
-      <View style={styles.healthSection}>
-        <Text style={styles.sectionTitle}>건강데이터 접근</Text>
-        <TouchableOpacity 
-          style={styles.healthItem}
-          onPress={handleHealthKitAccess}
-        >
-          <View style={styles.healthItemLeft}>
-            <View style={styles.healthIcon}>
-              <Ionicons name="heart-outline" size={20} color="#97DCDE" />
+      {/* 건강데이터 권한 섹션 - iOS 전용 */}
+      {Platform.OS === 'ios' && (
+        <View style={styles.healthSection}>
+          <Text style={styles.sectionTitle}>건강데이터 접근</Text>
+          <TouchableOpacity 
+            style={styles.healthItem}
+            onPress={handleHealthKitAccess}
+          >
+            <View style={styles.healthItemLeft}>
+              <View style={styles.healthIcon}>
+                <Ionicons name="heart-outline" size={20} color="#97DCDE" />
+              </View>
+              <View style={styles.healthContent}>
+                <Text style={styles.healthTitle}>건강데이터 접근</Text>
+                <Text style={styles.healthDescription}>
+                  {healthKitStatus.isChecking 
+                    ? "상태 확인 중..." 
+                    : healthKitStatus.hasPermissions 
+                      ? "HealthKit 권한 허용됨" 
+                      : "러닝 데이터 동기화 및 권한 관리"
+                  }
+                </Text>
+              </View>
             </View>
-            <View style={styles.healthContent}>
-              <Text style={styles.healthTitle}>건강데이터 접근</Text>
-              <Text style={styles.healthDescription}>
-                {healthKitStatus.isChecking 
-                  ? "상태 확인 중..." 
-                  : healthKitStatus.hasPermissions 
-                    ? "HealthKit 권한 허용됨" 
-                    : "러닝 데이터 동기화 및 권한 관리"
-                }
-              </Text>
+            <View style={styles.healthItemRight}>
+              <Ionicons 
+                name={healthKitStatus.hasPermissions ? "checkmark-circle" : "chevron-forward"} 
+                size={20} 
+                color={healthKitStatus.hasPermissions ? COLORS.SUCCESS : COLORS.TEXT_SECONDARY}
+              />
             </View>
-          </View>
-          <View style={styles.healthItemRight}>
-            <Ionicons 
-              name={healthKitStatus.hasPermissions ? "checkmark-circle" : "chevron-forward"} 
-              size={20} 
-              color={healthKitStatus.hasPermissions ? COLORS.SUCCESS : COLORS.TEXT_SECONDARY} 
-            />
-          </View>
-        </TouchableOpacity>
-      </View>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 

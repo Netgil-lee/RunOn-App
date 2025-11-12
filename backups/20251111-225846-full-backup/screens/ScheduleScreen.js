@@ -3754,7 +3754,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 5,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
 
   },
   headerButton: {
@@ -3776,7 +3776,7 @@ const styles = StyleSheet.create({
   bottomNav: {
     flexDirection: 'row',
     padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
     borderTopWidth: 1,
     borderTopColor: '#333333',
     gap: 12,

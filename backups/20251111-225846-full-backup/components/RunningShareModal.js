@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Alert,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
@@ -48,19 +47,6 @@ const RunningShareModal = ({
   }, [visible, eventData]);
 
   const fetchActualWorkoutData = async () => {
-    // Android에서는 HealthKit을 사용할 수 없음
-    if (Platform.OS !== 'ios') {
-      Alert.alert(
-        '기능 미지원',
-        'Android에서는 현재 건강 데이터 연동 기능을 지원하지 않습니다.\n\n향후 Google Fit 연동이 추가될 예정입니다.',
-        [
-          { text: '확인', onPress: onClose }
-        ]
-      );
-      setIsLoadingWorkout(false);
-      return;
-    }
-    
     try {
       setIsLoadingWorkout(true);
       console.log('🔍 [RunningShareModal] 실제 운동기록 데이터 조회 시작');

@@ -9,6 +9,7 @@ import {
   Alert,
   Switch,
   Image,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -156,8 +157,18 @@ const SettingsScreen = ({ navigation }) => {
     checkHealthKitStatus();
   }, [user?.uid]);
 
-  // HealthKit 상태 확인
+  // HealthKit 상태 확인 (iOS 전용)
   const checkHealthKitStatus = async () => {
+    if (Platform.OS !== 'ios') {
+      // Android에서는 HealthKit을 사용하지 않음
+      setHealthKitStatus({
+        isAvailable: false,
+        hasPermissions: false,
+        isChecking: false
+      });
+      return;
+    }
+    
     try {
       setHealthKitStatus(prev => ({ ...prev, isChecking: true }));
       
@@ -464,18 +475,20 @@ const SettingsScreen = ({ navigation }) => {
         {/* 앱 */}
         <SectionTitle title="앱" />
         <View style={styles.section}>
-          <SettingItem
-            icon="heart-outline"
-            title="건강데이터 접근"
-            subtitle={
-              healthKitStatus.isChecking 
-                ? "상태 확인 중..." 
-                : healthKitStatus.hasPermissions 
-                  ? "HealthKit 권한 허용됨" 
-                  : "러닝 데이터 동기화 및 권한 관리"
-            }
-            onPress={handleHealthKitAccess}
-          />
+          {Platform.OS === 'ios' && (
+            <SettingItem
+              icon="heart-outline"
+              title="건강데이터 접근"
+              subtitle={
+                healthKitStatus.isChecking 
+                  ? "상태 확인 중..." 
+                  : healthKitStatus.hasPermissions 
+                    ? "HealthKit 권한 허용됨" 
+                    : "러닝 데이터 동기화 및 권한 관리"
+              }
+              onPress={handleHealthKitAccess}
+            />
+          )}
           <SettingItem
             icon="ban-outline"
             title="블랙리스트"

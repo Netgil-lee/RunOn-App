@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
   },
   nextButton: {
     borderRadius: 12,
