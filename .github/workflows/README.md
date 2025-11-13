@@ -8,9 +8,12 @@
 - **제외**: iOS 관련 파일 변경 시 실행 안 함
 
 ### ios.yml
+- **위치**: `latest-app-version` 브랜치에만 존재
 - **트리거**: `latest-app-version` 브랜치에 push/pull_request
 - **목적**: iOS 빌드 체크
 - **제외**: Android 관련 파일 변경 시 실행 안 함
+
+**주의**: `main` 브랜치에는 `android.yml`만 있어야 합니다.
 
 ## 기존 워크플로우 문제 해결
 
