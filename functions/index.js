@@ -207,10 +207,11 @@ exports.onReportCreated = functions.firestore
 
 /**
  * 24시간 경과한 신고를 자동으로 처리하는 스케줄러
- * 하루 1회 실행 (매일 자정)
+ * 1시간마다 실행하여 24시간 내 조치를 보장
+ * Apple Guideline 2.1 준수: 신고 접수 후 24시간 내 콘텐츠 제거 및 사용자 추방
  */
 exports.checkPendingReports = functions.pubsub
-  .schedule('0 0 * * *') // 매일 자정 (00:00) 실행
+  .schedule('0 * * * *') // 매시간 정각 (00분) 실행
   .timeZone('Asia/Seoul')
   .onRun(async (context) => {
     console.log('🕐 신고 자동 처리 스케줄러 실행 시작');

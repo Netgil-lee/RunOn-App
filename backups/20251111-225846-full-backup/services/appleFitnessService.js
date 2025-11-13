@@ -685,20 +685,9 @@ class AppleFitnessService {
 
       console.log(`📊 [AppleFitnessService] 조회된 워크아웃 수: ${workouts.length}`);
       console.log('🔍 [AppleFitnessService] 조회된 워크아웃 샘플:', JSON.stringify(workouts.slice(0, 2), null, 2));
-      
-      // 소스 앱 정보 로깅 (나이키런클럽, 가민커넥트 등 확인용)
-      if (workouts.length > 0) {
-        console.log('🔍 [AppleFitnessService] 워크아웃 소스 앱 정보:', workouts.map(w => ({
-          sourceName: w.sourceName || w.source || '알 수 없음',
-          sourceRevision: w.sourceRevision,
-          activityName: w.activityName,
-          start: w.start || w.startDate
-        })));
-      }
 
       // 러닝 워크아웃만 필터링 및 가장 가까운 워크아웃 선택
       // react-native-health의 getSamples는 activityId 또는 activityName을 반환합니다
-      // 소스 앱을 구분하지 않고 모든 러닝 워크아웃을 포함 (나이키런클럽, 가민커넥트 등)
       const runningWorkouts = workouts.filter(workout => {
         // 워크아웃 타입이 Running인지 확인
         // react-native-health는 activityId (숫자) 또는 activityName (문자열)을 반환
@@ -840,7 +829,6 @@ class AppleFitnessService {
 
       console.log('✅ [AppleFitnessService] 매칭되는 워크아웃 발견:', {
         워크아웃: closestWorkout,
-        소스앱: closestWorkout.sourceName || closestWorkout.source || '알 수 없음',
         시작시간: {
           로컬: matchedWorkoutStartTime.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
           ISO: matchedWorkoutStartTime.toISOString(),

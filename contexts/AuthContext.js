@@ -3,7 +3,8 @@ import { auth } from '../config/firebase';
 import {
   signOut,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  signInAnonymously
 } from 'firebase/auth';
 import { doc, setDoc, updateDoc, getFirestore, getDoc, serverTimestamp } from 'firebase/firestore';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
@@ -466,6 +467,8 @@ export const AuthProvider = ({ children, isDemoMode = false }) => {
     }
   };
 
+  // ⚠️ APPLE 심사용 데모 모드 - 심사 완료 후 삭제 필요
+  // 제거 가이드: DEMO_MODE_REMOVAL_GUIDE.md 참조
   // 데모 모드 로그인 함수
   const loginAsDemo = async () => {
     try {
@@ -473,6 +476,36 @@ export const AuthProvider = ({ children, isDemoMode = false }) => {
       
       const demoUserId = 'demo-user-123456789';
       const db = getFirestore();
+      
+      // Firebase Auth에 익명 로그인 (데모 계정용)
+      // 기존 로그인 상태 확인
+      let currentUser = auth.currentUser;
+      
+      // 이미 로그인되어 있고 데모 계정이 아니면 로그아웃
+      if (currentUser && currentUser.uid !== demoUserId) {
+        await signOut(auth);
+        currentUser = null;
+      }
+      
+      // 데모 계정으로 로그인되어 있지 않으면 익명 로그인
+      if (!currentUser || currentUser.uid !== demoUserId) {
+        try {
+          // 익명 로그인 (UID는 자동 생성되지만, Firestore에 데모 사용자 데이터를 저장)
+          const userCredential = await signInAnonymously(auth);
+          currentUser = userCredential.user;
+          console.log('✅ Firebase Auth 익명 로그인 완료:', currentUser.uid);
+        } catch (authError) {
+          // 익명 인증이 비활성화된 경우 오류 처리
+          if (authError.code === 'auth/admin-restricted-operation') {
+            console.error('❌ 익명 인증이 비활성화되어 있습니다.');
+            console.error('📋 해결 방법: Firebase Console → Authentication → Sign-in method → 익명 → 사용 설정');
+            console.error('📖 자세한 가이드: FIREBASE_ANONYMOUS_AUTH_SETUP.md 참조');
+            throw new Error('익명 인증이 비활성화되어 있습니다. Firebase Console에서 익명 인증을 활성화해주세요.');
+          }
+          throw authError;
+        }
+      }
+      
       const userRef = doc(db, 'users', demoUserId);
       
       // Firestore에서 데모 사용자 데이터 가져오기
@@ -530,11 +563,21 @@ export const AuthProvider = ({ children, isDemoMode = false }) => {
             '2024-10': 2,
             '2024-09': 3
           },
-          isDemo: true
+          isDemo: true,
+          // Firebase Auth UID 매핑 (익명 로그인 UID를 데모 사용자 ID와 연결)
+          authUid: currentUser.uid
         };
         
         await setDoc(userRef, demoUserData, { merge: true });
         userSnap = await getDoc(userRef);
+      } else {
+        // 기존 데이터에 authUid 업데이트
+        const existingData = userSnap.data();
+        if (existingData.authUid !== currentUser.uid) {
+          await updateDoc(userRef, {
+            authUid: currentUser.uid
+          });
+        }
       }
       
       // 데모 사용자 객체 생성
@@ -546,6 +589,7 @@ export const AuthProvider = ({ children, isDemoMode = false }) => {
         phoneNumber: userData.phoneNumber || '010-0000-0000',
         photoURL: userData.profileImage || null,
         isDemo: true,
+        authUid: currentUser.uid, // Firebase Auth UID 추가
         ...userData
       };
       
@@ -554,6 +598,11 @@ export const AuthProvider = ({ children, isDemoMode = false }) => {
       setOnboardingCompleted(true);
       
       console.log('✅ 데모 모드 로그인 완료');
+      console.log('📊 데모 계정 정보:', {
+        demoUserId,
+        authUid: currentUser.uid,
+        displayName: demoUser.displayName
+      });
       
       return demoUser;
     } catch (error) {
