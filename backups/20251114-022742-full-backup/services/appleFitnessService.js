@@ -101,7 +101,9 @@ class AppleFitnessService {
                 P.ActiveEnergyBurned || 'ActiveEnergyBurned',
                 P.HeartRate || 'HeartRate',
                 P.Workout || 'Workout',
-                P.StepCount || 'StepCount'
+                P.StepCount || 'StepCount',
+                // WorkoutRoute 권한 추가
+                P.WorkoutRoute || 'WorkoutRoute'
               ],
               write: []
             }
@@ -226,6 +228,7 @@ class AppleFitnessService {
       }
 
       // 권한 요청 옵션(상수 기반)
+      // WorkoutRoute는 Workout과 함께 읽을 수 있지만, 명시적으로 요청하는 것이 좋음
       const options = {
         permissions: {
           read: [
@@ -233,7 +236,9 @@ class AppleFitnessService {
             (AppleHealthKit?.Constants?.Permissions?.DistanceWalkingRunning) || 'DistanceWalkingRunning',
             (AppleHealthKit?.Constants?.Permissions?.ActiveEnergyBurned) || 'ActiveEnergyBurned',
             (AppleHealthKit?.Constants?.Permissions?.HeartRate) || 'HeartRate',
-            (AppleHealthKit?.Constants?.Permissions?.Workout) || 'Workout'
+            (AppleHealthKit?.Constants?.Permissions?.Workout) || 'Workout',
+            // WorkoutRoute 권한 추가 (일부 라이브러리에서는 Workout만으로도 가능하지만 명시적으로 추가)
+            (AppleHealthKit?.Constants?.Permissions?.WorkoutRoute) || 'WorkoutRoute'
           ],
           write: []
         }
@@ -680,9 +685,20 @@ class AppleFitnessService {
 
       console.log(`📊 [AppleFitnessService] 조회된 워크아웃 수: ${workouts.length}`);
       console.log('🔍 [AppleFitnessService] 조회된 워크아웃 샘플:', JSON.stringify(workouts.slice(0, 2), null, 2));
+      
+      // 소스 앱 정보 로깅 (나이키런클럽, 가민커넥트 등 확인용)
+      if (workouts.length > 0) {
+        console.log('🔍 [AppleFitnessService] 워크아웃 소스 앱 정보:', workouts.map(w => ({
+          sourceName: w.sourceName || w.source || '알 수 없음',
+          sourceRevision: w.sourceRevision,
+          activityName: w.activityName,
+          start: w.start || w.startDate
+        })));
+      }
 
       // 러닝 워크아웃만 필터링 및 가장 가까운 워크아웃 선택
       // react-native-health의 getSamples는 activityId 또는 activityName을 반환합니다
+      // 소스 앱을 구분하지 않고 모든 러닝 워크아웃을 포함 (나이키런클럽, 가민커넥트 등)
       const runningWorkouts = workouts.filter(workout => {
         // 워크아웃 타입이 Running인지 확인
         // react-native-health는 activityId (숫자) 또는 activityName (문자열)을 반환
@@ -824,6 +840,7 @@ class AppleFitnessService {
 
       console.log('✅ [AppleFitnessService] 매칭되는 워크아웃 발견:', {
         워크아웃: closestWorkout,
+        소스앱: closestWorkout.sourceName || closestWorkout.source || '알 수 없음',
         시작시간: {
           로컬: matchedWorkoutStartTime.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
           ISO: matchedWorkoutStartTime.toISOString(),
@@ -962,10 +979,231 @@ class AppleFitnessService {
       });
 
       // 이동경로 좌표 조회
-      // react-native-health의 getSamples는 UUID를 반환하지 않으므로
-      // getWorkoutRouteSamples 대신 getRouteCoordinates를 사용 (시간 범위 기반)
+      // 워크아웃의 이동경로를 가져오려면 getWorkoutRouteSamples를 사용해야 함
+      // 하지만 getSamples는 UUID를 반환하지 않을 수 있으므로, getAnchoredWorkouts를 사용하여 UUID를 얻어야 함
       console.log('🔍 [AppleFitnessService] 이동경로 좌표 조회 시작');
-      const routeCoordinates = await this.getRouteCoordinates(matchedWorkoutStartTime, workoutEndDate);
+      console.log('🔍 [AppleFitnessService] closestWorkout 객체 확인:', {
+        id: closestWorkout.id,
+        uuid: closestWorkout.uuid,
+        workoutId: closestWorkout.workoutId,
+        identifier: closestWorkout.identifier,
+        모든필드: Object.keys(closestWorkout)
+      });
+      
+      // 워크아웃 UUID 확인 (여러 가능한 필드명 확인)
+      let workoutUUID = closestWorkout.id || 
+                       closestWorkout.uuid || 
+                       closestWorkout.workoutId ||
+                       closestWorkout.identifier;
+      
+      // getSamples가 UUID를 반환하지 않는 경우, getAnchoredWorkouts를 사용하여 UUID 얻기
+      if (!workoutUUID && AppleHealthKit?.getAnchoredWorkouts) {
+        console.log('🔍 [AppleFitnessService] getSamples에 UUID가 없어 getAnchoredWorkouts로 UUID 조회 시도');
+        try {
+          const anchoredResults = await new Promise((resolve, reject) => {
+            AppleHealthKit.getAnchoredWorkouts(
+              {
+                startDate: matchedWorkoutStartTime.toISOString(),
+                endDate: workoutEndDate.toISOString(),
+                type: 'Running', // Running 타입만 조회
+              },
+              (error, results) => {
+                if (error) {
+                  console.warn('⚠️ [AppleFitnessService] getAnchoredWorkouts 실패:', error);
+                  resolve(null);
+                  return;
+                }
+                resolve(results);
+              }
+            );
+          });
+          
+          if (anchoredResults && anchoredResults.data && Array.isArray(anchoredResults.data)) {
+            // 매칭된 워크아웃과 같은 시간의 워크아웃 찾기
+            const matchingAnchoredWorkout = anchoredResults.data.find(workout => {
+              const anchoredStart = workout.start ? new Date(workout.start) : null;
+              if (!anchoredStart) return false;
+              const timeDiff = Math.abs(anchoredStart.getTime() - matchedWorkoutStartTime.getTime());
+              return timeDiff < 60 * 1000; // 1분 이내
+            });
+            
+            if (matchingAnchoredWorkout) {
+              workoutUUID = matchingAnchoredWorkout.id || 
+                           matchingAnchoredWorkout.uuid || 
+                           matchingAnchoredWorkout.workoutId ||
+                           matchingAnchoredWorkout.identifier;
+              console.log('✅ [AppleFitnessService] getAnchoredWorkouts에서 UUID 찾음:', workoutUUID);
+            }
+          }
+        } catch (error) {
+          console.error('❌ [AppleFitnessService] getAnchoredWorkouts 예외:', error);
+        }
+      }
+      
+      let routeCoordinates = [];
+      
+      if (workoutUUID && AppleHealthKit?.getWorkoutRouteSamples) {
+        // getWorkoutRouteSamples를 사용하여 워크아웃의 이동경로 가져오기
+        console.log('🔍 [AppleFitnessService] getWorkoutRouteSamples 사용, UUID:', workoutUUID);
+        
+        // WorkoutRoute 권한 확인 및 재요청
+        try {
+          // 권한 확인
+          const hasPermission = await new Promise((resolve) => {
+            if (AppleHealthKit.getAuthStatus) {
+              AppleHealthKit.getAuthStatus(
+                {
+                  type: AppleHealthKit?.Constants?.Permissions?.WorkoutRoute || 'WorkoutRoute'
+                },
+                (error, status) => {
+                  if (error) {
+                    console.warn('⚠️ [AppleFitnessService] WorkoutRoute 권한 확인 실패:', error);
+                    resolve(false);
+                    return;
+                  }
+                  // status: 0 = notDetermined, 1 = sharingDenied, 2 = sharingAuthorized
+                  const isAuthorized = status === 2;
+                  console.log('🔍 [AppleFitnessService] WorkoutRoute 권한 상태:', status, isAuthorized ? '허용됨' : '거부됨');
+                  resolve(isAuthorized);
+                }
+              );
+            } else {
+              resolve(true); // getAuthStatus가 없으면 권한 확인 불가, 시도해봄
+            }
+          });
+          
+          // 권한이 없으면 재요청
+          if (!hasPermission) {
+            console.log('🔍 [AppleFitnessService] WorkoutRoute 권한이 없어 재요청 시도');
+            await this.requestPermissions();
+          }
+        } catch (error) {
+          console.warn('⚠️ [AppleFitnessService] 권한 확인 중 오류:', error);
+        }
+        
+        try {
+          routeCoordinates = await new Promise((resolve) => {
+            AppleHealthKit.getWorkoutRouteSamples(
+              {
+                id: workoutUUID,
+              },
+              (error, results) => {
+                if (error) {
+                  console.warn('⚠️ [AppleFitnessService] getWorkoutRouteSamples 실패:', error);
+                  console.warn('⚠️ [AppleFitnessService] 에러 상세:', {
+                    message: error?.message,
+                    code: error?.code,
+                    domain: error?.domain
+                  });
+                  // 실패 시 시간 범위 기반 조회로 폴백
+                  resolve([]);
+                  return;
+                }
+                
+                // iOS 버전에 따라 응답 구조가 다를 수 있으므로 다양한 구조 처리
+                console.log('🔍 [AppleFitnessService] getWorkoutRouteSamples 응답 구조 확인:', {
+                  resultsType: typeof results,
+                  resultsIsArray: Array.isArray(results),
+                  resultsKeys: results ? Object.keys(results) : null,
+                  hasData: results?.data !== undefined,
+                  dataType: typeof results?.data,
+                  dataIsArray: Array.isArray(results?.data),
+                  dataKeys: results?.data ? Object.keys(results?.data) : null,
+                  hasLocations: results?.data?.locations !== undefined,
+                  locationsType: typeof results?.data?.locations,
+                  locationsIsArray: Array.isArray(results?.data?.locations),
+                  locationsLength: results?.data?.locations?.length,
+                  hasDirectLocations: results?.locations !== undefined,
+                  directLocationsType: typeof results?.locations,
+                  directLocationsIsArray: Array.isArray(results?.locations),
+                  directLocationsLength: results?.locations?.length
+                });
+                
+                // 다양한 응답 구조 처리
+                let locations = null;
+                
+                // 1. iOS 18.x 이전 구조: results.data.locations
+                if (results?.data?.locations && Array.isArray(results.data.locations)) {
+                  locations = results.data.locations;
+                  console.log('✅ [AppleFitnessService] iOS 18.x 이전 구조 감지: results.data.locations');
+                }
+                // 2. iOS 18.x 이후 구조: results.locations (data 없이)
+                else if (results?.locations && Array.isArray(results.locations)) {
+                  locations = results.locations;
+                  console.log('✅ [AppleFitnessService] iOS 18.x 이후 구조 감지: results.locations');
+                }
+                // 3. results.data가 직접 배열인 경우
+                else if (results?.data && Array.isArray(results.data)) {
+                  locations = results.data;
+                  console.log('✅ [AppleFitnessService] results.data가 배열 구조 감지');
+                }
+                // 4. results가 직접 배열인 경우
+                else if (Array.isArray(results) && results.length > 0) {
+                  locations = results;
+                  console.log('✅ [AppleFitnessService] results가 직접 배열 구조 감지');
+                }
+                // 5. results.data가 객체이고 내부에 locations가 있는 경우
+                else if (results?.data && typeof results.data === 'object' && !Array.isArray(results.data)) {
+                  // data 객체 내부의 모든 배열 필드 확인
+                  const dataKeys = Object.keys(results.data);
+                  for (const key of dataKeys) {
+                    if (Array.isArray(results.data[key]) && results.data[key].length > 0) {
+                      // 첫 번째 요소가 좌표 형태인지 확인
+                      const firstItem = results.data[key][0];
+                      if (firstItem && (firstItem.latitude !== undefined || firstItem.lat !== undefined)) {
+                        locations = results.data[key];
+                        console.log(`✅ [AppleFitnessService] results.data.${key}에서 좌표 배열 발견`);
+                        break;
+                      }
+                    }
+                  }
+                }
+                
+                if (!locations || !Array.isArray(locations) || locations.length === 0) {
+                  console.log('ℹ️ [AppleFitnessService] 이동경로 데이터가 없습니다. 응답 구조:', JSON.stringify(results, null, 2));
+                  resolve([]);
+                  return;
+                }
+                
+                // locations 배열을 좌표 배열로 변환
+                // 다양한 필드명 지원 (latitude/longitude, lat/lng, lat/lon 등)
+                const coordinates = locations
+                  .filter(location => {
+                    // 다양한 좌표 필드명 확인
+                    const hasLat = location.latitude !== undefined || location.lat !== undefined;
+                    const hasLng = location.longitude !== undefined || location.lng !== undefined || location.lon !== undefined;
+                    return hasLat && hasLng;
+                  })
+                  .map(location => {
+                    // 다양한 필드명에서 좌표 추출
+                    const lat = location.latitude || location.lat;
+                    const lng = location.longitude || location.lng || location.lon;
+                    return {
+                      latitude: parseFloat(lat),
+                      longitude: parseFloat(lng)
+                    };
+                  })
+                  .filter(coord => !isNaN(coord.latitude) && !isNaN(coord.longitude));
+                
+                console.log(`✅ [AppleFitnessService] 이동경로 좌표 ${coordinates.length}개 조회됨 (getWorkoutRouteSamples)`);
+                if (coordinates.length === 0) {
+                  console.warn('⚠️ [AppleFitnessService] 유효한 좌표가 없습니다. 원본 locations:', locations.slice(0, 3));
+                }
+                resolve(coordinates);
+              }
+            );
+          });
+        } catch (error) {
+          console.error('❌ [AppleFitnessService] getWorkoutRouteSamples 예외:', error);
+        }
+      }
+      
+      // UUID가 없거나 getWorkoutRouteSamples가 실패한 경우, 시간 범위 기반 조회로 폴백
+      if (!routeCoordinates || routeCoordinates.length === 0) {
+        console.log('🔍 [AppleFitnessService] 시간 범위 기반 이동경로 조회로 폴백');
+        routeCoordinates = await this.getRouteCoordinates(matchedWorkoutStartTime, workoutEndDate);
+      }
+      
       console.log('🔍 [AppleFitnessService] 이동경로 좌표 조회 완료:', routeCoordinates ? `${routeCoordinates.length}개` : '0개');
 
       const result = {

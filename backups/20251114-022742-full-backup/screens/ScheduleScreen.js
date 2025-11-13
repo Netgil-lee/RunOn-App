@@ -1746,7 +1746,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const canProceed = () => {
     switch (currentStep) {
       case 1: return eventType && title.trim();
-      case 2: return selectedLocation && location && dateString && timeString;
+      case 2: return selectedLocation && location && dateString && timeString; // 마커와 상세 위치 설명은 handleNext에서 체크
       case 3: return distance && minPace && maxPace && difficulty;
       case 4: return maxParticipants && parseInt(maxParticipants) >= 1 && parseInt(maxParticipants) <= 5; // 호스트 제외 최대 5명
       default: return false;
@@ -1754,10 +1754,54 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   };
 
   const handleNext = () => {
-    if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
+    // 2단계에서 지도 클릭 및 상세 위치 설명 필수 체크
+    if (currentStep === 2) {
+      if (!hasCustomMarker) {
+        Alert.alert(
+          '모임장소를 정해주세요',
+          '지도를 클릭하여 상세한 모임장소를 정해주세요.',
+          [{ text: '확인', style: 'default' }]
+        );
+        return;
+      }
+      
+      if (!customLocation.trim()) {
+        Alert.alert(
+          '상세 위치 설명을 입력해주세요',
+          '지도에 표시한 빨간 마커의 구체적인 위치를 설명해주세요.',
+          [{ text: '확인', style: 'default' }]
+        );
+        return;
+      }
+    }
+    
+    if (canProceed()) {
+      if (currentStep < 4) {
+        setCurrentStep(currentStep + 1);
+      } else {
+        handleCreateEvent();
+      }
     } else {
-      handleCreateEvent();
+      // 다른 단계에서도 유효성 검사 실패 시 얼러트 표시
+      if (currentStep === 1) {
+        Alert.alert(
+          '⚠️ 입력 필요',
+          '러닝 유형과 모임 제목을 입력해주세요.',
+          [{ text: '확인', style: 'default' }]
+        );
+      } else if (currentStep === 3) {
+        Alert.alert(
+          '⚠️ 입력 필요',
+          '거리, 페이스, 난이도를 모두 입력해주세요.',
+          [{ text: '확인', style: 'default' }]
+        );
+      } else if (currentStep === 4) {
+        Alert.alert(
+          '⚠️ 입력 필요',
+          '최대 참여 인원을 입력해주세요. (1-5명)',
+          [{ text: '확인', style: 'default' }]
+        );
+      }
     }
   };
 
@@ -2773,7 +2817,10 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const memoizedInlineMap = useMemo(() => (
     <React.Fragment>
       <View style={styles.mapGuideSection}>
-        <Text style={styles.mapGuideText}>지도를 클릭하여 상세한 모임장소를 정하세요!</Text>
+        <View style={styles.mapGuideTextContainer}>
+          <Text style={styles.requiredMark}>*</Text>
+          <Text style={styles.mapGuideText}>지도를 클릭하여 상세한 모임장소를 정하세요!</Text>
+        </View>
       </View>
       <InlineKakaoMapComponent 
         key={`map-${selectedLocationData?.id}-${selectedLocationType}`}
@@ -4687,12 +4734,22 @@ const styles = StyleSheet.create({
   mapGuideSection: {
     marginBottom: 8,
   },
+  mapGuideTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
   mapGuideText: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.TEXT,
     textAlign: 'left',
-    marginTop: 10,
+  },
+  requiredMark: {
+    color: COLORS.PRIMARY,
+    fontSize: 18,
+    fontWeight: '600',
+    marginRight: 4,
   },
   
   // 인라인 카카오맵 스타일
@@ -4783,7 +4840,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333333',
     borderRadius: 8,
-    padding: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 14,
     fontSize: 16,
     color: COLORS.TEXT,
     minHeight: 50,

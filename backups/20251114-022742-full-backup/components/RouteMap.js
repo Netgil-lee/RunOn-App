@@ -40,7 +40,7 @@ const RouteMap = ({ coordinates, width = 200, height = 100 }) => {
           points={svgCoordinates}
           fill="none"
           stroke="#3AF8FF" // 프라이머리 색상
-          strokeWidth="6"
+          strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
         />

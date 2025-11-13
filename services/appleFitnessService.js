@@ -1100,21 +1100,95 @@ class AppleFitnessService {
                   return;
                 }
                 
-                if (!results || !results.data || !results.data.locations || !Array.isArray(results.data.locations)) {
-                  console.log('ℹ️ [AppleFitnessService] 이동경로 데이터가 없습니다.');
+                // iOS 버전에 따라 응답 구조가 다를 수 있으므로 다양한 구조 처리
+                console.log('🔍 [AppleFitnessService] getWorkoutRouteSamples 응답 구조 확인:', {
+                  resultsType: typeof results,
+                  resultsIsArray: Array.isArray(results),
+                  resultsKeys: results ? Object.keys(results) : null,
+                  hasData: results?.data !== undefined,
+                  dataType: typeof results?.data,
+                  dataIsArray: Array.isArray(results?.data),
+                  dataKeys: results?.data ? Object.keys(results?.data) : null,
+                  hasLocations: results?.data?.locations !== undefined,
+                  locationsType: typeof results?.data?.locations,
+                  locationsIsArray: Array.isArray(results?.data?.locations),
+                  locationsLength: results?.data?.locations?.length,
+                  hasDirectLocations: results?.locations !== undefined,
+                  directLocationsType: typeof results?.locations,
+                  directLocationsIsArray: Array.isArray(results?.locations),
+                  directLocationsLength: results?.locations?.length
+                });
+                
+                // 다양한 응답 구조 처리
+                let locations = null;
+                
+                // 1. iOS 18.x 이전 구조: results.data.locations
+                if (results?.data?.locations && Array.isArray(results.data.locations)) {
+                  locations = results.data.locations;
+                  console.log('✅ [AppleFitnessService] iOS 18.x 이전 구조 감지: results.data.locations');
+                }
+                // 2. iOS 18.x 이후 구조: results.locations (data 없이)
+                else if (results?.locations && Array.isArray(results.locations)) {
+                  locations = results.locations;
+                  console.log('✅ [AppleFitnessService] iOS 18.x 이후 구조 감지: results.locations');
+                }
+                // 3. results.data가 직접 배열인 경우
+                else if (results?.data && Array.isArray(results.data)) {
+                  locations = results.data;
+                  console.log('✅ [AppleFitnessService] results.data가 배열 구조 감지');
+                }
+                // 4. results가 직접 배열인 경우
+                else if (Array.isArray(results) && results.length > 0) {
+                  locations = results;
+                  console.log('✅ [AppleFitnessService] results가 직접 배열 구조 감지');
+                }
+                // 5. results.data가 객체이고 내부에 locations가 있는 경우
+                else if (results?.data && typeof results.data === 'object' && !Array.isArray(results.data)) {
+                  // data 객체 내부의 모든 배열 필드 확인
+                  const dataKeys = Object.keys(results.data);
+                  for (const key of dataKeys) {
+                    if (Array.isArray(results.data[key]) && results.data[key].length > 0) {
+                      // 첫 번째 요소가 좌표 형태인지 확인
+                      const firstItem = results.data[key][0];
+                      if (firstItem && (firstItem.latitude !== undefined || firstItem.lat !== undefined)) {
+                        locations = results.data[key];
+                        console.log(`✅ [AppleFitnessService] results.data.${key}에서 좌표 배열 발견`);
+                        break;
+                      }
+                    }
+                  }
+                }
+                
+                if (!locations || !Array.isArray(locations) || locations.length === 0) {
+                  console.log('ℹ️ [AppleFitnessService] 이동경로 데이터가 없습니다. 응답 구조:', JSON.stringify(results, null, 2));
                   resolve([]);
                   return;
                 }
                 
                 // locations 배열을 좌표 배열로 변환
-                const coordinates = results.data.locations
-                  .filter(location => location.latitude && location.longitude)
-                  .map(location => ({
-                    latitude: parseFloat(location.latitude),
-                    longitude: parseFloat(location.longitude)
-                  }));
+                // 다양한 필드명 지원 (latitude/longitude, lat/lng, lat/lon 등)
+                const coordinates = locations
+                  .filter(location => {
+                    // 다양한 좌표 필드명 확인
+                    const hasLat = location.latitude !== undefined || location.lat !== undefined;
+                    const hasLng = location.longitude !== undefined || location.lng !== undefined || location.lon !== undefined;
+                    return hasLat && hasLng;
+                  })
+                  .map(location => {
+                    // 다양한 필드명에서 좌표 추출
+                    const lat = location.latitude || location.lat;
+                    const lng = location.longitude || location.lng || location.lon;
+                    return {
+                      latitude: parseFloat(lat),
+                      longitude: parseFloat(lng)
+                    };
+                  })
+                  .filter(coord => !isNaN(coord.latitude) && !isNaN(coord.longitude));
                 
                 console.log(`✅ [AppleFitnessService] 이동경로 좌표 ${coordinates.length}개 조회됨 (getWorkoutRouteSamples)`);
+                if (coordinates.length === 0) {
+                  console.warn('⚠️ [AppleFitnessService] 유효한 좌표가 없습니다. 원본 locations:', locations.slice(0, 3));
+                }
                 resolve(coordinates);
               }
             );

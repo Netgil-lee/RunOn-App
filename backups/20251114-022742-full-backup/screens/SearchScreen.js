@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Keyboard,
   Animated,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -80,12 +81,20 @@ const SearchScreen = ({ navigation }) => {
   }, [user?.uid]);
 
 
-  // 모든 모임 데이터 통합
+  // 모든 모임 데이터 통합 (중복 제거 및 종료된 모임 제외)
   const allEvents = [
     ...userCreatedEvents,
     ...userJoinedEvents,
     ...endedEvents,
   ];
+  
+  // 중복 제거: event.id를 기준으로 중복 제거
+  const uniqueEvents = allEvents.filter((event, index, self) =>
+    index === self.findIndex((e) => e.id === event.id)
+  );
+  
+  // 종료된 모임 제외
+  const activeEvents = uniqueEvents.filter(event => event.status !== 'ended');
 
   // 검색 실행
   const performSearch = (query) => {
@@ -101,13 +110,21 @@ const SearchScreen = ({ navigation }) => {
     const searchTerm = query.toLowerCase().trim();
     
     // 모임 검색 결과 (블랙리스트 필터링 적용)
-    const filteredEvents = blacklistService.filterEventsByBlacklist(allEvents, blacklist);
+    const filteredEvents = blacklistService.filterEventsByBlacklist(activeEvents, blacklist);
     const eventResults = filteredEvents.filter(event => {
       // 제목 검색
       const titleMatch = event.title?.toLowerCase().includes(searchTerm);
       
-      // 태그 검색
-      const hashtags = event.hashtags?.toLowerCase() || '';
+      // 태그 검색 - hashtags가 문자열인지 확인
+      let hashtags = '';
+      if (event.hashtags) {
+        if (typeof event.hashtags === 'string') {
+          hashtags = event.hashtags.toLowerCase();
+        } else if (Array.isArray(event.hashtags)) {
+          // 배열인 경우 문자열로 변환
+          hashtags = event.hashtags.join(' ').toLowerCase();
+        }
+      }
       const tagMatch = hashtags.includes(searchTerm);
       
       // 장소 검색 (한강공원, 강변)
@@ -130,8 +147,16 @@ const SearchScreen = ({ navigation }) => {
       // 내용 검색
       const contentMatch = post.content?.toLowerCase().includes(searchTerm);
       
-      // 태그 검색
-      const hashtags = post.hashtags?.toLowerCase() || '';
+      // 태그 검색 - hashtags가 문자열인지 확인
+      let hashtags = '';
+      if (post.hashtags) {
+        if (typeof post.hashtags === 'string') {
+          hashtags = post.hashtags.toLowerCase();
+        } else if (Array.isArray(post.hashtags)) {
+          // 배열인 경우 문자열로 변환
+          hashtags = post.hashtags.join(' ').toLowerCase();
+        }
+      }
       const tagMatch = hashtags.includes(searchTerm);
       
       // 카테고리 검색
@@ -224,8 +249,27 @@ const SearchScreen = ({ navigation }) => {
   // 게시글 검색 결과 렌더링
   const renderPostResult = (post, index) => {
     const parseHashtags = (hashtagString) => {
-      if (!hashtagString || !hashtagString.trim()) return [];
+      // undefined, null, 빈 문자열 체크
+      if (!hashtagString) return [];
       
+      // 이미 배열인 경우 그대로 반환
+      if (Array.isArray(hashtagString)) {
+        return hashtagString;
+      }
+      
+      // 문자열이 아닌 경우 빈 배열 반환
+      if (typeof hashtagString !== 'string') {
+        return [];
+      }
+      
+      // trim() 함수가 없는 경우 처리
+      if (typeof hashtagString.trim !== 'function') {
+        return [];
+      }
+      
+      if (!hashtagString.trim()) return [];
+      
+      // 문자열인 경우 파싱
       const hashtags = hashtagString
         .split(/\s+/)
         .filter(tag => tag.startsWith('#') && tag.length > 1)
@@ -259,7 +303,6 @@ const SearchScreen = ({ navigation }) => {
 
     return (
       <TouchableOpacity
-        key={post.id || index}
         style={styles.searchResultCard}
         onPress={() => {
           // 게시글 상세 화면으로 이동 (PostDetailScreen이 있다고 가정)
@@ -299,9 +342,23 @@ const SearchScreen = ({ navigation }) => {
         <View style={styles.resultFooter}>
           <View style={styles.resultOrganizerInfo}>
             <View style={styles.resultOrganizerAvatar}>
-              <Text style={styles.resultOrganizerAvatarText}>
-                {post.author ? post.author.charAt(0) : '작'}
-              </Text>
+              {post.authorImage && !post.authorImage.startsWith('file://') ? (
+                <Image 
+                  source={{ uri: post.authorImage }} 
+                  style={styles.resultOrganizerAvatarImage}
+                  resizeMode="cover"
+                />
+              ) : post.authorProfile?.profileImage && !post.authorProfile.profileImage.startsWith('file://') ? (
+                <Image 
+                  source={{ uri: post.authorProfile.profileImage }} 
+                  style={styles.resultOrganizerAvatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.resultOrganizerAvatarText}>
+                  {post.author ? post.author.charAt(0) : '작'}
+                </Text>
+              )}
             </View>
             <Text style={styles.resultOrganizerName}>
               {post.author || '작성자'}
@@ -336,8 +393,27 @@ const SearchScreen = ({ navigation }) => {
     };
 
     const parseHashtags = (hashtagString) => {
-      if (!hashtagString || !hashtagString.trim()) return [];
+      // undefined, null, 빈 문자열 체크
+      if (!hashtagString) return [];
       
+      // 이미 배열인 경우 그대로 반환
+      if (Array.isArray(hashtagString)) {
+        return hashtagString;
+      }
+      
+      // 문자열이 아닌 경우 빈 배열 반환
+      if (typeof hashtagString !== 'string') {
+        return [];
+      }
+      
+      // trim() 함수가 없는 경우 처리
+      if (typeof hashtagString.trim !== 'function') {
+        return [];
+      }
+      
+      if (!hashtagString.trim()) return [];
+      
+      // 문자열인 경우 파싱
       const hashtags = hashtagString
         .split(/\s+/)
         .filter(tag => tag.startsWith('#') && tag.length > 1)
@@ -387,7 +463,6 @@ const SearchScreen = ({ navigation }) => {
 
     return (
       <TouchableOpacity
-        key={event.id || index}
         style={styles.searchResultCard}
         onPress={() => {
           // Date 객체를 문자열로 변환하여 직렬화 문제 해결
@@ -468,9 +543,17 @@ const SearchScreen = ({ navigation }) => {
         <View style={styles.resultFooter}>
           <View style={styles.resultOrganizerInfo}>
             <View style={styles.resultOrganizerAvatar}>
-              <Text style={styles.resultOrganizerAvatarText}>
-                {event.organizer ? event.organizer.charAt(0) : '나'}
-              </Text>
+              {event.organizerImage && !event.organizerImage.startsWith('file://') ? (
+                <Image 
+                  source={{ uri: event.organizerImage }} 
+                  style={styles.resultOrganizerAvatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.resultOrganizerAvatarText}>
+                  {event.organizer ? event.organizer.charAt(0) : '나'}
+                </Text>
+              )}
             </View>
             <Text style={styles.resultOrganizerName}>
               {event.organizer || '내가 만든 모임'}
@@ -635,7 +718,11 @@ const SearchScreen = ({ navigation }) => {
                   
                   {getFilteredResults().length > 0 ? (
                     <View style={styles.resultsList}>
-                      {getFilteredResults().map((item, index) => renderSearchResult(item, index))}
+                      {getFilteredResults().map((item, index) => (
+                        <View key={item.id ? `${item.resultType}-${item.id}` : `${item.resultType}-${index}`}>
+                          {renderSearchResult(item, index)}
+                        </View>
+                      ))}
                     </View>
                   ) : (
                     <View style={styles.noResultsContainer}>
@@ -906,6 +993,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
+    overflow: 'hidden',
+  },
+  resultOrganizerAvatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
   resultOrganizerAvatarText: {
     fontSize: 12,

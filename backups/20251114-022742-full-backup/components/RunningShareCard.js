@@ -48,7 +48,7 @@ const RunningShareCard = forwardRef(({
         {routeCoordinates && routeCoordinates.length > 0 && (
           <RouteMap 
             coordinates={routeCoordinates} 
-            width={200} 
+            width={170} 
             height={100} 
           />
         )}
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   locationSection: {
     alignItems: 'center',
     marginTop: 0,  
-    marginBottom: 15, // location과 Distance 사이 여백 늘림
+    marginBottom: 10, // location과 Distance 사이 여백 늘림
   },
   spotLabel: {
     fontSize: 12,
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 28,
-    fontWeight: 'normal',
+    fontWeight: 'bold',
     color: '#ffffff',
     fontFamily: 'Gold-Regular',
     textAlign: 'center',
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 30,
-    fontWeight: 'normal',
+    fontWeight: 'bold',
     color: '#ffffff',
     fontFamily: 'Gold-Regular',
     lineHeight: 28,
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 20,
     alignItems: 'center',
-    width: 200,
+    width: 170,
     height: 80,
   },
 });

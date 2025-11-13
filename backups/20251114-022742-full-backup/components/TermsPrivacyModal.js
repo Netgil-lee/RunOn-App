@@ -27,11 +27,11 @@ const TermsPrivacyModal = ({ visible, onClose, type }) => {
   const isChildSafety = type === 'child-safety';
   
   let title = '개인정보처리방침';
-  if (isTerms) title = '이용약관';
+  if (isTerms) title = '이용약관(EULA)';
   if (isChildSafety) title = '아동 안전 정책';
   
   const termsContent = `제1조 (목적)
-본 약관은 RunOn 앱(이하 "서비스")의 이용과 관련하여 회사와 이용자 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.
+본 이용약관(EULA: End User License Agreement)은 RunOn 앱(이하 "서비스")의 이용과 관련하여 회사와 이용자 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.
 
 제2조 (정의)
 1. "서비스"란 RunOn 앱을 통해 제공되는 모든 서비스를 의미합니다.

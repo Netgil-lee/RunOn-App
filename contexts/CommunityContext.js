@@ -4,6 +4,7 @@ import { Alert } from 'react-native';
 import { useNotificationSettings } from './NotificationSettingsContext';
 import { useAuth } from './AuthContext';
 import firestoreService from '../services/firestoreService'; // 추가: FirestoreService 임포트
+import blacklistService from '../services/blacklistService';
 
 const CommunityContext = createContext();
 
@@ -24,8 +25,57 @@ export const CommunityProvider = ({ children }) => {
   // 사용자 정보 캐시 (성능 최적화)
   const [userCache, setUserCache] = useState({});
   
+  // 차단된 사용자 목록 (블랙리스트)
+  const [blacklist, setBlacklist] = useState([]);
+  
   // Alert 표시된 알림 ID 추적 (중복 Alert 방지)
   const shownAlertIds = useRef(new Set());
+
+  // 차단된 사용자 목록 가져오기
+  useEffect(() => {
+    if (!user) {
+      setBlacklist([]);
+      return;
+    }
+
+    const fetchBlacklist = async () => {
+      try {
+        const blacklistData = await blacklistService.getBlacklist(user.uid);
+        setBlacklist(blacklistData);
+      } catch (error) {
+        console.error('차단 목록 조회 실패:', error);
+        setBlacklist([]);
+      }
+    };
+
+    fetchBlacklist();
+
+    // 실시간으로 차단 목록 업데이트
+    const unsubscribe = blacklistService.onBlacklistSnapshot(
+      user.uid,
+      (snapshot) => {
+        const blacklistData = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.isActive) {
+            blacklistData.push({
+              id: doc.id,
+              ...data,
+              blockedAt: data.blockedAt?.toDate?.() || data.blockedAt
+            });
+          }
+        });
+        setBlacklist(blacklistData);
+      },
+      (error) => {
+        console.error('차단 목록 실시간 업데이트 실패:', error);
+      }
+    );
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user]);
 
   // Firebase에서 실시간으로 게시글 데이터 가져오기
   useEffect(() => {
@@ -36,14 +86,28 @@ export const CommunityProvider = ({ children }) => {
     
     const unsubscribe = onSnapshot(postsQuery, async (snapshot) => {
       const postsData = [];
+      const blockedUserIds = blacklist.map(blocked => blocked.blockedUserId);
       
       for (const doc of snapshot.docs) {
         const postData = doc.data();
         
-        // 댓글의 사용자 정보 업데이트
+        // 차단된 사용자의 게시글은 필터링
+        if (postData.authorId && blockedUserIds.includes(postData.authorId)) {
+          continue; // 차단된 사용자의 게시글은 건너뛰기
+        }
+        
+        // 댓글의 사용자 정보 업데이트 및 차단된 사용자 댓글 필터링
         let processedComments = postData.comments || [];
         
         if (processedComments.length > 0) {
+          // 차단된 사용자의 댓글 필터링
+          processedComments = processedComments.filter(comment => {
+            if (comment.authorId && blockedUserIds.includes(comment.authorId)) {
+              return false; // 차단된 사용자의 댓글 제거
+            }
+            return true;
+          });
+          
           processedComments = await Promise.all(
             processedComments.map(async (comment) => {
               // authorId가 있는 모든 댓글에 대해 사용자 정보 확인
@@ -136,7 +200,7 @@ export const CommunityProvider = ({ children }) => {
     });
 
     return () => unsubscribe();
-  }, [user, db]);
+  }, [user, db, blacklist]);
 
   // 커뮤니티 알림 데이터 가져오기
   useEffect(() => {

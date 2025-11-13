@@ -21,6 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatRelativeTime } from '../utils/timestampUtils';
 import reportService from '../services/reportService';
 import contentFilterService from '../services/contentFilterService';
+import blacklistService from '../services/blacklistService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -58,6 +59,9 @@ const PostDetailScreen = ({ route, navigation }) => {
   const [showCommentReportModal, setShowCommentReportModal] = useState(false);
   const [selectedReportReason, setSelectedReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
+  const [shouldBlockPostAuthor, setShouldBlockPostAuthor] = useState(false);
+  const [shouldBlockCommentAuthor, setShouldBlockCommentAuthor] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
   const [currentPost, setCurrentPost] = useState({
     id: safePost.id || '',
     title: safePost.title || '',
@@ -76,10 +80,52 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   // 작성자 프로필 정보 상태
   const [authorProfile, setAuthorProfile] = useState(null);
+  
+  // 차단된 사용자 목록 상태
+  const [blacklist, setBlacklist] = useState([]);
 
   // 디버깅 로그 (필요시에만 활성화)
   // console.log('🔍 PostDetailScreen - 받은 post 데이터:', post);
   // console.log('🔍 PostDetailScreen - 안전 처리된 post:', safePost);
+
+  // 차단된 사용자 목록 가져오기
+  useEffect(() => {
+    if (!user) {
+      setBlacklist([]);
+      return;
+    }
+
+    const fetchBlacklist = async () => {
+      try {
+        const blacklistData = await blacklistService.getBlacklist(user.uid);
+        setBlacklist(blacklistData);
+      } catch (error) {
+        console.error('차단 목록 조회 실패:', error);
+        setBlacklist([]);
+      }
+    };
+
+    fetchBlacklist();
+  }, [user]);
+
+  // 차단된 사용자의 게시글이면 뒤로 가기
+  useEffect(() => {
+    if (!user || !currentPost.authorId || blacklist.length === 0) return;
+
+    const blockedUserIds = blacklist.map(blocked => blocked.blockedUserId);
+    if (blockedUserIds.includes(currentPost.authorId)) {
+      Alert.alert(
+        '차단된 사용자',
+        '차단한 사용자의 게시글은 볼 수 없습니다.',
+        [
+          {
+            text: '확인',
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
+    }
+  }, [currentPost.authorId, blacklist, user, navigation]);
 
   // 작성자 프로필 정보 가져오기
   useEffect(() => {
@@ -463,6 +509,59 @@ const PostDetailScreen = ({ route, navigation }) => {
     setShowPostReportModal(true);
     setSelectedReportReason('');
     setReportDescription('');
+    setShouldBlockPostAuthor(false);
+  };
+
+  // 댓글 작성자 프로필로 이동
+  const handleCommentAuthorPress = async (comment) => {
+    if (!comment.authorId || comment.authorId === user?.uid) {
+      return; // 익명이거나 본인 댓글인 경우 처리하지 않음
+    }
+
+    try {
+      // Firestore에서 사용자 프로필 정보 가져오기
+      const firestoreService = require('../services/firestoreService').default;
+      const userProfile = await firestoreService.getUserProfile(comment.authorId);
+      
+      if (userProfile) {
+        const participant = {
+          id: comment.authorId,
+          name: comment.author || userProfile.displayName || '사용자',
+          profileImage: userProfile.photoURL || userProfile.profileImage || null,
+          level: userProfile.level || 'beginner',
+          joinDate: userProfile.createdAt || new Date(),
+          age: userProfile.age || null,
+          gender: userProfile.gender || null,
+          bio: userProfile.bio || null,
+          runningProfile: userProfile.runningProfile || null,
+        };
+        
+        navigation.navigate('Participant', { participant });
+      } else {
+        // 프로필 정보가 없는 경우 기본 정보로 이동
+        const participant = {
+          id: comment.authorId,
+          name: comment.author || '사용자',
+          profileImage: null,
+          level: 'beginner',
+          joinDate: new Date(),
+        };
+        
+        navigation.navigate('Participant', { participant });
+      }
+    } catch (error) {
+      console.error('댓글 작성자 프로필 가져오기 실패:', error);
+      // 에러가 발생해도 기본 정보로 프로필 화면으로 이동
+      const participant = {
+        id: comment.authorId,
+        name: comment.author || '사용자',
+        profileImage: null,
+        level: 'beginner',
+        joinDate: new Date(),
+      };
+      
+      navigation.navigate('Participant', { participant });
+    }
   };
 
   // 댓글 신고 모달 열기
@@ -471,6 +570,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     setShowCommentReportModal(true);
     setSelectedReportReason('');
     setReportDescription('');
+    setShouldBlockCommentAuthor(false);
   };
 
   // 게시글 신고 제출
@@ -481,6 +581,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     }
 
     try {
+      // 신고 제출
       const result = await reportService.reportPost(
         currentPost.id,
         currentPost.authorId,
@@ -489,10 +590,48 @@ const PostDetailScreen = ({ route, navigation }) => {
       );
 
       if (result.success) {
-        Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        // 차단 옵션이 선택된 경우 사용자 차단
+        if (shouldBlockPostAuthor && currentPost.authorId && user?.uid && currentPost.authorId !== user.uid) {
+          try {
+            setIsBlocking(true);
+            
+            // Firestore에서 작성자 프로필 정보 가져오기
+            const firestoreService = require('../services/firestoreService').default;
+            const authorProfile = await firestoreService.getUserProfile(currentPost.authorId);
+            
+            const authorName = authorProfile?.displayName || currentPost.author || '사용자';
+            const authorProfileImage = authorProfile?.photoURL || authorProfile?.profileImage || null;
+            
+            await blacklistService.blockUser(
+              user.uid,
+              currentPost.authorId,
+              authorName,
+              authorProfileImage
+            );
+            
+            Alert.alert(
+              '신고 및 차단 완료',
+              '신고가 접수되었고 해당 사용자를 차단했습니다.',
+              [{ text: '확인' }]
+            );
+          } catch (blockError) {
+            console.error('사용자 차단 실패:', blockError);
+            Alert.alert(
+              '신고 완료',
+              '신고가 접수되었습니다. 검토 후 조치하겠습니다.\n(차단 처리 중 오류가 발생했습니다.)',
+              [{ text: '확인' }]
+            );
+          } finally {
+            setIsBlocking(false);
+          }
+        } else {
+          Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        }
+        
         setShowPostReportModal(false);
         setSelectedReportReason('');
         setReportDescription('');
+        setShouldBlockPostAuthor(false);
       } else {
         Alert.alert('오류', result.error || '신고 제출에 실패했습니다.');
       }
@@ -510,6 +649,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     }
 
     try {
+      // 신고 제출
       const result = await reportService.reportComment(
         selectedComment.id,
         currentPost.id,
@@ -519,11 +659,49 @@ const PostDetailScreen = ({ route, navigation }) => {
       );
 
       if (result.success) {
-        Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        // 차단 옵션이 선택된 경우 사용자 차단
+        if (shouldBlockCommentAuthor && selectedComment.authorId && user?.uid && selectedComment.authorId !== user.uid) {
+          try {
+            setIsBlocking(true);
+            
+            // Firestore에서 댓글 작성자 프로필 정보 가져오기
+            const firestoreService = require('../services/firestoreService').default;
+            const commentAuthorProfile = await firestoreService.getUserProfile(selectedComment.authorId);
+            
+            const commentAuthorName = commentAuthorProfile?.displayName || selectedComment.author || '사용자';
+            const commentAuthorProfileImage = commentAuthorProfile?.photoURL || commentAuthorProfile?.profileImage || null;
+            
+            await blacklistService.blockUser(
+              user.uid,
+              selectedComment.authorId,
+              commentAuthorName,
+              commentAuthorProfileImage
+            );
+            
+            Alert.alert(
+              '신고 및 차단 완료',
+              '신고가 접수되었고 해당 사용자를 차단했습니다.',
+              [{ text: '확인' }]
+            );
+          } catch (blockError) {
+            console.error('사용자 차단 실패:', blockError);
+            Alert.alert(
+              '신고 완료',
+              '신고가 접수되었습니다. 검토 후 조치하겠습니다.\n(차단 처리 중 오류가 발생했습니다.)',
+              [{ text: '확인' }]
+            );
+          } finally {
+            setIsBlocking(false);
+          }
+        } else {
+          Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        }
+        
         setShowCommentReportModal(false);
         setSelectedComment(null);
         setSelectedReportReason('');
         setReportDescription('');
+        setShouldBlockCommentAuthor(false);
       } else {
         Alert.alert('오류', result.error || '신고 제출에 실패했습니다.');
       }
@@ -671,11 +849,23 @@ const PostDetailScreen = ({ route, navigation }) => {
 
           {/* 댓글 섹션 */}
           <View style={styles.commentsSection}>
-            <Text style={styles.commentsTitle}>댓글 {Array.isArray(currentPost.comments) ? currentPost.comments.length : 0}개</Text>
-            
-            {currentPost.comments && Array.isArray(currentPost.comments) && currentPost.comments.length > 0 ? (
-              <View style={styles.commentsList}>
-                {currentPost.comments.map((comment) => (
+            {(() => {
+              // 차단된 사용자의 댓글 필터링
+              const blockedUserIds = blacklist.map(blocked => blocked.blockedUserId);
+              const filteredComments = (currentPost.comments || []).filter(comment => {
+                if (comment.authorId && blockedUserIds.includes(comment.authorId)) {
+                  return false; // 차단된 사용자의 댓글 제거
+                }
+                return true;
+              });
+              
+              return (
+                <>
+                  <Text style={styles.commentsTitle}>댓글 {filteredComments.length}개</Text>
+                  
+                  {filteredComments.length > 0 ? (
+                    <View style={styles.commentsList}>
+                      {filteredComments.map((comment) => (
                   <TouchableOpacity
                     key={comment.id}
                     style={styles.commentItem}
@@ -684,7 +874,16 @@ const PostDetailScreen = ({ route, navigation }) => {
                   >
                     <View style={styles.commentHeader}>
                       <View style={styles.commentAuthorSection}>
-                        <Text style={styles.commentAuthor}>{comment.author}</Text>
+                        {comment.authorId && comment.authorId !== user?.uid ? (
+                          <TouchableOpacity
+                            onPress={() => handleCommentAuthorPress(comment)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.commentAuthor}>{comment.author}</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.commentAuthor}>{comment.author}</Text>
+                        )}
                         <Text style={styles.commentDate}>
                           {formatDate(comment.createdAt)}
                         </Text>
@@ -698,17 +897,20 @@ const PostDetailScreen = ({ route, navigation }) => {
                         </TouchableOpacity>
                       )}
                     </View>
-                    <Text style={styles.commentText}>{comment.text}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.emptyComments}>
-                <Ionicons name="chatbubble-outline" size={48} color={COLORS.TEXT_SECONDARY} />
-                <Text style={styles.emptyCommentsText}>아직 댓글이 없습니다</Text>
-                <Text style={styles.emptyCommentsSubtext}>첫 번째 댓글을 남겨보세요!</Text>
-              </View>
-            )}
+                        <Text style={styles.commentText}>{comment.text}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    </View>
+                  ) : (
+                    <View style={styles.emptyComments}>
+                      <Ionicons name="chatbubble-outline" size={48} color={COLORS.TEXT_SECONDARY} />
+                      <Text style={styles.emptyCommentsText}>아직 댓글이 없습니다</Text>
+                      <Text style={styles.emptyCommentsSubtext}>첫 번째 댓글을 남겨보세요!</Text>
+                    </View>
+                  )}
+                </>
+              );
+            })()}
           </View>
 
           {/* 하단 여백 */}
@@ -911,6 +1113,20 @@ const PostDetailScreen = ({ route, navigation }) => {
                     multiline
                     maxLength={500}
                   />
+                  {currentPost.authorId && currentPost.authorId !== user?.uid && (
+                    <TouchableOpacity
+                      style={styles.blockOptionContainer}
+                      onPress={() => setShouldBlockPostAuthor(!shouldBlockPostAuthor)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.blockOptionCheckbox}>
+                        {shouldBlockPostAuthor && (
+                          <Ionicons name="checkmark" size={18} color={COLORS.PRIMARY} />
+                        )}
+                      </View>
+                      <Text style={styles.blockOptionText}>이 사용자 차단하기</Text>
+                    </TouchableOpacity>
+                  )}
                 </ScrollView>
                 <View style={styles.reportModalActions}>
                   <TouchableOpacity 
@@ -920,12 +1136,12 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.reportCancelButtonText}>취소</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={[styles.reportSubmitButton, !selectedReportReason && styles.reportSubmitButtonDisabled]}
+                    style={[styles.reportSubmitButton, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonDisabled]}
                     onPress={handleSubmitPostReport}
-                    disabled={!selectedReportReason}
+                    disabled={!selectedReportReason || isBlocking}
                   >
-                    <Text style={[styles.reportSubmitButtonText, !selectedReportReason && styles.reportSubmitButtonTextDisabled]}>
-                      신고하기
+                    <Text style={[styles.reportSubmitButtonText, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonTextDisabled]}>
+                      {isBlocking ? '처리 중...' : '신고하기'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -986,6 +1202,20 @@ const PostDetailScreen = ({ route, navigation }) => {
                     multiline
                     maxLength={500}
                   />
+                  {selectedComment && selectedComment.authorId && selectedComment.authorId !== user?.uid && (
+                    <TouchableOpacity
+                      style={styles.blockOptionContainer}
+                      onPress={() => setShouldBlockCommentAuthor(!shouldBlockCommentAuthor)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.blockOptionCheckbox}>
+                        {shouldBlockCommentAuthor && (
+                          <Ionicons name="checkmark" size={18} color={COLORS.PRIMARY} />
+                        )}
+                      </View>
+                      <Text style={styles.blockOptionText}>이 사용자 차단하기</Text>
+                    </TouchableOpacity>
+                  )}
                 </ScrollView>
                 <View style={styles.reportModalActions}>
                   <TouchableOpacity 
@@ -995,12 +1225,12 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.reportCancelButtonText}>취소</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={[styles.reportSubmitButton, !selectedReportReason && styles.reportSubmitButtonDisabled]}
+                    style={[styles.reportSubmitButton, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonDisabled]}
                     onPress={handleSubmitCommentReport}
-                    disabled={!selectedReportReason}
+                    disabled={!selectedReportReason || isBlocking}
                   >
-                    <Text style={[styles.reportSubmitButtonText, !selectedReportReason && styles.reportSubmitButtonTextDisabled]}>
-                      신고하기
+                    <Text style={[styles.reportSubmitButtonText, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonTextDisabled]}>
+                      {isBlocking ? '처리 중...' : '신고하기'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1488,6 +1718,34 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     borderWidth: 1,
     borderColor: COLORS.BORDER,
+  },
+  blockOptionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+  },
+  blockOptionCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.PRIMARY,
+    backgroundColor: COLORS.CARD,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  blockOptionText: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    fontWeight: '500',
+    flex: 1,
   },
   reportModalActions: {
     flexDirection: 'row',
