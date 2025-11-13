@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
 
 jobs:
   build:
