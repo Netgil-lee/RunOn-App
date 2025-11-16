@@ -11,7 +11,9 @@ import {
   Modal,
   Animated,
   Image,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
@@ -34,6 +36,10 @@ const CommunityScreen = ({ navigation, route }) => {
   const { user } = useAuth();
   const { allEvents, chatRooms, joinEvent, userJoinedEvents } = useEvents();
   const { hasChatNotification, hasBoardNotification, notifications, markNotificationAsRead, handleChatTabClick, handleChatRoomClick, handleBoardTabClick } = useCommunity();
+  const insets = useSafeAreaInsets();
+  
+  // Android에서 상태바 높이만큼 여백 추가
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   
   // 디버깅: 알림 상태 확인
   useEffect(() => {
@@ -387,7 +393,7 @@ const CommunityScreen = ({ navigation, route }) => {
         contentContainerStyle={[styles.scrollContent, { paddingHorizontal: 0 }]}
       >
         {/* 헤더 섹션 */}
-        <View style={styles.headerSection}>
+        <View style={[styles.headerSection, { paddingTop: 20 + statusBarPadding }]}>
           <View style={styles.titleContainer}>
             <Text style={styles.title}>커뮤니티</Text>
           </View>

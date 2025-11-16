@@ -5,11 +5,11 @@
 
 ---
 
-## 🔴 1. 건강 데이터 연동 (HealthKit → Google Fit)
+## 🔴 1. 건강 데이터 연동 (HealthKit → Samsung Health)
 
 ### 1.1 문제점
 - `services/appleFitnessService.js`는 iOS HealthKit 전용으로 구현됨
-- Android에서는 Google Fit API를 사용해야 함
+- Android에서는 Samsung Health SDK를 사용해야 함
 - 현재 코드는 `Platform.OS !== 'ios'`일 때 단순히 false 반환
 
 ### 1.2 수정 필요 파일
@@ -28,23 +28,24 @@
    - 모든 HealthKit 관련 함수에 `Platform.OS !== 'ios'` 체크 추가
 
 #### 🔴 남은 작업 (향후 구현 필요)
-2. **Google Fit 서비스 생성**
-   - `services/googleFitService.js` 새로 생성
-   - Google Fit API 연동 (react-native-google-fit 또는 직접 구현)
+2. **Samsung Health 서비스 생성**
+   - `services/samsungHealthService.js` 새로 생성
+   - Samsung Health SDK 연동
    - HealthKit과 동일한 인터페이스 제공
 
 3. **통합 Fitness 서비스 생성**
    - `services/fitnessService.js` 생성 (플랫폼별 분기 처리)
    - iOS: appleFitnessService 사용
-   - Android: googleFitService 사용
+   - Android: samsungHealthService 사용
 
 4. **의존성 추가**
-   - `package.json`에 Google Fit 관련 패키지 추가
-   - 예: `react-native-google-fit` 또는 `@react-native-google-signin/google-signin`
+   - ✅ Samsung Health SDK AAR 파일 추가 완료 (`android/app/libs/samsung-health-data-api-1.0.0.aar`)
+   - ✅ `android/app/build.gradle`에 의존성 추가 완료
+   - ✅ `android/build.gradle`에 flatDir repository 추가 완료
 
 5. **Android 권한 설정**
-   - `android/app/src/main/AndroidManifest.xml`에 Google Fit 권한 추가
-   - `app.json`의 Android permissions에 건강 데이터 권한 추가
+   - ✅ `android/app/src/main/AndroidManifest.xml`에 Samsung Health 권한 추가 완료
+   - ✅ `app.json`의 Android permissions에 Samsung Health 권한 추가 완료
 
 ---
 
@@ -80,8 +81,9 @@
 - Android: Google Play 영수증 검증
 
 **확인 필요**: 
-- Google Play 영수증 검증 로직 완성도 확인
-- `receiptValidationService.js`의 `getGooglePlayAccessToken()` 구현 완료 여부
+- ✅ Google Play 영수증 검증 로직 확인 완료
+- ✅ `receiptValidationService.js`의 `getGooglePlayAccessToken()` 구현 확인 완료
+- ⚠️ `generateJWT()`는 현재 mock 토큰 반환 (프로덕션에서는 서버에서 처리 필요)
 
 ---
 
@@ -90,17 +92,23 @@
 ### 4.1 AndroidManifest.xml
 **현재 상태**: 기본 권한은 설정되어 있음 ✅
 - 위치, 카메라, 인터넷, 저장소 등
+- ✅ Samsung Health 관련 권한 추가 완료
+  - `android.permission.ACTIVITY_RECOGNITION`
+  - `com.samsung.android.sdk.healthdata.permission.READ_HEALTH_DATA`
+  - `com.samsung.android.sdk.healthdata.permission.WRITE_HEALTH_DATA`
 
 **추가 필요**:
-- Google Fit 관련 권한 (건강 데이터 접근)
-- Google Play Services 관련 권한 (결제 검증용)
+- Google Play Services 관련 권한 (결제 검증용) - 서버에서 처리하므로 클라이언트 권한 불필요
 
 ### 4.2 app.json
 **현재 상태**: Android permissions 설정됨 ✅
-- `app.json`의 `android.permissions` 배열에 권한 목록 있음
+- ✅ 중복 권한 제거 완료 (ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION)
+- ✅ Samsung Health 권한 추가 완료
+  - `android.permission.ACTIVITY_RECOGNITION`
+  - `com.samsung.android.sdk.healthdata.permission.READ_HEALTH_DATA`
+  - `com.samsung.android.sdk.healthdata.permission.WRITE_HEALTH_DATA`
 
 **확인 필요**:
-- Google Fit 권한 추가 여부 확인
 - Android 13+ (API 33+) 런타임 권한 처리 확인
 
 ---
@@ -182,28 +190,29 @@
 ## 🔴 10. 환경 설정 파일
 
 ### 10.1 config/environment.js
-**확인 필요**:
-- `simulateHealthKitOnSimulator` 옵션이 Android에서도 동작하는지 확인
-- Android 시뮬레이터/에뮬레이터 관련 설정 추가 필요할 수 있음
+**현재 상태**: ✅ 수정 완료
+- ✅ `simulateHealthKitOnSimulator` 옵션이 iOS에서만 동작하도록 Platform 체크 추가
+- Android에서는 항상 `false`로 설정됨
 
 ---
 
 ## 📝 우선순위별 작업 요약
 
-### ✅ 완료된 작업 (임시 조치)
-- **Android에서 HealthKit UI 숨기기** - iOS 전용 기능으로 처리
-- **UI 패딩/마진 조정** - Android 화면 크기에 맞게 조정
-- **플랫폼 체크 추가** - 모든 HealthKit 관련 함수에 Platform.OS 체크 추가
+### ✅ 완료된 작업
+- **Android에서 HealthKit UI 숨기기** - iOS 전용 기능으로 처리 ✅
+- **UI 패딩/마진 조정** - Android 화면 크기에 맞게 조정 ✅
+- **플랫폼 체크 추가** - 모든 HealthKit 관련 함수에 Platform.OS 체크 추가 ✅
+- **Android 권한 설정 완료** - Samsung Health 권한 추가, 중복 권한 제거 ✅
+- **환경 설정 파일 개선** - simulateHealthKitOnSimulator iOS 전용 처리 ✅
+- **결제 검증 서비스 확인** - Google Play 영수증 검증 로직 확인 완료 ✅
 
 ### 🔴 높은 우선순위 (필수 - 향후 구현)
-1. **Google Fit 서비스 구현** - 건강 데이터 연동 필수
+1. **Samsung Health 서비스 구현** - 건강 데이터 연동 필수
 2. **통합 Fitness 서비스 생성** - 기존 코드 수정 최소화
-3. **Android 권한 설정 완료** - Google Fit 권한 추가
 
 ### 🟡 중간 우선순위 (권장)
-4. ✅ **UI 패딩/마진 조정** - Android 화면 크기 대응 **완료**
-5. **결제 검증 로직 완성** - Google Play 영수증 검증
-6. ⚠️ **네이티브 모듈 호환성 확인** - react-native-health 처리 (임시 조치 완료, 빌드 테스트 필요)
+3. ⚠️ **네이티브 모듈 호환성 확인** - react-native-health 처리 (임시 조치 완료, 빌드 테스트 필요)
+4. **결제 검증 서버 구현** - Google Play JWT 토큰 생성은 서버에서 처리 필요
 
 ### 🟢 낮은 우선순위 (선택)
 7. **스타일링 미세 조정** - Android 디자인 가이드라인 준수
@@ -214,7 +223,7 @@
 ## 🧪 테스트 체크리스트
 
 ### 필수 테스트 항목
-- [ ] Google Fit 연동 및 권한 요청
+- [ ] Samsung Health 연동 및 권한 요청
 - [ ] 건강 데이터 조회 (러닝 기록)
 - [ ] 결제 시스템 (Google Play)
 - [ ] 푸시 알림 수신
@@ -234,9 +243,9 @@
 
 ## 📚 참고 자료
 
-### Google Fit 연동
-- [Google Fit API 문서](https://developers.google.com/fit)
-- [react-native-google-fit](https://github.com/StasDoskalenko/react-native-google-fit)
+### Samsung Health 연동
+- [Samsung Health SDK 문서](https://developer.samsung.com/health)
+- [Samsung Health SDK 가이드](https://developer.samsung.com/health/android/data/guide.html)
 
 ### Android 권한
 - [Android 권한 가이드](https://developer.android.com/guide/topics/permissions/overview)
@@ -268,6 +277,17 @@
   - `screens/OnboardingScreen.js`: Android 하단 패딩 조정 (16→20)
 - ✅ 플랫폼 체크 추가 완료
   - 모든 HealthKit 관련 함수에 `Platform.OS !== 'ios'` 체크 추가
+- ✅ Android 권한 설정 개선 완료
+  - `app.json`: 중복 위치 권한 제거, Samsung Health 권한 추가
+  - `android/app/src/main/AndroidManifest.xml`: Samsung Health 권한 추가
+- ✅ Samsung Health SDK 통합 완료
+  - `android/app/libs/samsung-health-data-api-1.0.0.aar`: SDK 파일 추가
+  - `android/app/build.gradle`: SDK 의존성 추가
+  - `android/build.gradle`: flatDir repository 추가
+- ✅ 환경 설정 파일 개선 완료
+  - `config/environment.js`: `simulateHealthKitOnSimulator` iOS 전용 처리
+- ✅ 결제 검증 서비스 확인 완료
+  - `services/receiptValidationService.js`: Google Play 검증 로직 확인 및 주석 개선
 
 ---
 

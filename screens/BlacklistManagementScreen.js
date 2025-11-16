@@ -8,7 +8,9 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import blacklistService from '../services/blacklistService';
@@ -28,6 +30,8 @@ const COLORS = {
 const BlacklistManagementScreen = ({ navigation, route }) => {
   const { user } = useAuth();
   const { onRefresh } = route.params || {};
+  const insets = useSafeAreaInsets();
+  const statusBarHeight = Platform.OS === 'android' ? insets.top : 0;
   
   const [blacklist, setBlacklist] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +108,7 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       {/* 헤더 */}
-      <SafeAreaView style={styles.header}>
+      <View style={[styles.header, { paddingTop: statusBarHeight }]}>
         <View style={styles.headerContent}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#ffffff" />
@@ -112,7 +116,7 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
           <Text style={styles.headerTitle}>블랙리스트</Text>
           <View style={styles.headerSpacer} />
         </View>
-      </SafeAreaView>
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* 안내 메시지 */}

@@ -6,7 +6,9 @@ import {
   StyleSheet,
   SafeAreaView,
   Image,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 // NetGill 디자인 시스템
@@ -19,16 +21,19 @@ const COLORS = {
 const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettingsPress, onSearchPress, hideProfile, title, unreadCount = 0, transparent = false }) => {
   const nickname = profile?.profile?.nickname || profile?.nickname || user?.displayName;
   const [imageLoadFailed, setImageLoadFailed] = React.useState(false);
+  const insets = useSafeAreaInsets();
   
   // 프로필 이미지가 변경되면 로드 실패 상태 리셋
   React.useEffect(() => {
     setImageLoadFailed(false);
   }, [profile?.profileImage]);
   
+  // Android에서 상태바 높이만큼 paddingTop 추가
+  const statusBarHeight = Platform.OS === 'android' ? insets.top : 0;
   
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+    <View style={[styles.safeArea, { paddingTop: statusBarHeight, backgroundColor: transparent ? 'transparent' : COLORS.SURFACE }]}>
+      <View style={[styles.container, transparent && styles.transparentContainer]}>
         {/* 왼쪽: 제목 또는 프로필 사진 */}
         <View style={styles.leftSection}>
           {title ? (
@@ -83,16 +88,13 @@ const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettings
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   safeArea: {
-    backgroundColor: COLORS.SURFACE,
-  },
-  transparentSafeArea: {
-    backgroundColor: 'transparent',
+    // SafeAreaView 대신 View 사용, paddingTop은 동적으로 설정
   },
   container: {
     height: 56,

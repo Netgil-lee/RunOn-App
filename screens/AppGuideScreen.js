@@ -9,7 +9,9 @@ import {
   Image,
   ScrollView,
   SafeAreaView,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 // RunOn 디자인 시스템
@@ -28,6 +30,8 @@ const COLORS = {
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const AppGuideScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const statusBarHeight = Platform.OS === 'android' ? insets.top : 0;
   const [selectedFeature, setSelectedFeature] = useState('map');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -221,7 +225,7 @@ const AppGuideScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       {/* 헤더 */}
-      <SafeAreaView style={styles.header}>
+      <View style={[styles.header, { paddingTop: statusBarHeight }]}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -232,7 +236,7 @@ const AppGuideScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>앱 사용 가이드</Text>
           <View style={styles.headerSpacer} />
         </View>
-      </SafeAreaView>
+      </View>
 
       {/* 컨텐츠 */}
       <View style={styles.content}>

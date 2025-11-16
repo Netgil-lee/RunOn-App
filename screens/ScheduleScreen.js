@@ -15,6 +15,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,6 +54,10 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
   const { user } = authContext || {};
   const [userProfile, setUserProfile] = useState(null);
   const { guideStates, currentGuide, setCurrentGuide, currentStep, setCurrentStep, startGuide, nextStep, completeGuide, exitGuide, resetGuide } = useGuide();
+  const insets = useSafeAreaInsets();
+  
+  // Android에서 상태바 높이만큼 여백 추가
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   const { 
     userCreatedEvents, 
     userJoinedEvents, 
@@ -726,7 +731,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
         contentContainerStyle={styles.scrollContent}
       >
         {/* 헤더 섹션 */}
-        <View style={styles.headerSection}>
+        <View style={[styles.headerSection, { paddingTop: 20 + statusBarPadding }]}>
           <Text style={styles.title}>모임</Text>
           <Text style={styles.subtitle}>러닝 모임을 만들고 관리해보세요</Text>
         </View>
@@ -3037,7 +3042,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         <Text style={styles.paceHint}>분'초&quot;/km 형식으로 입력해주세요</Text>
       </View>
 
-      <View style={styles.inputGroup}>
+      <View style={[styles.inputGroup, styles.difficultyInputGroup]}>
         <Text style={styles.inputLabel}>난이도</Text>
         <View style={styles.difficultyGrid}>
           {difficulties.map((diff) => (
@@ -3171,27 +3176,53 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
-      {[1, 2, 3, 4].map((step, index) => (
-        <View key={step} style={styles.stepRow}>
-          <View style={[
-            styles.stepCircle,
-            step <= currentStep ? styles.stepCircleActive : styles.stepCircleInactive
-          ]}>
-            <Text style={{
-              color: step <= currentStep ? '#000000' : '#666666',
-              fontWeight: 'bold'
-            }}>
-              {step}
-            </Text>
-          </View>
-          {index < 3 && (
+      {[1, 2, 3, 4].map((step, index) => {
+        const isActive = step <= currentStep;
+        return (
+          <View key={step} style={styles.stepRow}>
+            {/* SVG RadialGradient를 사용한 부드러운 glow 효과 */}
+            {isActive && (
+              <View style={styles.glowContainer}>
+                <Svg width={80} height={80} style={styles.glowSvg}>
+                  <Defs>
+                    <RadialGradient id={`glow-${step}`} cx="50%" cy="50%" r="60%">
+                      <Stop offset="0%" stopColor={COLORS.PRIMARY} stopOpacity="0.35" />
+                      <Stop offset="30%" stopColor={COLORS.PRIMARY} stopOpacity="0.20" />
+                      <Stop offset="50%" stopColor={COLORS.PRIMARY} stopOpacity="0.10" />
+                      <Stop offset="70%" stopColor={COLORS.PRIMARY} stopOpacity="0.05" />
+                      <Stop offset="100%" stopColor={COLORS.PRIMARY} stopOpacity="0" />
+                    </RadialGradient>
+                  </Defs>
+                  <Circle
+                    cx="40"
+                    cy="40"
+                    r="40"
+                    fill={`url(#glow-${step})`}
+                  />
+                </Svg>
+              </View>
+            )}
             <View style={[
-              styles.stepLine,
-              step < currentStep ? styles.stepLineActive : styles.stepLineInactive
-            ]} />
-          )}
-        </View>
-      ))}
+              styles.stepCircle,
+              isActive ? styles.stepCircleActive : styles.stepCircleInactive
+            ]}>
+              <Text style={{
+                color: isActive ? '#000000' : '#666666',
+                fontWeight: 'bold',
+                fontSize: 14,
+              }}>
+                {step}
+              </Text>
+            </View>
+            {index < 3 && (
+              <View style={[
+                styles.stepLine,
+                step < currentStep ? styles.stepLineActive : styles.stepLineInactive
+              ]} />
+            )}
+          </View>
+        );
+      })}
     </View>
   );
 
@@ -3559,7 +3590,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   eventEmoji: {
-    fontSize: 30,
+    fontSize: 20,
     marginTop: 2,
   },
   eventTitle: {
@@ -3842,30 +3873,39 @@ const styles = StyleSheet.create({
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    position: 'relative',
   },
   stepCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    zIndex: 4,
   },
   stepCircleActive: {
     backgroundColor: COLORS.PRIMARY,
     borderColor: COLORS.PRIMARY,
-    shadowColor: COLORS.PRIMARY,
-    shadowOffset: {
-      width: 0,
-      height: 0,
-    },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 8,
+    elevation: 4,
   },
   stepCircleInactive: {
     backgroundColor: 'transparent',
     borderColor: '#666666',
+  },
+  // SVG RadialGradient를 사용한 glow 효과 컨테이너
+  glowContainer: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    top: -22,
+    left: -22,
+    zIndex: 0,
+    overflow: 'visible',
+  },
+  glowSvg: {
+    position: 'absolute',
   },
   stepLine: {
     width: 48,
@@ -3933,7 +3973,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   eventTypeEmoji: {
-    fontSize: 32,
+    fontSize: 22,
   },
   eventTypeName: {
     fontSize: 16,
@@ -4038,9 +4078,13 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT,
   },
   difficultyDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666666',
     marginTop: 2,
+    textAlign: 'center',
+  },
+  difficultyInputGroup: {
+    marginBottom: 20,
   },
   dateTimeButton: {
     backgroundColor: COLORS.SURFACE,
@@ -4194,14 +4238,7 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: COLORS.PRIMARY + '15',
     borderRadius: 16,
-    shadowColor: COLORS.PRIMARY,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 0,
   },
   noticeTitle: {
     fontSize: 18,
@@ -4244,7 +4281,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   locationTypeEmoji: {
-    fontSize: 32,
+    fontSize: 22,
   },
   locationTypeName: {
     fontSize: 16,
@@ -4278,7 +4315,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   locationEmoji: {
-    fontSize: 24,
+    fontSize: 18,
     marginBottom: 8,
   },
   locationName: {
@@ -4436,7 +4473,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   selectedLocationEmoji: {
-    fontSize: 24,
+    fontSize: 18,
     marginRight: 12,
   },
   selectedLocationText: {
@@ -4740,7 +4777,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   mapGuideText: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '600',
     color: COLORS.TEXT,
     textAlign: 'left',

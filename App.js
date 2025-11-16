@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { Platform, StyleSheet, Text, View, StatusBar } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Network from 'expo-network';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
@@ -133,7 +134,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar 
         barStyle="light-content" 
         backgroundColor="#000000" 
@@ -154,7 +155,7 @@ export default function App() {
           </AuthProvider>
         </NetworkProvider>
       </NavigationContainer>
-    </>
+    </SafeAreaProvider>
   );
 }
 

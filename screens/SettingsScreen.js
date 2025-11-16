@@ -11,6 +11,8 @@ import {
   Image,
   Platform,
 } from 'react-native';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
@@ -43,6 +45,8 @@ const COLORS = {
 const SettingsScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
   const { settings, toggleSetting, updateSetting } = useNotificationSettings();
+  const insets = useSafeAreaInsets();
+  const statusBarHeight = Platform.OS === 'android' ? insets.top : 0;
   
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('privacy'); // 'privacy' or 'child-safety'
@@ -372,7 +376,7 @@ const SettingsScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       {/* 헤더 */}
-      <SafeAreaView style={styles.header}>
+      <View style={[styles.header, { paddingTop: statusBarHeight }]}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -383,7 +387,7 @@ const SettingsScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>설정</Text>
           <View style={styles.headerSpacer} />
         </View>
-      </SafeAreaView>
+      </View>
 
       {/* 스크롤 가능한 컨텐츠 */}
       <ScrollView 
@@ -496,6 +500,26 @@ const SettingsScreen = ({ navigation }) => {
             onPress={handleBlacklistManagement}
             customIcon={
               <View style={styles.blacklistBadgeContainer}>
+                {/* SVG RadialGradient를 사용한 부드러운 glow 효과 */}
+                <View style={styles.blacklistBadgeGlowContainer}>
+                  <Svg width={90} height={45} style={styles.blacklistBadgeGlowSvg}>
+                    <Defs>
+                      <RadialGradient id="blacklist-glow" cx="50%" cy="50%" r="60%">
+                        <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.35" />
+                        <Stop offset="30%" stopColor="#FF0073" stopOpacity="0.20" />
+                        <Stop offset="50%" stopColor="#FF0073" stopOpacity="0.10" />
+                        <Stop offset="70%" stopColor="#FF0073" stopOpacity="0.05" />
+                        <Stop offset="100%" stopColor="#FF0073" stopOpacity="0" />
+                      </RadialGradient>
+                    </Defs>
+                    <Circle
+                      cx="45"
+                      cy="22.5"
+                      r="25"
+                      fill="url(#blacklist-glow)"
+                    />
+                  </Svg>
+                </View>
                 <View style={styles.blacklistBadgeGlow}>
                   <Image 
                     source={require('../assets/images/Union.png')} 
@@ -557,6 +581,26 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('Premium')}
             customIcon={
               <View style={styles.premiumBadgeContainer}>
+                {/* SVG RadialGradient를 사용한 부드러운 glow 효과 */}
+                <View style={styles.premiumBadgeGlowContainer}>
+                  <Svg width={90} height={45} style={styles.premiumBadgeGlowSvg}>
+                    <Defs>
+                      <RadialGradient id="premium-glow" cx="50%" cy="50%" r="60%">
+                        <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.35" />
+                        <Stop offset="30%" stopColor="#FF0073" stopOpacity="0.20" />
+                        <Stop offset="50%" stopColor="#FF0073" stopOpacity="0.10" />
+                        <Stop offset="70%" stopColor="#FF0073" stopOpacity="0.05" />
+                        <Stop offset="100%" stopColor="#FF0073" stopOpacity="0" />
+                      </RadialGradient>
+                    </Defs>
+                    <Circle
+                      cx="45"
+                      cy="22.5"
+                      r="25"
+                      fill="url(#premium-glow)"
+                    />
+                  </Svg>
+                </View>
                 <View style={styles.premiumBadgeGlow}>
                   <Image 
                     source={require('../assets/images/Union.png')} 
@@ -688,14 +732,24 @@ const styles = StyleSheet.create({
     width: 60,
     height: 24,
     backgroundColor: 'transparent',
-    // 글로우 효과 - 핑크 색상
-    shadowColor: '#FF0073',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
+    position: 'relative',
+  },
+  premiumBadgeGlowContainer: {
+    position: 'absolute',
+    width: 90,
+    height: 45,
+    top: -10,
+    left: -15,
+    zIndex: 0,
+    overflow: 'visible',
+  },
+  premiumBadgeGlowSvg: {
+    position: 'absolute',
   },
   premiumBadgeGlow: {
     backgroundColor: 'transparent',
+    position: 'relative',
+    zIndex: 1,
   },
   premiumBadgeImage: {
     width: 60,
@@ -709,20 +763,31 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -8 }, { translateY: -8 }],
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 2,
   },
   // 블랙리스트 배지 스타일 (프리미엄 배지와 동일)
   blacklistBadgeContainer: {
     width: 60,
     height: 24,
     backgroundColor: 'transparent',
-    // 글로우 효과 - 핑크 색상
-    shadowColor: '#FF0073',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
+    position: 'relative',
+  },
+  blacklistBadgeGlowContainer: {
+    position: 'absolute',
+    width: 90,
+    height: 45,
+    top: -10,
+    left: -15,
+    zIndex: 0,
+    overflow: 'visible',
+  },
+  blacklistBadgeGlowSvg: {
+    position: 'absolute',
   },
   blacklistBadgeGlow: {
     backgroundColor: 'transparent',
+    position: 'relative',
+    zIndex: 1,
   },
   blacklistBadgeImage: {
     width: 60,
@@ -736,6 +801,7 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -8 }, { translateY: -8 }],
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 2,
   },
   settingTextContainer: {
     flex: 1,

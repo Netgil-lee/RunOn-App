@@ -8,7 +8,10 @@ import {
   TouchableOpacity,
   Image,
   Animated,
+  Platform,
 } from 'react-native';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 // NetGill 디자인 시스템
@@ -33,6 +36,8 @@ const COLORS = {
 };
 
 const PremiumScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const statusBarHeight = Platform.OS === 'android' ? insets.top : 0;
   // 회전 애니메이션을 위한 Animated.Value
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
@@ -69,7 +74,7 @@ const PremiumScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       {/* 헤더 */}
-      <SafeAreaView style={styles.header}>
+      <View style={[styles.header, { paddingTop: statusBarHeight }]}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -80,13 +85,33 @@ const PremiumScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>구독 서비스</Text>
           <View style={styles.headerSpacer} />
         </View>
-      </SafeAreaView>
+      </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* RunOn Members 소개 섹션 */}
         <View style={styles.introSection}>
           <View style={styles.introIcon}>
             <View style={styles.premiumBadgeContainer}>
+              {/* SVG RadialGradient를 사용한 부드러운 glow 효과 */}
+              <View style={styles.premiumBadgeGlowContainer}>
+                <Svg width={140} height={80} style={styles.premiumBadgeGlowSvg}>
+                  <Defs>
+                    <RadialGradient id="premium-glow-large" cx="50%" cy="50%" r="70%">
+                      <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.35" />
+                      <Stop offset="30%" stopColor="#FF0073" stopOpacity="0.20" />
+                      <Stop offset="50%" stopColor="#FF0073" stopOpacity="0.10" />
+                      <Stop offset="70%" stopColor="#FF0073" stopOpacity="0.05" />
+                      <Stop offset="100%" stopColor="#FF0073" stopOpacity="0" />
+                    </RadialGradient>
+                  </Defs>
+                  <Circle
+                    cx="70"
+                    cy="40"
+                    r="50"
+                    fill="url(#premium-glow-large)"
+                  />
+                </Svg>
+              </View>
               <Animated.View 
                 style={[
                   styles.premiumBadgeGlow,
@@ -249,14 +274,24 @@ const styles = StyleSheet.create({
     marginLeft: -2,
     marginRight: 8,
     backgroundColor: 'transparent',
-    // 글로우 효과 - 핑크 색상 (범위 확대)
-    shadowColor: '#FF0073',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 20,
+    position: 'relative',
+  },
+  premiumBadgeGlowContainer: {
+    position: 'absolute',
+    width: 140,
+    height: 80,
+    top: -20,
+    left: -20,
+    zIndex: 0,
+    overflow: 'visible',
+  },
+  premiumBadgeGlowSvg: {
+    position: 'absolute',
   },
   premiumBadgeGlow: {
     backgroundColor: 'transparent',
+    position: 'relative',
+    zIndex: 1,
   },
   premiumBadgeImage: {
     width: 100,
@@ -270,6 +305,7 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -12 }, { translateY: -12 }],
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 2,
   },
 });
 
