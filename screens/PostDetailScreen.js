@@ -399,8 +399,19 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const handleEditPost = () => {
     setShowMenuModal(false);
-    // TODO: 게시글 수정 화면으로 이동
-    Alert.alert('수정', '게시글 수정 기능은 준비 중입니다.');
+    // 게시글 수정 화면으로 이동 (기존 게시글 데이터 전달)
+    navigation.navigate('PostCreate', {
+      editPost: {
+        id: currentPost.id,
+        category: currentPost.category,
+        title: currentPost.title,
+        content: currentPost.content,
+        images: currentPost.images || [],
+        hashtags: currentPost.hashtags || [],
+        location: currentPost.location || '',
+        isAnonymous: currentPost.isAnonymous || false,
+      }
+    });
   };
 
   const handleDeletePost = () => {

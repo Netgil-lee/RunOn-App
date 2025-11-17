@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { getFirestore, collection, onSnapshot, doc, getDoc, updateDoc, addDoc, deleteDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, doc, getDoc, updateDoc, addDoc, deleteDoc, query, where, orderBy, getDocs, serverTimestamp } from 'firebase/firestore';
 import { Alert } from 'react-native';
 import { useNotificationSettings } from './NotificationSettingsContext';
 import { useAuth } from './AuthContext';
@@ -418,10 +418,25 @@ export const CommunityProvider = ({ children }) => {
     console.log('게시글 추가됨:', post);
   };
 
-  const updatePost = (postId, updates) => {
-    setPosts(prev => prev.map(post => 
-      post.id === postId ? { ...post, ...updates } : post
-    ));
+  const updatePost = async (postId, updates) => {
+    try {
+      // Firestore에서 실제 게시글 업데이트
+      const postRef = doc(db, 'posts', postId);
+      await updateDoc(postRef, {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+      
+      // 로컬 상태 업데이트
+      setPosts(prev => prev.map(post => 
+        post.id === postId ? { ...post, ...updates } : post
+      ));
+      
+      console.log('✅ 게시글 업데이트 완료:', postId);
+    } catch (error) {
+      console.error('❌ 게시글 업데이트 실패:', error);
+      throw error;
+    }
   };
 
   const deletePost = async (postId) => {

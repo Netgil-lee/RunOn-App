@@ -37,17 +37,22 @@ const COLORS = {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const PostCreateScreen = ({ navigation }) => {
-  const { addPost } = useCommunity();
+const PostCreateScreen = ({ navigation, route }) => {
+  const { addPost, updatePost } = useCommunity();
   const { user } = useAuth();
+  
+  // 수정 모드인지 확인
+  const editPost = route.params?.editPost;
+  const isEditMode = !!editPost;
+  
   const [postData, setPostData] = useState({
-    category: '',
-    title: '',
-    content: '',
-    images: [],
-    hashtags: [],
-    location: '',
-    isAnonymous: false,
+    category: editPost?.category || '',
+    title: editPost?.title || '',
+    content: editPost?.content || '',
+    images: editPost?.images || [],
+    hashtags: editPost?.hashtags || [],
+    location: editPost?.location || '',
+    isAnonymous: editPost?.isAnonymous || false,
     isDraft: false,
   });
 
@@ -296,6 +301,31 @@ const PostCreateScreen = ({ navigation }) => {
   // 게시글 제출 로직 (실제 저장)
   const submitPost = async () => {
     try {
+      // 수정 모드인 경우
+      if (isEditMode && editPost?.id) {
+        try {
+          // 게시글 업데이트
+          await updatePost(editPost.id, {
+            category: postData.category,
+            title: postData.title,
+            content: postData.content,
+            images: postData.images,
+            hashtags: postData.hashtags,
+            location: postData.location,
+            isAnonymous: postData.isAnonymous,
+          });
+          
+          Alert.alert('완료', '게시글이 수정되었습니다!', [
+            { text: '확인', onPress: () => navigation.goBack() }
+          ]);
+        } catch (error) {
+          console.error('게시글 수정 오류:', error);
+          Alert.alert('오류', '게시글 수정 중 오류가 발생했습니다.');
+        }
+        return;
+      }
+      
+      // 새 게시글 작성 모드
       // 사용자 프로필 정보 가져오기
       let authorName = '사용자';
       let fetchedUserProfile = null;
@@ -372,7 +402,7 @@ const PostCreateScreen = ({ navigation }) => {
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>새 글 작성</Text>
+        <Text style={styles.headerTitle}>{isEditMode ? '게시글 수정' : '새 글 작성'}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -646,7 +676,7 @@ const PostCreateScreen = ({ navigation }) => {
         >
           <Ionicons name="send" size={24} color={!isPostValid() ? COLORS.TEXT_SECONDARY : '#000000'} />
           <Text style={[styles.submitButtonText, !isPostValid() && styles.submitButtonTextDisabled]}>
-            게시글 작성
+            {isEditMode ? '게시글 수정' : '게시글 작성'}
           </Text>
         </TouchableOpacity>
       </View>
