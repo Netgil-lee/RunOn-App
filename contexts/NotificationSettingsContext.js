@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useAuth } from './AuthContext';
 
 const NotificationSettingsContext = createContext();
 
@@ -12,6 +14,9 @@ export const useNotificationSettings = () => {
 };
 
 export const NotificationSettingsProvider = ({ children }) => {
+  const { user } = useAuth();
+  const db = getFirestore();
+  
   const defaultSettings = {
     notifications: {
       newsNotification: true,      // 소식 알림 (일반 탭)
@@ -25,11 +30,44 @@ export const NotificationSettingsProvider = ({ children }) => {
 
   const [settings, setSettings] = useState(defaultSettings);
 
-  // AsyncStorage에서 설정 로드
+  // 사용자 로그인 시 Firestore에서 설정 로드 및 동기화
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (user?.uid) {
+      loadSettingsFromFirestore();
+    } else {
+      loadSettings();
+    }
+  }, [user?.uid]);
 
+  // Firestore에서 설정 로드
+  const loadSettingsFromFirestore = async () => {
+    if (!user?.uid) return;
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.notificationSettings) {
+          setSettings(userData.notificationSettings);
+          // AsyncStorage에도 동기화
+          await AsyncStorage.setItem('notificationSettings', JSON.stringify(userData.notificationSettings));
+          return;
+        }
+      }
+
+      // Firestore에 설정이 없으면 기본값 사용 및 저장
+      await saveSettingsToFirestore(defaultSettings);
+      setSettings(defaultSettings);
+    } catch (error) {
+      console.error('❌ Firestore에서 알림 설정 로드 실패:', error);
+      // 실패 시 AsyncStorage에서 로드 시도
+      loadSettings();
+    }
+  };
+
+  // AsyncStorage에서 설정 로드 (로그인 전 또는 Firestore 실패 시)
   const loadSettings = async () => {
     try {
       const savedSettings = await AsyncStorage.getItem('notificationSettings');
@@ -48,10 +86,31 @@ export const NotificationSettingsProvider = ({ children }) => {
     }
   };
 
-  // 설정 저장
+  // Firestore에 설정 저장
+  const saveSettingsToFirestore = async (newSettings) => {
+    if (!user?.uid) return;
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        notificationSettings: newSettings
+      });
+      console.log('✅ Firestore에 알림 설정 저장 완료');
+    } catch (error) {
+      console.error('❌ Firestore에 알림 설정 저장 실패:', error);
+    }
+  };
+
+  // 설정 저장 (AsyncStorage + Firestore)
   const saveSettings = async (newSettings) => {
     try {
+      // AsyncStorage에 저장
       await AsyncStorage.setItem('notificationSettings', JSON.stringify(newSettings));
+      
+      // Firestore에도 저장 (로그인한 경우)
+      if (user?.uid) {
+        await saveSettingsToFirestore(newSettings);
+      }
     } catch (error) {
       console.error('설정 저장 실패:', error);
     }

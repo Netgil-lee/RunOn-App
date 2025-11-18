@@ -40,7 +40,7 @@ const COLORS = {
 const PostDetailScreen = ({ route, navigation }) => {
   const { post } = route.params;
   const { user } = useAuth();
-  const { toggleLike, addComment, updateComment, deleteComment, updatePost, deletePost, createLikeNotification, createCommentNotification } = useCommunity();
+  const { toggleLike, addComment, updateComment, deleteComment, updatePost, deletePost } = useCommunity();
   
   // 안전한 데이터 처리 - post가 없거나 잘못된 경우 처리
   const safePost = post || {};
@@ -226,19 +226,8 @@ const PostDetailScreen = ({ route, navigation }) => {
           : [...(prev.likes || []), user.uid]
       }));
 
-      // 좋아요를 눌렀을 때만 알림 생성 (좋아요 취소가 아닐 때)
-      if (!isLiked && currentPost.authorId && currentPost.authorId !== user.uid) {
-        try {
-          await createLikeNotification(
-            currentPost.id, 
-            currentPost.title, 
-            user?.displayName || user?.email?.split('@')[0] || '사용자',
-            currentPost.authorId // 게시글 작성자에게 알림
-          );
-        } catch (error) {
-          console.warn('⚠️ 좋아요 알림 생성 실패:', error);
-        }
-      }
+      // 서버에서 푸시 알림을 전송하므로 클라이언트에서는 알림을 생성하지 않음
+      // Firestore에 좋아요가 추가되면 Cloud Function이 자동으로 알림을 전송합니다.
     } catch (error) {
       console.error('좋아요 처리 실패:', error);
     }
@@ -329,19 +318,8 @@ const PostDetailScreen = ({ route, navigation }) => {
           comments: [newComment, ...(Array.isArray(prev.comments) ? prev.comments : [])]
         }));
         
-        // 댓글 작성자가 게시글 작성자가 아닐 때만 알림 생성
-        if (currentPost.authorId && currentPost.authorId !== user.uid) {
-          try {
-            await createCommentNotification(
-              currentPost.id, 
-              currentPost.title, 
-              authorName,
-              currentPost.authorId // 게시글 작성자에게 알림
-            );
-          } catch (error) {
-            console.warn('⚠️ 댓글 알림 생성 실패:', error);
-          }
-        }
+        // 서버에서 푸시 알림을 전송하므로 클라이언트에서는 알림을 생성하지 않음
+        // Firestore에 댓글이 추가되면 Cloud Function이 자동으로 알림을 전송합니다.
         
         setCommentInput('');
         Keyboard.dismiss(); // 키보드 숨기기

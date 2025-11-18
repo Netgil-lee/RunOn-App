@@ -1,9 +1,13 @@
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const functions = require('firebase-functions/v1');
+const { Expo } = require('expo-server-sdk');
 
 // Firebase Admin 초기화
 admin.initializeApp();
+
+// Expo Push Notification 클라이언트 초기화
+const expo = new Expo();
 
 // 이메일 전송 설정
 // Gmail SMTP 사용 (환경 변수로 설정)
@@ -827,4 +831,680 @@ exports.recalculateMannerDistanceBatch = functions.https.onRequest(async (req, r
     });
   }
 });
+
+// ============================================
+// 푸시 알림 관련 공통 유틸리티 함수
+// ============================================
+
+/**
+ * 사용자 알림 설정 가져오기
+ */
+async function getUserNotificationSettings(userId) {
+  try {
+    const userDoc = await admin.firestore().collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      console.warn(`⚠️ 사용자를 찾을 수 없음: ${userId}`);
+      return null;
+    }
+
+    const userData = userDoc.data();
+    
+    // notificationSettings 필드 확인
+    if (userData.notificationSettings) {
+      return userData.notificationSettings;
+    }
+
+    // 기본 설정 반환 (모든 알림 ON)
+    return {
+      notifications: {
+        newsNotification: true,
+        meetingReminder: true,
+        newMember: true,
+        weatherAlert: true,
+        safetyAlert: true,
+        chatNotification: true
+      }
+    };
+  } catch (error) {
+    console.error('❌ 알림 설정 가져오기 실패:', error);
+    return null;
+  }
+}
+
+/**
+ * 알림 타입별 설정 확인
+ */
+function isNotificationTypeEnabled(settings, notificationType) {
+  if (!settings || !settings.notifications) {
+    return true; // 기본값: 알림 허용
+  }
+
+  const { notifications } = settings;
+
+  switch (notificationType) {
+    case 'system':
+    case 'event':
+    case 'tip':
+      return notifications.newsNotification !== false;
+    case 'weather':
+    case 'temperature_high':
+    case 'temperature_low':
+    case 'rain_heavy':
+    case 'rain_moderate':
+    case 'wind_strong':
+    case 'humidity_high':
+    case 'air_very_unhealthy':
+    case 'air_unhealthy':
+    case 'air_moderate':
+      return notifications.weatherAlert !== false;
+    case 'safety':
+    case 'flood_risk_rain':
+    case 'flood_warning':
+      return notifications.safetyAlert !== false;
+    case 'reminder':
+    case 'rating':
+    case 'cancel':
+    case 'new_participant':
+      return notifications.meetingReminder !== false;
+    case 'message':
+      return notifications.chatNotification !== false;
+    case 'like':
+    case 'comment':
+    case 'mention':
+      return notifications.newMember !== false;
+    default:
+      return true;
+  }
+}
+
+/**
+ * 사용자 정보 가져오기
+ */
+async function getUserInfo(userId) {
+  try {
+    const userDoc = await admin.firestore().collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return null;
+    }
+
+    const userData = userDoc.data();
+    return {
+      uid: userId,
+      displayName: userData.displayName || userData.profile?.nickname || '사용자',
+      nickname: userData.profile?.nickname || userData.displayName || '사용자',
+      email: userData.email || '',
+      profileImage: userData.profileImage || userData.profile?.profileImage || null,
+      expoPushToken: userData.expoPushToken || null
+    };
+  } catch (error) {
+    console.error('❌ 사용자 정보 가져오기 실패:', error);
+    return null;
+  }
+}
+
+/**
+ * Expo Push API를 통해 알림 전송
+ */
+async function sendExpoPushNotification(expoPushToken, title, body, data = {}) {
+  try {
+    // 토큰 유효성 검사
+    if (!Expo.isExpoPushToken(expoPushToken)) {
+      console.error('❌ 유효하지 않은 Expo Push Token:', expoPushToken);
+      return { success: false, error: 'Invalid token' };
+    }
+
+    // 알림 메시지 생성
+    const messages = [{
+      to: expoPushToken,
+      sound: 'default',
+      title: title,
+      body: body,
+      data: data,
+      priority: 'high',
+      channelId: 'runon-notifications'
+    }];
+
+    // 알림 전송
+    const chunks = expo.chunkPushNotifications(messages);
+    const tickets = [];
+
+    for (const chunk of chunks) {
+      try {
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        tickets.push(...ticketChunk);
+      } catch (error) {
+        console.error('❌ 알림 전송 실패:', error);
+        return { success: false, error: error.message };
+      }
+    }
+
+    // 결과 확인
+    for (const ticket of tickets) {
+      if (ticket.status === 'error') {
+        console.error('❌ 알림 전송 에러:', ticket.message);
+        if (ticket.details && ticket.details.error) {
+          console.error('❌ 에러 상세:', ticket.details.error);
+        }
+        return { success: false, error: ticket.message };
+      }
+    }
+
+    console.log('✅ 푸시 알림 전송 성공');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ 푸시 알림 전송 실패:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================
+// 채팅 메시지 알림 함수
+// ============================================
+
+/**
+ * 채팅 메시지 생성 시 알림 전송
+ */
+exports.onChatMessageCreated = functions.firestore
+  .document('chatRooms/{chatRoomId}/messages/{messageId}')
+  .onCreate(async (snap, context) => {
+    const { chatRoomId, messageId } = context.params;
+    const messageData = snap.data();
+
+    console.log('📱 채팅 메시지 알림 전송 시작:', { chatRoomId, messageId });
+
+    try {
+      // 시스템 메시지는 알림 전송 안 함
+      if (messageData.isSystemMessage) {
+        console.log('⚠️ 시스템 메시지이므로 알림 전송 안 함');
+        return null;
+      }
+
+      // 채팅방 정보 가져오기
+      const chatRoomDoc = await admin.firestore().collection('chatRooms').doc(chatRoomId).get();
+      if (!chatRoomDoc.exists) {
+        console.warn('⚠️ 채팅방을 찾을 수 없음:', chatRoomId);
+        return null;
+      }
+
+      const chatRoom = chatRoomDoc.data();
+      const participants = chatRoom.participants || [];
+      const senderId = messageData.senderId;
+
+      // 발신자 제외한 참여자 확인
+      const recipients = participants.filter(participantId => participantId !== senderId);
+
+      if (recipients.length === 0) {
+        console.log('⚠️ 알림을 받을 참여자가 없음');
+        return null;
+      }
+
+      // 발신자 정보 가져오기
+      const senderInfo = await getUserInfo(senderId);
+      if (!senderInfo) {
+        console.warn('⚠️ 발신자 정보를 찾을 수 없음:', senderId);
+        return null;
+      }
+
+      // 모임 제목 가져오기
+      let meetingTitle = chatRoom.title || '채팅방';
+      if (chatRoom.eventId) {
+        const eventDoc = await admin.firestore().collection('events').doc(chatRoom.eventId).get();
+        if (eventDoc.exists) {
+          const eventData = eventDoc.data();
+          meetingTitle = eventData.title || meetingTitle;
+        }
+      }
+
+      // 메시지 내용 (최대 50자)
+      const messageText = messageData.text || '';
+      const messagePreview = messageText.length > 50 ? messageText.substring(0, 50) + '...' : messageText;
+
+      // 각 수신자에게 알림 전송
+      const results = [];
+      for (const recipientId of recipients) {
+        try {
+          // 수신자 정보 가져오기
+          const recipientInfo = await getUserInfo(recipientId);
+          if (!recipientInfo || !recipientInfo.expoPushToken) {
+            console.warn(`⚠️ 수신자의 Push Token이 없음: ${recipientId}`);
+            continue;
+          }
+
+          // 알림 설정 확인
+          const settings = await getUserNotificationSettings(recipientId);
+          if (!isNotificationTypeEnabled(settings, 'message')) {
+            console.log(`📵 채팅 알림이 OFF되어 있음: ${recipientId}`);
+            continue;
+          }
+
+          // 알림 전송
+          const notificationTitle = meetingTitle;
+          const notificationBody = `${senderInfo.nickname}\n${messagePreview}`;
+
+          const result = await sendExpoPushNotification(
+            recipientInfo.expoPushToken,
+            notificationTitle,
+            notificationBody,
+            {
+              type: 'new_message',
+              chatRoomId: chatRoomId,
+              navigationTarget: 'Chat'
+            }
+          );
+
+          if (result.success) {
+            console.log(`✅ 채팅 알림 전송 성공: ${recipientId}`);
+            results.push({ recipientId, success: true });
+          } else {
+            console.error(`❌ 채팅 알림 전송 실패: ${recipientId}`, result.error);
+            results.push({ recipientId, success: false, error: result.error });
+          }
+        } catch (error) {
+          console.error(`❌ 알림 전송 중 에러: ${recipientId}`, error);
+          results.push({ recipientId, success: false, error: error.message });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      console.log(`✅ 채팅 알림 전송 완료: ${successCount}/${recipients.length}명`);
+
+      return { success: true, results };
+    } catch (error) {
+      console.error('❌ 채팅 메시지 알림 전송 실패:', error);
+      return null;
+    }
+  });
+
+// ============================================
+// 모임 취소 알림 함수
+// ============================================
+
+/**
+ * 모임 삭제 시 참여자에게 알림 전송
+ */
+exports.onEventDeleted = functions.firestore
+  .document('events/{eventId}')
+  .onDelete(async (snap, context) => {
+    const { eventId } = context.params;
+    const eventData = snap.data();
+
+    console.log('📱 모임 취소 알림 전송 시작:', eventId);
+
+    try {
+      const participants = eventData.participants || [];
+      const organizerId = eventData.organizerId;
+
+      // 주최자 제외한 참여자 확인
+      const recipients = participants.filter(participantId => participantId !== organizerId);
+
+      if (recipients.length === 0) {
+        console.log('⚠️ 알림을 받을 참여자가 없음');
+        return null;
+      }
+
+      const eventTitle = eventData.title || '모임';
+
+      // 각 참여자에게 알림 전송
+      const results = [];
+      for (const recipientId of recipients) {
+        try {
+          // 수신자 정보 가져오기
+          const recipientInfo = await getUserInfo(recipientId);
+          if (!recipientInfo || !recipientInfo.expoPushToken) {
+            console.warn(`⚠️ 수신자의 Push Token이 없음: ${recipientId}`);
+            continue;
+          }
+
+          // 알림 설정 확인
+          const settings = await getUserNotificationSettings(recipientId);
+          if (!isNotificationTypeEnabled(settings, 'cancel')) {
+            console.log(`📵 모임 알림이 OFF되어 있음: ${recipientId}`);
+            continue;
+          }
+
+          // 알림 전송
+          const notificationTitle = '모임이 취소되었습니다';
+          const notificationBody = `"${eventTitle}" 모임이 주최자에 의해 취소되었습니다.`;
+
+          const result = await sendExpoPushNotification(
+            recipientInfo.expoPushToken,
+            notificationTitle,
+            notificationBody,
+            {
+              type: 'meeting_cancelled',
+              meetingId: eventId,
+              navigationTarget: 'Home'
+            }
+          );
+
+          if (result.success) {
+            console.log(`✅ 모임 취소 알림 전송 성공: ${recipientId}`);
+            results.push({ recipientId, success: true });
+          } else {
+            console.error(`❌ 모임 취소 알림 전송 실패: ${recipientId}`, result.error);
+            results.push({ recipientId, success: false, error: result.error });
+          }
+        } catch (error) {
+          console.error(`❌ 알림 전송 중 에러: ${recipientId}`, error);
+          results.push({ recipientId, success: false, error: error.message });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      console.log(`✅ 모임 취소 알림 전송 완료: ${successCount}/${recipients.length}명`);
+
+      return { success: true, results };
+    } catch (error) {
+      console.error('❌ 모임 취소 알림 전송 실패:', error);
+      return null;
+    }
+  });
+
+// ============================================
+// 모임 참여 알림 함수
+// ============================================
+
+/**
+ * 모임 참여자 추가 시 주최자에게 알림 전송
+ */
+exports.onEventParticipantAdded = functions.firestore
+  .document('events/{eventId}')
+  .onUpdate(async (change, context) => {
+    const { eventId } = context.params;
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+
+    console.log('📱 모임 참여 알림 확인 시작:', eventId);
+
+    try {
+      const beforeParticipants = beforeData.participants || [];
+      const afterParticipants = afterData.participants || [];
+      const organizerId = afterData.organizerId;
+
+      // 새로 추가된 참여자 확인
+      const newParticipants = afterParticipants.filter(
+        participantId => !beforeParticipants.includes(participantId)
+      );
+
+      if (newParticipants.length === 0) {
+        console.log('⚠️ 새 참여자가 없음');
+        return null;
+      }
+
+      // 주최자 정보 가져오기
+      const organizerInfo = await getUserInfo(organizerId);
+      if (!organizerInfo || !organizerInfo.expoPushToken) {
+        console.warn('⚠️ 주최자의 Push Token이 없음:', organizerId);
+        return null;
+      }
+
+      // 알림 설정 확인
+      const settings = await getUserNotificationSettings(organizerId);
+      if (!isNotificationTypeEnabled(settings, 'new_participant')) {
+        console.log('📵 모임 알림이 OFF되어 있음:', organizerId);
+        return null;
+      }
+
+      const eventTitle = afterData.title || '모임';
+
+      // 각 새 참여자마다 개별 알림 전송
+      const results = [];
+      for (const participantId of newParticipants) {
+        try {
+          // 참여자 정보 가져오기
+          const participantInfo = await getUserInfo(participantId);
+          if (!participantInfo) {
+            console.warn('⚠️ 참여자 정보를 찾을 수 없음:', participantId);
+            continue;
+          }
+
+          // 알림 전송
+          const notificationTitle = '새 참여자';
+          const notificationBody = `"${participantInfo.nickname}"님이 "${eventTitle}" 모임에 참여했습니다.`;
+
+          const result = await sendExpoPushNotification(
+            organizerInfo.expoPushToken,
+            notificationTitle,
+            notificationBody,
+            {
+              type: 'new_participant',
+              eventId: eventId,
+              participantId: participantId,
+              navigationTarget: 'EventDetail'
+            }
+          );
+
+          if (result.success) {
+            console.log(`✅ 모임 참여 알림 전송 성공: ${participantId}`);
+            results.push({ participantId, success: true });
+          } else {
+            console.error(`❌ 모임 참여 알림 전송 실패: ${participantId}`, result.error);
+            results.push({ participantId, success: false, error: result.error });
+          }
+        } catch (error) {
+          console.error(`❌ 알림 전송 중 에러: ${participantId}`, error);
+          results.push({ participantId, success: false, error: error.message });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      console.log(`✅ 모임 참여 알림 전송 완료: ${successCount}/${newParticipants.length}명`);
+
+      return { success: true, results };
+    } catch (error) {
+      console.error('❌ 모임 참여 알림 전송 실패:', error);
+      return null;
+    }
+  });
+
+// ============================================
+// 게시글 좋아요 알림 함수
+// ============================================
+
+/**
+ * 게시글 좋아요 추가 시 작성자에게 알림 전송
+ */
+exports.onPostLikeAdded = functions.firestore
+  .document('posts/{postId}')
+  .onUpdate(async (change, context) => {
+    const { postId } = context.params;
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+
+    console.log('📱 게시글 좋아요 알림 확인 시작:', postId);
+
+    try {
+      const beforeLikes = beforeData.likes || [];
+      const afterLikes = afterData.likes || [];
+      const authorId = afterData.authorId;
+
+      // 새로 추가된 좋아요 확인
+      const newLikes = afterLikes.filter(likeId => !beforeLikes.includes(likeId));
+
+      if (newLikes.length === 0) {
+        console.log('⚠️ 새 좋아요가 없음');
+        return null;
+      }
+
+      // 작성자와 좋아요를 누른 사용자가 같은 경우 알림 전송 안 함
+      if (newLikes.includes(authorId)) {
+        console.log('⚠️ 작성자가 자신의 게시글에 좋아요를 눌렀으므로 알림 전송 안 함');
+        return null;
+      }
+
+      // 작성자 정보 가져오기
+      const authorInfo = await getUserInfo(authorId);
+      if (!authorInfo || !authorInfo.expoPushToken) {
+        console.warn('⚠️ 작성자의 Push Token이 없음:', authorId);
+        return null;
+      }
+
+      // 알림 설정 확인
+      const settings = await getUserNotificationSettings(authorId);
+      if (!isNotificationTypeEnabled(settings, 'like')) {
+        console.log('📵 커뮤니티 알림이 OFF되어 있음:', authorId);
+        return null;
+      }
+
+      const postTitle = afterData.title || '게시글';
+
+      // 각 좋아요마다 개별 알림 전송 (같은 사용자가 여러 번 좋아요를 눌러도 한 번만)
+      const uniqueLikers = [...new Set(newLikes)];
+      const results = [];
+
+      for (const likerId of uniqueLikers) {
+        try {
+          // 좋아요를 누른 사용자 정보 가져오기
+          const likerInfo = await getUserInfo(likerId);
+          if (!likerInfo) {
+            console.warn('⚠️ 좋아요를 누른 사용자 정보를 찾을 수 없음:', likerId);
+            continue;
+          }
+
+          // 알림 전송
+          const notificationTitle = '좋아요';
+          const notificationBody = `"${likerInfo.nickname}"님이 "${postTitle}" 게시글에 좋아요를 눌렀습니다.`;
+
+          const result = await sendExpoPushNotification(
+            authorInfo.expoPushToken,
+            notificationTitle,
+            notificationBody,
+            {
+              type: 'like',
+              postId: postId,
+              likerId: likerId,
+              navigationTarget: 'PostDetail'
+            }
+          );
+
+          if (result.success) {
+            console.log(`✅ 좋아요 알림 전송 성공: ${likerId}`);
+            results.push({ likerId, success: true });
+          } else {
+            console.error(`❌ 좋아요 알림 전송 실패: ${likerId}`, result.error);
+            results.push({ likerId, success: false, error: result.error });
+          }
+        } catch (error) {
+          console.error(`❌ 알림 전송 중 에러: ${likerId}`, error);
+          results.push({ likerId, success: false, error: error.message });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      console.log(`✅ 좋아요 알림 전송 완료: ${successCount}/${uniqueLikers.length}명`);
+
+      return { success: true, results };
+    } catch (error) {
+      console.error('❌ 좋아요 알림 전송 실패:', error);
+      return null;
+    }
+  });
+
+// ============================================
+// 게시글 댓글 알림 함수
+// ============================================
+
+/**
+ * 게시글 댓글 추가 시 작성자에게 알림 전송
+ */
+exports.onPostCommentAdded = functions.firestore
+  .document('posts/{postId}')
+  .onUpdate(async (change, context) => {
+    const { postId } = context.params;
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+
+    console.log('📱 게시글 댓글 알림 확인 시작:', postId);
+
+    try {
+      const beforeComments = beforeData.comments || [];
+      const afterComments = afterData.comments || [];
+      const authorId = afterData.authorId;
+
+      // 새로 추가된 댓글 확인
+      const newComments = afterComments.filter(
+        comment => !beforeComments.some(beforeComment => beforeComment.id === comment.id)
+      );
+
+      if (newComments.length === 0) {
+        console.log('⚠️ 새 댓글이 없음');
+        return null;
+      }
+
+      // 작성자 정보 가져오기
+      const authorInfo = await getUserInfo(authorId);
+      if (!authorInfo || !authorInfo.expoPushToken) {
+        console.warn('⚠️ 작성자의 Push Token이 없음:', authorId);
+        return null;
+      }
+
+      // 알림 설정 확인
+      const settings = await getUserNotificationSettings(authorId);
+      if (!isNotificationTypeEnabled(settings, 'comment')) {
+        console.log('📵 커뮤니티 알림이 OFF되어 있음:', authorId);
+        return null;
+      }
+
+      const postTitle = afterData.title || '게시글';
+
+      // 각 댓글마다 개별 알림 전송
+      const results = [];
+      for (const comment of newComments) {
+        try {
+          // 작성자와 댓글 작성자가 같은 경우 알림 전송 안 함
+          if (comment.authorId === authorId) {
+            console.log('⚠️ 작성자가 자신의 게시글에 댓글을 남겼으므로 알림 전송 안 함');
+            continue;
+          }
+
+          // 댓글 작성자 정보 가져오기
+          const commenterInfo = await getUserInfo(comment.authorId);
+          if (!commenterInfo) {
+            console.warn('⚠️ 댓글 작성자 정보를 찾을 수 없음:', comment.authorId);
+            continue;
+          }
+
+          // 댓글 내용 (최대 50자)
+          const commentText = comment.text || '';
+          const commentPreview = commentText.length > 50 ? commentText.substring(0, 50) + '...' : commentText;
+
+          // 알림 전송
+          const notificationTitle = '댓글';
+          const notificationBody = `"${commenterInfo.nickname}"님이 "${postTitle}" 게시글에 댓글을 남겼습니다: ${commentPreview}`;
+
+          const result = await sendExpoPushNotification(
+            authorInfo.expoPushToken,
+            notificationTitle,
+            notificationBody,
+            {
+              type: 'comment',
+              postId: postId,
+              commentId: comment.id,
+              commenterId: comment.authorId,
+              navigationTarget: 'PostDetail'
+            }
+          );
+
+          if (result.success) {
+            console.log(`✅ 댓글 알림 전송 성공: ${comment.id}`);
+            results.push({ commentId: comment.id, success: true });
+          } else {
+            console.error(`❌ 댓글 알림 전송 실패: ${comment.id}`, result.error);
+            results.push({ commentId: comment.id, success: false, error: result.error });
+          }
+        } catch (error) {
+          console.error(`❌ 알림 전송 중 에러: ${comment.id}`, error);
+          results.push({ commentId: comment.id, success: false, error: error.message });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      console.log(`✅ 댓글 알림 전송 완료: ${successCount}/${newComments.length}개`);
+
+      return { success: true, results };
+    } catch (error) {
+      console.error('❌ 댓글 알림 전송 실패:', error);
+      return null;
+    }
+  });
 

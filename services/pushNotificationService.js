@@ -158,16 +158,25 @@ class PushNotificationService {
         console.log('⏰ 모임 리마인더 알림');
         break;
       case 'meeting_cancelled':
-        console.log('❌ 모임 취소 알림');
+        console.log('❌ 모임 취소 알림', data);
         break;
       case 'new_message':
-        console.log('💬 새 메시지 알림');
+        console.log('💬 새 메시지 알림', data);
+        break;
+      case 'new_participant':
+        console.log('👥 새 참여자 알림', data);
+        break;
+      case 'like':
+        console.log('👍 좋아요 알림', data);
+        break;
+      case 'comment':
+        console.log('💬 댓글 알림', data);
         break;
       case 'weather_alert':
         console.log('🌦️ 날씨 경고 알림');
         break;
       default:
-        console.log('📱 일반 알림');
+        console.log('📱 일반 알림', data);
     }
   }
 
