@@ -317,25 +317,8 @@ const ChatScreen = ({ route, navigation }) => {
           participantId !== user.uid
         );
         
-        // 각 참여자에게 푸시 알림 전송 (설정에 따라)
-        for (const participantId of otherParticipants) {
-          try {
-            // 채팅 알림 설정이 활성화된 경우에만 푸시 알림 전송
-            if (isNotificationTypeEnabled('message')) {
-              await pushNotificationService.sendNewMessageNotification(
-                participantId,
-                senderName, // 정확한 발신자 이름 사용
-                messageData.text,
-                chatRoom.id
-              );
-              console.log('✅ 채팅 푸시 알림 전송 완료:', participantId);
-            } else {
-              console.log('📵 채팅 알림 설정이 비활성화되어 푸시 알림 전송 안 함');
-            }
-          } catch (error) {
-            console.warn('⚠️ 채팅 푸시 알림 전송 실패:', error);
-          }
-        }
+        // 서버에서 푸시 알림을 전송하므로 클라이언트에서는 전송하지 않음
+        // Firestore에 메시지가 저장되면 Cloud Function이 자동으로 알림을 전송합니다.
       }
       
       console.log('✅ ChatScreen - 메시지 전송 완료');
