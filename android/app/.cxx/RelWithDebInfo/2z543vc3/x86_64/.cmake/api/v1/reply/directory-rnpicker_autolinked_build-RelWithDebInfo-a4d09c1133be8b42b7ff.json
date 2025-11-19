@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "rnpicker_autolinked_build",
+		"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/@react-native-picker/picker/android/src/main/jni"
+	}
+}

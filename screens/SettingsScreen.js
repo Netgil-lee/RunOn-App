@@ -480,18 +480,18 @@ const SettingsScreen = ({ navigation }) => {
         <SectionTitle title="앱" />
         <View style={styles.section}>
           {Platform.OS === 'ios' && (
-            <SettingItem
-              icon="heart-outline"
-              title="건강데이터 접근"
-              subtitle={
-                healthKitStatus.isChecking 
-                  ? "상태 확인 중..." 
-                  : healthKitStatus.hasPermissions 
-                    ? "HealthKit 권한 허용됨" 
-                    : "러닝 데이터 동기화 및 권한 관리"
-              }
-              onPress={handleHealthKitAccess}
-            />
+          <SettingItem
+            icon="heart-outline"
+            title="건강데이터 접근"
+            subtitle={
+              healthKitStatus.isChecking 
+                ? "상태 확인 중..." 
+                : healthKitStatus.hasPermissions 
+                  ? "HealthKit 권한 허용됨" 
+                  : "러닝 데이터 동기화 및 권한 관리"
+            }
+            onPress={handleHealthKitAccess}
+          />
           )}
           <SettingItem
             icon="ban-outline"

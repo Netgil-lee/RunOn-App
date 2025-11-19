@@ -10,8 +10,10 @@ import {
   StyleSheet,
   Image,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
@@ -40,6 +42,8 @@ const EventDetailScreen = ({ route, navigation }) => {
   const [isEvaluationCompleted, setIsEvaluationCompleted] = useState(evaluationCompleted);
   const [isCheckingEvaluation, setIsCheckingEvaluation] = useState(false);
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   const { endEvent, joinEvent, leaveEvent, allEvents, chatRooms } = useEvents();
   const { guideStates, currentGuide, currentStep, setCurrentGuide, setCurrentStep, completeGuide } = useGuide();
   
@@ -717,7 +721,7 @@ const EventDetailScreen = ({ route, navigation }) => {
         />
       )}
       {/* 헤더 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: 16 + statusBarPadding }]}>
         <TouchableOpacity onPress={() => {
           navigation.goBack();
         }} style={styles.backButton}>

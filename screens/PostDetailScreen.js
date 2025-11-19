@@ -16,11 +16,14 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCommunity } from '../contexts/CommunityContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatRelativeTime } from '../utils/timestampUtils';
 import reportService from '../services/reportService';
 import contentFilterService from '../services/contentFilterService';
+import blacklistService from '../services/blacklistService';
+import firestoreService from '../services/firestoreService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -40,6 +43,8 @@ const COLORS = {
 const PostDetailScreen = ({ route, navigation }) => {
   const { post } = route.params;
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   const { toggleLike, addComment, updateComment, deleteComment, updatePost, deletePost } = useCommunity();
   
   // 안전한 데이터 처리 - post가 없거나 잘못된 경우 처리
@@ -58,6 +63,9 @@ const PostDetailScreen = ({ route, navigation }) => {
   const [showCommentReportModal, setShowCommentReportModal] = useState(false);
   const [selectedReportReason, setSelectedReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
+  const [shouldBlockPostAuthor, setShouldBlockPostAuthor] = useState(false);
+  const [shouldBlockCommentAuthor, setShouldBlockCommentAuthor] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
   const [currentPost, setCurrentPost] = useState({
     id: safePost.id || '',
     title: safePost.title || '',
@@ -452,6 +460,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     setShowPostReportModal(true);
     setSelectedReportReason('');
     setReportDescription('');
+    setShouldBlockPostAuthor(false);
   };
 
   // 댓글 신고 모달 열기
@@ -460,6 +469,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     setShowCommentReportModal(true);
     setSelectedReportReason('');
     setReportDescription('');
+    setShouldBlockCommentAuthor(false);
   };
 
   // 게시글 신고 제출
@@ -478,10 +488,47 @@ const PostDetailScreen = ({ route, navigation }) => {
       );
 
       if (result.success) {
-        Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        // 차단 옵션이 선택된 경우 사용자 차단
+        if (shouldBlockPostAuthor && currentPost.authorId && user?.uid && currentPost.authorId !== user.uid) {
+          try {
+            setIsBlocking(true);
+            
+            // Firestore에서 작성자 프로필 정보 가져오기
+            const authorProfile = await firestoreService.getUserProfile(currentPost.authorId);
+            
+            const authorName = authorProfile?.displayName || currentPost.author || '사용자';
+            const authorProfileImage = authorProfile?.photoURL || authorProfile?.profileImage || null;
+            
+            await blacklistService.blockUser(
+              user.uid,
+              currentPost.authorId,
+              authorName,
+              authorProfileImage
+            );
+            
+            Alert.alert(
+              '신고 및 차단 완료',
+              '신고가 접수되었고 해당 사용자를 차단했습니다.',
+              [{ text: '확인' }]
+            );
+          } catch (blockError) {
+            console.error('사용자 차단 실패:', blockError);
+            Alert.alert(
+              '신고 완료',
+              '신고가 접수되었습니다. 검토 후 조치하겠습니다.\n(차단 처리 중 오류가 발생했습니다.)',
+              [{ text: '확인' }]
+            );
+          } finally {
+            setIsBlocking(false);
+          }
+        } else {
+          Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        }
+        
         setShowPostReportModal(false);
         setSelectedReportReason('');
         setReportDescription('');
+        setShouldBlockPostAuthor(false);
       } else {
         Alert.alert('오류', result.error || '신고 제출에 실패했습니다.');
       }
@@ -508,11 +555,48 @@ const PostDetailScreen = ({ route, navigation }) => {
       );
 
       if (result.success) {
-        Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        // 차단 옵션이 선택된 경우 사용자 차단
+        if (shouldBlockCommentAuthor && selectedComment.authorId && user?.uid && selectedComment.authorId !== user.uid) {
+          try {
+            setIsBlocking(true);
+            
+            // Firestore에서 작성자 프로필 정보 가져오기
+            const authorProfile = await firestoreService.getUserProfile(selectedComment.authorId);
+            
+            const authorName = authorProfile?.displayName || selectedComment.author || '사용자';
+            const authorProfileImage = authorProfile?.photoURL || authorProfile?.profileImage || null;
+            
+            await blacklistService.blockUser(
+              user.uid,
+              selectedComment.authorId,
+              authorName,
+              authorProfileImage
+            );
+            
+            Alert.alert(
+              '신고 및 차단 완료',
+              '신고가 접수되었고 해당 사용자를 차단했습니다.',
+              [{ text: '확인' }]
+            );
+          } catch (blockError) {
+            console.error('사용자 차단 실패:', blockError);
+            Alert.alert(
+              '신고 완료',
+              '신고가 접수되었습니다. 검토 후 조치하겠습니다.\n(차단 처리 중 오류가 발생했습니다.)',
+              [{ text: '확인' }]
+            );
+          } finally {
+            setIsBlocking(false);
+          }
+        } else {
+          Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        }
+        
         setShowCommentReportModal(false);
         setSelectedComment(null);
         setSelectedReportReason('');
         setReportDescription('');
+        setShouldBlockCommentAuthor(false);
       } else {
         Alert.alert('오류', result.error || '신고 제출에 실패했습니다.');
       }
@@ -525,20 +609,20 @@ const PostDetailScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>게시글</Text>
-        </View>
-        {!isAuthor ? (
-          <TouchableOpacity style={styles.shareButton} onPress={handlePostReport}>
-            <Ionicons name="alert-circle-outline" size={24} color={COLORS.TEXT} />
+      <View style={[styles.header, { paddingTop: statusBarPadding }]}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
           </TouchableOpacity>
-        ) : (
-          <View style={styles.shareButton} />
-        )}
+          <Text style={styles.headerTitle}>게시글</Text>
+          {!isAuthor ? (
+            <TouchableOpacity style={styles.shareButton} onPress={handlePostReport}>
+              <Ionicons name="alert-circle-outline" size={24} color={COLORS.TEXT} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
+        </View>
       </View>
 
       <KeyboardAvoidingView 
@@ -868,7 +952,11 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <Ionicons name="close" size={24} color={COLORS.TEXT} />
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
+                <ScrollView 
+                  style={styles.reportModalContent} 
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.reportModalContentContainer}
+                >
                   <Text style={styles.reportModalSubtitle}>신고 사유를 선택해주세요</Text>
                   {reportReasons.map((reason) => (
                     <TouchableOpacity
@@ -890,6 +978,25 @@ const PostDetailScreen = ({ route, navigation }) => {
                       )}
                     </TouchableOpacity>
                   ))}
+                  {!isAuthor && currentPost.authorId && currentPost.authorId !== user?.uid && (
+                    <TouchableOpacity
+                      style={[
+                        styles.reportReasonItem,
+                        shouldBlockPostAuthor && styles.reportReasonItemSelected
+                      ]}
+                      onPress={() => setShouldBlockPostAuthor(!shouldBlockPostAuthor)}
+                    >
+                      <Text style={[
+                        styles.reportReasonText,
+                        shouldBlockPostAuthor && styles.reportReasonTextSelected
+                      ]}>
+                        사용자 차단하기
+                      </Text>
+                      {shouldBlockPostAuthor && (
+                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                      )}
+                    </TouchableOpacity>
+                  )}
                   <Text style={styles.reportDescriptionLabel}>추가 설명 (선택)</Text>
                   <TextInput
                     style={styles.reportDescriptionInput}
@@ -909,12 +1016,12 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.reportCancelButtonText}>취소</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={[styles.reportSubmitButton, !selectedReportReason && styles.reportSubmitButtonDisabled]}
+                    style={[styles.reportSubmitButton, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonDisabled]}
                     onPress={handleSubmitPostReport}
-                    disabled={!selectedReportReason}
+                    disabled={!selectedReportReason || isBlocking}
                   >
-                    <Text style={[styles.reportSubmitButtonText, !selectedReportReason && styles.reportSubmitButtonTextDisabled]}>
-                      신고하기
+                    <Text style={[styles.reportSubmitButtonText, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonTextDisabled]}>
+                      {isBlocking ? '처리 중...' : '신고하기'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -943,7 +1050,11 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <Ionicons name="close" size={24} color={COLORS.TEXT} />
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
+                <ScrollView 
+                  style={styles.reportModalContent} 
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.reportModalContentContainer}
+                >
                   <Text style={styles.reportModalSubtitle}>신고 사유를 선택해주세요</Text>
                   {reportReasons.map((reason) => (
                     <TouchableOpacity
@@ -965,6 +1076,25 @@ const PostDetailScreen = ({ route, navigation }) => {
                       )}
                     </TouchableOpacity>
                   ))}
+                  {selectedComment && selectedComment.authorId && selectedComment.authorId !== user?.uid && (
+                    <TouchableOpacity
+                      style={[
+                        styles.reportReasonItem,
+                        shouldBlockCommentAuthor && styles.reportReasonItemSelected
+                      ]}
+                      onPress={() => setShouldBlockCommentAuthor(!shouldBlockCommentAuthor)}
+                    >
+                      <Text style={[
+                        styles.reportReasonText,
+                        shouldBlockCommentAuthor && styles.reportReasonTextSelected
+                      ]}>
+                        사용자 차단하기
+                      </Text>
+                      {shouldBlockCommentAuthor && (
+                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                      )}
+                    </TouchableOpacity>
+                  )}
                   <Text style={styles.reportDescriptionLabel}>추가 설명 (선택)</Text>
                   <TextInput
                     style={styles.reportDescriptionInput}
@@ -984,12 +1114,12 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.reportCancelButtonText}>취소</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={[styles.reportSubmitButton, !selectedReportReason && styles.reportSubmitButtonDisabled]}
+                    style={[styles.reportSubmitButton, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonDisabled]}
                     onPress={handleSubmitCommentReport}
-                    disabled={!selectedReportReason}
+                    disabled={!selectedReportReason || isBlocking}
                   >
-                    <Text style={[styles.reportSubmitButtonText, !selectedReportReason && styles.reportSubmitButtonTextDisabled]}>
-                      신고하기
+                    <Text style={[styles.reportSubmitButtonText, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonTextDisabled]}>
+                      {isBlocking ? '처리 중...' : '신고하기'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1007,14 +1137,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
   },
   header: {
+    backgroundColor: COLORS.BACKGROUND,
+    borderBottomWidth: 0.25,
+    borderBottomColor: COLORS.BORDER,
+  },
+  headerContent: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 0.25,
-    borderBottomColor: COLORS.BORDER,
-    position: 'relative',
   },
   backButton: {
     width: 44,
@@ -1022,24 +1154,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitleContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: -1,
-  },
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
     color: COLORS.TEXT,
+    fontFamily: 'Pretendard-SemiBold',
   },
   shareButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerSpacer: {
+    width: 44,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -1428,6 +1556,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     maxHeight: 400,
+  },
+  reportModalContentContainer: {
+    paddingBottom: 20,
   },
   reportModalSubtitle: {
     fontSize: 16,

@@ -15,6 +15,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { HAN_RIVER_PARKS, RIVER_SIDES } from '../constants/onboardingOptions';
 import { useCommunity } from '../contexts/CommunityContext';
@@ -40,6 +41,8 @@ const { width: screenWidth } = Dimensions.get('window');
 const PostCreateScreen = ({ navigation, route }) => {
   const { addPost, updatePost } = useCommunity();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   
   // 수정 모드인지 확인
   const editPost = route.params?.editPost;
@@ -398,7 +401,7 @@ const PostCreateScreen = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: 12 + statusBarPadding }]}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
         </TouchableOpacity>

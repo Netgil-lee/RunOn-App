@@ -10,8 +10,10 @@ import {
   Keyboard,
   Animated,
   Image,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useEvents } from '../contexts/EventContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,6 +33,8 @@ const COLORS = {
 
 const SearchScreen = ({ navigation }) => {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   const { userCreatedEvents, userJoinedEvents, endedEvents } = useEvents();
   const { posts: communityPosts } = useCommunity(); // 실제 커뮤니티 데이터 사용
   const [blacklist, setBlacklist] = useState([]);
@@ -590,7 +594,7 @@ const SearchScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
         {/* 헤더 */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: 8 + statusBarPadding }]}>
           <TouchableOpacity 
             onPress={() => navigation.goBack()} 
             style={styles.backButton}

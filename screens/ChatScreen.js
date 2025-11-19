@@ -15,6 +15,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
@@ -37,6 +38,8 @@ const COLORS = {
 const ChatScreen = ({ route, navigation }) => {
   const { chatRoom: initialChatRoom, returnToCommunity } = route.params;
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   const { 
     addChatMessage, 
     handleChatRoomClick, 
@@ -443,7 +446,7 @@ const ChatScreen = ({ route, navigation }) => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* 채팅방 정보 헤더 */}
-        <View style={styles.chatHeader}>
+        <View style={[styles.chatHeader, { paddingTop: 4 + statusBarPadding }]}>
           <TouchableOpacity 
             style={styles.headerBackButton}
             onPress={() => {

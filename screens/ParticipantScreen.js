@@ -8,8 +8,10 @@ import {
   Image,
   StyleSheet,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   getCourseName, 
   getSeasonTitle, 
@@ -44,6 +46,8 @@ const COLORS = {
 const ParticipantScreen = ({ route, navigation }) => {
   const { participant } = route.params;
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   
   const [communityStats, setCommunityStats] = useState({
     totalParticipated: 0,
@@ -193,7 +197,7 @@ const ParticipantScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: 16 + statusBarPadding }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>

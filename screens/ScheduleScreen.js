@@ -565,7 +565,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
   if (showMyCreated) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: 2 + statusBarPadding }]}>
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
             <Ionicons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
@@ -622,7 +622,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
   if (showMyJoined) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: 2 + statusBarPadding }]}>
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
             <Ionicons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
@@ -670,7 +670,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
   if (showEndedEvents) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: 2 + statusBarPadding }]}>
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
             <Ionicons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
@@ -3179,7 +3179,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       {[1, 2, 3, 4].map((step, index) => {
         const isActive = step <= currentStep;
         return (
-          <View key={step} style={styles.stepRow}>
+        <View key={step} style={styles.stepRow}>
             {/* SVG RadialGradient를 사용한 부드러운 glow 효과 */}
             {isActive && (
               <View style={styles.glowContainer}>
@@ -3202,25 +3202,25 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                 </Svg>
               </View>
             )}
-            <View style={[
-              styles.stepCircle,
+          <View style={[
+            styles.stepCircle,
               isActive ? styles.stepCircleActive : styles.stepCircleInactive
-            ]}>
-              <Text style={{
+          ]}>
+            <Text style={{
                 color: isActive ? '#000000' : '#666666',
                 fontWeight: 'bold',
                 fontSize: 14,
-              }}>
-                {step}
-              </Text>
-            </View>
-            {index < 3 && (
-              <View style={[
-                styles.stepLine,
-                step < currentStep ? styles.stepLineActive : styles.stepLineInactive
-              ]} />
-            )}
+            }}>
+              {step}
+            </Text>
           </View>
+          {index < 3 && (
+            <View style={[
+              styles.stepLine,
+              step < currentStep ? styles.stepLineActive : styles.stepLineInactive
+            ]} />
+          )}
+        </View>
         );
       })}
     </View>

@@ -7,10 +7,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Dimensions
+  Dimensions,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import { useEvents } from '../contexts/EventContext';
@@ -39,6 +41,8 @@ const COLORS = {
 
 const NotificationScreen = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   const { isTabEnabled, isNotificationTypeEnabled, settings } = useNotificationSettings();
   const { meetingNotifications, setMeetingNotifications, chatRooms, addChatMessage, setUpdateNotification: setEventUpdateNotification, clearUpdateNotification, checkUpdateNotificationStatus, checkMeetingNotifications } = useEvents();
   const { notifications: communityNotifications, markNotificationAsRead, getPostById, createLikeNotification, createCommentNotification, createChatNotification, handleChatTabClick, handleBoardTabClick } = useCommunity();
@@ -515,15 +519,16 @@ const NotificationScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
-        </TouchableOpacity>
-        <View style={styles.headerTitle}>
-          <Text style={styles.title}>알림</Text>
+      <View style={[styles.header, { paddingTop: statusBarPadding }]}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>알림</Text>
+          <View style={styles.headerSpacer} />
         </View>
       </View>
 
@@ -600,28 +605,29 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
   },
   header: {
+    backgroundColor: COLORS.BACKGROUND,
+  },
+  headerContent: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    position: 'relative',
   },
   backButton: {
-    padding: 4,
-    position: 'absolute',
-    left: 16,
-    zIndex: 1,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '600',
     color: COLORS.TEXT,
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  headerSpacer: {
+    width: 44,
   },
   unreadBadge: {
     backgroundColor: COLORS.ERROR,
