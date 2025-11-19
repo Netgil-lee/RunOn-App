@@ -2,7 +2,7 @@
   "expo": {
     "name": "RunOn",
     "slug": "runon",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/appicon.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.runon.app",
-      "buildNumber": "111",
+      "buildNumber": "112",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
@@ -43,7 +43,7 @@
         "backgroundColor": "#000000"
       },
       "package": "com.runon.app",
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -55,10 +55,14 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
         "android.permission.WAKE_LOCK",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "notification": {
+        "icon": "./assets/appicon.png",
+        "color": "#3AF8FF",
+        "sound": "default"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png",

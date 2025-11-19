@@ -261,7 +261,7 @@ const NotificationScreen = () => {
   };
 
   // 알림 클릭 처리
-  const handleNotificationPress = (notification) => {
+  const handleNotificationPress = async (notification) => {
     console.log('🖱️ 알림 클릭됨:', notification);
     console.log('📋 알림 타입:', notification.type);
     console.log('🔗 알림 액션:', notification.action);
@@ -379,13 +379,14 @@ const NotificationScreen = () => {
         if (notification.navigationData && notification.navigationData.params.postId) {
           const postId = notification.navigationData.params.postId;
           console.log('🔍 알림 클릭 - postId:', postId, '타입:', typeof postId);
-          const post = getPostById(Number(postId)); // 문자열을 숫자로 변환
+          // getPostById는 이제 async 함수이므로 await 사용
+          const post = await getPostById(postId); // postId는 문자열 또는 숫자 모두 가능
           console.log('📄 찾은 게시글:', post);
           if (post) {
             console.log('✅ 게시글로 이동:', post.title);
             navigation.navigate('PostDetail', { post });
           } else {
-            console.log('❌ 게시글을 찾을 수 없음. 전체 게시글 목록:', posts);
+            console.log('❌ 게시글을 찾을 수 없음:', postId);
             Alert.alert('오류', '해당 게시글을 찾을 수 없습니다.');
           }
         } else {
@@ -428,7 +429,7 @@ const NotificationScreen = () => {
           if (notification.navigationData && notification.navigationData.params.postId) {
             const postId = notification.navigationData.params.postId;
             console.log('🔍 기본 처리 - postId:', postId);
-            const post = getPostById(Number(postId));
+            const post = await getPostById(postId);
             console.log('📄 기본 처리 - 찾은 게시글:', post);
             if (post) {
               console.log('✅ 기본 처리 - 게시글로 이동:', post.title);

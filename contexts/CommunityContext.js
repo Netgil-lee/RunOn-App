@@ -781,9 +781,41 @@ export const CommunityProvider = ({ children }) => {
     setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
   };
 
-  // postId로 게시글 찾기
-  const getPostById = (postId) => {
-    return posts.find(post => post.id === postId);
+  // postId로 게시글 찾기 (로컬에서 찾지 못하면 Firestore에서 직접 가져오기)
+  const getPostById = async (postId) => {
+    // postId를 문자열로 변환 (Firestore 문서 ID는 문자열)
+    const postIdStr = String(postId);
+    
+    // 먼저 로컬 posts 배열에서 찾기
+    const localPost = posts.find(post => String(post.id) === postIdStr);
+    if (localPost) {
+      return localPost;
+    }
+    
+    // 로컬에서 찾지 못하면 Firestore에서 직접 가져오기
+    try {
+      console.log('🔍 로컬에서 게시글을 찾지 못함, Firestore에서 조회:', postIdStr);
+      const postRef = doc(db, 'posts', postIdStr);
+      const postDoc = await getDoc(postRef);
+      
+      if (postDoc.exists()) {
+        const postData = postDoc.data();
+        const processedPost = {
+          id: postDoc.id,
+          ...postData,
+          createdAt: postData.createdAt?.toDate?.() || postData.createdAt,
+          updatedAt: postData.updatedAt?.toDate?.() || postData.updatedAt,
+        };
+        console.log('✅ Firestore에서 게시글 조회 성공:', processedPost.title);
+        return processedPost;
+      } else {
+        console.warn('⚠️ Firestore에서도 게시글을 찾을 수 없음:', postIdStr);
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Firestore에서 게시글 조회 실패:', error);
+      return null;
+    }
   };
 
   return (

@@ -675,7 +675,7 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 4,
     borderRadius: 20,
   },
   myMessageBubble: {
