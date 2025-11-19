@@ -1081,6 +1081,29 @@ exports.onChatMessageCreated = functions.firestore
           const notificationTitle = meetingTitle;
           const notificationBody = `${senderInfo.nickname}\n${messagePreview}`;
 
+          // Firestore에 알림 저장
+          try {
+            await admin.firestore().collection('notifications').add({
+              userId: recipientId,
+              type: 'message',
+              title: notificationTitle,
+              message: `${senderInfo.nickname}: ${messagePreview}`,
+              chatId: chatRoomId,
+              senderId: senderId,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              isRead: false,
+              showAlert: false,
+              navigationData: {
+                screen: 'Chat',
+                params: { chatRoomId }
+              }
+            });
+            console.log(`✅ Firestore에 채팅 알림 저장 완료: ${recipientId}`);
+          } catch (error) {
+            console.error(`❌ Firestore 알림 저장 실패: ${recipientId}`, error);
+          }
+
+          // 푸시 알림 전송
           const result = await sendExpoPushNotification(
             recipientInfo.expoPushToken,
             notificationTitle,
@@ -1166,6 +1189,10 @@ exports.onEventDeleted = functions.firestore
           const notificationTitle = '모임이 취소되었습니다';
           const notificationBody = `"${eventTitle}" 모임이 주최자에 의해 취소되었습니다.`;
 
+          // Firestore에 알림 저장 (EventContext에서 관리하므로 주석 처리)
+          // 모임 관련 알림은 EventContext에서 별도로 관리합니다.
+
+          // 푸시 알림 전송
           const result = await sendExpoPushNotification(
             recipientInfo.expoPushToken,
             notificationTitle,
@@ -1362,9 +1389,32 @@ exports.onPostLikeAdded = functions.firestore
           }
 
           // 알림 전송
-          const notificationTitle = '좋아요';
+          const notificationTitle = '좋아요를 받았습니다';
           const notificationBody = `"${likerInfo.nickname}"님이 "${postTitle}" 게시글에 좋아요를 눌렀습니다.`;
 
+          // Firestore에 알림 저장
+          try {
+            await admin.firestore().collection('notifications').add({
+              userId: authorId,
+              type: 'like',
+              title: notificationTitle,
+              message: `${likerInfo.nickname}님이 당신의 게시글 "${postTitle}"에 좋아요를 눌렀습니다`,
+              postId: postId,
+              likerId: likerId,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              isRead: false,
+              showAlert: false,
+              navigationData: {
+                screen: 'PostDetail',
+                params: { postId }
+              }
+            });
+            console.log(`✅ Firestore에 좋아요 알림 저장 완료: ${likerId}`);
+          } catch (error) {
+            console.error(`❌ Firestore 알림 저장 실패: ${likerId}`, error);
+          }
+
+          // 푸시 알림 전송
           const result = await sendExpoPushNotification(
             authorInfo.expoPushToken,
             notificationTitle,
@@ -1469,9 +1519,33 @@ exports.onPostCommentAdded = functions.firestore
           const commentPreview = commentText.length > 50 ? commentText.substring(0, 50) + '...' : commentText;
 
           // 알림 전송
-          const notificationTitle = '댓글';
+          const notificationTitle = '새로운 댓글이 달렸습니다';
           const notificationBody = `"${commenterInfo.nickname}"님이 "${postTitle}" 게시글에 댓글을 남겼습니다: ${commentPreview}`;
 
+          // Firestore에 알림 저장
+          try {
+            await admin.firestore().collection('notifications').add({
+              userId: authorId,
+              type: 'comment',
+              title: notificationTitle,
+              message: `${commenterInfo.nickname}님이 당신의 게시글 "${postTitle}"에 댓글을 달았습니다`,
+              postId: postId,
+              commentId: comment.id,
+              commenterId: comment.authorId,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              isRead: false,
+              showAlert: false,
+              navigationData: {
+                screen: 'PostDetail',
+                params: { postId }
+              }
+            });
+            console.log(`✅ Firestore에 댓글 알림 저장 완료: ${comment.authorId}`);
+          } catch (error) {
+            console.error(`❌ Firestore 알림 저장 실패: ${comment.authorId}`, error);
+          }
+
+          // 푸시 알림 전송
           const result = await sendExpoPushNotification(
             authorInfo.expoPushToken,
             notificationTitle,

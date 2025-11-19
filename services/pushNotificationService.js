@@ -27,12 +27,13 @@ class PushNotificationService {
     try {
       console.log('📱 푸시 알림 서비스 초기화 시작');
       
-      if (!Device.isDevice) {
-        console.warn('⚠️ 실제 디바이스에서만 푸시 알림이 작동합니다');
-        return false;
+      const isRealDevice = Device.isDevice;
+      
+      if (!isRealDevice) {
+        console.warn('⚠️ 시뮬레이터에서 실행 중입니다. 푸시 알림은 실제 디바이스에서만 작동합니다.');
       }
 
-      // 알림 권한 요청
+      // 알림 권한 요청 (시뮬레이터에서도 권한 요청은 가능)
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       
@@ -46,22 +47,29 @@ class PushNotificationService {
         return false;
       }
 
-      // Expo Push Token 획득
-      this.expoPushToken = await this.getExpoPushToken();
-      
-      if (!this.expoPushToken) {
-        console.error('❌ Expo Push Token 획득 실패');
-        return false;
+      console.log('✅ 알림 권한 허용됨');
+
+      // 실제 디바이스에서만 Expo Push Token 획득 및 저장
+      if (isRealDevice) {
+        // Expo Push Token 획득
+        this.expoPushToken = await this.getExpoPushToken();
+        
+        if (!this.expoPushToken) {
+          console.error('❌ Expo Push Token 획득 실패');
+          return false;
+        }
+
+        // 토큰을 Firestore에 저장
+        await this.saveTokenToFirestore(userId, this.expoPushToken);
+
+        // 로컬 저장소에 토큰 저장
+        await AsyncStorage.setItem('expoPushToken', this.expoPushToken);
+      } else {
+        console.log('📱 시뮬레이터에서는 Expo Push Token을 획득하지 않습니다.');
       }
 
-      // 토큰을 Firestore에 저장
-      await this.saveTokenToFirestore(userId, this.expoPushToken);
-
-      // 알림 리스너 설정
+      // 알림 리스너 설정 (시뮬레이터에서도 로컬 알림은 작동)
       this.setupNotificationListeners();
-
-      // 로컬 저장소에 토큰 저장
-      await AsyncStorage.setItem('expoPushToken', this.expoPushToken);
 
       this.isInitialized = true;
       console.log('✅ 푸시 알림 서비스 초기화 완료');
