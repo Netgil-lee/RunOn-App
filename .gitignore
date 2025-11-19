@@ -58,3 +58,9 @@ upload_cert.der
 # IDE
 .idea/
 *.iml
+
+# Java heap dumps
+*.hprof
+
+# Gradle
+.gradleignore
