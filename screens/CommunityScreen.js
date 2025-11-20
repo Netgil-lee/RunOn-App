@@ -96,14 +96,19 @@ const CommunityScreen = ({ navigation, route }) => {
   // 탭 상태
   const [activeTab, setActiveTab] = useState('모임'); // '모임', '채팅', '게시판'
   
+  // 탭 레이아웃 측정을 위한 상태
+  const [tabLayouts, setTabLayouts] = useState({});
+  const tabRefs = useRef({});
+  
   // route.params에서 activeTab을 받아서 설정
   useEffect(() => {
     if (route.params?.activeTab) {
       setActiveTab(route.params.activeTab);
       // 채팅 탭으로 이동하는 경우 슬라이딩 애니메이션 실행
       if (route.params.activeTab === '채팅') {
+        const tabIndex = ['모임', '채팅', '게시판'].indexOf('채팅');
         Animated.timing(slideAnim, {
-          toValue: 1,
+          toValue: tabIndex,
           duration: 300,
           useNativeDriver: false,
         }).start();
@@ -113,6 +118,15 @@ const CommunityScreen = ({ navigation, route }) => {
   
   // 슬라이딩 애니메이션 값
   const slideAnim = useRef(new Animated.Value(0)).current;
+  
+  // 탭 레이아웃 측정 핸들러
+  const handleTabLayout = (tabId, event) => {
+    const { x, width } = event.nativeEvent.layout;
+    setTabLayouts(prev => ({
+      ...prev,
+      [tabId]: { x, width }
+    }));
+  };
   
   // 게시판 카테고리 필터 상태
   const [selectedPostCategory, setSelectedPostCategory] = useState('전체');
@@ -403,6 +417,7 @@ const CommunityScreen = ({ navigation, route }) => {
         {/* 탭 선택 */}
         <View style={styles.tabContainer}>
           <TouchableOpacity 
+            ref={ref => tabRefs.current['모임'] = ref}
             style={styles.tab}
             onPress={() => {
               setActiveTab('모임');
@@ -412,12 +427,14 @@ const CommunityScreen = ({ navigation, route }) => {
                 useNativeDriver: false,
               }).start();
             }}
+            onLayout={(event) => handleTabLayout('모임', event)}
           >
             <Text style={[styles.tabText, activeTab === '모임' && styles.activeTabText]}>
               러닝모임
             </Text>
           </TouchableOpacity>
           <TouchableOpacity 
+            ref={ref => tabRefs.current['채팅'] = ref}
             style={styles.tab}
             onPress={() => {
               setActiveTab('채팅');
@@ -428,6 +445,7 @@ const CommunityScreen = ({ navigation, route }) => {
                 useNativeDriver: false,
               }).start();
             }}
+            onLayout={(event) => handleTabLayout('채팅', event)}
           >
             <View style={styles.tabTextContainer}>
               <Text style={[styles.tabText, activeTab === '채팅' && styles.activeTabText]}>
@@ -439,6 +457,7 @@ const CommunityScreen = ({ navigation, route }) => {
             </View>
           </TouchableOpacity>
           <TouchableOpacity 
+            ref={ref => tabRefs.current['게시판'] = ref}
             style={styles.tab}
             onPress={() => {
               setActiveTab('게시판');
@@ -449,6 +468,7 @@ const CommunityScreen = ({ navigation, route }) => {
                 useNativeDriver: false,
               }).start();
             }}
+            onLayout={(event) => handleTabLayout('게시판', event)}
           >
             <View style={styles.tabTextContainer}>
               <Text style={[styles.tabText, activeTab === '게시판' && styles.activeTabText, { paddingLeft: 10 }]}>
@@ -460,19 +480,31 @@ const CommunityScreen = ({ navigation, route }) => {
             </View>
           </TouchableOpacity>
           
-          {/* 슬라이딩 박스 */}
+          {/* 슬라이딩 언더라인 */}
           <Animated.View 
             style={[
-              styles.slidingBox,
+              styles.slidingUnderline,
               {
                 transform: [
                   {
                     translateX: slideAnim.interpolate({
                       inputRange: [0, 1, 2],
-                      outputRange: [0, 125, 255]
+                      outputRange: [
+                        tabLayouts['모임']?.x || 0,
+                        (tabLayouts['채팅']?.x || 0) - 4, // 채팅 탭에서 약간 왼쪽으로 이동
+                        tabLayouts['게시판']?.x || 0
+                      ]
                     })
                   }
-                ]
+                ],
+                width: slideAnim.interpolate({
+                  inputRange: [0, 1, 2],
+                  outputRange: [
+                    tabLayouts['모임']?.width || 0,
+                    tabLayouts['채팅']?.width || 0,
+                    tabLayouts['게시판']?.width || 0
+                  ]
+                })
               }
             ]}
           />
@@ -1170,16 +1202,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 0,
     marginBottom: 16,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: COLORS.BACKGROUND,
     borderRadius: 12,
-    padding: 4,
     position: 'relative',
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
-    borderRadius: 8,
     zIndex: 2,
   },
   tabText: {
@@ -1205,17 +1235,16 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   activeTabText: {
-    color: '#000000',
+    color: COLORS.TEXT,
+    fontWeight: '700',
     fontFamily: 'Pretendard-SemiBold',
   },
-  slidingBox: {
+  slidingUnderline: {
     position: 'absolute',
-    top: 2.5,
-    left: 4,
-    width: 127,
-    height: 42.5,
+    bottom: 0,
+    left: 0,
+    height: 2,
     backgroundColor: COLORS.PRIMARY,
-    borderRadius: 8,
     zIndex: 1,
   },
   

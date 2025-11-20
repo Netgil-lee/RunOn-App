@@ -978,25 +978,6 @@ const PostDetailScreen = ({ route, navigation }) => {
                       )}
                     </TouchableOpacity>
                   ))}
-                  {!isAuthor && currentPost.authorId && currentPost.authorId !== user?.uid && (
-                    <TouchableOpacity
-                      style={[
-                        styles.reportReasonItem,
-                        shouldBlockPostAuthor && styles.reportReasonItemSelected
-                      ]}
-                      onPress={() => setShouldBlockPostAuthor(!shouldBlockPostAuthor)}
-                    >
-                      <Text style={[
-                        styles.reportReasonText,
-                        shouldBlockPostAuthor && styles.reportReasonTextSelected
-                      ]}>
-                        사용자 차단하기
-                      </Text>
-                      {shouldBlockPostAuthor && (
-                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
-                      )}
-                    </TouchableOpacity>
-                  )}
                   <Text style={styles.reportDescriptionLabel}>추가 설명 (선택)</Text>
                   <TextInput
                     style={styles.reportDescriptionInput}
@@ -1007,6 +988,28 @@ const PostDetailScreen = ({ route, navigation }) => {
                     multiline
                     maxLength={500}
                   />
+                  {!isAuthor && 
+                   !currentPost.isAnonymous && 
+                   currentPost.authorId && 
+                   currentPost.authorId.trim() !== '' && 
+                   user?.uid && 
+                   currentPost.authorId !== user.uid && (
+                    <TouchableOpacity
+                      style={styles.blockUserCheckbox}
+                      onPress={() => setShouldBlockPostAuthor(!shouldBlockPostAuthor)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[
+                        styles.checkbox,
+                        shouldBlockPostAuthor && styles.checkboxChecked
+                      ]}>
+                        {shouldBlockPostAuthor && (
+                          <Ionicons name="checkmark" size={16} color="#000000" />
+                        )}
+                      </View>
+                      <Text style={styles.blockUserText}>사용자 차단하기</Text>
+                    </TouchableOpacity>
+                  )}
                 </ScrollView>
                 <View style={styles.reportModalActions}>
                   <TouchableOpacity 
@@ -1558,7 +1561,7 @@ const styles = StyleSheet.create({
     maxHeight: 400,
   },
   reportModalContentContainer: {
-    paddingBottom: 20,
+    paddingBottom: 100,
   },
   reportModalSubtitle: {
     fontSize: 16,
@@ -1608,6 +1611,33 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     borderWidth: 1,
     borderColor: COLORS.BORDER,
+    marginBottom: 16,
+  },
+  blockUserCheckbox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.BORDER,
+    backgroundColor: COLORS.SURFACE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  checkboxChecked: {
+    backgroundColor: COLORS.PRIMARY,
+    borderColor: COLORS.PRIMARY,
+  },
+  blockUserText: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    fontWeight: '500',
   },
   reportModalActions: {
     flexDirection: 'row',

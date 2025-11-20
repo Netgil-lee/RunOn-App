@@ -32,6 +32,19 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
   // 슬라이딩 애니메이션 값
   const slideAnim = useRef(new Animated.Value(0)).current;
   
+  // 탭 레이아웃 측정을 위한 상태
+  const [tabLayouts, setTabLayouts] = useState({});
+  const tabRefs = useRef({});
+  
+  // 탭 레이아웃 측정 핸들러
+  const handleTabLayout = (tabId, event) => {
+    const { x, width } = event.nativeEvent.layout;
+    setTabLayouts(prev => ({
+      ...prev,
+      [tabId]: { x, width }
+    }));
+  };
+  
   // 위치 버튼 ref
   const locationButtonRef = useRef(null);
   
@@ -193,6 +206,25 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
       
       // 웹뷰에 현재 위치 전송
       if (webViewRef.current && !isLoading) {
+        // injectJavaScript를 사용하여 직접 함수 호출
+        const jsCode = `
+          (function() {
+            if (window.updateCurrentLocation && window.map) {
+              window.updateCurrentLocation(${location.coords.latitude}, ${location.coords.longitude});
+            } else {
+              console.log('⚠️ 지도가 아직 준비되지 않음, postMessage로 재시도');
+              window.postMessage(JSON.stringify({
+                type: 'updateCurrentLocation',
+                latitude: ${location.coords.latitude},
+                longitude: ${location.coords.longitude}
+              }), '*');
+            }
+          })();
+          true;
+        `;
+        webViewRef.current.injectJavaScript(jsCode);
+        
+        // 백업으로 postMessage도 전송
         const locationMessage = JSON.stringify({
           type: 'updateCurrentLocation',
           latitude: location.coords.latitude,
@@ -215,6 +247,26 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
   // 위치 목록 클릭 시 지도 이동 함수
   const moveToLocation = (location) => {
     if (webViewRef.current) {
+      // injectJavaScript를 사용하여 직접 함수 호출 (더 확실한 방법)
+      const jsCode = `
+        (function() {
+          if (window.moveToLocation && window.map) {
+            window.moveToLocation(${location.lat}, ${location.lng}, 5);
+          } else {
+            console.log('⚠️ 지도가 아직 준비되지 않음, postMessage로 재시도');
+            window.postMessage(JSON.stringify({
+              type: 'moveToLocation',
+              latitude: ${location.lat},
+              longitude: ${location.lng},
+              level: 5
+            }), '*');
+          }
+        })();
+        true; // injectJavaScript는 반환값이 필요함
+      `;
+      webViewRef.current.injectJavaScript(jsCode);
+      
+      // 백업으로 postMessage도 전송
       const moveMessage = JSON.stringify({
         type: 'moveToLocation',
         latitude: location.lat,
@@ -231,23 +283,45 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
       setSelectedMeeting(null);
       setSelectedLocation(null);
       
-      // 해당 위치의 모임 데이터 찾기
-      const allMeetings = { ...meetingsData.hanriver, ...meetingsData.riverside };
-      const locationMeetings = Object.values(allMeetings).filter(meeting => meeting.location === location.name);
+      // 해당 위치의 모임 데이터 찾기 (현재 활성화된 탭의 모임만)
+      const locationMeetings = meetingsData[activeTab]?.[location.name] || [];
       
       console.log('🗺️ HanRiverMap - location.name:', location.name);
-      console.log('🗺️ HanRiverMap - allMeetings:', allMeetings);
+      console.log('🗺️ HanRiverMap - activeTab:', activeTab);
       console.log('🗺️ HanRiverMap - locationMeetings:', locationMeetings);
       console.log('🗺️ HanRiverMap - locationMeetings.length:', locationMeetings.length);
       
       // 웹뷰에 마커 클릭 이벤트 시뮬레이션하여 정보창 표시 (모임 데이터 유무와 관계없이)
       setTimeout(() => {
+        // injectJavaScript를 사용하여 직접 함수 호출
+        const jsCode = `
+          (function() {
+            if (window.simulateMarkerClick && window.map) {
+              window.simulateMarkerClick('${location.name}', '${activeTab}');
+            } else {
+              console.log('⚠️ 지도가 아직 준비되지 않음, postMessage로 재시도');
+              window.postMessage(JSON.stringify({
+                type: 'simulateMarkerClick',
+                location: '${location.name}',
+                category: '${activeTab}'
+              }), '*');
+            }
+          })();
+          true;
+        `;
+        if (webViewRef.current) {
+          webViewRef.current.injectJavaScript(jsCode);
+        }
+        
+        // 백업으로 postMessage도 전송
         const markerClickMessage = JSON.stringify({
           type: 'simulateMarkerClick',
           location: location.name,
           category: activeTab
         });
-        webViewRef.current.postMessage(markerClickMessage);
+        if (webViewRef.current) {
+          webViewRef.current.postMessage(markerClickMessage);
+        }
         console.log('📍 마커 클릭 시뮬레이션:', markerClickMessage);
       }, 500); // 지도 이동 후 0.5초 뒤에 마커 클릭 시뮬레이션
       
@@ -271,6 +345,25 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
   // 현재 위치로 지도 이동 함수
   const moveToCurrentLocation = () => {
     if (currentLocation && webViewRef.current) {
+      // injectJavaScript를 사용하여 직접 함수 호출
+      const jsCode = `
+        (function() {
+          if (window.moveToCurrentLocation && window.map) {
+            window.moveToCurrentLocation(${currentLocation.latitude}, ${currentLocation.longitude});
+          } else {
+            console.log('⚠️ 지도가 아직 준비되지 않음, postMessage로 재시도');
+            window.postMessage(JSON.stringify({
+              type: 'moveToCurrentLocation',
+              latitude: ${currentLocation.latitude},
+              longitude: ${currentLocation.longitude}
+            }), '*');
+          }
+        })();
+        true;
+      `;
+      webViewRef.current.injectJavaScript(jsCode);
+      
+      // 백업으로 postMessage도 전송
       const moveMessage = JSON.stringify({
         type: 'moveToCurrentLocation',
         latitude: currentLocation.latitude,
@@ -343,8 +436,10 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
 
   // 모임 통계 계산 함수
   const calculateMeetingStats = (location) => {
-    const allMeetings = { ...meetingsData.hanriver, ...meetingsData.riverside };
-    const locationMeetings = allMeetings[location] || [];
+    // 모든 카테고리에서 해당 위치의 모임을 찾아 배열로 합치기
+    const hanriverMeetings = meetingsData.hanriver?.[location] || [];
+    const riversideMeetings = meetingsData.riverside?.[location] || [];
+    const locationMeetings = [...hanriverMeetings, ...riversideMeetings];
     
     const stats = {
       recruiting: 0,
@@ -396,8 +491,11 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
 
   // 전체 모임 필터링 함수 (모집중 + 마감된 모임)
   const getAllMeetings = (location) => {
-    const allMeetings = { ...meetingsData.hanriver, ...meetingsData.riverside };
-    const locationMeetings = allMeetings[location] || [];
+    // 모든 카테고리에서 해당 위치의 모임을 찾아 배열로 합치기
+    const hanriverMeetings = meetingsData.hanriver?.[location] || [];
+    const riversideMeetings = meetingsData.riverside?.[location] || [];
+    const locationMeetings = [...hanriverMeetings, ...riversideMeetings];
+    
     return locationMeetings
       .filter(meeting => meeting.status === 'recruiting' || meeting.status === 'full')
       .slice(0, 5); // 최대 5개만
@@ -636,13 +734,24 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
             
             // 특정 위치로 지도 이동 함수
             function moveToLocation(lat, lng, level) {
+                if (!map) {
+                    log('❌ 지도가 아직 초기화되지 않음', 'error');
+                    return;
+                }
                 var position = new kakao.maps.LatLng(lat, lng);
                 map.setCenter(position);
                 map.setLevel(level || 5); // 기본 줌 레벨 5로 변경하여 더 확대
-                log('🗺️ 위치로 이동: ' + lat + ', ' + lng + ' (레벨: ' + level + ')', 'info');
+                log('🗺️ 위치로 이동: ' + lat + ', ' + lng + ' (레벨: ' + (level || 5) + ')', 'info');
             }
 
-            // React Native에서 메시지 수신
+            // 전역 함수로 노출 (React Native에서 직접 호출 가능)
+            window.moveToLocation = moveToLocation;
+            window.moveToCurrentLocation = moveToCurrentLocation;
+            window.switchTab = switchTab;
+            window.updateCurrentLocation = createCurrentLocationMarker;
+            window.simulateMarkerClick = simulateMarkerClick;
+
+            // React Native에서 메시지 수신 (postMessage 방식)
             window.addEventListener('message', function(event) {
                 try {
                     var data = JSON.parse(event.data);
@@ -1222,6 +1331,25 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
       // 지도 로드 완료 후 현재 위치 전송
       if (currentLocation && webViewRef.current) {
         setTimeout(() => {
+          // injectJavaScript를 사용하여 직접 함수 호출
+          const jsCode = `
+            (function() {
+              if (window.updateCurrentLocation && window.map) {
+                window.updateCurrentLocation(${currentLocation.latitude}, ${currentLocation.longitude});
+              } else {
+                console.log('⚠️ 지도가 아직 준비되지 않음, postMessage로 재시도');
+                window.postMessage(JSON.stringify({
+                  type: 'updateCurrentLocation',
+                  latitude: ${currentLocation.latitude},
+                  longitude: ${currentLocation.longitude}
+                }), '*');
+              }
+            })();
+            true;
+          `;
+          webViewRef.current.injectJavaScript(jsCode);
+          
+          // 백업으로 postMessage도 전송
           const locationMessage = JSON.stringify({
             type: 'updateCurrentLocation',
             latitude: currentLocation.latitude,
@@ -1250,11 +1378,21 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
       try {
         const parsedData = JSON.parse(data);
         if (parsedData.type === 'markerClick') {
-          const meeting = meetingsData[parsedData.category]?.[parsedData.location];
-          if (meeting) {
-            setSelectedMeeting(meeting);
-            setSelectedLocation(parsedData.location); // 선택된 위치 설정
-
+          // meetingsData는 배열을 반환하므로 배열로 처리
+          const locationMeetings = meetingsData[parsedData.category]?.[parsedData.location];
+          
+          if (locationMeetings && Array.isArray(locationMeetings) && locationMeetings.length > 0) {
+            // 첫 번째 모임을 선택하여 simpleMeetingCard 표시
+            setSelectedMeeting(locationMeetings[0]);
+            setSelectedLocation(parsedData.location); // 확장된 정보창 표시
+          } else if (locationMeetings) {
+            // 배열이 아닌 경우 (단일 모임)
+            setSelectedMeeting(locationMeetings);
+            setSelectedLocation(parsedData.location);
+          } else {
+            // 모임 데이터가 없는 경우에도 위치는 표시
+            setSelectedLocation(parsedData.location);
+            setSelectedMeeting(null);
           }
         }
       } catch (parseError) {
@@ -1287,6 +1425,24 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
     
     // 웹뷰에 탭 변경 메시지 전송
     if (webViewRef.current) {
+      // injectJavaScript를 사용하여 직접 함수 호출
+      const jsCode = `
+        (function() {
+          if (window.switchTab && window.map) {
+            window.switchTab('${tab}');
+          } else {
+            console.log('⚠️ 지도가 아직 준비되지 않음, postMessage로 재시도');
+            window.postMessage(JSON.stringify({
+              type: 'switchTab',
+              tab: '${tab}'
+            }), '*');
+          }
+        })();
+        true;
+      `;
+      webViewRef.current.injectJavaScript(jsCode);
+      
+      // 백업으로 postMessage도 전송
       webViewRef.current.postMessage(JSON.stringify({
         type: 'switchTab',
         tab: tab
@@ -1332,7 +1488,7 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
   return (
     <View style={[styles.container, { backgroundColor: '#171719' }]}>
       {/* 지도 헤더 */}
-      <View style={[styles.header, { borderBottomColor: '#374151' }]}>
+      <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.title}>한강 러닝 코스</Text>
           
@@ -1356,11 +1512,16 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
           </TouchableOpacity>
         </View>
         
+        {/* 헤더 구분선 */}
+        <View style={styles.headerDivider} />
+        
         {/* 액티브 탭 */}
         <View style={styles.tabContainer}>
           <TouchableOpacity 
+            ref={ref => tabRefs.current['hanriver'] = ref}
             style={styles.tabButton}
             onPress={() => handleTabChange('hanriver')}
+            onLayout={(event) => handleTabLayout('hanriver', event)}
           >
             <Text style={[
               styles.tabText,
@@ -1371,8 +1532,10 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
           </TouchableOpacity>
           
           <TouchableOpacity 
+            ref={ref => tabRefs.current['riverside'] = ref}
             style={styles.tabButton}
             onPress={() => handleTabChange('riverside')}
+            onLayout={(event) => handleTabLayout('riverside', event)}
           >
             <Text style={[
               styles.tabText,
@@ -1382,19 +1545,29 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
             </Text>
           </TouchableOpacity>
           
-          {/* 슬라이딩 박스 */}
+          {/* 슬라이딩 언더라인 */}
           <Animated.View 
             style={[
-              styles.slidingBox,
+              styles.slidingUnderline,
               {
                 transform: [
                   {
                     translateX: slideAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 187]
+                      outputRange: [
+                        tabLayouts['hanriver']?.x || 0,
+                        tabLayouts['riverside']?.x || 0
+                      ]
                     })
                   }
-                ]
+                ],
+                width: slideAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [
+                    tabLayouts['hanriver']?.width || 0,
+                    tabLayouts['riverside']?.width || 0
+                  ]
+                })
               }
             ]}
           />
@@ -1561,7 +1734,7 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 16,
     paddingHorizontal: 0,
-    paddingBottom: 3,
+    paddingBottom: 0,
   },
   headerContent: {
     flexDirection: 'row',
@@ -1569,6 +1742,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     paddingHorizontal: 16,
+  },
+  headerDivider: {
+    height: 0.5,
+    backgroundColor: 'rgba(55, 65, 81, 0.5)',
+    marginHorizontal: 16,
+    marginTop: 0,
+    marginBottom: 12,
   },
   title: {
     fontSize: 18,
@@ -1627,37 +1807,41 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#2a2a2a',
-    borderRadius: 8,
-    padding: 4,
+    backgroundColor: '#171719',
+    borderRadius: 12,
     position: 'relative',
+    marginHorizontal: 16,
+    marginTop: 0,
+    marginBottom: 12,
+    paddingVertical: 0,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 6,
+    paddingBottom: 12,
     alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 2,
   },
   tabText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#666666',
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   activeTabText: {
-    color: '#000000',
+    color: '#ffffff',
     fontWeight: '700',
   },
-  slidingBox: {
+  slidingUnderline: {
     position: 'absolute',
-    top: 2.5,
-    left: 4,
-    width: 195,
-    height: 39,
+    bottom: 0,
+    left: 0,
+    height: 2,
     backgroundColor: '#3AF8FF',
-    borderRadius: 6,
     zIndex: 1,
+    marginBottom: 0,
   },
   locationListContainer: {
     backgroundColor: '#171719',

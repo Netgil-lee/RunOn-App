@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -50,6 +50,10 @@ const NotificationScreen = () => {
   // 탭 상태
   const [activeTab, setActiveTab] = useState('general');
   const slideAnim = useSharedValue(0);
+  
+  // 탭 레이아웃 측정을 위한 refs
+  const tabRefs = useRef({});
+  const [tabLayouts, setTabLayouts] = useState({});
   
   // 알림 데이터
   const [notifications, setNotifications] = useState({
@@ -211,18 +215,53 @@ const NotificationScreen = () => {
     }, 0) + getUnreadCount('meeting');
   };
 
+  // 탭 레이아웃 측정 핸들러
+  const handleTabLayout = (tabId, event) => {
+    const { x, width } = event.nativeEvent.layout;
+    setTabLayouts(prev => ({
+      ...prev,
+      [tabId]: { x, width }
+    }));
+  };
+
   // 슬라이딩 언더라인 애니메이션 스타일
   const slidingUnderlineStyle = useAnimatedStyle(() => {
+    // 모든 탭의 레이아웃이 측정되었는지 확인
+    const allLayoutsMeasured = tabs.every(tab => tabLayouts[tab.id]);
+    
+    if (!allLayoutsMeasured) {
+      return { opacity: 0 };
+    }
+
+    // 현재 활성 탭의 위치와 너비 가져오기
+    const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
+    const activeLayout = tabLayouts[tabs[activeIndex]?.id];
+    
+    if (!activeLayout) {
+      return { opacity: 0 };
+    }
+
+    // 각 탭의 위치를 배열로 생성
+    const positions = tabs.map(tab => tabLayouts[tab.id]?.x || 0);
+    const widths = tabs.map(tab => tabLayouts[tab.id]?.width || 0);
+    
+    // interpolate를 사용하여 부드러운 전환
+    const translateX = interpolate(
+      slideAnim.value,
+      tabs.map((_, index) => index),
+      positions
+    );
+    
+    const width = interpolate(
+      slideAnim.value,
+      tabs.map((_, index) => index),
+      widths
+    );
+
     return {
-      transform: [
-        {
-          translateX: interpolate(
-            slideAnim.value,
-            [0, 1, 2],
-            [0, 128, 260]
-          )
-        }
-      ]
+      transform: [{ translateX }],
+      width,
+      opacity: 1,
     };
   });
 
@@ -537,8 +576,10 @@ const NotificationScreen = () => {
         {tabs.map((tab, index) => (
           <TouchableOpacity
             key={tab.id}
+            ref={ref => tabRefs.current[tab.id] = ref}
             style={styles.tab}
             onPress={() => handleTabChange(tab.id)}
+            onLayout={(event) => handleTabLayout(tab.id, event)}
           >
             <View style={styles.tabContent}>
               <Text style={[
@@ -690,7 +731,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     left: 0,
-    width: 127,
     height: 2,
     backgroundColor: COLORS.PRIMARY,
     zIndex: 1,

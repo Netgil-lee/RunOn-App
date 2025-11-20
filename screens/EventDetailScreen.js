@@ -734,7 +734,7 @@ const EventDetailScreen = ({ route, navigation }) => {
       <ScrollView 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 65 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* 이벤트 제목 */}
         <View style={styles.titleSection}>
