@@ -1,0 +1,132 @@
+{
+  "buildFiles": [
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/@react-native-community/datetimepicker/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/@react-native-picker/picker/android/src/main/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-gesture-handler/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-reanimated/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-safe-area-context/android/src/main/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-screens/android/src/main/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-svg/android/src/main/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-webview/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-worklets/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/lee_mac/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/lee_mac/RunOn-App (Production_android)/android/app/.cxx/RelWithDebInfo/2z543vc3/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/lee_mac/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/lee_mac/RunOn-App (Production_android)/android/app/.cxx/RelWithDebInfo/2z543vc3/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "appmodules::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "appmodules",
+      "output": "/Users/lee_mac/RunOn-App (Production_android)/android/app/build/intermediates/cxx/RelWithDebInfo/2z543vc3/obj/arm64-v8a/libappmodules.so",
+      "runtimeFiles": [
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/488fe6e480efb97ec75859f6e274282f/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
+      ]
+    },
+    "react_codegen_RNCWebViewSpec::@eb48929f9f7453740a6c": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_RNCWebViewSpec"
+    },
+    "react_codegen_RNDateTimePickerCGen::@59b70ddc31ba2f8ef1d2": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_RNDateTimePickerCGen"
+    },
+    "react_codegen_rnasyncstorage::@1596841e19ec5b9eeffe": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rnasyncstorage"
+    },
+    "react_codegen_rngesturehandler_codegen::@39f233abcd2c728bc6ec": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rngesturehandler_codegen"
+    },
+    "react_codegen_rnpicker::@e8bb2e9e833f47d0d516": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rnpicker",
+      "output": "/Users/lee_mac/RunOn-App (Production_android)/android/app/build/intermediates/cxx/RelWithDebInfo/2z543vc3/obj/arm64-v8a/libreact_codegen_rnpicker.so",
+      "runtimeFiles": [
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/488fe6e480efb97ec75859f6e274282f/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
+      ]
+    },
+    "react_codegen_rnreanimated::@8afabad14bfffa3f8b9a": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rnreanimated"
+    },
+    "react_codegen_rnscreens::@25bcbd507e98d3a854ad": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rnscreens",
+      "output": "/Users/lee_mac/RunOn-App (Production_android)/android/app/build/intermediates/cxx/RelWithDebInfo/2z543vc3/obj/arm64-v8a/libreact_codegen_rnscreens.so",
+      "runtimeFiles": [
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/488fe6e480efb97ec75859f6e274282f/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
+      ]
+    },
+    "react_codegen_rnsvg::@4f40eb209d0c0b4a3b65": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rnsvg",
+      "output": "/Users/lee_mac/RunOn-App (Production_android)/android/app/build/intermediates/cxx/RelWithDebInfo/2z543vc3/obj/arm64-v8a/libreact_codegen_rnsvg.so",
+      "runtimeFiles": [
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/488fe6e480efb97ec75859f6e274282f/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
+      ]
+    },
+    "react_codegen_rnviewshot::@0ba03d237e60b9258a87": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rnviewshot"
+    },
+    "react_codegen_rnworklets::@68f58d84d4754f193387": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rnworklets"
+    },
+    "react_codegen_safeareacontext::@7984cd80db47aa7b952a": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_safeareacontext",
+      "output": "/Users/lee_mac/RunOn-App (Production_android)/android/app/build/intermediates/cxx/RelWithDebInfo/2z543vc3/obj/arm64-v8a/libreact_codegen_safeareacontext.so",
+      "runtimeFiles": [
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/488fe6e480efb97ec75859f6e274282f/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/Users/lee_mac/.gradle/caches/8.14.3/transforms/9d375b91b89f4cfb21bc7781601fe470/transformed/react-android-0.81.5-release/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
+      ]
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/Users/lee_mac/Library/Android/sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/Users/lee_mac/Library/Android/sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

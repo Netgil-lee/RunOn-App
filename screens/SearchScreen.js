@@ -592,37 +592,39 @@ const SearchScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+      <Animated.View style={[{ flex: 1 }, { opacity: fadeAnim }]}>
         {/* 헤더 */}
-        <View style={[styles.header, { paddingTop: 8 + statusBarPadding }]}>
-          <TouchableOpacity 
-            onPress={() => navigation.goBack()} 
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
-          </TouchableOpacity>
-          
-          {/* 검색바 */}
-          <View style={styles.searchContainer}>
-            <View style={styles.searchInputContainer}>
-              <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onSubmitEditing={handleSearchSubmit}
-                placeholder="태그, 한강공원, 강변, 후기, 코스추천으로 검색"
-                placeholderTextColor={COLORS.SECONDARY}
-                returnKeyType="search"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
-                  <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
-                </TouchableOpacity>
-              )}
+        <View style={[styles.header, { paddingTop: statusBarPadding }]}>
+          <View style={styles.headerContent}>
+            <TouchableOpacity 
+              onPress={() => navigation.goBack()} 
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+            </TouchableOpacity>
+            
+            {/* 검색바 */}
+            <View style={styles.searchContainer}>
+              <View style={styles.searchInputContainer}>
+                <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+                <TextInput
+                  ref={searchInputRef}
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmitEditing={handleSearchSubmit}
+                  placeholder="태그, 한강공원, 강변, 후기, 코스추천으로 검색"
+                  placeholderTextColor={COLORS.SECONDARY}
+                  returnKeyType="search"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+                    <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -753,14 +755,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
   },
   header: {
+    backgroundColor: COLORS.BACKGROUND,
+  },
+  headerContent: {
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderBottomColor: '#333333',
   },
   backButton: {
-    padding: 8,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
   searchContainer: {

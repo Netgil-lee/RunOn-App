@@ -83,6 +83,9 @@ const HomeScreen = ({ navigation }) => {
   // 스크롤 위치 추적
   const [currentScrollOffset, setCurrentScrollOffset] = useState(0);
   
+  // 지도 터치 시 스크롤 비활성화를 위한 상태
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  
   // ref 변경 감지하여 4-5단계 가이드 위치 재측정
   useEffect(() => {
     if ((currentStep === 3 || currentStep === 4) && currentGuide === 'home') {
@@ -946,6 +949,8 @@ const HomeScreen = ({ navigation }) => {
         decelerationRate="normal"
         bounces={true}
         alwaysBounceVertical={false}
+        scrollEnabled={scrollEnabled}
+        nestedScrollEnabled={false}
         onScroll={(event) => {
           const offsetY = event.nativeEvent.contentOffset.y;
           setCurrentScrollOffset(offsetY);
@@ -992,6 +997,8 @@ const HomeScreen = ({ navigation }) => {
             onMeetingCardsRef={setMeetingCardsRef}
             onMeetingCardRef={setMeetingCardRef}
             onStatisticsRef={setStatisticsRef}
+            onMapTouchStart={() => setScrollEnabled(false)}
+            onMapTouchEnd={() => setScrollEnabled(true)}
           />
         </View>
 

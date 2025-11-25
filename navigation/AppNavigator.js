@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
@@ -45,6 +46,7 @@ const COLORS = {
 const MainTabNavigator = () => {
   const { hasMeetingNotification, hasUpdateNotification } = useEvents();
   const { hasCommunityNotification } = useCommunity();
+  const insets = useSafeAreaInsets();
 
 
 
@@ -97,14 +99,19 @@ const MainTabNavigator = () => {
         tabBarStyle: {
           backgroundColor: COLORS.SURFACE,
           borderTopWidth: 0,
-          height: 85,
-          paddingBottom: 36,
-          paddingTop: 0,
+          height: 60 + (Platform.OS === 'android' ? insets.bottom : 0),
+          paddingBottom: Platform.OS === 'android' ? insets.bottom : 0,
+          paddingTop: 14,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 0,
+          marginTop: -16,
         },
         tabBarLabelStyle: {
           fontSize: 13,
           fontWeight: '500',
-          marginTop: -2,
+          marginTop: -8,
+          marginBottom: 6,
         },
       })}
     >

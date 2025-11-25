@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import { WEATHER_CONFIG } from '../config/weather';
 import weatherAlertService from '../services/weatherAlertService';
 import airQualityService from '../services/airQualityService';
+import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -24,6 +25,7 @@ const COLORS = {
 };
 
 const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
+  const { isNotificationTypeEnabled, settings } = useNotificationSettings();
   const [weather, setWeather] = useState(null);
   const [forecast, setForecast] = useState([]);
   const [airQuality, setAirQuality] = useState(null);
@@ -289,20 +291,35 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
       // 모든 알림을 합쳐서 표시
       const allAlerts = [...weatherAlerts, ...airQualityAlerts];
 
-      // 알림이 있으면 표시
+      // 알림이 있으면 표시 (사용자 알림 설정 확인)
       if (allAlerts.length > 0) {
         allAlerts.forEach(alert => {
-          Alert.alert(
-            alert.title,
-            alert.message,
-            [
-              { text: '확인', style: 'default' },
-              { text: '알림 설정', onPress: () => {
-                // 알림 설정 화면으로 이동하는 로직 추가 가능
-                console.log('알림 설정으로 이동');
-              }}
-            ]
-          );
+          // 날씨 알림 설정 확인
+          const isEnabled = isNotificationTypeEnabled(alert.type);
+          
+          // 디버깅 로그
+          console.log(`🔔 날씨 알림 체크:`, {
+            type: alert.type,
+            title: alert.title,
+            isEnabled: isEnabled,
+            weatherAlertSetting: settings?.notifications?.weatherAlert
+          });
+          
+          if (isEnabled) {
+            Alert.alert(
+              alert.title,
+              alert.message,
+              [
+                { text: '확인', style: 'default' },
+                { text: '알림 설정', onPress: () => {
+                  // 알림 설정 화면으로 이동하는 로직 추가 가능
+                  console.log('알림 설정으로 이동');
+                }}
+              ]
+            );
+          } else {
+            console.log(`📵 날씨 알림이 OFF되어 있어 표시하지 않음: ${alert.type}`);
+          }
         });
       }
 

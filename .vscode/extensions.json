@@ -2,9 +2,6 @@
   "recommendations": [],
   "unwantedRecommendations": [
     "vscjava.vscode-java-pack",
-    "vscjava.vscode-gradle",
-    "vscjava.vscode-java-dependency"
+    "vscjava.vscode-gradle"
   ]
 }
-
-

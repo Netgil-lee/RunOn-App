@@ -14,7 +14,7 @@ import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 import RunningShareCard from './RunningShareCard';
 import { getEnglishLocation } from '../utils/locationMapper';
-import appleFitnessService from '../services/appleFitnessService';
+import fitnessService from '../services/fitnessService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -48,36 +48,23 @@ const RunningShareModal = ({
   }, [visible, eventData]);
 
   const fetchActualWorkoutData = async () => {
-    // Android에서는 HealthKit을 사용할 수 없음
-    if (Platform.OS !== 'ios') {
-      Alert.alert(
-        '기능 미지원',
-        'Android에서는 현재 건강 데이터 연동 기능을 지원하지 않습니다.\n\n향후 Google Fit 연동이 추가될 예정입니다.',
-        [
-          { text: '확인', onPress: onClose }
-        ]
-      );
-      setIsLoadingWorkout(false);
-      return;
-    }
-    
     try {
       setIsLoadingWorkout(true);
       console.log('🔍 [RunningShareModal] 실제 운동기록 데이터 조회 시작');
       console.log('🔍 [RunningShareModal] eventData:', JSON.stringify(eventData, null, 2));
       
-      // HealthKit 서비스 상태 확인
-      const isAvailable = appleFitnessService.isServiceAvailable();
-      console.log('🔍 [RunningShareModal] HealthKit 서비스 사용 가능:', isAvailable);
+      // Fitness 서비스 상태 확인 (플랫폼별 자동 분기)
+      const isAvailable = fitnessService.isServiceAvailable();
+      console.log('🔍 [RunningShareModal] Fitness 서비스 사용 가능:', isAvailable);
       
       if (!isAvailable) {
-        console.warn('⚠️ [RunningShareModal] HealthKit 서비스가 사용 불가능합니다. 초기화 시도...');
-        const initialized = await appleFitnessService.initialize();
-        console.log('🔍 [RunningShareModal] HealthKit 초기화 결과:', initialized);
+        console.warn('⚠️ [RunningShareModal] Fitness 서비스가 사용 불가능합니다. 초기화 시도...');
+        const initialized = await fitnessService.initialize();
+        console.log('🔍 [RunningShareModal] Fitness 초기화 결과:', initialized);
       }
       
       console.log('🔍 [RunningShareModal] findMatchingWorkout 호출 시작');
-      const workoutData = await appleFitnessService.findMatchingWorkout(eventData);
+      const workoutData = await fitnessService.findMatchingWorkout(eventData);
       console.log('🔍 [RunningShareModal] findMatchingWorkout 결과:', workoutData ? '성공' : '실패');
       
       if (workoutData) {

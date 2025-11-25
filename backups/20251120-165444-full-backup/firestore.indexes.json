@@ -1,0 +1,41 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "blacklist",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "blockedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contentType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "actionDeadline",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "autoActionTaken",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

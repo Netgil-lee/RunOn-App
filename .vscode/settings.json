@@ -3,20 +3,21 @@
     "**/backups/**": true
   },
   "files.watcherExclude": {
-    "**/backups/**": true
+    "**/backups/**": true,
+    "**/node_modules/**": true
   },
   "search.exclude": {
-    "**/backups/**": true
+    "**/backups/**": true,
+    "**/node_modules/**": true
   },
-  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.configuration.updateBuildConfiguration": "disabled",
   "java.import.gradle.enabled": false,
   "java.import.gradle.wrapper.enabled": false,
-  "java.import.gradle.home": null,
-  "java.import.gradle.version": null,
-  "java.import.gradle.java.home": null,
-  "java.project.sourcePaths": [],
-  "java.project.outputPath": "",
-  "java.project.referencedLibraries": [],
+  "java.import.gradle.offline.enabled": false,
+  "java.import.gradle.excludedProjects": [
+    "**/backups/**",
+    "**/node_modules/**"
+  ],
   "java.project.resourceFilters": [
     "**/backups/**",
     "**/node_modules/**"
@@ -24,7 +25,11 @@
   "files.associations": {
     "**/backups/**/*.gradle": "plaintext",
     "**/backups/**/*.java": "plaintext",
-    "**/backups/**/*.kt": "plaintext"
-  }
+    "**/backups/**/*.kt": "plaintext",
+    "**/node_modules/**/*.gradle": "plaintext"
+  },
+  "java.compile.nullAnalysis.mode": "disabled",
+  "gradle.nestedProjects": false,
+  "problems.showCurrentInStatus": false,
+  "problems.decorations.enabled": false
 }
-

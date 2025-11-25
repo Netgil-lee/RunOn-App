@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Android 12+ (API 31+) 전용 스플래시 스크린 설정 -->
+  <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
+    <!-- 스플래시 스크린 배경색 -->
+    <item name="windowSplashScreenBackground">@color/splashscreen_background</item>
+    <!-- 스플래시 스크린 아이콘 -->
+    <item name="windowSplashScreenAnimatedIcon">@drawable/splashscreen_logo</item>
+    <!-- 스플래시 스크린 후 적용될 테마 -->
+    <item name="postSplashScreenTheme">@style/AppTheme</item>
+    <!-- 스플래시 스크린 동작: 아이콘 우선 표시 -->
+    <item name="android:windowSplashScreenBehavior">icon_preferred</item>
+    <!-- 아이콘 배경색 (선택사항) -->
+    <item name="android:windowSplashScreenIconBackgroundColor">@color/splashscreen_background</item>
+    <!-- 스플래시 스크린 애니메이션 지속 시간 (밀리초) -->
+    <item name="android:windowSplashScreenAnimationDuration">300</item>
+  </style>
+</resources>
+

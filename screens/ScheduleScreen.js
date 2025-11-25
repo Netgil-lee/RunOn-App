@@ -1511,6 +1511,9 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [customLocationInputLayout, setCustomLocationInputLayout] = useState(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   
+  // 지도 터치 시 스크롤 비활성화를 위한 상태
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  
   // 코스 사진 모달 관련 상태
   const [showCoursePhotoModal, setShowCoursePhotoModal] = useState(false);
   const [selectedCoursePhoto, setSelectedCoursePhoto] = useState(null);
@@ -2379,7 +2382,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   );
 
   // 인라인 카카오맵 컴포넌트를 별도로 분리하여 격리
-  const InlineKakaoMapComponent = React.memo(({ selectedLocation, locationType, onCustomMarkerChange, hasCustomMarker, customMarkerCoords }) => {
+  const InlineKakaoMapComponent = React.memo(({ selectedLocation, locationType, onCustomMarkerChange, hasCustomMarker, customMarkerCoords, onMapTouchStart, onMapTouchEnd }) => {
     // WebView 재렌더링 방지를 위한 안정적인 key 생성
     const stableKey = React.useMemo(() => {
       if (!selectedLocation) return 'no-location-no-boundary-v24';
@@ -2776,7 +2779,12 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
     return (
       <View style={styles.inlineMapSection}>
-        <View style={styles.inlineMapContainer}>
+        <View 
+          style={styles.inlineMapContainer}
+          onTouchStart={onMapTouchStart}
+          onTouchEnd={onMapTouchEnd}
+          onTouchCancel={onMapTouchEnd}
+        >
           <WebView
             key={stableKey}
             source={{ html: createInlineMapHTML() }}
@@ -2834,6 +2842,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         onCustomMarkerChange={handleCustomMarkerChange}
         hasCustomMarker={hasCustomMarker}
         customMarkerCoords={customMarkerCoords}
+        onMapTouchStart={() => setScrollEnabled(false)}
+        onMapTouchEnd={() => setScrollEnabled(true)}
       />
     </React.Fragment>
   ), [selectedLocationData?.id, selectedLocationType, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange]);
@@ -3259,8 +3269,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           { paddingBottom: keyboardVisible ? 210 : 80 }
         ]}
         keyboardShouldPersistTaps="handled"
-        scrollEnabled={true}
-        nestedScrollEnabled={true}
+        scrollEnabled={scrollEnabled}
+        nestedScrollEnabled={false}
       >
         {renderStepIndicator()}
         {getCurrentStepContent()}

@@ -1,7 +1,11 @@
+const appJson = require('./app.json');
+
 module.exports = {
   project: {
     ios: {},
-    android: {},
+    android: {
+      packageName: appJson.expo.android.package || 'com.runon.app',
+    },
   },
   assets: ['./assets/fonts/'],
   // backups 폴더를 빌드에서 제외
@@ -10,6 +14,7 @@ module.exports = {
   // Android 빌드에서 제외할 경로
   android: {
     sourceDir: './android',
+    packageName: appJson.expo.android.package || 'com.runon.app',
     // backups 폴더 제외
     exclude: ['**/backups/**'],
   },

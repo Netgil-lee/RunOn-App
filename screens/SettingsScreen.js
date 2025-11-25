@@ -18,7 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import blacklistService from '../services/blacklistService';
-import appleFitnessService from '../services/appleFitnessService';
+import fitnessService from '../services/fitnessService';
 import TermsPrivacyModal from '../components/TermsPrivacyModal';
 
 // NetGill 디자인 시스템
@@ -161,24 +161,14 @@ const SettingsScreen = ({ navigation }) => {
     checkHealthKitStatus();
   }, [user?.uid]);
 
-  // HealthKit 상태 확인 (iOS 전용)
+  // 건강데이터 상태 확인 (플랫폼별 자동 분기)
   const checkHealthKitStatus = async () => {
-    if (Platform.OS !== 'ios') {
-      // Android에서는 HealthKit을 사용하지 않음
-      setHealthKitStatus({
-        isAvailable: false,
-        hasPermissions: false,
-        isChecking: false
-      });
-      return;
-    }
-    
     try {
       setHealthKitStatus(prev => ({ ...prev, isChecking: true }));
       
-      // HealthKit 모듈 안전성 체크
-      if (!appleFitnessService || typeof appleFitnessService.checkPermissions !== 'function') {
-        console.warn('⚠️ HealthKit 서비스가 사용할 수 없습니다.');
+      // Fitness 서비스 모듈 안전성 체크
+      if (!fitnessService || typeof fitnessService.checkPermissions !== 'function') {
+        console.warn('⚠️ Fitness 서비스가 사용할 수 없습니다.');
         setHealthKitStatus({
           isAvailable: false,
           hasPermissions: false,
@@ -187,7 +177,7 @@ const SettingsScreen = ({ navigation }) => {
         return;
       }
       
-      const status = await appleFitnessService.checkPermissions();
+      const status = await fitnessService.checkPermissions();
       
       setHealthKitStatus({
         isAvailable: status.isAvailable,
@@ -209,45 +199,50 @@ const SettingsScreen = ({ navigation }) => {
   // HealthKit 권한 요청
   const handleHealthKitAccess = async () => {
     try {
+      const serviceName = Platform.OS === 'ios' ? 'HealthKit' : 'Samsung Health';
+      
       if (healthKitStatus.hasPermissions) {
         Alert.alert(
-          '건강데이터 접근',
-          '이미 HealthKit 권한이 허용되어 있습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
+          `${serviceName} 접근`,
+          `이미 ${serviceName} 권한이 허용되어 있습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.`,
           [{ text: '확인' }]
         );
         return;
       }
 
       Alert.alert(
-        '건강데이터 접근',
-        'HealthKit에서 러닝 데이터를 가져오기 위해 건강 데이터 접근 권한이 필요합니다.\n\n허용하시겠습니까?',
+        `${serviceName} 접근`,
+        `${serviceName}에서 러닝 데이터를 가져오기 위해 건강 데이터 접근 권한이 필요합니다.\n\n허용하시겠습니까?`,
         [
           { text: '취소', style: 'cancel' },
           { 
             text: '허용', 
             onPress: async () => {
               try {
-                const success = await appleFitnessService.requestPermissions();
+                const success = await fitnessService.requestPermissions();
                 if (success) {
                   Alert.alert(
                     '권한 허용 완료',
-                    'HealthKit 권한이 허용되었습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
+                    `${serviceName} 권한이 허용되었습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.`,
                     [{ text: '확인' }]
                   );
                   // 상태 다시 확인
                   await checkHealthKitStatus();
                 } else {
+                  const errorMessage = Platform.OS === 'ios' 
+                    ? '설정 > 개인정보 보호 및 보안 > 건강에서 수동으로 허용해주세요.'
+                    : '설정 > 앱 > RunOn > 권한에서 수동으로 허용해주세요.';
                   Alert.alert(
                     '권한 허용 실패',
-                    'HealthKit 권한 허용에 실패했습니다.\n\n설정 > 개인정보 보호 및 보안 > 건강에서 수동으로 허용해주세요.',
+                    `${serviceName} 권한 허용에 실패했습니다.\n\n${errorMessage}`,
                     [{ text: '확인' }]
                   );
                 }
               } catch (error) {
-                console.error('❌ HealthKit 권한 요청 실패:', error);
+                console.error(`❌ ${serviceName} 권한 요청 실패:`, error);
                 Alert.alert(
                   '오류',
-                  'HealthKit 권한 요청 중 오류가 발생했습니다.',
+                  `${serviceName} 권한 요청 중 오류가 발생했습니다.`,
                   [{ text: '확인' }]
                 );
               }
@@ -256,10 +251,11 @@ const SettingsScreen = ({ navigation }) => {
         ]
       );
     } catch (error) {
-      console.error('❌ HealthKit 접근 처리 실패:', error);
+      const serviceName = Platform.OS === 'ios' ? 'HealthKit' : 'Samsung Health';
+      console.error(`❌ ${serviceName} 접근 처리 실패:`, error);
       Alert.alert(
         '오류',
-        'HealthKit 접근 처리 중 오류가 발생했습니다.',
+        `${serviceName} 접근 처리 중 오류가 발생했습니다.`,
         [{ text: '확인' }]
       );
     }
@@ -479,20 +475,18 @@ const SettingsScreen = ({ navigation }) => {
         {/* 앱 */}
         <SectionTitle title="앱" />
         <View style={styles.section}>
-          {Platform.OS === 'ios' && (
           <SettingItem
             icon="heart-outline"
-            title="건강데이터 접근"
+            title={Platform.OS === 'ios' ? "HealthKit 접근" : "Samsung Health 접근"}
             subtitle={
               healthKitStatus.isChecking 
                 ? "상태 확인 중..." 
                 : healthKitStatus.hasPermissions 
-                  ? "HealthKit 권한 허용됨" 
-                  : "러닝 데이터 동기화 및 권한 관리"
+                  ? (Platform.OS === 'ios' ? "HealthKit 권한 허용됨" : "Samsung Health 권한 허용됨")
+                  : (Platform.OS === 'ios' ? "HealthKit과 러닝 데이터 동기화 및 권한 관리" : "건강데이터의 러닝 데이터 동기화 및 권한 관리")
             }
             onPress={handleHealthKitAccess}
           />
-          )}
           <SettingItem
             icon="ban-outline"
             title="블랙리스트"

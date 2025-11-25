@@ -8,7 +8,7 @@ import MeetingCard from './MeetingCard';
 import { useEvents } from '../contexts/EventContext';
 import { useAuth } from '../contexts/AuthContext';
 
-const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanriver', onHanriverLocationClick, onLocationButtonRef, onMapRef, onLocationListRef, onMeetingCardsRef, onMeetingCardRef, onStatisticsRef }) => {
+const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanriver', onHanriverLocationClick, onLocationButtonRef, onMapRef, onLocationListRef, onMeetingCardsRef, onMeetingCardRef, onStatisticsRef, onMapTouchStart, onMapTouchEnd }) => {
   const { allEvents = [] } = useEvents() || {}; // EventContext에서 모임 데이터 가져오기 (안전한 기본값)
   const { user = null } = useAuth() || {}; // AuthContext 안전한 기본값
   
@@ -1054,14 +1054,14 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
                         // 초기 탭 설정
                         showMarkersForTab(currentTab);
                         
-                        // 지도 이동 이벤트 리스너 추가 (서울 경계 체크)
-                        kakao.maps.event.addListener(map, 'center_changed', function() {
+                        // 지도 드래그 종료 이벤트 리스너 추가 (서울 경계 체크)
+                        // dragend 이벤트를 사용하여 드래그가 완전히 끝난 후에만 체크
+                        kakao.maps.event.addListener(map, 'dragend', function() {
                             var center = map.getCenter();
                             var lat = center.getLat();
                             var lng = center.getLng();
                             
-                            log('🗺️ 지도 중심 변경: ' + lat + ', ' + lng, 'info');
-                            log('🏗️ 서울 경계 체크 결과: ' + isWithinSeoulBoundary(lat, lng), 'info');
+                            log('🗺️ 지도 드래그 종료 - 중심 위치: ' + lat + ', ' + lng, 'info');
                             
                             if (!isWithinSeoulBoundary(lat, lng)) {
                                 log('⚠️ 서울 경계 벗어남 감지: ' + lat + ', ' + lng, 'warning');
@@ -1073,6 +1073,8 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
                                     map.setCenter(newCenter);
                                     log('🎯 서울 중심부로 지도 이동 완료', 'info');
                                 }, 500);
+                            } else {
+                                log('✅ 서울 경계 내 위치 확인', 'info');
                             }
                         });
                         
@@ -1614,6 +1616,9 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
         ref={mapRef}
         id="hanRiverMap"
         style={styles.mapContainer}
+        onTouchStart={onMapTouchStart}
+        onTouchEnd={onMapTouchEnd}
+        onTouchCancel={onMapTouchEnd}
       >
         <WebView
           ref={webViewRef}
@@ -1630,6 +1635,9 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
           showsVerticalScrollIndicator={false}
           cacheEnabled={false}
           incognito={true}
+          allowsInlineMediaPlayback={true}
+          mediaPlaybackRequiresUserAction={false}
+          mixedContentMode="always"
           onMessage={handleWebViewMessage}
           onLoadEnd={handleLoadEnd}
           onError={handleError}

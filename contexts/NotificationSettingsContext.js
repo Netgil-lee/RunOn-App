@@ -175,6 +175,8 @@ export const NotificationSettingsProvider = ({ children }) => {
       case 'air_very_unhealthy':
       case 'air_unhealthy':
       case 'air_moderate':
+      case 'pm25':  // 초미세먼지 알림
+      case 'pm10':  // 미세먼지 알림
         return settings.notifications.weatherAlert;
       case 'safety':
       case 'flood_risk_rain':
@@ -192,7 +194,9 @@ export const NotificationSettingsProvider = ({ children }) => {
       case 'mention':
         return settings.notifications.newMember;
       default:
-        return true;
+        // 알 수 없는 타입은 기본적으로 알림을 표시하지 않음 (보안상 안전)
+        console.warn(`⚠️ 알 수 없는 알림 타입: ${notificationType}`);
+        return false;
     }
   };
 

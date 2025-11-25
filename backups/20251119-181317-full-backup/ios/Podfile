@@ -1,0 +1,116 @@
+require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
+require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
+
+require 'json'
+podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
+
+def ccache_enabled?(podfile_properties)
+  # Environment variable takes precedence
+  return ENV['USE_CCACHE'] == '1' if ENV['USE_CCACHE']
+  
+  # Fall back to Podfile properties
+  podfile_properties['apple.ccacheEnabled'] == 'true'
+end
+
+# 새 아키텍처 설정: Podfile.properties.json 의 newArchEnabled 값을 따름
+ENV['RCT_NEW_ARCH_ENABLED'] = (podfile_properties['newArchEnabled'] == 'true') ? '1' : '0'
+ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] ||= podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
+ENV['RCT_USE_RN_DEP'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
+ENV['RCT_USE_PREBUILT_RNCORE'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
+platform :ios, '15.1'
+
+prepare_react_native_project!
+
+use_modular_headers!
+
+target 'RunOn' do
+  use_expo_modules!
+
+  if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
+    config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
+  else
+    config_command = [
+      'npx',
+      'expo-modules-autolinking',
+      'react-native-config',
+      '--json',
+      '--platform',
+      'ios'
+    ]
+  end
+
+  config = use_native_modules!(config_command)
+
+  use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
+  use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/..",
+    :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
+  )
+
+  # HealthKit 모듈 명시 추가 (자동 링크 보완)
+  # Podspec 이름은 RNAppleHealthKit 이므로 해당 이름으로 지정해야 함
+  pod 'RNAppleHealthKit', :path => '../node_modules/react-native-health'
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      :ccache_enabled => ccache_enabled?(podfile_properties),
+    )
+
+    # Ensure dSYM files are generated for all Pods in Release builds
+    installer.pods_project.build_configurations.each do |config|
+      if config.name == 'Release'
+        config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+        config.build_settings['GCC_GENERATE_DEBUGGING_SYMBOLS'] = 'YES'
+        # Do not strip symbols from the installed product to keep dSYMs consistent
+        config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+      end
+    end
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        if config.name == 'Release'
+          config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+          config.build_settings['GCC_GENERATE_DEBUGGING_SYMBOLS'] = 'YES'
+          # Do not strip symbols from the installed product to keep dSYMs consistent
+          config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+        end
+      end
+      
+      # Fix script phases with paths containing parentheses (e.g., "RunOn-App (Production)")
+      target.build_phases.each do |phase|
+        if phase.is_a?(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)
+          if phase.shell_script && phase.shell_script.include?('$PODS_TARGET_SRCROOT')
+            # Fix bash -l -c commands that have issues with paths containing parentheses
+            # Replace: bash -l -c "...$PODS_TARGET_SRCROOT..."
+            # With: bash -c with properly quoted paths
+            original_script = phase.shell_script
+            
+            # Pattern 1: bash -l -c with double quotes
+            if original_script =~ /bash -l -c ["']([^"']+PODS_TARGET_SRCROOT[^"']+)["']/
+              script_path_part = $1
+              # Use bash -c instead of bash -l -c and properly quote the path
+              phase.shell_script = original_script.gsub(
+                /bash -l -c ["']([^"']+)["']/,
+                %Q{bash -c 'SCRIPT_PATH="\\$PODS_TARGET_SRCROOT"; bash -c "\\"\\"\\"$SCRIPT_PATH\\"\\"\\"" /../scripts/get-app-config-ios.sh"'}
+              )
+            end
+            
+            # Pattern 2: Handle the specific get-app-config-ios.sh case
+            if original_script.include?('get-app-config-ios.sh')
+              # Replace with a safer version that uses a variable
+              phase.shell_script = %Q{SCRIPT_PATH="$PODS_TARGET_SRCROOT/../scripts/get-app-config-ios.sh"\nbash "$SCRIPT_PATH"}
+            end
+          end
+        end
+      end
+    end
+  end
+end

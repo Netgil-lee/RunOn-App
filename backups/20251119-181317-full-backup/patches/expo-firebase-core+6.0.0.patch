@@ -1,0 +1,604 @@
+diff --git a/node_modules/expo-firebase-core/android/build.gradle b/node_modules/expo-firebase-core/android/build.gradle
+index 9bda09b..248ccdd 100644
+--- a/node_modules/expo-firebase-core/android/build.gradle
++++ b/node_modules/expo-firebase-core/android/build.gradle
+@@ -37,7 +37,7 @@ buildscript {
+ 
+ // Creating sources with comments
+ task androidSourcesJar(type: Jar) {
+-  classifier = 'sources'
++  archiveClassifier.set('sources')
+   from android.sourceSets.main.java.srcDirs
+ }
+ 
+@@ -59,6 +59,7 @@ afterEvaluate {
+ }
+ 
+ android {
++  compileSdk safeExtGet("compileSdkVersion", 31)
+   compileSdkVersion safeExtGet("compileSdkVersion", 31)
+ 
+   compileOptions {
+diff --git a/node_modules/expo-firebase-core/android/build/generated/source/buildConfig/release/expo/modules/firebase/core/BuildConfig.java b/node_modules/expo-firebase-core/android/build/generated/source/buildConfig/release/expo/modules/firebase/core/BuildConfig.java
+new file mode 100644
+index 0000000..289641f
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/generated/source/buildConfig/release/expo/modules/firebase/core/BuildConfig.java
+@@ -0,0 +1,10 @@
++/**
++ * Automatically generated file. DO NOT MODIFY
++ */
++package expo.modules.firebase.core;
++
++public final class BuildConfig {
++  public static final boolean DEBUG = false;
++  public static final String LIBRARY_PACKAGE_NAME = "expo.modules.firebase.core";
++  public static final String BUILD_TYPE = "release";
++}
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/AndroidManifest.xml b/node_modules/expo-firebase-core/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/AndroidManifest.xml
+new file mode 100644
+index 0000000..c8af993
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="expo.modules.firebase.core" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/output-metadata.json b/node_modules/expo-firebase-core/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/output-metadata.json
+new file mode 100644
+index 0000000..2628f73
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/output-metadata.json
+@@ -0,0 +1,18 @@
++{
++  "version": 3,
++  "artifactType": {
++    "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
++    "kind": "Directory"
++  },
++  "applicationId": "expo.modules.firebase.core",
++  "variantName": "release",
++  "elements": [
++    {
++      "type": "SINGLE",
++      "filters": [],
++      "attributes": [],
++      "outputFile": "AndroidManifest.xml"
++    }
++  ],
++  "elementType": "File"
++}
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/aar_metadata/release/writeReleaseAarMetadata/aar-metadata.properties b/node_modules/expo-firebase-core/android/build/intermediates/aar_metadata/release/writeReleaseAarMetadata/aar-metadata.properties
+new file mode 100644
+index 0000000..1211b1e
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/aar_metadata/release/writeReleaseAarMetadata/aar-metadata.properties
+@@ -0,0 +1,6 @@
++aarFormatVersion=1.0
++aarMetadataVersion=1.0
++minCompileSdk=1
++minCompileSdkExtension=0
++minAndroidGradlePluginVersion=1.0.0
++coreLibraryDesugaringEnabled=false
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json b/node_modules/expo-firebase-core/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar b/node_modules/expo-firebase-core/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar
+new file mode 100644
+index 0000000..0228291
+Binary files /dev/null and b/node_modules/expo-firebase-core/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar differ
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/compile_symbol_list/release/generateReleaseRFile/R.txt b/node_modules/expo-firebase-core/android/build/intermediates/compile_symbol_list/release/generateReleaseRFile/R.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-8.11.0 b/node_modules/expo-firebase-core/android/build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-8.11.0
+new file mode 100644
+index 0000000..5a3e3a5
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-8.11.0
+@@ -0,0 +1,89 @@
++# This is a configuration file for ProGuard.
++# http://proguard.sourceforge.net/index.html#manual/usage.html
++#
++# Starting with version 2.2 of the Android plugin for Gradle, this file is distributed together with
++# the plugin and unpacked at build-time. The files in $ANDROID_HOME are no longer maintained and
++# will be ignored by new version of the Android plugin for Gradle.
++
++# Optimizations: If you don't want to optimize, use the proguard-android.txt configuration file
++# instead of this one, which turns off the optimization flags.
++-allowaccessmodification
++
++# Preserve some attributes that may be required for reflection.
++-keepattributes AnnotationDefault,
++                EnclosingMethod,
++                InnerClasses,
++                RuntimeVisibleAnnotations,
++                RuntimeVisibleParameterAnnotations,
++                RuntimeVisibleTypeAnnotations,
++                Signature
++
++-keep public class com.google.vending.licensing.ILicensingService
++-keep public class com.android.vending.licensing.ILicensingService
++-keep public class com.google.android.vending.licensing.ILicensingService
++-dontnote com.android.vending.licensing.ILicensingService
++-dontnote com.google.vending.licensing.ILicensingService
++-dontnote com.google.android.vending.licensing.ILicensingService
++
++# For native methods, see https://www.guardsquare.com/manual/configuration/examples#native
++-keepclasseswithmembernames,includedescriptorclasses class * {
++    native <methods>;
++}
++
++# Keep setters in Views so that animations can still work.
++-keepclassmembers public class * extends android.view.View {
++    void set*(***);
++    *** get*();
++}
++
++# We want to keep methods in Activity that could be used in the XML attribute onClick.
++-keepclassmembers class * extends android.app.Activity {
++    public void *(android.view.View);
++}
++
++# For enumeration classes, see https://www.guardsquare.com/manual/configuration/examples#enumerations
++-keepclassmembers enum * {
++    public static **[] values();
++    public static ** valueOf(java.lang.String);
++}
++
++-keepclassmembers class * implements android.os.Parcelable {
++    public static final ** CREATOR;
++}
++
++# Preserve annotated Javascript interface methods.
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
++
++# The support libraries contains references to newer platform versions.
++# Don't warn about those in case this app is linking against an older
++# platform version. We know about them, and they are safe.
++-dontnote android.support.**
++-dontnote androidx.**
++-dontwarn android.support.**
++-dontwarn androidx.**
++
++# Understand the @Keep support annotation.
++-keep class android.support.annotation.Keep
++
++-keep @android.support.annotation.Keep class * {*;}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <methods>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <fields>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <init>(...);
++}
++
++# These classes are duplicated between android.jar and org.apache.http.legacy.jar.
++-dontnote org.apache.http.**
++-dontnote android.net.http.**
++
++# These classes are duplicated between android.jar and core-lambda-stubs.jar.
++-dontnote java.lang.invoke.**
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/default_proguard_files/global/proguard-android.txt-8.11.0 b/node_modules/expo-firebase-core/android/build/intermediates/default_proguard_files/global/proguard-android.txt-8.11.0
+new file mode 100644
+index 0000000..6f7e4ef
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/default_proguard_files/global/proguard-android.txt-8.11.0
+@@ -0,0 +1,95 @@
++# This is a configuration file for ProGuard.
++# http://proguard.sourceforge.net/index.html#manual/usage.html
++#
++# Starting with version 2.2 of the Android plugin for Gradle, this file is distributed together with
++# the plugin and unpacked at build-time. The files in $ANDROID_HOME are no longer maintained and
++# will be ignored by new version of the Android plugin for Gradle.
++
++# Optimization is turned off by default. Dex does not like code run
++# through the ProGuard optimize steps (and performs some
++# of these optimizations on its own).
++# Note that if you want to enable optimization, you cannot just
++# include optimization flags in your own project configuration file;
++# instead you will need to point to the
++# "proguard-android-optimize.txt" file instead of this one from your
++# project.properties file.
++-dontoptimize
++
++# Preserve some attributes that may be required for reflection.
++-keepattributes AnnotationDefault,
++                EnclosingMethod,
++                InnerClasses,
++                RuntimeVisibleAnnotations,
++                RuntimeVisibleParameterAnnotations,
++                RuntimeVisibleTypeAnnotations,
++                Signature
++
++-keep public class com.google.vending.licensing.ILicensingService
++-keep public class com.android.vending.licensing.ILicensingService
++-keep public class com.google.android.vending.licensing.ILicensingService
++-dontnote com.android.vending.licensing.ILicensingService
++-dontnote com.google.vending.licensing.ILicensingService
++-dontnote com.google.android.vending.licensing.ILicensingService
++
++# For native methods, see https://www.guardsquare.com/manual/configuration/examples#native
++-keepclasseswithmembernames,includedescriptorclasses class * {
++    native <methods>;
++}
++
++# Keep setters in Views so that animations can still work.
++-keepclassmembers public class * extends android.view.View {
++    void set*(***);
++    *** get*();
++}
++
++# We want to keep methods in Activity that could be used in the XML attribute onClick.
++-keepclassmembers class * extends android.app.Activity {
++    public void *(android.view.View);
++}
++
++# For enumeration classes, see https://www.guardsquare.com/manual/configuration/examples#enumerations
++-keepclassmembers enum * {
++    public static **[] values();
++    public static ** valueOf(java.lang.String);
++}
++
++-keepclassmembers class * implements android.os.Parcelable {
++    public static final ** CREATOR;
++}
++
++# Preserve annotated Javascript interface methods.
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
++
++# The support libraries contains references to newer platform versions.
++# Don't warn about those in case this app is linking against an older
++# platform version. We know about them, and they are safe.
++-dontnote android.support.**
++-dontnote androidx.**
++-dontwarn android.support.**
++-dontwarn androidx.**
++
++# Understand the @Keep support annotation.
++-keep class android.support.annotation.Keep
++
++-keep @android.support.annotation.Keep class * {*;}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <methods>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <fields>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <init>(...);
++}
++
++# These classes are duplicated between android.jar and org.apache.http.legacy.jar.
++-dontnote org.apache.http.**
++-dontnote android.net.http.**
++
++# These classes are duplicated between android.jar and core-lambda-stubs.jar.
++-dontnote java.lang.invoke.**
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/default_proguard_files/global/proguard-defaults.txt-8.11.0 b/node_modules/expo-firebase-core/android/build/intermediates/default_proguard_files/global/proguard-defaults.txt-8.11.0
+new file mode 100644
+index 0000000..7bbb228
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/default_proguard_files/global/proguard-defaults.txt-8.11.0
+@@ -0,0 +1,89 @@
++# This is a configuration file for ProGuard.
++# http://proguard.sourceforge.net/index.html#manual/usage.html
++#
++# Starting with version 2.2 of the Android plugin for Gradle, this file is distributed together with
++# the plugin and unpacked at build-time. The files in $ANDROID_HOME are no longer maintained and
++# will be ignored by new version of the Android plugin for Gradle.
++
++# Optimizations can be turned on and off in the 'postProcessing' DSL block.
++# The configuration below is applied if optimizations are enabled.
++-allowaccessmodification
++
++# Preserve some attributes that may be required for reflection.
++-keepattributes AnnotationDefault,
++                EnclosingMethod,
++                InnerClasses,
++                RuntimeVisibleAnnotations,
++                RuntimeVisibleParameterAnnotations,
++                RuntimeVisibleTypeAnnotations,
++                Signature
++
++-keep public class com.google.vending.licensing.ILicensingService
++-keep public class com.android.vending.licensing.ILicensingService
++-keep public class com.google.android.vending.licensing.ILicensingService
++-dontnote com.android.vending.licensing.ILicensingService
++-dontnote com.google.vending.licensing.ILicensingService
++-dontnote com.google.android.vending.licensing.ILicensingService
++
++# For native methods, see https://www.guardsquare.com/manual/configuration/examples#native
++-keepclasseswithmembernames,includedescriptorclasses class * {
++    native <methods>;
++}
++
++# Keep setters in Views so that animations can still work.
++-keepclassmembers public class * extends android.view.View {
++    void set*(***);
++    *** get*();
++}
++
++# We want to keep methods in Activity that could be used in the XML attribute onClick.
++-keepclassmembers class * extends android.app.Activity {
++    public void *(android.view.View);
++}
++
++# For enumeration classes, see https://www.guardsquare.com/manual/configuration/examples#enumerations
++-keepclassmembers enum * {
++    public static **[] values();
++    public static ** valueOf(java.lang.String);
++}
++
++-keepclassmembers class * implements android.os.Parcelable {
++    public static final ** CREATOR;
++}
++
++# Preserve annotated Javascript interface methods.
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
++
++# The support libraries contains references to newer platform versions.
++# Don't warn about those in case this app is linking against an older
++# platform version. We know about them, and they are safe.
++-dontnote android.support.**
++-dontnote androidx.**
++-dontwarn android.support.**
++-dontwarn androidx.**
++
++# Understand the @Keep support annotation.
++-keep class android.support.annotation.Keep
++
++-keep @android.support.annotation.Keep class * {*;}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <methods>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <fields>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <init>(...);
++}
++
++# These classes are duplicated between android.jar and org.apache.http.legacy.jar.
++-dontnote org.apache.http.**
++-dontnote android.net.http.**
++
++# These classes are duplicated between android.jar and core-lambda-stubs.jar.
++-dontnote java.lang.invoke.**
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/incremental/mergeReleaseAssets/merger.xml b/node_modules/expo-firebase-core/android/build/intermediates/incremental/mergeReleaseAssets/merger.xml
+new file mode 100644
+index 0000000..4d45fac
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/incremental/mergeReleaseAssets/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/assets"/></dataSet><dataSet config="release" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/release/assets"/></dataSet><dataSet config="generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/build/intermediates/shader_assets/release/compileReleaseShaders/out"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml b/node_modules/expo-firebase-core/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml
+new file mode 100644
+index 0000000..98f0ef8
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/jniLibs"/></dataSet><dataSet config="release" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/release/jniLibs"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/incremental/mergeReleaseShaders/merger.xml b/node_modules/expo-firebase-core/android/build/intermediates/incremental/mergeReleaseShaders/merger.xml
+new file mode 100644
+index 0000000..c353a6f
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/incremental/mergeReleaseShaders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/shaders"/></dataSet><dataSet config="release" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/release/shaders"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties b/node_modules/expo-firebase-core/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties
+new file mode 100644
+index 0000000..7d0d2cc
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Sun Nov 16 23:22:46 KST 2025
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml b/node_modules/expo-firebase-core/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml
+new file mode 100644
+index 0000000..afdac2b
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/release/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release" generated-set="release$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/release/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/build/generated/res/resValues/release"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/build/generated/res/resValues/release"/></dataSet><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt b/node_modules/expo-firebase-core/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt
+new file mode 100644
+index 0000000..78ac5b8
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt
+@@ -0,0 +1,2 @@
++R_DEF: Internal format may change without notice
++local
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/manifest_merge_blame_file/release/processReleaseManifest/manifest-merger-blame-release-report.txt b/node_modules/expo-firebase-core/android/build/intermediates/manifest_merge_blame_file/release/processReleaseManifest/manifest-merger-blame-release-report.txt
+new file mode 100644
+index 0000000..5cb466c
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/manifest_merge_blame_file/release/processReleaseManifest/manifest-merger-blame-release-report.txt
+@@ -0,0 +1,7 @@
++1<?xml version="1.0" encoding="utf-8"?>
++2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++3    package="expo.modules.firebase.core" >
++4
++5    <uses-sdk android:minSdkVersion="24" />
++6
++7</manifest>
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml b/node_modules/expo-firebase-core/android/build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml
+new file mode 100644
+index 0000000..c8af993
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="expo.modules.firebase.core" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/navigation_json/release/extractDeepLinksRelease/navigation.json b/node_modules/expo-firebase-core/android/build/intermediates/navigation_json/release/extractDeepLinksRelease/navigation.json
+new file mode 100644
+index 0000000..0637a08
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/navigation_json/release/extractDeepLinksRelease/navigation.json
+@@ -0,0 +1 @@
++[]
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt b/node_modules/expo-firebase-core/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/expo-firebase-core/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt b/node_modules/expo-firebase-core/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..18552e1
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt
+@@ -0,0 +1 @@
++expo.modules.firebase.core
+diff --git a/node_modules/expo-firebase-core/android/build/outputs/logs/manifest-merger-release-report.txt b/node_modules/expo-firebase-core/android/build/outputs/logs/manifest-merger-release-report.txt
+new file mode 100644
+index 0000000..7a352f8
+--- /dev/null
++++ b/node_modules/expo-firebase-core/android/build/outputs/logs/manifest-merger-release-report.txt
+@@ -0,0 +1,15 @@
++-- Merging decision tree log ---
++manifest
++ADDED from /Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/AndroidManifest.xml:1:1-3:12
++INJECTED from /Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/AndroidManifest.xml:1:1-3:12
++	package
++		ADDED from /Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/AndroidManifest.xml:1:11-47
++		INJECTED from /Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/AndroidManifest.xml
++uses-sdk
++INJECTED from /Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
++INJECTED from /Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/AndroidManifest.xml
++INJECTED from /Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/AndroidManifest.xml
++	android:targetSdkVersion
++		INJECTED from /Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/AndroidManifest.xml
++	android:minSdkVersion
++		INJECTED from /Users/lee_mac/RunOn-App (Production_android)/node_modules/expo-firebase-core/android/src/main/AndroidManifest.xml
+diff --git a/node_modules/expo-firebase-core/android/src/main/java/expo/modules/firebase/core/FirebaseCoreModule.java b/node_modules/expo-firebase-core/android/src/main/java/expo/modules/firebase/core/FirebaseCoreModule.java
+index 0bb4e53..4c37e4b 100644
+--- a/node_modules/expo-firebase-core/android/src/main/java/expo/modules/firebase/core/FirebaseCoreModule.java
++++ b/node_modules/expo-firebase-core/android/src/main/java/expo/modules/firebase/core/FirebaseCoreModule.java
+@@ -4,55 +4,18 @@ package expo.modules.firebase.core;
+ 
+ import android.content.Context;
+ 
+-import androidx.annotation.Nullable;
+-
+-import java.util.Map;
+-import java.util.HashMap;
+-
+-import com.google.firebase.FirebaseApp;
+-import com.google.firebase.FirebaseOptions;
+-
+-import expo.modules.core.ExportedModule;
+-import expo.modules.core.ModuleRegistry;
+-
+-public class FirebaseCoreModule extends ExportedModule {
++// FirebaseCoreModule is deprecated in Expo SDK 54+
++// FirebaseCoreService (InternalModule) is used instead
++// This class is kept for backward compatibility but not instantiated
++@Deprecated
++public class FirebaseCoreModule {
+   private static final String NAME = "ExpoFirebaseCore";
+-  private static final String DEFAULT_APP_NAME = "[DEFAULT]";
+-
+-  private ModuleRegistry mModuleRegistry;
+-  private Map<String, String> mDefaultOptions;
+ 
+   public FirebaseCoreModule(Context context) {
+-    super(context);
++    // Deprecated - not used in Expo SDK 54+
+   }
+ 
+-  @Nullable
+-  public Map<String, Object> getConstants() {
+-    FirebaseCoreInterface firebaseCore = mModuleRegistry.getModule(FirebaseCoreInterface.class);
+-    FirebaseApp defaultApp = firebaseCore.getDefaultApp();
+-
+-    final Map<String, Object> constants = new HashMap<>();
+-    constants.put("DEFAULT_APP_NAME", (defaultApp != null) ? defaultApp.getName() : DEFAULT_APP_NAME);
+-
+-    if (mDefaultOptions == null) {
+-      FirebaseOptions options = (defaultApp != null) ? defaultApp.getOptions() : null;
+-      mDefaultOptions = FirebaseCoreOptions.toJSON(options);
+-    }
+-
+-    if (mDefaultOptions != null) {
+-      constants.put("DEFAULT_APP_OPTIONS", mDefaultOptions);
+-    }
+-
+-    return constants;
+-  }
+-
+-  @Override
+   public String getName() {
+     return NAME;
+   }
+-
+-  @Override
+-  public void onCreate(ModuleRegistry moduleRegistry) {
+-    mModuleRegistry = moduleRegistry;
+-  }
+ }
+diff --git a/node_modules/expo-firebase-core/android/src/main/java/expo/modules/firebase/core/FirebaseCorePackage.java b/node_modules/expo-firebase-core/android/src/main/java/expo/modules/firebase/core/FirebaseCorePackage.java
+index 25ca450..51143d3 100644
+--- a/node_modules/expo-firebase-core/android/src/main/java/expo/modules/firebase/core/FirebaseCorePackage.java
++++ b/node_modules/expo-firebase-core/android/src/main/java/expo/modules/firebase/core/FirebaseCorePackage.java
+@@ -6,7 +6,6 @@ import java.util.Collections;
+ import java.util.List;
+ 
+ import expo.modules.core.BasePackage;
+-import expo.modules.core.ExportedModule;
+ import expo.modules.core.interfaces.InternalModule;
+ 
+ public class FirebaseCorePackage extends BasePackage {
+@@ -14,9 +13,4 @@ public class FirebaseCorePackage extends BasePackage {
+   public List<InternalModule> createInternalModules(Context context) {
+     return Collections.singletonList((InternalModule) new FirebaseCoreService(context));
+   }
+-
+-  @Override
+-  public List<ExportedModule> createExportedModules(Context context) {
+-    return Collections.singletonList((ExportedModule) new FirebaseCoreModule(context));
+-  }
+ }

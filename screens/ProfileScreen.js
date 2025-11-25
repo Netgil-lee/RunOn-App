@@ -754,7 +754,6 @@ const ProfileScreen = ({ navigation }) => {
         onSearchPress={handleSearchPress}
         hideProfile={true}
         unreadCount={getTotalUnreadCount()}
-        transparent={true}
       />
 
       {/* 스크롤 가능한 컨텐츠 */}
@@ -1383,12 +1382,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-Regular',
   },
   profileBio: {
-    fontSize: 17,
+    fontSize: 15,
     color: COLORS.TEXT,
     textAlign: 'left',
     marginBottom: 0,
-    fontWeight: 'bold',
-    fontFamily: 'Pretendard-Bold',
+    fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
   },
   profileEditBtnMini: {
     flexDirection: 'row',

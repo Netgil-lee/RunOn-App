@@ -1259,7 +1259,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.SURFACE,
     borderRadius: 12,
     paddingHorizontal: 4,
-    paddingVertical: 12,
+    paddingVertical: 8,
     gap: 12,
   },
   searchInput: {

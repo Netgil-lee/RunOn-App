@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build artifacts
+android/app/build/
+android/build/
+ios/build/
+*.apk
+*.aab
+*.ipa
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Backups
+backups/
+**/backups/
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+__tests__/
+**/__tests__/
+
+# Temporary files
+*.tmp
+*.temp
+

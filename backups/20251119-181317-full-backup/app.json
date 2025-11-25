@@ -1,0 +1,91 @@
+{
+  "expo": {
+    "name": "RunOn",
+    "slug": "runon",
+    "version": "1.0.2",
+    "orientation": "portrait",
+    "icon": "./assets/appicon.png",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.runon.app",
+      "buildNumber": "111",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
+        "NSCameraUsageDescription": "프로필 사진 업로드를 위해 카메라 권한이 필요합니다.",
+        "NSPhotoLibraryUsageDescription": "프로필 사진 업로드를 위해 사진 라이브러리 접근 권한이 필요합니다.",
+        "NSContactsUsageDescription": "친구 추가 기능을 위해 연락처 접근 권한이 필요합니다.",
+        "NSHealthShareUsageDescription": "러닝 기록을 HealthKit과 연동하기 위해 건강 데이터 읽기 권한이 필요합니다.",
+        "NSHealthUpdateUsageDescription": "러닝 기록을 HealthKit에 저장하기 위해 건강 데이터 쓰기 권한이 필요합니다.",
+        "NSUserNotificationsUsageDescription": "모임 알림, 메시지 알림, 날씨 경고 등 중요한 정보를 받기 위해 알림 권한이 필요합니다.",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
+    },
+    "fonts": [
+      "assets/fonts/Gold-Regular.ttf",
+      "assets/fonts/Gold-Bold.ttf",
+      "assets/fonts/Pretendard-Regular.otf",
+      "assets/fonts/Pretendard-Medium.otf",
+      "assets/fonts/Pretendard-SemiBold.otf",
+      "assets/fonts/Pretendard-Bold.otf",
+      "assets/fonts/Pretendard-Light.otf",
+      "assets/fonts/Pretendard-Thin.otf"
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/appicon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.runon.app",
+      "versionCode": 5,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "notification": {
+        "icon": "./assets/appicon.png",
+        "color": "#3AF8FF",
+        "sound": "default"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-location",
+      "expo-image-picker",
+      "expo-notifications",
+      "expo-web-browser"
+    ],
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "extra": {
+      "firebaseApiKey": "AIzaSyDq24FyKrDTtomyNMcC3gZB7eqpr0OGZCg",
+      "weatherApiKey": "c1861b48c1786a9ff6a37560f3b8c63c",
+      "kakaoMapApiKey": "464318d78ffeb1e52a1185498fe1af08",
+      "eas": {
+        "projectId": "b2ec1d33-1054-4404-b072-623c6cd66588"
+      }
+    },
+    "owner": "lee_gwang_hee"
+  }
+}

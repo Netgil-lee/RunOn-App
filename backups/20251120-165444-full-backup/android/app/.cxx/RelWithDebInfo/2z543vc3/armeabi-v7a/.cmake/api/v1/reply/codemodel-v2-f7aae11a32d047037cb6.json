@@ -1,0 +1,338 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11
+					],
+					"jsonFile" : "directory-.-RelWithDebInfo-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0
+					]
+				},
+				{
+					"build" : "rnasyncstorage_autolinked_build",
+					"jsonFile" : "directory-rnasyncstorage_autolinked_build-RelWithDebInfo-54e245c0fa505af8185e.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni",
+					"targetIndexes" : 
+					[
+						3
+					]
+				},
+				{
+					"build" : "RNDateTimePickerCGen_autolinked_build",
+					"jsonFile" : "directory-RNDateTimePickerCGen_autolinked_build-RelWithDebInfo-5a25a28a37f779af1e54.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/@react-native-community/datetimepicker/android/build/generated/source/codegen/jni",
+					"targetIndexes" : 
+					[
+						2
+					]
+				},
+				{
+					"build" : "rnpicker_autolinked_build",
+					"jsonFile" : "directory-rnpicker_autolinked_build-RelWithDebInfo-a4d09c1133be8b42b7ff.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/@react-native-picker/picker/android/src/main/jni",
+					"targetIndexes" : 
+					[
+						5
+					]
+				},
+				{
+					"build" : "rngesturehandler_codegen_autolinked_build",
+					"jsonFile" : "directory-rngesturehandler_codegen_autolinked_build-RelWithDebInfo-adcd6046cc61c3c01e46.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-gesture-handler/android/build/generated/source/codegen/jni",
+					"targetIndexes" : 
+					[
+						4
+					]
+				},
+				{
+					"build" : "rnreanimated_autolinked_build",
+					"jsonFile" : "directory-rnreanimated_autolinked_build-RelWithDebInfo-a63b66499d855ed96150.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-reanimated/android/build/generated/source/codegen/jni",
+					"targetIndexes" : 
+					[
+						6
+					]
+				},
+				{
+					"build" : "safeareacontext_autolinked_build",
+					"jsonFile" : "directory-safeareacontext_autolinked_build-RelWithDebInfo-618477df6dc5ec28a7fb.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-safe-area-context/android/src/main/jni",
+					"targetIndexes" : 
+					[
+						11
+					]
+				},
+				{
+					"build" : "rnscreens_autolinked_build",
+					"jsonFile" : "directory-rnscreens_autolinked_build-RelWithDebInfo-3551675cdb3e80d0e05a.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-screens/android/src/main/jni",
+					"targetIndexes" : 
+					[
+						7
+					]
+				},
+				{
+					"build" : "rnsvg_autolinked_build",
+					"jsonFile" : "directory-rnsvg_autolinked_build-RelWithDebInfo-f5d04b872c8ca6c4ef8d.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-svg/android/src/main/jni",
+					"targetIndexes" : 
+					[
+						8
+					]
+				},
+				{
+					"build" : "rnviewshot_autolinked_build",
+					"jsonFile" : "directory-rnviewshot_autolinked_build-RelWithDebInfo-37687d3f71055cb1b00a.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni",
+					"targetIndexes" : 
+					[
+						9
+					]
+				},
+				{
+					"build" : "RNCWebViewSpec_autolinked_build",
+					"jsonFile" : "directory-RNCWebViewSpec_autolinked_build-RelWithDebInfo-120f7c851b9a1f3b6d1e.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-webview/android/build/generated/source/codegen/jni",
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"build" : "rnworklets_autolinked_build",
+					"jsonFile" : "directory-rnworklets_autolinked_build-RelWithDebInfo-0b1a908f050e6b635716.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native-worklets/android/build/generated/source/codegen/jni",
+					"targetIndexes" : 
+					[
+						10
+					]
+				}
+			],
+			"name" : "RelWithDebInfo",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11
+					],
+					"name" : "appmodules",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "appmodules::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-appmodules-RelWithDebInfo-9eff513ced415f92ef81.json",
+					"name" : "appmodules",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 10,
+					"id" : "react_codegen_RNCWebViewSpec::@eb48929f9f7453740a6c",
+					"jsonFile" : "target-react_codegen_RNCWebViewSpec-RelWithDebInfo-395a295bbab2da067510.json",
+					"name" : "react_codegen_RNCWebViewSpec",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "react_codegen_RNDateTimePickerCGen::@59b70ddc31ba2f8ef1d2",
+					"jsonFile" : "target-react_codegen_RNDateTimePickerCGen-RelWithDebInfo-9f698a334b0adcb5d6b9.json",
+					"name" : "react_codegen_RNDateTimePickerCGen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "react_codegen_rnasyncstorage::@1596841e19ec5b9eeffe",
+					"jsonFile" : "target-react_codegen_rnasyncstorage-RelWithDebInfo-8fcb8ad2a76f5c17076e.json",
+					"name" : "react_codegen_rnasyncstorage",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "react_codegen_rngesturehandler_codegen::@39f233abcd2c728bc6ec",
+					"jsonFile" : "target-react_codegen_rngesturehandler_codegen-RelWithDebInfo-8f6990b49aab2cabe2f0.json",
+					"name" : "react_codegen_rngesturehandler_codegen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "react_codegen_rnpicker::@e8bb2e9e833f47d0d516",
+					"jsonFile" : "target-react_codegen_rnpicker-RelWithDebInfo-4e606c1abaeb1b28ce96.json",
+					"name" : "react_codegen_rnpicker",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "react_codegen_rnreanimated::@8afabad14bfffa3f8b9a",
+					"jsonFile" : "target-react_codegen_rnreanimated-RelWithDebInfo-2cee43d5c8c6be084ada.json",
+					"name" : "react_codegen_rnreanimated",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "react_codegen_rnscreens::@25bcbd507e98d3a854ad",
+					"jsonFile" : "target-react_codegen_rnscreens-RelWithDebInfo-a7a0aba39474fc3d0fc9.json",
+					"name" : "react_codegen_rnscreens",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 8,
+					"id" : "react_codegen_rnsvg::@4f40eb209d0c0b4a3b65",
+					"jsonFile" : "target-react_codegen_rnsvg-RelWithDebInfo-628967838e643fbea599.json",
+					"name" : "react_codegen_rnsvg",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 9,
+					"id" : "react_codegen_rnviewshot::@0ba03d237e60b9258a87",
+					"jsonFile" : "target-react_codegen_rnviewshot-RelWithDebInfo-ea30572740f124feafb3.json",
+					"name" : "react_codegen_rnviewshot",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 11,
+					"id" : "react_codegen_rnworklets::@68f58d84d4754f193387",
+					"jsonFile" : "target-react_codegen_rnworklets-RelWithDebInfo-053b5989695e07892db2.json",
+					"name" : "react_codegen_rnworklets",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 6,
+					"id" : "react_codegen_safeareacontext::@7984cd80db47aa7b952a",
+					"jsonFile" : "target-react_codegen_safeareacontext-RelWithDebInfo-0df1b5c6b2033b9c5044.json",
+					"name" : "react_codegen_safeareacontext",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/Users/lee_mac/RunOn-App (Production_android)/android/app/.cxx/RelWithDebInfo/2z543vc3/armeabi-v7a",
+		"source" : "/Users/lee_mac/RunOn-App (Production_android)/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}
