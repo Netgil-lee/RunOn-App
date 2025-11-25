@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import evaluationService from '../services/evaluationService';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const COLORS = {
   PRIMARY: '#3AF8FF',
@@ -31,6 +32,7 @@ const COLORS = {
 const RunningMeetingReview = ({ route, navigation }) => {
   const { event: rawEvent, participants: eventParticipants, onEvaluationComplete } = route.params;
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // 문자열로 받은 날짜를 Date 객체로 변환
   const event = {
@@ -623,7 +625,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
       </ScrollView>
 
       {/* 하단 제출 버튼 */}
-      <View style={styles.bottomActions}>
+      <View style={[styles.bottomActions, { paddingBottom: 22 + insets.bottom }]}>
         <TouchableOpacity
           style={[
             styles.submitButton,

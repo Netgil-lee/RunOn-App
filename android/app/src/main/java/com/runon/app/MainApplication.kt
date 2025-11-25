@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.res.Configuration
 
 import com.facebook.react.PackageList
+import com.runon.app.SamsungHealthPackage
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.ReactNativeHost
@@ -25,7 +26,7 @@ class MainApplication : Application(), ReactApplication {
             PackageList(this).packages.apply {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               // add(MyReactNativePackage())
-              // add(SamsungHealthPackage()) // 임시 주석 처리 - SDK 로드 문제로 인해
+              add(SamsungHealthPackage())
             }
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"

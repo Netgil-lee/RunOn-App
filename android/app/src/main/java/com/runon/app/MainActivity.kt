@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 
 import com.facebook.react.ReactActivity
+import com.runon.app.R
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
@@ -13,10 +14,12 @@ import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
-    // Set the theme to AppTheme BEFORE onCreate to support
-    // coloring the background, status bar, and navigation bar.
-    // This is required for expo-splash-screen.
-    // setTheme(R.style.AppTheme);
+    // Android 12 이전 버전에서는 스플래시 화면 테마를 명시적으로 설정
+    // Android 12+ (API 31+)에서는 AndroidManifest.xml의 테마가 자동으로 적용됨
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+      // Android 12 이전 버전에서는 스플래시 화면 테마를 설정
+      setTheme(R.style.Theme_App_SplashScreen)
+    }
     // @generated begin expo-splashscreen - expo prebuild (DO NOT MODIFY) sync-f3ff59a738c56c9a6119210cb55f0b613eb8b6af
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen

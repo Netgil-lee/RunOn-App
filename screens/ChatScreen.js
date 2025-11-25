@@ -497,7 +497,7 @@ const ChatScreen = ({ route, navigation }) => {
         )}
 
         {/* 메시지 입력 */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: 6 + insets.bottom }]}>
           <TextInput
             style={styles.textInput}
             value={newMessage}

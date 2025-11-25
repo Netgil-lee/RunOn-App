@@ -1,27 +1,9 @@
-// 통합 Fitness 서비스 - 플랫폼별로 자동 분기 처리
-import { Platform } from 'react-native';
-import appleFitnessService from './appleFitnessService';
+// Samsung Health Fitness 서비스
 import samsungHealthService from './samsungHealthService';
-
-/**
- * 플랫폼에 따라 적절한 Fitness 서비스를 반환
- * iOS: appleFitnessService (HealthKit)
- * Android: samsungHealthService (Samsung Health)
- */
-function getFitnessService() {
-  if (Platform.OS === 'ios') {
-    return appleFitnessService;
-  } else if (Platform.OS === 'android') {
-    return samsungHealthService;
-  } else {
-    // 웹이나 다른 플랫폼의 경우 null 반환
-    return null;
-  }
-}
 
 class FitnessService {
   constructor() {
-    this.service = getFitnessService();
+    this.service = samsungHealthService;
   }
 
   /**

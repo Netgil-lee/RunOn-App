@@ -671,7 +671,7 @@ const PostCreateScreen = ({ navigation, route }) => {
       </KeyboardAvoidingView>
 
       {/* 하단 제출 버튼 */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: 22 + insets.bottom }]}>
         <TouchableOpacity 
           style={[styles.submitButton, !isPostValid() && styles.submitButtonDisabled]}
           onPress={handleSubmit}

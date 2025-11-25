@@ -789,7 +789,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         </ScrollView>
 
         {/* 댓글 입력창 */}
-        <View style={styles.commentInputContainer}>
+        <View style={[styles.commentInputContainer, { paddingBottom: 12 + insets.bottom }]}>
           <View style={styles.commentInputWrapper}>
             <TextInput
               style={styles.commentInput}

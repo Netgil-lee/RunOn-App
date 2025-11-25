@@ -196,10 +196,10 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  // HealthKit 권한 요청
+  // Samsung Health 권한 요청
   const handleHealthKitAccess = async () => {
     try {
-      const serviceName = Platform.OS === 'ios' ? 'HealthKit' : 'Samsung Health';
+      const serviceName = 'Samsung Health';
       
       if (healthKitStatus.hasPermissions) {
         Alert.alert(
@@ -229,9 +229,7 @@ const SettingsScreen = ({ navigation }) => {
                   // 상태 다시 확인
                   await checkHealthKitStatus();
                 } else {
-                  const errorMessage = Platform.OS === 'ios' 
-                    ? '설정 > 개인정보 보호 및 보안 > 건강에서 수동으로 허용해주세요.'
-                    : '설정 > 앱 > RunOn > 권한에서 수동으로 허용해주세요.';
+                  const errorMessage = '설정 > 앱 > RunOn > 권한에서 수동으로 허용해주세요.';
                   Alert.alert(
                     '권한 허용 실패',
                     `${serviceName} 권한 허용에 실패했습니다.\n\n${errorMessage}`,
@@ -251,7 +249,7 @@ const SettingsScreen = ({ navigation }) => {
         ]
       );
     } catch (error) {
-      const serviceName = Platform.OS === 'ios' ? 'HealthKit' : 'Samsung Health';
+      const serviceName = 'Samsung Health';
       console.error(`❌ ${serviceName} 접근 처리 실패:`, error);
       Alert.alert(
         '오류',
@@ -477,13 +475,13 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.section}>
           <SettingItem
             icon="heart-outline"
-            title={Platform.OS === 'ios' ? "HealthKit 접근" : "Samsung Health 접근"}
+            title="Samsung Health 접근"
             subtitle={
               healthKitStatus.isChecking 
                 ? "상태 확인 중..." 
                 : healthKitStatus.hasPermissions 
-                  ? (Platform.OS === 'ios' ? "HealthKit 권한 허용됨" : "Samsung Health 권한 허용됨")
-                  : (Platform.OS === 'ios' ? "HealthKit과 러닝 데이터 동기화 및 권한 관리" : "건강데이터의 러닝 데이터 동기화 및 권한 관리")
+                  ? "Samsung Health 권한 허용됨"
+                  : "건강데이터의 러닝 데이터 동기화 및 권한 관리"
             }
             onPress={handleHealthKitAccess}
           />

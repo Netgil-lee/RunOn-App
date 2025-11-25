@@ -41,6 +41,10 @@ const EventDetailScreen = ({ route, navigation }) => {
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [isEvaluationCompleted, setIsEvaluationCompleted] = useState(evaluationCompleted);
   const [isCheckingEvaluation, setIsCheckingEvaluation] = useState(false);
+  
+  // 지도 터치 시 스크롤 비활성화를 위한 상태
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
@@ -735,6 +739,8 @@ const EventDetailScreen = ({ route, navigation }) => {
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
+        scrollEnabled={scrollEnabled}
+        nestedScrollEnabled={false}
       >
         {/* 이벤트 제목 */}
         <View style={styles.titleSection}>
@@ -767,7 +773,12 @@ const EventDetailScreen = ({ route, navigation }) => {
           </View>
 
           {/* 인라인 지도 */}
-          <View style={styles.inlineMapContainer}>
+          <View 
+            style={styles.inlineMapContainer}
+            onTouchStart={() => setScrollEnabled(false)}
+            onTouchEnd={() => setScrollEnabled(true)}
+            onTouchCancel={() => setScrollEnabled(true)}
+          >
             <WebView
               source={{ html: createInlineMapHTML() }}
               style={styles.inlineMapWebView}
@@ -861,7 +872,7 @@ const EventDetailScreen = ({ route, navigation }) => {
       </ScrollView>
 
       {/* 하단 버튼 */}
-      <View style={styles.bottomActions}>
+      <View style={[styles.bottomActions, { paddingBottom: 22 + insets.bottom }]}>
         {(() => {
           console.log('🔍 EventDetailScreen - 버튼 표시 조건 확인:', {
             eventId: event.id,
@@ -1052,7 +1063,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   eventTitle: {
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: 'bold',
     color: COLORS.TEXT,
     flex: 1,

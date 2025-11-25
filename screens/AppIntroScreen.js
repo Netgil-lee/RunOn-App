@@ -14,6 +14,7 @@ import { useNotificationSettings } from '../contexts/NotificationSettingsContext
 import { useAuth } from '../contexts/AuthContext'; // AuthContext 추가
 import * as Notifications from 'expo-notifications';
 import fitnessService from '../services/fitnessService';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Runon 디자인 시스템
 const COLORS = {
@@ -30,6 +31,7 @@ const COLORS = {
 
 
 const AppIntroScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [notificationPermission, setNotificationPermission] = useState(false);
   const [healthKitStatus, setHealthKitStatus] = useState({
     isChecking: false,
@@ -105,10 +107,10 @@ const AppIntroScreen = ({ navigation }) => {
     }
   };
 
-  // 건강데이터 권한 요청
+  // Samsung Health 권한 요청
   const handleHealthKitAccess = async () => {
     try {
-      const serviceName = Platform.OS === 'ios' ? 'HealthKit' : 'Samsung Health';
+      const serviceName = 'Samsung Health';
       
       if (healthKitStatus.hasPermissions) {
         Alert.alert(
@@ -137,9 +139,7 @@ const AppIntroScreen = ({ navigation }) => {
                   );
                   await checkHealthKitStatus();
                 } else {
-                  const errorMessage = Platform.OS === 'ios' 
-                    ? '설정 > 개인정보 보호 및 보안 > 건강에서 수동으로 허용해주세요.'
-                    : '설정 > 앱 > RunOn > 권한에서 수동으로 허용해주세요.';
+                  const errorMessage = '설정 > 앱 > RunOn > 권한에서 수동으로 허용해주세요.';
                   Alert.alert(
                     '권한 거부됨',
                     `${serviceName} 권한 허용에 실패했습니다.\n\n${errorMessage}`,
@@ -159,7 +159,7 @@ const AppIntroScreen = ({ navigation }) => {
         ]
       );
     } catch (error) {
-      const serviceName = Platform.OS === 'ios' ? 'HealthKit' : 'Samsung Health';
+      const serviceName = 'Samsung Health';
       console.error(`❌ ${serviceName} 접근 처리 실패:`, error);
       Alert.alert(
         '오류 발생',
@@ -449,7 +449,7 @@ const AppIntroScreen = ({ navigation }) => {
 
       {/* 건강데이터 권한 섹션 */}
       <View style={styles.healthSection}>
-        <Text style={styles.sectionTitle}>{Platform.OS === 'ios' ? "HealthKit 접근" : "Samsung Health 접근"}</Text>
+        <Text style={styles.sectionTitle}>Samsung Health 접근</Text>
         <TouchableOpacity 
           style={styles.healthItem}
           onPress={handleHealthKitAccess}
@@ -460,14 +460,14 @@ const AppIntroScreen = ({ navigation }) => {
             </View>
             <View style={styles.healthContent}>
               <Text style={styles.healthTitle}>
-                {Platform.OS === 'ios' ? "HealthKit 접근" : "Samsung Health 접근"}
+                Samsung Health 접근
               </Text>
               <Text style={styles.healthDescription}>
                 {healthKitStatus.isChecking 
                   ? "상태 확인 중..." 
                   : healthKitStatus.hasPermissions 
-                    ? (Platform.OS === 'ios' ? "HealthKit 권한 허용됨" : "Samsung Health 권한 허용됨")
-                    : (Platform.OS === 'ios' ? "HealthKit과 러닝 데이터 동기화 및 권한 관리" : "Samsung Health와 러닝 데이터 동기화 및 권한 관리")
+                    ? "Samsung Health 권한 허용됨"
+                    : "Samsung Health와 러닝 데이터 동기화 및 권한 관리"
                 }
               </Text>
             </View>
@@ -499,7 +499,7 @@ const AppIntroScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* 하단 버튼 */}
-      <View style={styles.bottomButtonContainer}>
+      <View style={[styles.bottomButtonContainer, { paddingBottom: 22 + insets.bottom }]}>
         <TouchableOpacity
           style={styles.nextButton}
           onPress={handleNext}

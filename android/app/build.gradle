@@ -92,16 +92,10 @@ android {
         applicationId 'com.runon.app'
         minSdkVersion 29
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10
+        versionCode 11
         versionName "1.0.1"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
-    }
-    
-    repositories {
-        flatDir {
-            dirs 'libs'
-        }
     }
     signingConfigs {
         debug {
@@ -169,6 +163,12 @@ android {
     }
 }
 
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+}
+
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
@@ -197,6 +197,6 @@ dependencies {
         implementation jscFlavor
     }
 
-    // Samsung Health SDK - 임시 주석 처리
-    // implementation(name: 'samsung-health-data-api-1.0.0', ext: 'aar')
+    // Samsung Health SDK
+    implementation(name: 'samsung-health-data-api-1.0.0', ext: 'aar')
 }

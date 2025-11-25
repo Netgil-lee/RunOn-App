@@ -33,6 +33,7 @@ import {
 import OnboardingLevelSelector from '../components/OnboardingLevelSelector';
 import OnboardingCourseSelector from '../components/OnboardingCourseSelector';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -50,6 +51,7 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const OnboardingScreen = ({ onComplete, navigation, route }) => {
   const isFromSignup = route?.params?.isFromSignup || false;
+  const insets = useSafeAreaInsets();
 
   const [currentStep, setCurrentStep] = useState(1);
   const scrollViewRef = useRef(null);
@@ -678,7 +680,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
       </KeyboardAvoidingView>
 
       {/* 하단 버튼 */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: (Platform.OS === 'ios' ? 34 : 20) + insets.bottom }]}>
         <TouchableOpacity
           style={[
             styles.nextButton,
