@@ -1,9 +1,9 @@
-// Samsung Health Fitness 서비스
-import samsungHealthService from './samsungHealthService';
+// Health Connect Fitness 서비스
+import healthConnectService from './healthConnectService';
 
 class FitnessService {
   constructor() {
-    this.service = samsungHealthService;
+    this.service = healthConnectService;
   }
 
   /**

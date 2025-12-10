@@ -249,7 +249,7 @@ const SettingsScreen = ({ navigation }) => {
         ]
       );
     } catch (error) {
-      const serviceName = 'Samsung Health';
+      const serviceName = 'Health Connect';
       console.error(`❌ ${serviceName} 접근 처리 실패:`, error);
       Alert.alert(
         '오류',
@@ -475,12 +475,12 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.section}>
           <SettingItem
             icon="heart-outline"
-            title="Samsung Health 접근"
+            title="Health Connect 접근"
             subtitle={
               healthKitStatus.isChecking 
                 ? "상태 확인 중..." 
                 : healthKitStatus.hasPermissions 
-                  ? "Samsung Health 권한 허용됨"
+                  ? "Health Connect 권한 허용됨"
                   : "건강데이터의 러닝 데이터 동기화 및 권한 관리"
             }
             onPress={handleHealthKitAccess}

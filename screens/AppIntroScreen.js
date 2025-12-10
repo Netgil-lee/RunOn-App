@@ -107,10 +107,10 @@ const AppIntroScreen = ({ navigation }) => {
     }
   };
 
-  // Samsung Health 권한 요청
+  // Health Connect 권한 요청
   const handleHealthKitAccess = async () => {
     try {
-      const serviceName = 'Samsung Health';
+      const serviceName = 'Health Connect';
       
       if (healthKitStatus.hasPermissions) {
         Alert.alert(
@@ -159,7 +159,7 @@ const AppIntroScreen = ({ navigation }) => {
         ]
       );
     } catch (error) {
-      const serviceName = 'Samsung Health';
+      const serviceName = 'Health Connect';
       console.error(`❌ ${serviceName} 접근 처리 실패:`, error);
       Alert.alert(
         '오류 발생',
@@ -449,7 +449,7 @@ const AppIntroScreen = ({ navigation }) => {
 
       {/* 건강데이터 권한 섹션 */}
       <View style={styles.healthSection}>
-        <Text style={styles.sectionTitle}>Samsung Health 접근</Text>
+        <Text style={styles.sectionTitle}>Health Connect 접근</Text>
         <TouchableOpacity 
           style={styles.healthItem}
           onPress={handleHealthKitAccess}
@@ -460,14 +460,14 @@ const AppIntroScreen = ({ navigation }) => {
             </View>
             <View style={styles.healthContent}>
               <Text style={styles.healthTitle}>
-                Samsung Health 접근
+                Health Connect 접근
               </Text>
               <Text style={styles.healthDescription}>
                 {healthKitStatus.isChecking 
                   ? "상태 확인 중..." 
                   : healthKitStatus.hasPermissions 
-                    ? "Samsung Health 권한 허용됨"
-                    : "Samsung Health와 러닝 데이터 동기화 및 권한 관리"
+                    ? "Health Connect 권한 허용됨"
+                    : "Health Connect와 러닝 데이터 동기화 및 권한 관리"
                 }
               </Text>
             </View>
