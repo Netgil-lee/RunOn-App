@@ -11,8 +11,8 @@
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		54ED4A2F2EAAA7AA00E88548 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54ED4A2D2EAAA7AA00E88548 /* HealthKit.framework */; };
 		8FD445BA8C84EF66552295E7 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E263AD39FD4D9C8A0A8FDB2F /* ExpoModulesProvider.swift */; };
+		968E7525447A9F36FF922A53 /* Pods_RunOn.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 140DE1B344D3872269E9FBDB /* Pods_RunOn.framework */; };
 		A61003F77FE453DD5A79D73B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BDD7A9EA28500AF918CEECFF /* PrivacyInfo.xcprivacy */; };
-		B30034854D429212DC1A6484 /* Pods_RunOn.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B9709465227B7E1BBCD0726 /* Pods_RunOn.framework */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
@@ -21,10 +21,10 @@
 		13B07F961A680F5B00A75B9A /* RunOn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RunOn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = RunOn/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = RunOn/Info.plist; sourceTree = "<group>"; };
+		140DE1B344D3872269E9FBDB /* Pods_RunOn.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunOn.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		1CC98C994E997676597F3285 /* Pods-RunOn.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunOn.release.xcconfig"; path = "Target Support Files/Pods-RunOn/Pods-RunOn.release.xcconfig"; sourceTree = "<group>"; };
 		3D97E6BC79132F90685F98A9 /* Pods-RunOn.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunOn.debug.xcconfig"; path = "Target Support Files/Pods-RunOn/Pods-RunOn.debug.xcconfig"; sourceTree = "<group>"; };
 		54ED4A2D2EAAA7AA00E88548 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
-		6B9709465227B7E1BBCD0726 /* Pods_RunOn.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunOn.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = RunOn/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		BDD7A9EA28500AF918CEECFF /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = RunOn/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -40,6 +40,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				54ED4A2F2EAAA7AA00E88548 /* HealthKit.framework in Frameworks */,
+				968E7525447A9F36FF922A53 /* Pods_RunOn.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +91,7 @@
 			children = (
 				54ED4A2D2EAAA7AA00E88548 /* HealthKit.framework */,
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
+				140DE1B344D3872269E9FBDB /* Pods_RunOn.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
