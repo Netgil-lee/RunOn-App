@@ -14,6 +14,7 @@ import { EventProvider } from './contexts/EventContext';
 import { CommunityProvider } from './contexts/CommunityContext';
 import { NotificationSettingsProvider } from './contexts/NotificationSettingsContext';
 import { GuideProvider } from './contexts/GuideContext';
+import { PremiumProvider } from './contexts/PremiumContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -142,15 +143,17 @@ export default function App() {
       <NavigationContainer>
         <NetworkProvider>
           <AuthProvider isDemoMode={isDemoMode}>
-            <NotificationSettingsProvider>
-              <EventProvider>
-                <CommunityProvider>
-                  <GuideProvider>
-                    <AppNavigator isDemoMode={isDemoMode} />
-                  </GuideProvider>
-                </CommunityProvider>
-              </EventProvider>
-            </NotificationSettingsProvider>
+            <PremiumProvider>
+              <NotificationSettingsProvider>
+                <EventProvider>
+                  <CommunityProvider>
+                    <GuideProvider>
+                      <AppNavigator isDemoMode={isDemoMode} />
+                    </GuideProvider>
+                  </CommunityProvider>
+                </EventProvider>
+              </NotificationSettingsProvider>
+            </PremiumProvider>
           </AuthProvider>
         </NetworkProvider>
       </NavigationContainer>

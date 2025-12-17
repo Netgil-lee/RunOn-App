@@ -9,8 +9,13 @@ import {
   Image,
   Animated,
   Modal,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
+import { usePremium } from '../contexts/PremiumContext';
+import paymentService, { PRODUCT_IDS } from '../services/paymentService';
 
 // NetGill 디자인 시스템
 const COLORS = {
@@ -34,12 +39,20 @@ const COLORS = {
 };
 
 const PremiumScreen = ({ navigation }) => {
+  // 인증 및 프리미엄 컨텍스트
+  const { user } = useAuth();
+  const { updatePremiumStatus } = usePremium();
+
   // 모달 상태 관리
   const [showMainModal, setShowMainModal] = useState(false);
   const [showPlansExpanded, setShowPlansExpanded] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('yearly'); // 기본값: 연간
   const [monthlyCardHeight, setMonthlyCardHeight] = useState(0); // 월간 구독 카드 높이
   const [buttonHeight, setButtonHeight] = useState(80); // '모든 플랜 보기' 버튼 높이
+
+  // 결제 상태 관리
+  const [isProcessing, setIsProcessing] = useState(false); // 결제 진행 중 여부
+  const [retryCount, setRetryCount] = useState(0); // 재시도 횟수
 
   // 회전 애니메이션을 위한 Animated.Value
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -180,10 +193,174 @@ const PremiumScreen = ({ navigation }) => {
     setSelectedPlan(planType);
   };
 
-  const handleFreeTrialWithPlan = () => {
-    // 선택된 플랜으로 결제 진행
-    handleCloseMainModal();
-    // TODO: selectedPlan을 사용하여 결제 로직 구현
+  const handleFreeTrialWithPlan = async () => {
+    // 사용자 확인 다이얼로그
+    Alert.alert(
+      '구독 확인',
+      '정말 구독하시겠습니까?',
+      [
+        {
+          text: '취소',
+          style: 'cancel',
+        },
+        {
+          text: '구독하기',
+          onPress: async () => {
+            await processPurchase();
+          },
+        },
+      ]
+    );
+  };
+
+  // 결제 처리 함수
+  const processPurchase = async () => {
+    if (!user?.uid) {
+      Alert.alert('오류', '로그인이 필요합니다.');
+      return;
+    }
+
+    // 제품 ID 결정
+    const productId = selectedPlan === 'yearly' 
+      ? PRODUCT_IDS.PREMIUM_YEARLY 
+      : PRODUCT_IDS.PREMIUM_MONTHLY;
+
+    try {
+      setIsProcessing(true);
+      setRetryCount(0);
+
+      // PaymentService 초기화 확인
+      if (!paymentService.isInitialized) {
+        const initialized = await paymentService.initialize();
+        if (!initialized) {
+          throw new Error('결제 서비스를 초기화할 수 없습니다.');
+        }
+      }
+
+      // 제품 정보 로드
+      await paymentService.loadProducts();
+
+      // 구매 요청
+      // react-native-iap는 purchaseUpdatedListener로 구매 완료를 처리하므로
+      // 구매 성공 처리는 paymentService의 handlePurchaseUpdate에서 수행됨
+      // 하지만 PremiumScreen에서 모달과 PremiumContext를 제어해야 하므로
+      // paymentService에 성공 콜백을 전달
+      // requestPurchase는 Promise를 반환하지 않으므로 await 사용 안 함
+      paymentService.purchaseProduct(productId, user.uid, {
+        onSuccess: async (purchase, subscriptionStatus) => {
+          // PremiumContext 업데이트
+          updatePremiumStatus({
+            subscriptionType: productId,
+            expiresDate: subscriptionStatus?.expiresDate || purchase.expirationDate,
+          });
+
+          // 모달 닫기
+          handleCloseMainModal();
+
+          // 로딩 상태 해제
+          setIsProcessing(false);
+
+          // 성공 메시지
+          Alert.alert('환영합니다!', '러논 멤버스에 오신 걸 환영합니다');
+        },
+        onError: (error) => {
+          // 로딩 상태 해제
+          setIsProcessing(false);
+          
+          // 에러 타입 확인
+          const errorCode = error.code || error.message;
+          
+          // 사용자 취소 처리
+          if (errorCode === 'E_USER_CANCELLED' || error.message?.includes('취소')) {
+            Alert.alert('결제 취소', '결제가 취소되었습니다');
+            return;
+          }
+
+          // 네트워크 오류 처리 (재시도)
+          if (errorCode === 'E_NETWORK_ERROR' || error.message?.includes('네트워크')) {
+            if (retryCount < 3) {
+              const newRetryCount = retryCount + 1;
+              setRetryCount(newRetryCount);
+              
+              Alert.alert(
+                '네트워크 오류',
+                '네트워크 연결을 확인해주세요.',
+                [
+                  {
+                    text: '취소',
+                    style: 'cancel',
+                  },
+                  {
+                    text: '재시도',
+                    onPress: () => processPurchase(),
+                  },
+                ]
+              );
+              return;
+            } else {
+              Alert.alert(
+                '결제 실패',
+                '네트워크 오류로 결제를 완료할 수 없습니다. 잠시 후 다시 시도해주세요.'
+              );
+            }
+          } else {
+            // 기타 오류 처리
+            Alert.alert(
+              '결제 실패',
+              '결제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+            );
+          }
+        },
+      });
+
+    } catch (error) {
+      console.error('❌ 결제 처리 실패:', error);
+      setIsProcessing(false);
+      
+      // 에러 타입 확인
+      const errorCode = error.code || error.message;
+      
+      // 사용자 취소 처리
+      if (errorCode === 'E_USER_CANCELLED' || error.message?.includes('취소')) {
+        Alert.alert('결제 취소', '결제가 취소되었습니다');
+        return;
+      }
+
+      // 네트워크 오류 처리 (재시도)
+      if (errorCode === 'E_NETWORK_ERROR' || error.message?.includes('네트워크')) {
+        if (retryCount < 3) {
+          const newRetryCount = retryCount + 1;
+          setRetryCount(newRetryCount);
+          
+          Alert.alert(
+            '네트워크 오류',
+            '네트워크 연결을 확인해주세요.',
+            [
+              {
+                text: '취소',
+                style: 'cancel',
+              },
+              {
+                text: '재시도',
+                onPress: () => processPurchase(),
+              },
+            ]
+          );
+          return;
+        } else {
+          Alert.alert(
+            '결제 실패',
+            '네트워크 오류로 결제를 완료할 수 없습니다. 잠시 후 다시 시도해주세요.'
+          );
+        }
+      } else {
+        // 기타 오류 처리
+        Alert.alert(
+          '결제 실패',
+          '결제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+        );
+      }
+    }
   };
 
   return (
@@ -474,12 +651,22 @@ const PremiumScreen = ({ navigation }) => {
               </Animated.View>
               
               <TouchableOpacity
-                style={styles.modalOptionButtonPrimary}
+                style={[styles.modalOptionButtonPrimary, isProcessing && styles.modalOptionButtonPrimaryDisabled]}
                 onPress={handleFreeTrial}
+                disabled={isProcessing}
               >
-                <Text style={styles.modalOptionTextPrimary}>
-                  30일간 무료로 사용해보기
-                </Text>
+                {isProcessing ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={[styles.modalOptionTextPrimary, { marginLeft: 8 }]}>
+                      처리 중...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.modalOptionTextPrimary}>
+                    30일간 무료로 사용해보기
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
             
@@ -728,6 +915,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 16,
+  },
+  modalOptionButtonPrimaryDisabled: {
+    opacity: 0.6,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalOptionTextOutlined: {
     fontSize: 16,

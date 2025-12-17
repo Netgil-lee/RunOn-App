@@ -175,6 +175,8 @@ export const NotificationSettingsProvider = ({ children }) => {
       case 'air_very_unhealthy':
       case 'air_unhealthy':
       case 'air_moderate':
+      case 'pm25':
+      case 'pm10':
         return settings.notifications.weatherAlert;
       case 'safety':
       case 'flood_risk_rain':

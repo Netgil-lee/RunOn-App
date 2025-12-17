@@ -1,20 +1,15 @@
 import {
   initConnection,
-  getProducts,
+  fetchProducts,
   requestPurchase,
   finishTransaction,
   getAvailablePurchases,
-  validateReceiptIos,
-  validateReceiptAndroid,
   purchaseUpdatedListener,
   purchaseErrorListener,
-  type Product,
-  type Purchase,
-  type PurchaseError,
 } from 'react-native-iap';
 import { Platform, Alert } from 'react-native';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { firestore as db } from '../config/firebase';
 import receiptValidationService from './receiptValidationService';
 
 // 제품 ID 정의
@@ -41,6 +36,7 @@ class PaymentService {
     this.products = [];
     this.purchaseUpdateSubscription = null;
     this.purchaseErrorSubscription = null;
+    this.purchaseCallbacks = {}; // 구매 콜백 저장 (productId별)
   }
 
   // 결제 서비스 초기화
@@ -75,7 +71,21 @@ class PaymentService {
       
       // 구독 제품과 소비성 제품을 함께 가져오기
       const allProductIds = [...SUBSCRIPTION_IDS, ...CONSUMABLE_IDS];
-      const products = await getProducts({ skus: allProductIds });
+      
+      // 구독 제품 가져오기
+      const subscriptions = await fetchProducts({ 
+        skus: SUBSCRIPTION_IDS, 
+        type: 'subs' 
+      });
+      
+      // 소비성 제품 가져오기
+      const inAppProducts = await fetchProducts({ 
+        skus: CONSUMABLE_IDS, 
+        type: 'in-app' 
+      });
+      
+      // 모든 제품 합치기
+      const products = [...subscriptions, ...inAppProducts];
       
       this.products = products;
       console.log('✅ 제품 정보 로드 완료:', products.length, '개');
@@ -111,30 +121,60 @@ class PaymentService {
     try {
       console.log('🔄 구매 업데이트 처리 시작:', purchase);
       
+      const productId = purchase.productId;
+      const callbacks = this.purchaseCallbacks[productId];
+      const userId = callbacks?.userId; // 콜백에서 userId 가져오기
+      
       // 영수증 검증
       const validationResult = await this.validateReceipt(purchase);
       
       if (validationResult.isValid) {
-        // 사용자 구독 상태 업데이트
-        await this.updateUserSubscription(purchase, validationResult.subscriptionStatus);
+        // 사용자 구독 상태 업데이트 (userId가 있는 경우에만)
+        if (userId) {
+          await this.updateUserSubscription(purchase, validationResult.subscriptionStatus, userId);
+        }
         
         // 거래 완료 처리
         await finishTransaction({ purchase, isConsumable: false });
         
         console.log('✅ 구매 처리 완료');
         
-        // 성공 알림
-        Alert.alert(
-          '구매 완료',
-          '프리미엄 구독이 활성화되었습니다!',
-          [{ text: '확인' }]
-        );
+        // 콜백이 있으면 콜백 호출, 없으면 기본 Alert 표시
+        if (callbacks?.onSuccess) {
+          callbacks.onSuccess(purchase, validationResult.subscriptionStatus);
+          delete this.purchaseCallbacks[productId];
+        } else {
+          // 기본 성공 알림 (콜백이 없는 경우)
+          Alert.alert(
+            '구매 완료',
+            '프리미엄 구독이 활성화되었습니다!',
+            [{ text: '확인' }]
+          );
+        }
       } else {
         console.error('❌ 영수증 검증 실패:', validationResult.error);
-        Alert.alert('구매 실패', validationResult.error || '영수증 검증에 실패했습니다.');
+        
+        // 콜백이 있으면 콜백 호출, 없으면 기본 Alert 표시
+        if (callbacks?.onError) {
+          callbacks.onError(new Error(validationResult.error || '영수증 검증에 실패했습니다.'));
+          delete this.purchaseCallbacks[productId];
+        } else {
+          Alert.alert('구매 실패', validationResult.error || '영수증 검증에 실패했습니다.');
+        }
       }
     } catch (error) {
       console.error('❌ 구매 업데이트 처리 실패:', error);
+      
+      const productId = purchase?.productId;
+      const callbacks = productId ? this.purchaseCallbacks[productId] : null;
+      
+      // 콜백이 있으면 콜백 호출
+      if (callbacks?.onError) {
+        callbacks.onError(error);
+        if (productId) {
+          delete this.purchaseCallbacks[productId];
+        }
+      }
     }
   }
 
@@ -187,20 +227,34 @@ class PaymentService {
   }
 
   // 사용자 구독 상태 업데이트
-  async updateUserSubscription(purchase, subscriptionStatus = null) {
+  async updateUserSubscription(purchase, subscriptionStatus = null, userId = null) {
     try {
       console.log('👤 사용자 구독 상태 업데이트 시작');
       
+      if (!userId) {
+        console.error('❌ userId가 제공되지 않았습니다.');
+        throw new Error('userId가 필요합니다.');
+      }
+      
       // Firestore에서 사용자 문서 업데이트
-      const userRef = doc(db, 'users', purchase.userId || 'anonymous');
+      const userRef = doc(db, 'users', userId);
+      
+      // iOS의 경우 필드명이 다름
+      const originalTransactionId = Platform.OS === 'ios' 
+        ? (purchase.originalTransactionIdentifierIOS || purchase.transactionId)
+        : (purchase.originalTransactionIdAndroid || purchase.transactionId);
+      
+      const expirationDate = Platform.OS === 'ios'
+        ? (purchase.expirationDateIOS ? new Date(purchase.expirationDateIOS).toISOString() : null)
+        : (purchase.expirationDateAndroid ? new Date(purchase.expirationDateAndroid).toISOString() : null);
       
       const subscriptionData = {
         isPremium: true,
         subscriptionType: purchase.productId,
-        purchaseDate: new Date(),
+        purchaseDate: new Date(purchase.transactionDate),
         transactionId: purchase.transactionId,
-        originalTransactionId: purchase.originalTransactionIdIOS || purchase.transactionId,
-        expiresDate: subscriptionStatus?.expiresDate || purchase.expirationDate,
+        originalTransactionId: originalTransactionId,
+        expiresDate: subscriptionStatus?.expiresDate || expirationDate,
         isActive: subscriptionStatus?.isActive ?? true,
       };
       
@@ -213,7 +267,7 @@ class PaymentService {
   }
 
   // 구매 요청
-  async purchaseProduct(productId, userId) {
+  async purchaseProduct(productId, userId, callbacks = {}) {
     try {
       console.log('🛒 구매 요청 시작:', productId);
       
@@ -227,16 +281,38 @@ class PaymentService {
         throw new Error('제품을 찾을 수 없습니다.');
       }
       
-      // 구매 요청
-      const purchase = await requestPurchase({
-        sku: productId,
-        userId: userId,
+      // 콜백 저장 (구매 완료 시 호출)
+      // userId도 함께 저장하여 handlePurchaseUpdate에서 사용
+      if (callbacks.onSuccess || callbacks.onError) {
+        this.purchaseCallbacks[productId] = {
+          ...callbacks,
+          userId: userId, // userId를 콜백 객체에 저장
+        };
+      }
+      
+      // 제품 타입 확인 (구독인지 소비성 제품인지)
+      const isSubscription = SUBSCRIPTION_IDS.includes(productId);
+      
+      // 구매 요청 (react-native-iap는 purchaseUpdatedListener로 구매 완료를 처리)
+      // 최신 API: requestPurchase는 Promise를 반환하지만, 실제 구매 완료는 purchaseUpdatedListener로 처리됨
+      await requestPurchase({
+        request: {
+          ios: { sku: productId },
+        },
+        type: isSubscription ? 'subs' : 'in-app',
       });
       
-      console.log('✅ 구매 요청 완료:', purchase);
-      return purchase;
+      console.log('✅ 구매 요청 완료');
+      // react-native-iap는 purchaseUpdatedListener로 구매 완료를 알림
     } catch (error) {
       console.error('❌ 구매 요청 실패:', error);
+      
+      // 콜백이 있으면 에러 콜백 호출
+      if (this.purchaseCallbacks[productId]?.onError) {
+        this.purchaseCallbacks[productId].onError(error);
+        delete this.purchaseCallbacks[productId];
+      }
+      
       throw error;
     }
   }

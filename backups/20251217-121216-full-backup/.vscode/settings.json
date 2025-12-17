@@ -1,0 +1,30 @@
+{
+  "files.exclude": {
+    "**/backups/**": true
+  },
+  "files.watcherExclude": {
+    "**/backups/**": true
+  },
+  "search.exclude": {
+    "**/backups/**": true
+  },
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.gradle.enabled": false,
+  "java.import.gradle.wrapper.enabled": false,
+  "java.import.gradle.home": null,
+  "java.import.gradle.version": null,
+  "java.import.gradle.java.home": null,
+  "java.project.sourcePaths": [],
+  "java.project.outputPath": "",
+  "java.project.referencedLibraries": [],
+  "java.project.resourceFilters": [
+    "**/backups/**",
+    "**/node_modules/**"
+  ],
+  "files.associations": {
+    "**/backups/**/*.gradle": "plaintext",
+    "**/backups/**/*.java": "plaintext",
+    "**/backups/**/*.kt": "plaintext"
+  }
+}
+
