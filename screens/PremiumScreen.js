@@ -38,12 +38,18 @@ const PremiumScreen = ({ navigation }) => {
   const [showMainModal, setShowMainModal] = useState(false);
   const [showPlansExpanded, setShowPlansExpanded] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('yearly'); // 기본값: 연간
+  const [monthlyCardHeight, setMonthlyCardHeight] = useState(0); // 월간 구독 카드 높이
+  const [buttonHeight, setButtonHeight] = useState(80); // '모든 플랜 보기' 버튼 높이
 
   // 회전 애니메이션을 위한 Animated.Value
   const rotateAnim = useRef(new Animated.Value(0)).current;
   
   // 모달 오버레이 페이드 애니메이션
   const modalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  
+  // 모달 컨텐츠 슬라이드 애니메이션
+  const modalContentTranslateY = useRef(new Animated.Value(300)).current;
+  const modalContentOpacity = useRef(new Animated.Value(0)).current;
   
   // 플랜 확장 애니메이션
   const plansExpandedHeight = useRef(new Animated.Value(0)).current;
@@ -81,33 +87,70 @@ const PremiumScreen = ({ navigation }) => {
   // 모달 핸들러
   const handleOpenMainModal = () => {
     setShowMainModal(true);
-    Animated.timing(modalBackdropOpacity, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    // 초기값 설정
+    modalContentTranslateY.setValue(300);
+    modalContentOpacity.setValue(0);
+    
+    // 병렬 애니메이션 실행
+    Animated.parallel([
+      Animated.timing(modalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.spring(modalContentTranslateY, {
+        toValue: 0,
+        tension: 65,
+        friction: 11,
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalContentOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   const handleCloseMainModal = () => {
-    Animated.timing(modalBackdropOpacity, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
+    // 병렬 애니메이션 실행
+    Animated.parallel([
+      Animated.timing(modalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalContentTranslateY, {
+        toValue: 300,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalContentOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
       setShowMainModal(false);
       setShowPlansExpanded(false);
       plansExpandedHeight.setValue(0);
+      setMonthlyCardHeight(0);
+      setButtonHeight(56);
     });
   };
 
   const handleViewAllPlans = () => {
+    // 상태 변경을 먼저 하고 애니메이션 시작
     setShowPlansExpanded(true);
-    Animated.spring(plansExpandedHeight, {
-      toValue: 1,
-      tension: 50,
-      friction: 7,
-      useNativeDriver: false,
-    }).start();
+    // 다음 프레임에서 애니메이션 시작 (렌더링 완료 후)
+    requestAnimationFrame(() => {
+      Animated.spring(plansExpandedHeight, {
+        toValue: 1,
+        tension: 40,
+        friction: 8,
+        useNativeDriver: false,
+      }).start();
+    });
   };
 
   const handleClosePlansExpanded = () => {
@@ -229,16 +272,16 @@ const PremiumScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* 하단 고정 버튼 */}
-      <View style={styles.bottomButtonWrapper}>
-        <SafeAreaView style={styles.bottomButtonContainer}>
+      <SafeAreaView style={styles.bottomButtonWrapper}>
+        <View style={styles.bottomButtonContainer}>
           <TouchableOpacity
             style={styles.bottomButton}
             onPress={handleOpenMainModal}
           >
             <Text style={styles.bottomButtonText}>30일간 무료로 사용해보기</Text>
           </TouchableOpacity>
-        </SafeAreaView>
-      </View>
+        </View>
+      </SafeAreaView>
 
       {/* 메인 모달 (모든 플랜 보기 / 30일 무료 체험) */}
       <Modal
@@ -262,123 +305,172 @@ const PremiumScreen = ({ navigation }) => {
               onPress={handleCloseMainModal}
             />
           </Animated.View>
-          <View style={styles.modalContent}>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={handleCloseMainModal}
-            >
-              <View style={styles.modalCloseButtonCircle}>
-                <Ionicons name="close" size={20} color={COLORS.WHITE} />
-              </View>
-            </TouchableOpacity>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                transform: [{ translateY: modalContentTranslateY }],
+                opacity: modalContentOpacity,
+              },
+            ]}
+          >
+            <Text style={styles.modalTitle}>RunOn 맴버스, 무료로 시작해보세요</Text>
             
-            <Text style={styles.modalTitle}>RunOn 맴버스{'\n'}무료로 시작해보세요</Text>
-            <Text style={styles.modalSubtitle}>
-              30일간 모든 프리미엄 기능을 무료로 체험하세요
-            </Text>
+            {/* 연간 구독 UI (기본 표시) */}
+            <View style={styles.titlePlanCardContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.planCard,
+                  selectedPlan === 'yearly' && styles.planCardSelected,
+                  showPlansExpanded && styles.planCardWithRadio
+                ]}
+                onPress={() => showPlansExpanded && handleSelectPlan('yearly')}
+                disabled={!showPlansExpanded}
+              >
+                <View style={styles.planCardContent}>
+                  <View style={styles.planCardLeft}>
+                    <View style={styles.planCardTitleRow}>
+                      <Text style={styles.planName}>연간 구독</Text>
+                      <View style={styles.discountBadge}>
+                        <Text style={styles.discountBadgeText}>22% 할인</Text>
+                      </View>
+                    </View>
+                    <View style={styles.planCardPriceRow}>
+                      <Text style={styles.planPriceMain}>30일 무료 체험 후</Text>
+                      <View style={styles.planPriceContainer}>
+                        <Text style={styles.planPrice}>₩55,000</Text>
+                        <Text style={styles.planPeriod}>/년</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.planCardRight}>
+                    <Animated.View
+                      style={{
+                        opacity: plansExpandedHeight,
+                        transform: [{
+                          scale: plansExpandedHeight.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 1],
+                          })
+                        }]
+                      }}
+                    >
+                      {showPlansExpanded && (
+                        <View style={selectedPlan === 'yearly' ? styles.radioButtonSelected : styles.radioButton}>
+                          {selectedPlan === 'yearly' && <View style={styles.radioButtonInner} />}
+                        </View>
+                      )}
+                    </Animated.View>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
             
             <View style={styles.modalButtonsContainer}>
-              {!showPlansExpanded && (
-                <TouchableOpacity
-                  style={styles.modalOptionButtonOutlined}
-                  onPress={handleViewAllPlans}
-                >
-                  <Text style={styles.modalOptionTextOutlined}>모든 플랜 보기</Text>
-                  <Ionicons 
-                    name="chevron-down" 
-                    size={20} 
-                    color="#FF0073" 
-                    style={{ marginLeft: 8 }}
-                  />
-                </TouchableOpacity>
-              )}
-              
-              {/* 확장되는 플랜 선택 영역 */}
+              {/* 버튼과 월간 플랜이 같은 위치에 배치되는 컨테이너 */}
               <Animated.View
                 style={[
-                  styles.plansExpandedContainer,
+                  styles.planToggleContainer,
                   {
-                    maxHeight: plansExpandedHeight.interpolate({
+                    height: plansExpandedHeight.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 1000],
+                      outputRange: [buttonHeight, monthlyCardHeight || buttonHeight],
                     }),
-                    opacity: plansExpandedHeight,
                   },
                 ]}
               >
-                {showPlansExpanded && (
-                  <View style={styles.plansExpandedContent}>
-                    <View style={styles.plansContainer}>
-                      {/* 연간 플랜 */}
-                      <TouchableOpacity
-                        style={[
-                          styles.planCard,
-                          selectedPlan === 'yearly' && styles.planCardSelected
-                        ]}
-                        onPress={() => handleSelectPlan('yearly')}
-                      >
-                        <View style={styles.planCardContent}>
-                          <View style={styles.planCardLeft}>
-                            <View style={styles.planCardTitleRow}>
-                              <Text style={styles.planName}>연간 구독</Text>
-                              <View style={styles.popularBadge}>
-                                <Text style={styles.popularBadgeText}>인기</Text>
-                              </View>
-                            </View>
-                            <View style={styles.planCardPriceRow}>
-                              <Text style={styles.planPriceMain}>무료 체험 후</Text>
-                              <View style={styles.planPriceContainer}>
-                                <Text style={styles.planPrice}>₩99,000</Text>
-                                <Text style={styles.planPeriod}>/년</Text>
-                              </View>
-                              <Text style={styles.planPriceSub}>(₩8,250/월)</Text>
-                            </View>
-                          </View>
-                          <View style={styles.planCardRight}>
-                            <View style={selectedPlan === 'yearly' ? styles.radioButtonSelected : styles.radioButton}>
-                              {selectedPlan === 'yearly' && <View style={styles.radioButtonInner} />}
-                            </View>
-                            <View style={styles.freeTrialBadge}>
-                              <Text style={styles.freeTrialBadgeText}>30일 무료 체험</Text>
-                            </View>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-
-                      {/* 월간 플랜 */}
-                      <TouchableOpacity
-                        style={[
-                          styles.planCard,
-                          selectedPlan === 'monthly' && styles.planCardSelected
-                        ]}
-                        onPress={() => handleSelectPlan('monthly')}
-                      >
-                        <View style={styles.planCardContent}>
-                          <View style={styles.planCardLeft}>
-                            <View style={styles.planCardTitleRow}>
-                              <Text style={styles.planName}>월간 구독</Text>
-                            </View>
-                            <View style={styles.planCardPriceRow}>
-                              <Text style={styles.planPriceMain}>무료 체험 후</Text>
-                              <View style={styles.planPriceContainer}>
-                                <Text style={styles.planPrice}>₩9,900</Text>
-                                <Text style={styles.planPeriod}>/월</Text>
-                              </View>
-                            </View>
-                          </View>
-                          <View style={styles.planCardRight}>
-                            <View style={selectedPlan === 'monthly' ? styles.radioButtonSelected : styles.radioButton}>
-                              {selectedPlan === 'monthly' && <View style={styles.radioButtonInner} />}
-                            </View>
-                            <View style={styles.freeTrialBadge}>
-                              <Text style={styles.freeTrialBadgeText}>30일 무료 체험</Text>
-                            </View>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    </View>
+                {/* '모든 플랜 보기' 버튼 - 사라지는 애니메이션 */}
+                <Animated.View
+                  style={[
+                    styles.planToggleItem,
+                    {
+                      opacity: plansExpandedHeight.interpolate({
+                        inputRange: [0, 0.3, 1],
+                        outputRange: [1, 0, 0],
+                      }),
+                      transform: [{
+                        translateY: plansExpandedHeight.interpolate({
+                          inputRange: [0, 0.3, 1],
+                          outputRange: [0, -10, -20],
+                        })
+                      }],
+                      pointerEvents: showPlansExpanded ? 'none' : 'auto',
+                    },
+                  ]}
+                >
+                  <View
+                    onLayout={(event) => {
+                      const { height } = event.nativeEvent.layout;
+                      if (height > 0) {
+                        setButtonHeight(height);
+                      }
+                    }}
+                  >
+                    <TouchableOpacity
+                      style={styles.modalOptionButtonOutlined}
+                      onPress={handleViewAllPlans}
+                      disabled={showPlansExpanded}
+                    >
+                      <Text style={styles.modalOptionTextOutlined}>모든 플랜 보기</Text>
+                    </TouchableOpacity>
                   </View>
-                )}
+                </Animated.View>
+                
+                {/* 월간 플랜 - 나타나는 애니메이션 */}
+                <Animated.View
+                  style={[
+                    styles.planToggleItem,
+                    {
+                      opacity: plansExpandedHeight.interpolate({
+                        inputRange: [0, 0.3, 1],
+                        outputRange: [0, 0, 1],
+                      }),
+                      transform: [{
+                        translateY: plansExpandedHeight.interpolate({
+                          inputRange: [0, 0.3, 1],
+                          outputRange: [20, 10, 0],
+                        })
+                      }],
+                      pointerEvents: showPlansExpanded ? 'auto' : 'none',
+                      marginTop: 12,
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.planCard,
+                      selectedPlan === 'monthly' && styles.planCardSelected
+                    ]}
+                    onPress={() => handleSelectPlan('monthly')}
+                    onLayout={(event) => {
+                      const { height } = event.nativeEvent.layout;
+                      if (height > 0) {
+                        // marginTop: 12를 포함한 전체 높이
+                        setMonthlyCardHeight(height + 12);
+                      }
+                    }}
+                  >
+                    <View style={styles.planCardContent}>
+                      <View style={styles.planCardLeft}>
+                        <View style={styles.planCardTitleRow}>
+                          <Text style={styles.planName}>월간 구독</Text>
+                        </View>
+                        <View style={styles.planCardPriceRow}>
+                          <Text style={styles.planPriceMain}>30일 무료 체험 후</Text>
+                          <View style={styles.planPriceContainer}>
+                            <Text style={styles.planPrice}>₩5,900</Text>
+                            <Text style={styles.planPeriod}>/월</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <View style={styles.planCardRight}>
+                        <View style={selectedPlan === 'monthly' ? styles.radioButtonSelected : styles.radioButton}>
+                          {selectedPlan === 'monthly' && <View style={styles.radioButtonInner} />}
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </Animated.View>
               </Animated.View>
               
               <TouchableOpacity
@@ -392,9 +484,9 @@ const PremiumScreen = ({ navigation }) => {
             </View>
             
             <Text style={styles.modalDisclaimer}>
-              무료 체험 기간 동안 요금이 청구되지 않습니다. 언제든지 취소할 수 있습니다.
+              무료 체험 기간 동안 요금이 청구되지 않습니다.{'\n'}언제든지 취소할 수 있습니다.
             </Text>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </View>
@@ -525,8 +617,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: COLORS.BACKGROUND,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.SURFACE,
   },
   bottomButtonContainer: {
     paddingHorizontal: 20,
@@ -559,24 +649,34 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
+  planToggleContainer: {
+    position: 'relative',
+    minHeight: 70,
+    overflow: 'visible',
+  },
+  planToggleItem: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+  },
   plansExpandedContainer: {
     overflow: 'hidden',
-    marginTop: 16,
+    marginTop: 0,
+    marginBottom: 12,
   },
   plansExpandedContent: {
-    paddingTop: 16,
+    // 월간 플랜만 표시
   },
   modalContent: {
     backgroundColor: COLORS.SURFACE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 24,
-    paddingBottom: 40,
-    maxHeight: '85%',
-  },
-  modalCloseButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
+    maxHeight: '100%',
+    minHeight: 'auto',
   },
   modalCloseButtonCircle: {
     width: 32,
@@ -587,24 +687,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: 'Regular',
     color: COLORS.WHITE,
-    marginBottom: 12,
+    marginBottom: 20,
     textAlign: 'center',
-    fontFamily: 'Pretendard-Bold',
-    lineHeight: 36,
+    fontFamily: 'Pretendard-Regular',
+    lineHeight: 32,
   },
   modalSubtitle: {
     fontSize: 16,
     color: COLORS.GRAY_400,
-    marginBottom: 32,
+    marginBottom: 20,
     textAlign: 'center',
     fontFamily: 'Pretendard-Regular',
     lineHeight: 24,
   },
+  titlePlanCardContainer: {
+    marginBottom: 0,
+  },
   modalButtonsContainer: {
     marginBottom: 20,
+  },
+  planCardWithRadio: {
+    // 라디오 버튼이 있을 때 추가 스타일 (필요시)
   },
   modalOptionButtonOutlined: {
     borderWidth: 2,
@@ -613,8 +719,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
-    flexDirection: 'row',
+    marginTop: 12,
   },
   modalOptionButtonPrimary: {
     backgroundColor: '#FF0073',
@@ -622,6 +727,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 16,
   },
   modalOptionTextOutlined: {
     fontSize: 16,
@@ -640,8 +746,9 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY_500,
     textAlign: 'center',
     fontFamily: 'Pretendard-Regular',
-    lineHeight: 18,
-    marginTop: 8,
+    lineHeight: 16,
+    marginTop: 1,
+    marginBottom: 0,
   },
   // 플랜 모달 스타일 (더 이상 사용하지 않음)
   plansContainer: {
@@ -651,7 +758,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 0,
     borderWidth: 2,
     borderColor: 'transparent',
   },
@@ -670,7 +777,9 @@ const styles = StyleSheet.create({
   },
   planCardRight: {
     alignItems: 'flex-end',
+    justifyContent: 'flex-start',
     gap: 12,
+    minWidth: 80,
   },
   planCardTitleRow: {
     flexDirection: 'row',
@@ -686,9 +795,9 @@ const styles = StyleSheet.create({
   },
   planName: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '400',
     color: COLORS.WHITE,
-    fontFamily: 'Pretendard-Bold',
+    fontFamily: 'Pretendard-Regular',
   },
   radioButton: {
     width: 24,
@@ -723,10 +832,10 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   planPrice: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.WHITE,
-    fontFamily: 'Pretendard-Bold',
+    fontFamily: 'Pretendard-SemiBold',
   },
   planPeriod: {
     fontSize: 14,
@@ -751,13 +860,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
-  popularBadge: {
+  discountBadge: {
     backgroundColor: COLORS.PRIMARY,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  popularBadgeText: {
+  discountBadgeText: {
     color: COLORS.BACKGROUND,
     fontSize: 11,
     fontWeight: '600',
