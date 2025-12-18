@@ -2771,7 +2771,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
     return (
       <View style={styles.inlineMapSection}>
-        <View style={styles.inlineMapContainer}>
+        <View 
+          style={styles.inlineMapContainer}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+          onResponderGrant={() => {}}
+          onResponderRelease={() => {}}
+        >
           <WebView
             key={stableKey}
             source={{ html: createInlineMapHTML() }}
@@ -2784,7 +2790,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             bounces={false}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
-
+            nestedScrollEnabled={false}
             onMessage={handleWebViewMessage}
             // WebView 재렌더링 최적화 설정
             cacheEnabled={true}
