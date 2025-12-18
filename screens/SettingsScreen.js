@@ -492,22 +492,23 @@ const SettingsScreen = ({ navigation }) => {
             onPress={handleBlacklistManagement}
             customIcon={
               <View style={styles.blacklistBadgeContainer}>
-                {/* SVG RadialGradient를 사용한 부드러운 glow 효과 */}
+                {/* SVG RadialGradient를 사용한 부드러운 글로우 효과 */}
                 <View style={styles.blacklistBadgeGlowContainer}>
-                  <Svg width={90} height={45} style={styles.blacklistBadgeGlowSvg}>
+                  <Svg width={114} height={60} style={styles.blacklistBadgeGlowSvg}>
                     <Defs>
                       <RadialGradient id="blacklist-glow" cx="50%" cy="50%" r="60%">
-                        <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.35" />
-                        <Stop offset="30%" stopColor="#FF0073" stopOpacity="0.20" />
-                        <Stop offset="50%" stopColor="#FF0073" stopOpacity="0.10" />
-                        <Stop offset="70%" stopColor="#FF0073" stopOpacity="0.05" />
+                        <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.5" />
+                        <Stop offset="20%" stopColor="#FF0073" stopOpacity="0.35" />
+                        <Stop offset="40%" stopColor="#FF0073" stopOpacity="0.25" />
+                        <Stop offset="60%" stopColor="#FF0073" stopOpacity="0.15" />
+                        <Stop offset="80%" stopColor="#FF0073" stopOpacity="0.05" />
                         <Stop offset="100%" stopColor="#FF0073" stopOpacity="0" />
                       </RadialGradient>
                     </Defs>
                     <Circle
-                      cx="45"
-                      cy="22.5"
-                      r="25"
+                      cx="57"
+                      cy="24"
+                      r="24"
                       fill="url(#blacklist-glow)"
                     />
                   </Svg>
@@ -573,22 +574,23 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('Premium')}
             customIcon={
               <View style={styles.premiumBadgeContainer}>
-                {/* SVG RadialGradient를 사용한 부드러운 glow 효과 */}
+                {/* SVG RadialGradient를 사용한 부드러운 글로우 효과 */}
                 <View style={styles.premiumBadgeGlowContainer}>
-                  <Svg width={90} height={45} style={styles.premiumBadgeGlowSvg}>
+                  <Svg width={114} height={60} style={styles.premiumBadgeGlowSvg}>
                     <Defs>
                       <RadialGradient id="premium-glow" cx="50%" cy="50%" r="60%">
-                        <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.35" />
-                        <Stop offset="30%" stopColor="#FF0073" stopOpacity="0.20" />
-                        <Stop offset="50%" stopColor="#FF0073" stopOpacity="0.10" />
-                        <Stop offset="70%" stopColor="#FF0073" stopOpacity="0.05" />
+                        <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.5" />
+                        <Stop offset="20%" stopColor="#FF0073" stopOpacity="0.35" />
+                        <Stop offset="40%" stopColor="#FF0073" stopOpacity="0.25" />
+                        <Stop offset="60%" stopColor="#FF0073" stopOpacity="0.15" />
+                        <Stop offset="80%" stopColor="#FF0073" stopOpacity="0.05" />
                         <Stop offset="100%" stopColor="#FF0073" stopOpacity="0" />
                       </RadialGradient>
                     </Defs>
                     <Circle
-                      cx="45"
-                      cy="22.5"
-                      r="25"
+                      cx="57"
+                      cy="24"
+                      r="24"
                       fill="url(#premium-glow)"
                     />
                   </Svg>
@@ -728,15 +730,16 @@ const styles = StyleSheet.create({
   },
   premiumBadgeGlowContainer: {
     position: 'absolute',
-    width: 90,
-    height: 45,
-    top: -10,
-    left: -15,
+    width: 114,
+    height: 48,
+    top: -12,
+    left: -27,
     zIndex: 0,
-    overflow: 'visible',
   },
   premiumBadgeGlowSvg: {
     position: 'absolute',
+    top: 0,
+    left: 0,
   },
   premiumBadgeGlow: {
     backgroundColor: 'transparent',
@@ -766,15 +769,16 @@ const styles = StyleSheet.create({
   },
   blacklistBadgeGlowContainer: {
     position: 'absolute',
-    width: 90,
-    height: 45,
-    top: -10,
-    left: -15,
+    width: 114,
+    height: 48,
+    top: -12,
+    left: -27,
     zIndex: 0,
-    overflow: 'visible',
   },
   blacklistBadgeGlowSvg: {
     position: 'absolute',
+    top: 0,
+    left: 0,
   },
   blacklistBadgeGlow: {
     backgroundColor: 'transparent',

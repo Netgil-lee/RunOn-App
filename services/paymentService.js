@@ -8,9 +8,6 @@ import {
   validateReceiptAndroid,
   purchaseUpdatedListener,
   purchaseErrorListener,
-  type Product,
-  type Purchase,
-  type PurchaseError,
 } from 'react-native-iap';
 import { Platform, Alert } from 'react-native';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
@@ -41,6 +38,8 @@ class PaymentService {
     this.products = [];
     this.purchaseUpdateSubscription = null;
     this.purchaseErrorSubscription = null;
+    this.currentPurchaseCallbacks = null; // 현재 구매의 콜백 저장
+    this.currentPurchaseUserId = null; // 현재 구매의 userId 저장
   }
 
   // 결제 서비스 초기화
@@ -123,18 +122,40 @@ class PaymentService {
         
         console.log('✅ 구매 처리 완료');
         
-        // 성공 알림
-        Alert.alert(
-          '구매 완료',
-          '프리미엄 구독이 활성화되었습니다!',
-          [{ text: '확인' }]
-        );
+        // 콜백이 있으면 콜백 호출, 없으면 기본 알림
+        if (this.currentPurchaseCallbacks?.onSuccess) {
+          this.currentPurchaseCallbacks.onSuccess(purchase, validationResult.subscriptionStatus);
+          this.currentPurchaseCallbacks = null; // 콜백 초기화
+          this.currentPurchaseUserId = null; // userId 초기화
+        } else {
+          // 성공 알림
+          Alert.alert(
+            '구매 완료',
+            '프리미엄 구독이 활성화되었습니다!',
+            [{ text: '확인' }]
+          );
+        }
       } else {
         console.error('❌ 영수증 검증 실패:', validationResult.error);
-        Alert.alert('구매 실패', validationResult.error || '영수증 검증에 실패했습니다.');
+        
+        // 콜백이 있으면 콜백 호출, 없으면 기본 알림
+        if (this.currentPurchaseCallbacks?.onError) {
+          this.currentPurchaseCallbacks.onError(new Error(validationResult.error || '영수증 검증에 실패했습니다.'));
+          this.currentPurchaseCallbacks = null; // 콜백 초기화
+          this.currentPurchaseUserId = null; // userId 초기화
+        } else {
+          Alert.alert('구매 실패', validationResult.error || '영수증 검증에 실패했습니다.');
+        }
       }
     } catch (error) {
       console.error('❌ 구매 업데이트 처리 실패:', error);
+      
+      // 콜백이 있으면 콜백 호출
+      if (this.currentPurchaseCallbacks?.onError) {
+        this.currentPurchaseCallbacks.onError(error);
+        this.currentPurchaseCallbacks = null; // 콜백 초기화
+        this.currentPurchaseUserId = null; // userId 초기화
+      }
     }
   }
 
@@ -142,17 +163,24 @@ class PaymentService {
   handlePurchaseError(error) {
     console.error('❌ 구매 에러:', error);
     
-    let errorMessage = '구매 중 오류가 발생했습니다.';
-    
-    if (error.code === 'E_USER_CANCELLED') {
-      errorMessage = '구매가 취소되었습니다.';
-    } else if (error.code === 'E_ITEM_UNAVAILABLE') {
-      errorMessage = '해당 상품을 구매할 수 없습니다.';
-    } else if (error.code === 'E_NETWORK_ERROR') {
-      errorMessage = '네트워크 연결을 확인해주세요.';
+    // 콜백이 있으면 콜백 호출, 없으면 기본 알림
+    if (this.currentPurchaseCallbacks?.onError) {
+      this.currentPurchaseCallbacks.onError(error);
+      this.currentPurchaseCallbacks = null; // 콜백 초기화
+      this.currentPurchaseUserId = null; // userId 초기화
+    } else {
+      let errorMessage = '구매 중 오류가 발생했습니다.';
+      
+      if (error.code === 'E_USER_CANCELLED') {
+        errorMessage = '구매가 취소되었습니다.';
+      } else if (error.code === 'E_ITEM_UNAVAILABLE') {
+        errorMessage = '해당 상품을 구매할 수 없습니다.';
+      } else if (error.code === 'E_NETWORK_ERROR') {
+        errorMessage = '네트워크 연결을 확인해주세요.';
+      }
+      
+      Alert.alert('구매 실패', errorMessage);
     }
-    
-    Alert.alert('구매 실패', errorMessage);
   }
 
   // 영수증 검증
@@ -192,7 +220,9 @@ class PaymentService {
       console.log('👤 사용자 구독 상태 업데이트 시작');
       
       // Firestore에서 사용자 문서 업데이트
-      const userRef = doc(db, 'users', purchase.userId || 'anonymous');
+      // purchase 객체에 userId가 없을 수 있으므로, 저장된 userId 사용
+      const userId = purchase.userId || this.currentPurchaseUserId || 'anonymous';
+      const userRef = doc(db, 'users', userId);
       
       const subscriptionData = {
         isPremium: true,
@@ -213,7 +243,7 @@ class PaymentService {
   }
 
   // 구매 요청
-  async purchaseProduct(productId, userId) {
+  async purchaseProduct(productId, userId, callbacks = null) {
     try {
       console.log('🛒 구매 요청 시작:', productId);
       
@@ -227,16 +257,36 @@ class PaymentService {
         throw new Error('제품을 찾을 수 없습니다.');
       }
       
-      // 구매 요청
-      const purchase = await requestPurchase({
+      // 콜백 및 userId 저장
+      this.currentPurchaseCallbacks = callbacks;
+      this.currentPurchaseUserId = userId;
+      
+      // 구매 요청 (react-native-iap는 비동기로 처리되므로 Promise를 반환하지 않음)
+      // 구매 완료는 purchaseUpdatedListener를 통해 처리됨
+      requestPurchase({
         sku: productId,
         userId: userId,
+      }).catch((error) => {
+        // 초기 구매 요청 실패 시 에러 처리
+        console.error('❌ 구매 요청 초기 실패:', error);
+        if (callbacks?.onError) {
+          callbacks.onError(error);
+        }
+        this.currentPurchaseCallbacks = null;
+        this.currentPurchaseUserId = null;
       });
       
-      console.log('✅ 구매 요청 완료:', purchase);
-      return purchase;
+      console.log('✅ 구매 요청 완료');
+      // 구매 요청은 즉시 완료되지만, 실제 구매는 리스너를 통해 처리됨
     } catch (error) {
       console.error('❌ 구매 요청 실패:', error);
+      
+      // 에러 발생 시 콜백 호출
+      if (callbacks?.onError) {
+        callbacks.onError(error);
+      }
+      
+      this.currentPurchaseCallbacks = null; // 콜백 초기화
       throw error;
     }
   }

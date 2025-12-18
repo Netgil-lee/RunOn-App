@@ -15,6 +15,7 @@ import { EventProvider } from './contexts/EventContext';
 import { CommunityProvider } from './contexts/CommunityContext';
 import { NotificationSettingsProvider } from './contexts/NotificationSettingsContext';
 import { GuideProvider } from './contexts/GuideContext';
+import { PremiumProvider } from './contexts/PremiumContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -107,8 +108,8 @@ export default function App() {
       <>
         <StatusBar 
           barStyle="light-content" 
-          backgroundColor="#000000" 
-          translucent={false}
+          backgroundColor="transparent" 
+          translucent={true}
         />
         <View style={styles.offlineContainer}>
           <Text style={styles.offlineText}>인터넷 연결을 확인하세요.</Text>
@@ -123,8 +124,8 @@ export default function App() {
       <>
         <StatusBar 
           barStyle="light-content" 
-          backgroundColor="#000000" 
-          translucent={false}
+          backgroundColor="transparent" 
+          translucent={true}
         />
         <View style={styles.offlineContainer}>
           <Text style={styles.offlineText}>앱 초기화 중...</Text>
@@ -137,21 +138,23 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar 
         barStyle="light-content" 
-        backgroundColor="#000000" 
-        translucent={false}
+        backgroundColor="transparent" 
+        translucent={true}
       />
       <NavigationContainer>
         <NetworkProvider>
           <AuthProvider isDemoMode={isDemoMode}>
-            <NotificationSettingsProvider>
-              <EventProvider>
-                <CommunityProvider>
-                  <GuideProvider>
-                    <AppNavigator isDemoMode={isDemoMode} />
-                  </GuideProvider>
-                </CommunityProvider>
-              </EventProvider>
-            </NotificationSettingsProvider>
+            <PremiumProvider>
+              <NotificationSettingsProvider>
+                <EventProvider>
+                  <CommunityProvider>
+                    <GuideProvider>
+                      <AppNavigator isDemoMode={isDemoMode} />
+                    </GuideProvider>
+                  </CommunityProvider>
+                </EventProvider>
+              </NotificationSettingsProvider>
+            </PremiumProvider>
           </AuthProvider>
         </NetworkProvider>
       </NavigationContainer>
