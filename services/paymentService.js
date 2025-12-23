@@ -37,6 +37,9 @@ class PaymentService {
     this.purchaseUpdateSubscription = null;
     this.purchaseErrorSubscription = null;
     this.purchaseCallbacks = {}; // 구매 콜백 저장 (productId별)
+    this.isHandlingError = false; // 에러 처리 중복 방지 플래그
+    this.lastErrorTime = null; // 마지막 에러 발생 시간
+    this.currentPurchaseProductId = null; // 현재 진행 중인 구매 제품 ID
   }
 
   // 결제 서비스 초기화
@@ -89,6 +92,20 @@ class PaymentService {
       
       this.products = products;
       console.log('✅ 제품 정보 로드 완료:', products.length, '개');
+      
+      // 디버깅: 제품 정보 상세 로그
+      if (products.length > 0) {
+        console.log('📦 로드된 제품 정보:');
+        products.forEach((product, index) => {
+          console.log(`  제품 ${index + 1}:`, {
+            id: product.id,
+            productId: product.productId,
+            productIdentifier: product.productIdentifier,
+            identifier: product.identifier,
+            title: product.title,
+          });
+        });
+      }
       
       return products;
     } catch (error) {
@@ -151,6 +168,11 @@ class PaymentService {
             [{ text: '확인' }]
           );
         }
+        
+        // 구매 완료 후 추적 정보 초기화
+        if (this.currentPurchaseProductId === productId) {
+          this.currentPurchaseProductId = null;
+        }
       } else {
         console.error('❌ 영수증 검증 실패:', validationResult.error);
         
@@ -180,19 +202,67 @@ class PaymentService {
 
   // 구매 에러 처리
   handlePurchaseError(error) {
+    // 중복 호출 방지: 같은 에러가 1초 이내에 반복 호출되는 경우 무시
+    const now = Date.now();
+    if (this.isHandlingError && this.lastErrorTime && (now - this.lastErrorTime) < 1000) {
+      console.log('⚠️ 중복 에러 호출 무시:', error);
+      return;
+    }
+    
+    this.isHandlingError = true;
+    this.lastErrorTime = now;
+    
     console.error('❌ 구매 에러:', error);
     
     let errorMessage = '구매 중 오류가 발생했습니다.';
+    let errorTitle = '구매 실패';
     
-    if (error.code === 'E_USER_CANCELLED') {
+    // 에러 코드에 따른 메시지 설정
+    if (error.code === 'E_USER_CANCELLED' || error.code === 'user-cancelled') {
       errorMessage = '구매가 취소되었습니다.';
+      // 사용자 취소는 Alert 표시하지 않음 (정상적인 동작)
+      this.isHandlingError = false;
+      return;
     } else if (error.code === 'E_ITEM_UNAVAILABLE') {
       errorMessage = '해당 상품을 구매할 수 없습니다.';
     } else if (error.code === 'E_NETWORK_ERROR') {
       errorMessage = '네트워크 연결을 확인해주세요.';
+    } else if (error.message && error.message.includes('Authentication Failed')) {
+      errorTitle = '인증 실패';
+      errorMessage = 'Apple 계정 인증에 실패했습니다.\n\n샌드박스 테스트 계정을 사용하는 경우:\n1. App Store Connect에서 샌드박스 테스터 계정이 활성화되었는지 확인\n2. 새로운 샌드박스 테스트 계정으로 시도\n3. 기기의 Settings → App Store에서 로그아웃 후 다시 로그인';
+    } else if (error.message && error.message.includes('Password reuse not available')) {
+      errorTitle = '계정 인증 오류';
+      errorMessage = '사용 중인 Apple 계정이 샌드박스 테스트를 지원하지 않습니다.\n\n해결 방법:\n1. App Store Connect에서 새로운 샌드박스 테스트 계정 생성\n2. Settings → App Store에서 샌드박스 테스트 계정으로 로그인\n3. 실제 기기에서 TestFlight으로 테스트';
     }
     
-    Alert.alert('구매 실패', errorMessage);
+    // 현재 진행 중인 구매의 콜백에 에러 전달
+    const targetProductId = error.productId || this.currentPurchaseProductId;
+    if (targetProductId && this.purchaseCallbacks[targetProductId]) {
+      const callbacks = this.purchaseCallbacks[targetProductId];
+      if (callbacks?.onError) {
+        callbacks.onError(error);
+      }
+      // 에러 발생 시 콜백 제거
+      delete this.purchaseCallbacks[targetProductId];
+    } else if (this.currentPurchaseProductId) {
+      // productId가 없지만 현재 구매가 있는 경우
+      const callbacks = this.purchaseCallbacks[this.currentPurchaseProductId];
+      if (callbacks?.onError) {
+        callbacks.onError(error);
+      }
+      delete this.purchaseCallbacks[this.currentPurchaseProductId];
+    }
+    
+    // 구매 에러 발생 시 추적 정보 초기화
+    this.currentPurchaseProductId = null;
+    
+    // Alert 표시
+    Alert.alert(errorTitle, errorMessage);
+    
+    // 에러 처리 완료 후 플래그 해제 (1초 후)
+    setTimeout(() => {
+      this.isHandlingError = false;
+    }, 1000);
   }
 
   // 영수증 검증
@@ -276,10 +346,36 @@ class PaymentService {
       }
       
       // 제품이 존재하는지 확인
-      const product = this.products.find(p => p.productId === productId);
+      // react-native-iap v14에서는 제품 ID가 'id' 필드에 저장됨
+      // productId, productIdentifier, identifier, id 등 여러 필드명 확인
+      const product = this.products.find(p => 
+        p.id === productId ||
+        p.productId === productId || 
+        p.productIdentifier === productId || 
+        p.identifier === productId
+      );
+      
       if (!product) {
+        // 디버깅: 현재 저장된 제품 ID 목록 출력
+        console.error('❌ 제품을 찾을 수 없습니다. 요청한 제품 ID:', productId);
+        console.error('📦 현재 저장된 제품 목록:');
+        this.products.forEach((p, index) => {
+          console.error(`  제품 ${index + 1}:`, {
+            id: p.id,
+            productId: p.productId,
+            productIdentifier: p.productIdentifier,
+            identifier: p.identifier,
+            title: p.title,
+          });
+        });
         throw new Error('제품을 찾을 수 없습니다.');
       }
+      
+      console.log('✅ 제품 확인 완료:', {
+        requestedId: productId,
+        foundProductId: product.id || product.productId || product.productIdentifier || product.identifier,
+        title: product.title,
+      });
       
       // 콜백 저장 (구매 완료 시 호출)
       // userId도 함께 저장하여 handlePurchaseUpdate에서 사용
@@ -292,6 +388,9 @@ class PaymentService {
       
       // 제품 타입 확인 (구독인지 소비성 제품인지)
       const isSubscription = SUBSCRIPTION_IDS.includes(productId);
+      
+      // 현재 구매 요청 추적
+      this.currentPurchaseProductId = productId;
       
       // 구매 요청 (react-native-iap는 purchaseUpdatedListener로 구매 완료를 처리)
       // 최신 API: requestPurchase는 Promise를 반환하지만, 실제 구매 완료는 purchaseUpdatedListener로 처리됨
@@ -311,6 +410,11 @@ class PaymentService {
       if (this.purchaseCallbacks[productId]?.onError) {
         this.purchaseCallbacks[productId].onError(error);
         delete this.purchaseCallbacks[productId];
+      }
+      
+      // 구매 요청 실패 시 추적 정보 초기화
+      if (this.currentPurchaseProductId === productId) {
+        this.currentPurchaseProductId = null;
       }
       
       throw error;
@@ -366,7 +470,13 @@ class PaymentService {
 
   // 특정 제품 정보 가져오기
   getProduct(productId) {
-    return this.products.find(p => p.productId === productId);
+    // react-native-iap v14에서는 제품 ID가 'id' 필드에 저장됨
+    return this.products.find(p => 
+      p.id === productId ||
+      p.productId === productId ||
+      p.productIdentifier === productId ||
+      p.identifier === productId
+    );
   }
 
   // 서비스 정리
