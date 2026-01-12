@@ -178,14 +178,8 @@ const PremiumScreen = ({ navigation }) => {
   };
 
   const handleFreeTrial = () => {
-    // 플랜이 확장되어 있으면 선택된 플랜으로 결제, 아니면 기본 연간 구독
-    if (showPlansExpanded) {
-      handleFreeTrialWithPlan();
-    } else {
-      // 기본 연간 구독으로 진행
-      handleCloseMainModal();
-      // TODO: 연간 구독 무료 체험 시작 로직
-    }
+    // 준비중 알림 표시
+    Alert.alert('준비중', '서비스 준비 중입니다. 곧 만나요!');
   };
 
   const handleSelectPlan = (planType) => {
@@ -229,7 +223,7 @@ const PremiumScreen = ({ navigation }) => {
       setIsProcessing(true);
       setRetryCount(0);
 
-      // PaymentService 초기화 확인
+      // PaymentService 초기화 확인 (PremiumContext에서 이미 초기화되었을 수 있음)
       if (!paymentService.isInitialized) {
         const initialized = await paymentService.initialize();
         if (!initialized) {
@@ -237,8 +231,24 @@ const PremiumScreen = ({ navigation }) => {
         }
       }
 
-      // 제품 정보 로드
-      await paymentService.loadProducts();
+      // 제품 정보 로드 (이미 로드되었을 수 있지만 최신 정보를 위해 다시 로드)
+      try {
+        console.log('🛍️ 제품 정보 로드 시작...');
+        const loadedProducts = await paymentService.loadProducts();
+        console.log('✅ 제품 정보 로드 완료:', loadedProducts.length, '개');
+        
+        if (loadedProducts.length === 0) {
+          throw new Error('제품 정보를 불러올 수 없습니다. 네트워크 연결을 확인해주세요.');
+        }
+      } catch (loadError) {
+        console.error('❌ 제품 정보 로드 실패:', loadError);
+        setIsProcessing(false);
+        Alert.alert(
+          '제품 정보 로드 실패',
+          '제품 정보를 불러올 수 없습니다. 네트워크 연결을 확인하고 다시 시도해주세요.'
+        );
+        return;
+      }
 
       // 구매 요청
       // react-native-iap는 purchaseUpdatedListener로 구매 완료를 처리하므로
@@ -270,9 +280,9 @@ const PremiumScreen = ({ navigation }) => {
           // 에러 타입 확인
           const errorCode = error.code || error.message;
           
-          // 사용자 취소 처리
-          if (errorCode === 'E_USER_CANCELLED' || error.message?.includes('취소')) {
-            Alert.alert('결제 취소', '결제가 취소되었습니다');
+          // 사용자 취소 처리 (Alert는 표시하지 않음 - 정상적인 동작)
+          if (errorCode === 'E_USER_CANCELLED' || errorCode === 'user-cancelled' || error.message?.includes('취소')) {
+            // 사용자 취소는 정상적인 동작이므로 Alert 표시하지 않음
             return;
           }
 

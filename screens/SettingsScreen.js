@@ -529,7 +529,7 @@ const SettingsScreen = ({ navigation }) => {
           <SettingItem
             icon="information-circle-outline"
             title="버전 정보"
-            subtitle="RunOn v1.0.1"
+            subtitle="RunOn v1.0.3"
             onPress={() => Alert.alert('버전 정보', 'RunOn v1.0.0\n최신 버전입니다.')}
           />
         </View>

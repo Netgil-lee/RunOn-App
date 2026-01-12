@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // 영수증 검증을 위한 서버 엔드포인트
 const VALIDATION_ENDPOINTS = {
@@ -9,40 +10,90 @@ const VALIDATION_ENDPOINTS = {
 
 class ReceiptValidationService {
   constructor() {
-    this.appSpecificSharedSecret = 'your-app-specific-shared-secret'; // App Store Connect에서 설정
+    // App Store Connect에서 설정한 공유 비밀번호를 환경 변수에서 가져옴 (선택사항)
+    // 구독 제품의 경우 공유 비밀번호 없이도 영수증 검증 가능
+    this.appSpecificSharedSecret = Constants.expoConfig?.extra?.appStoreSharedSecret 
+      || Constants.manifest?.extra?.appStoreSharedSecret
+      || process.env.APP_STORE_SHARED_SECRET
+      || null; // 공유 비밀번호가 없어도 됨 (구독 제품은 선택사항)
+    
     this.googlePlayCredentials = {
       serviceAccountEmail: 'your-service-account@your-project.iam.gserviceaccount.com',
       privateKey: 'your-private-key',
     };
   }
 
-  // iOS 영수증 검증
-  async validateIOSReceipt(receiptData, isSandbox = false) {
+  // iOS 영수증 검증 (재시도 로직 포함)
+  async validateIOSReceipt(receiptData, isSandbox = false, retryCount = 0) {
+    const maxRetries = 2; // 최대 2번 재시도 (총 3번 시도)
+    
     try {
-      console.log('🍎 iOS 영수증 검증 시작');
+      console.log('🍎 iOS 영수증 검증 시작', { 
+        isSandbox, 
+        hasSecret: !!this.appSpecificSharedSecret,
+        retryCount,
+      });
       
+      // 먼저 프로덕션 엔드포인트로 시도 (실제 유저는 프로덕션 영수증)
       const endpoint = isSandbox ? VALIDATION_ENDPOINTS.ios_sandbox : VALIDATION_ENDPOINTS.ios;
       
       const requestBody = {
         'receipt-data': receiptData,
-        'password': this.appSpecificSharedSecret,
         'exclude-old-transactions': true,
       };
+      
+      // 공유 비밀번호가 있으면 추가 (프로덕션 영수증 검증에 필요)
+      if (this.appSpecificSharedSecret) {
+        requestBody.password = this.appSpecificSharedSecret;
+      }
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
+      console.log('📤 영수증 검증 요청:', { endpoint, hasPassword: !!requestBody.password, retryCount });
+
+      // 타임아웃 설정 (30초)
+      const timeout = 30000; // 30초
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      let response;
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.error('❌ 영수증 검증 타임아웃:', timeout, 'ms');
+          return {
+            isValid: false,
+            error: '영수증 검증이 시간 초과되었습니다. 네트워크 연결을 확인해주세요.',
+            timeout: true,
+          };
+        }
+        throw fetchError;
+      }
+
+      if (!response.ok) {
+        console.error('❌ 영수증 검증 HTTP 오류:', response.status, response.statusText);
+        return {
+          isValid: false,
+          error: `영수증 검증 서버 오류: ${response.status} ${response.statusText}`,
+          status: response.status,
+        };
+      }
 
       const result = await response.json();
+      console.log('📥 영수증 검증 응답:', { status: result.status, statusText: this.getIOSValidationError(result.status) });
       
-      // 샌드박스에서 실패하면 프로덕션으로 재시도
+      // 프로덕션에서 21007 (샌드박스 영수증)을 받으면 샌드박스로 재시도
       if (result.status === 21007 && !isSandbox) {
-        console.log('🔄 샌드박스 영수증으로 프로덕션 재시도');
-        return await this.validateIOSReceipt(receiptData, true);
+        console.log('🔄 샌드박스 영수증 감지, 샌드박스 엔드포인트로 재시도');
+        return await this.validateIOSReceipt(receiptData, true, 0);
       }
 
       if (result.status === 0) {
@@ -53,17 +104,44 @@ class ReceiptValidationService {
           latestReceiptInfo: result.latest_receipt_info,
         };
       } else {
-        console.error('❌ iOS 영수증 검증 실패:', result.status);
+        // 일시적 오류인 경우 재시도 (21005: 영수증 서버를 사용할 수 없음)
+        const isRetryableError = result.status === 21005; // 서버 사용 불가
+        
+        if (isRetryableError && retryCount < maxRetries) {
+          const delay = Math.pow(2, retryCount) * 1000; // 지수 백오프: 1초, 2초, 4초
+          console.log(`🔄 일시적 오류 감지, ${delay}ms 후 재시도 (${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return await this.validateIOSReceipt(receiptData, isSandbox, retryCount + 1);
+        }
+        
+        console.error('❌ iOS 영수증 검증 실패:', result.status, this.getIOSValidationError(result.status));
         return {
           isValid: false,
           error: this.getIOSValidationError(result.status),
+          status: result.status, // 상세 정보를 위해 status 포함
         };
       }
     } catch (error) {
+      // 네트워크 오류인 경우 재시도
+      const isNetworkError = error.name === 'AbortError' || 
+                            error.message?.includes('network') ||
+                            error.message?.includes('fetch') ||
+                            !error.response;
+      
+      if (isNetworkError && retryCount < maxRetries) {
+        const delay = Math.pow(2, retryCount) * 1000; // 지수 백오프: 1초, 2초, 4초
+        console.log(`🔄 네트워크 오류 감지, ${delay}ms 후 재시도 (${retryCount + 1}/${maxRetries}):`, error.message);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return await this.validateIOSReceipt(receiptData, isSandbox, retryCount + 1);
+      }
+      
       console.error('❌ iOS 영수증 검증 중 오류:', error);
       return {
         isValid: false,
-        error: '영수증 검증 중 네트워크 오류가 발생했습니다.',
+        error: error.name === 'AbortError' 
+          ? '영수증 검증이 시간 초과되었습니다. 네트워크 연결을 확인해주세요.'
+          : '영수증 검증 중 네트워크 오류가 발생했습니다.',
+        timeout: error.name === 'AbortError',
       };
     }
   }
@@ -200,7 +278,57 @@ class ReceiptValidationService {
   async validateReceipt(purchase) {
     try {
       if (Platform.OS === 'ios') {
-        return await this.validateIOSReceipt(purchase.transactionReceipt);
+        // react-native-iap v14에서는 영수증 데이터 필드명이 다를 수 있음
+        // 여러 필드명을 시도하여 영수증 데이터 찾기
+        const receiptData = purchase.transactionReceipt 
+          || purchase.transactionReceiptIOS 
+          || purchase.receiptData
+          || purchase.receipt
+          || purchase.transactionReceiptString
+          || purchase.transactionReceiptBase64
+          || purchase.originalTransactionReceipt;
+        
+        if (!receiptData) {
+          console.error('❌ 영수증 데이터를 찾을 수 없습니다.');
+          console.error('📦 Purchase 객체 키:', Object.keys(purchase));
+          console.error('📦 Purchase 객체 (민감 정보 제외):', JSON.stringify({
+            productId: purchase.productId,
+            transactionId: purchase.transactionId,
+            transactionDate: purchase.transactionDate,
+            originalTransactionIdentifierIOS: purchase.originalTransactionIdentifierIOS,
+            expirationDateIOS: purchase.expirationDateIOS,
+            // 영수증 데이터는 제외 (너무 길 수 있음)
+            hasTransactionReceipt: !!purchase.transactionReceipt,
+            hasTransactionReceiptIOS: !!purchase.transactionReceiptIOS,
+            hasReceiptData: !!purchase.receiptData,
+            hasReceipt: !!purchase.receipt,
+            hasTransactionReceiptString: !!purchase.transactionReceiptString,
+            hasTransactionReceiptBase64: !!purchase.transactionReceiptBase64,
+            hasOriginalTransactionReceipt: !!purchase.originalTransactionReceipt,
+          }, null, 2));
+          return {
+            isValid: false,
+            error: '영수증 데이터를 찾을 수 없습니다.',
+          };
+        }
+        
+        // 어떤 필드에서 영수증 데이터를 찾았는지 로깅
+        const foundInField = purchase.transactionReceipt ? 'transactionReceipt' :
+                             purchase.transactionReceiptIOS ? 'transactionReceiptIOS' :
+                             purchase.receiptData ? 'receiptData' :
+                             purchase.receipt ? 'receipt' :
+                             purchase.transactionReceiptString ? 'transactionReceiptString' :
+                             purchase.transactionReceiptBase64 ? 'transactionReceiptBase64' :
+                             purchase.originalTransactionReceipt ? 'originalTransactionReceipt' : 'unknown';
+        
+        console.log('📄 영수증 데이터 발견:', { 
+          foundIn: foundInField,
+          hasData: !!receiptData, 
+          dataLength: receiptData?.length || 0,
+          dataType: typeof receiptData,
+        });
+        
+        return await this.validateIOSReceipt(receiptData);
       } else if (Platform.OS === 'android') {
         return await this.validateAndroidReceipt(
           'com.runon.app',

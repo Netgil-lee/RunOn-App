@@ -19,6 +19,22 @@ export const PremiumProvider = ({ children }) => {
   const [expiresDate, setExpiresDate] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // 앱 시작 시 PaymentService 초기화 (리스너 등록)
+  useEffect(() => {
+    const initializePaymentService = async () => {
+      try {
+        if (!paymentService.isInitialized) {
+          await paymentService.initialize();
+          console.log('✅ PaymentService 초기화 완료 (앱 시작 시)');
+        }
+      } catch (error) {
+        console.error('❌ PaymentService 초기화 실패:', error);
+      }
+    };
+
+    initializePaymentService();
+  }, []);
+
   // 사용자 변경 시 프리미엄 상태 확인
   useEffect(() => {
     if (user?.uid) {
