@@ -15,6 +15,7 @@ const ENV = {
     // 외부 API
     weatherApiKey: Constants.expoConfig?.extra?.weatherApiKey || 'c1861b48c1786a9ff6a37560f3b8c63c',
     kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08', // JavaScript 키 (웹뷰용)
+    kakaoRestApiKey: Constants.expoConfig?.extra?.kakaoRestApiKey || 'e7407cb4e58959ce10a694d40c327641', // REST API 키 (Kakao Places API용)
     // 시뮬레이터에서 HealthKit 동작을 모의할지 여부
     simulateHealthKitOnSimulator: true,
   },
@@ -23,6 +24,7 @@ const ENV = {
     firebaseApiKey: 'staging_firebase_api_key',
     weatherApiKey: 'staging_weather_api_key',
     kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08',
+    kakaoRestApiKey: 'e7407cb4e58959ce10a694d40c327641',
     // ... 기타 설정
   },
   prod: {
@@ -42,6 +44,9 @@ const ENV = {
                   (Constants.expoConfig?.extra?.weatherApiKey) ||
                   'c1861b48c1786a9ff6a37560f3b8c63c',
     kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08', // JavaScript 키 (웹뷰용)
+    kakaoRestApiKey: (Constants.expoConfig?.extra?.kakaoRestApiKey) || 
+                    (Constants.manifest?.extra?.kakaoRestApiKey) || 
+                    'e7407cb4e58959ce10a694d40c327641', // REST API 키 (Kakao Places API용)
     simulateHealthKitOnSimulator: false,
   }
 };

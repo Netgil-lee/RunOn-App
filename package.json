@@ -41,6 +41,7 @@
     "expo-status-bar": "~3.0.8",
     "expo-web-browser": "~15.0.8",
     "firebase": "10.8.0",
+    "geofirestore": "^5.2.0",
     "idb": "6.1.5",
     "lodash": "^4.17.21",
     "react": "19.1.0",

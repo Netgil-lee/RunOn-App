@@ -57,7 +57,7 @@ const HomeScreen = ({ navigation }) => {
   const { hasCommunityNotification } = communityContext;
   const { guideStates, currentGuide, setCurrentGuide, currentStep, setCurrentStep, startGuide, nextStep, completeGuide, exitGuide, resetGuide } = guideContext;
   const scrollViewRef = useRef(null);
-  const hanRiverMapRef = useRef(null);
+  const MapRef = useRef(null);
   const weatherCardRef = useRef(null);
   
   // 알림 유무만 체크 (빨간색 점 표시용)
@@ -366,7 +366,7 @@ const HomeScreen = ({ navigation }) => {
 
 
   // 광나루한강공원 클릭 시 4번 가이드 시작
-  const handleHanriverLocationClick = () => {
+  const handleLocationClick = () => {
     // 3단계 가이드가 완료된 상태에서만 4단계 진행
     // (currentGuide가 null이고 currentStep이 2인 경우 = 3단계 완료 후 대기 상태)
     if (currentStep !== 2) {
@@ -397,7 +397,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   // 한강 지도 영역으로 자동 스크롤 및 동적 위치 계산 (사용하지 않음 - 자동 스크롤 제거)
-  // const scrollToHanRiverMap = () => {
+  // const scrollToMap = () => {
   //   if (scrollViewRef.current) {
   //     // 여백 제거로 인해 WeatherCard가 보이지 않으므로, 가장 아래로 스크롤하여 한강 지도가 상단에 위치하도록 함
   //     // ScrollView의 contentSize를 활용하여 가장 아래로 스크롤
@@ -459,7 +459,7 @@ const HomeScreen = ({ navigation }) => {
               if (typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number' &&
                   !isNaN(x) && !isNaN(y) && !isNaN(width) && !isNaN(height) &&
                   width > 0 && height > 0) {
-                setGuideTargetPosition('hanRiverMap', x, y, width, height);
+                setGuideTargetPosition('Map', x, y, width, height);
               }
             } catch (error) {
               console.error('한강 지도 측정 콜백 오류:', error);
@@ -479,7 +479,7 @@ const HomeScreen = ({ navigation }) => {
               if (typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number' &&
                   !isNaN(x) && !isNaN(y) && !isNaN(width) && !isNaN(height) &&
                   width > 0 && height > 0) {
-                setGuideTargetPosition('hanriverLocationList', x, y, width, height);
+                setGuideTargetPosition('LocationList', x, y, width, height);
               }
             } catch (error) {
               console.error('한강공원 목록 측정 콜백 오류:', error);
@@ -531,16 +531,16 @@ const HomeScreen = ({ navigation }) => {
       id: 'map',
       title: '한강 지도',
       description: '한강공원과 강변의 코스를 한눈에 볼 수 있어요.\n확대/축소도 가능해요.',
-      targetId: 'hanRiverMap',
+      targetId: 'Map',
       highlightShape: 'rectangle',
       showArrow: false,
       arrowDirection: 'up',
     },
     {
-      id: 'hanriverLocation',
+      id: 'Location',
       title: '한강공원 선택',
       description: '한강공원 목록에서 "광나루한강공원"을\n클릭해보세요. 위치별 모임을 확인할 수 있어요.',
-      targetId: 'hanriverLocationList',
+      targetId: 'LocationList',
       highlightShape: 'rectangle',
       showArrow: false,
       arrowDirection: 'down',
@@ -981,11 +981,11 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* 한강 지도 섹션 */}
-        <View ref={hanRiverMapRef}>
+        <View ref={MapRef}>
           <HanRiverMap 
             navigation={navigation}
             initialActiveTab="hanriver"
-            onHanriverLocationClick={handleHanriverLocationClick}
+            onHanriverLocationClick={handleLocationClick}
             onLocationButtonRef={setLocationButtonRef}
             onMapRef={setMapRef}
             onLocationListRef={setLocationListRef}

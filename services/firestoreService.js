@@ -15,9 +15,11 @@ import {
   onSnapshot,
   arrayUnion,
   arrayRemove,
-  increment
+  increment,
+  GeoPoint
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import geofirestore from './geofirestoreService';
 
 class FirestoreService {
   constructor() {
@@ -781,6 +783,198 @@ class FirestoreService {
     const messagesQuery = query(messagesRef, orderBy('timestamp', 'asc'));
     
     return onSnapshot(messagesQuery, callback, errorCallback);
+  }
+
+  // ========== GeoFirestore 반경 쿼리 함수 ==========
+  
+  /**
+   * 두 좌표 간 거리 계산 (Haversine 공식)
+   * @param {number} lat1 - 첫 번째 좌표의 위도
+   * @param {number} lon1 - 첫 번째 좌표의 경도
+   * @param {number} lat2 - 두 번째 좌표의 위도
+   * @param {number} lon2 - 두 번째 좌표의 경도
+   * @returns {number} 거리 (km)
+   */
+  calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // 지구 반지름 (km)
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  /**
+   * 이벤트 좌표 추출 (하위 호환성 유지)
+   * @param {Object} eventData - 이벤트 데이터
+   * @returns {GeoPoint|null} GeoPoint 객체 또는 null
+   */
+  getEventCoordinates(eventData) {
+    if (eventData.coordinates) {
+      // GeoFirestore 형식 (새 모임, 우선)
+      return eventData.coordinates;
+    } else if (eventData.customMarkerCoords) {
+      // 기존 형식 (기존 모임, 하위 호환)
+      return new GeoPoint(
+        eventData.customMarkerCoords.latitude,
+        eventData.customMarkerCoords.longitude
+      );
+    }
+    return null;
+  }
+
+  /**
+   * 반경 내 모임 검색 (하위 호환성 포함)
+   * 기존 모임(customMarkerCoords)과 새 모임(coordinates) 모두 검색
+   * @param {number} latitude - 중심 위도
+   * @param {number} longitude - 중심 경도
+   * @param {number} radiusInKm - 반경 (km), 기본값 3km
+   * @returns {Promise<Array>} 모임 배열
+   */
+  async getEventsNearbyHybrid(latitude, longitude, radiusInKm = 3) {
+    try {
+      const nearbyEvents = [];
+
+      // 1. GeoFirestore 쿼리 (새 모임 - coordinates 필드가 있는 모임)
+      const geocollection = geofirestore.collection('events');
+      const center = new GeoPoint(latitude, longitude);
+      const geoQuery = geocollection.near({
+        center: center,
+        radius: radiusInKm
+      });
+      const geoSnapshot = await geoQuery.get();
+
+      // GeoFirestore 결과 추가
+      geoSnapshot.forEach((doc) => {
+        const eventData = doc.data();
+        // 종료된 모임(status: 'ended')은 제외
+        if (eventData.status !== 'ended') {
+          nearbyEvents.push({ id: doc.id, ...eventData });
+        }
+      });
+
+      // 2. 일반 Firestore 쿼리 (기존 모임 - customMarkerCoords만 있는 모임)
+      const eventsRef = collection(this.db, 'events');
+      const allEventsSnapshot = await getDocs(eventsRef);
+
+      // 기존 모임 중 반경 내 모임 추가
+      allEventsSnapshot.forEach((doc) => {
+        const eventData = doc.data();
+        // coordinates가 없고 customMarkerCoords만 있는 모임
+        if (!eventData.coordinates && eventData.customMarkerCoords) {
+          const distance = this.calculateDistance(
+            latitude,
+            longitude,
+            eventData.customMarkerCoords.latitude,
+            eventData.customMarkerCoords.longitude
+          );
+          if (distance <= radiusInKm && eventData.status !== 'ended') {
+            nearbyEvents.push({ id: doc.id, ...eventData });
+          }
+        }
+      });
+
+      return nearbyEvents;
+    } catch (error) {
+      console.error('반경 내 모임 검색 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 반경 내 카페 검색
+   * @param {number} latitude - 중심 위도
+   * @param {number} longitude - 중심 경도
+   * @param {number} radiusInKm - 반경 (km), 기본값 0.7km (700m)
+   * @returns {Promise<Array>} 카페 배열
+   */
+  async getCafesNearby(latitude, longitude, radiusInKm = 0.7) {
+    try {
+      const geocollection = geofirestore.collection('cafes');
+      const center = new GeoPoint(latitude, longitude);
+      
+      const query = geocollection.near({
+        center: center,
+        radius: radiusInKm
+      });
+      
+      const snapshot = await query.get();
+      const cafes = [];
+      
+      snapshot.forEach((doc) => {
+        cafes.push({ id: doc.id, ...doc.data() });
+      });
+      
+      return cafes;
+    } catch (error) {
+      console.error('반경 내 카페 검색 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 모임/카페 검색 (제목, 상호명, 태그)
+   * @param {string} searchQuery - 검색어
+   * @returns {Promise<Array>} 검색 결과 배열 (최대 5개)
+   */
+  async searchEventsAndCafes(searchQuery) {
+    try {
+      if (!searchQuery || searchQuery.trim().length === 0) {
+        return [];
+      }
+
+      const queryLower = searchQuery.toLowerCase().trim();
+      const results = [];
+
+      // 1. 모임 검색 (제목, 태그)
+      const eventsRef = collection(this.db, 'events');
+      const eventsQuery = query(
+        eventsRef,
+        where('status', '!=', 'ended') // 종료된 모임 제외
+      );
+      const eventsSnapshot = await getDocs(eventsQuery);
+
+      eventsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        const titleMatch = data.title?.toLowerCase().includes(queryLower);
+        const tagMatch = data.hashtags?.toLowerCase().includes(queryLower) || 
+                        data.tags?.some(tag => tag.toLowerCase().includes(queryLower));
+        
+        if (titleMatch || tagMatch) {
+          results.push({ 
+            type: 'event', 
+            id: doc.id, 
+            ...data 
+          });
+        }
+      });
+
+      // 2. 카페 검색 (상호명)
+      const cafesRef = collection(this.db, 'cafes');
+      const cafesSnapshot = await getDocs(cafesRef);
+
+      cafesSnapshot.forEach((doc) => {
+        const data = doc.data();
+        const nameMatch = data.name?.toLowerCase().includes(queryLower);
+        
+        if (nameMatch) {
+          results.push({ 
+            type: 'cafe', 
+            id: doc.id, 
+            ...data 
+          });
+        }
+      });
+
+      // 최대 5개 결과 반환
+      return results.slice(0, 5);
+    } catch (error) {
+      console.error('모임/카페 검색 실패:', error);
+      throw error;
+    }
   }
 
   // 모임 종료 시 상태를 'ended'로 변경 (채팅방 데이터 삭제)

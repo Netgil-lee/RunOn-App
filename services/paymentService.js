@@ -208,9 +208,9 @@ class PaymentService {
       if (SUBSCRIPTION_IDS.length > 0) {
         try {
           subscriptions = await fetchProducts({ 
-            skus: SUBSCRIPTION_IDS, 
-            type: 'subs' 
-          });
+        skus: SUBSCRIPTION_IDS, 
+        type: 'subs' 
+      });
           console.log('✅ 구독 제품 로드 완료:', subscriptions.length, '개');
         } catch (subError) {
           console.error('❌ 구독 제품 로드 실패:', subError);
@@ -223,9 +223,9 @@ class PaymentService {
       if (CONSUMABLE_IDS.length > 0) {
         try {
           inAppProducts = await fetchProducts({ 
-            skus: CONSUMABLE_IDS, 
-            type: 'in-app' 
-          });
+        skus: CONSUMABLE_IDS, 
+        type: 'in-app' 
+      });
           console.log('✅ 소비성 제품 로드 완료:', inAppProducts.length, '개');
         } catch (inAppError) {
           console.error('❌ 소비성 제품 로드 실패:', inAppError);
