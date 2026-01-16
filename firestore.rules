@@ -204,5 +204,15 @@ service cloud.firestore {
       allow delete: if request.auth != null && 
         request.auth.uid == resource.data.reportedBy;
     }
+    
+    // 러닝카페 (cafes)
+    match /cafes/{cafeId} {
+      // ⚠️ APPLE 심사용 데모 모드 - 데모 계정 접근 허용
+      // 쿼리 레벨 읽기 허용 (where 쿼리 포함)
+      allow read, list: if request.auth != null;
+      // 카페 생성은 관리자만 가능 (추후 구현)
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
   }
 } 

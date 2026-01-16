@@ -19,11 +19,13 @@ import {
   GeoPoint
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import geofirestore from './geofirestoreService';
+import { firestore } from '../config/firebase';
+import getGeoFirestore from './geofirestoreService';
 
 class FirestoreService {
   constructor() {
-    this.db = getFirestore();
+    // firebase.js에서 이미 생성한 firestore 인스턴스 재사용
+    this.db = firestore;
     this.auth = getAuth();
   }
 
@@ -205,10 +207,27 @@ class FirestoreService {
     
     while (retryCount < maxRetries) {
       try {
+        // GeoFirestore 사용 (새 모임은 새 형식만 사용)
+        const geofirestore = getGeoFirestore();
+        const geocollection = geofirestore.collection('events');
         
-        const eventsRef = collection(this.db, 'events');
-        const docRef = await addDoc(eventsRef, {
-          ...eventData,
+        // customMarkerCoords가 있으면 GeoPoint로 변환하여 coordinates에 저장
+        let coordinates = null;
+        if (eventData.customMarkerCoords) {
+          coordinates = new GeoPoint(
+            eventData.customMarkerCoords.latitude,
+            eventData.customMarkerCoords.longitude
+          );
+        }
+        
+        // customMarkerCoords 제거하고 coordinates만 저장
+        const { customMarkerCoords, ...eventDataWithoutCustomCoords } = eventData;
+        
+        const docRef = await geocollection.add({
+          ...eventDataWithoutCustomCoords,
+          coordinates: coordinates,  // GeoPoint로 저장 (새 필드)
+          // customMarkerCoords는 저장하지 않음 (새 모임은 새 형식만 사용)
+          // GeoFirestore가 자동으로 'g', 'l' 필드 추가
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
@@ -836,9 +855,11 @@ class FirestoreService {
    */
   async getEventsNearbyHybrid(latitude, longitude, radiusInKm = 3) {
     try {
+      console.log('🔍 getEventsNearbyHybrid 시작:', { latitude, longitude, radiusInKm });
       const nearbyEvents = [];
 
       // 1. GeoFirestore 쿼리 (새 모임 - coordinates 필드가 있는 모임)
+      const geofirestore = getGeoFirestore();
       const geocollection = geofirestore.collection('events');
       const center = new GeoPoint(latitude, longitude);
       const geoQuery = geocollection.near({
@@ -847,9 +868,17 @@ class FirestoreService {
       });
       const geoSnapshot = await geoQuery.get();
 
+      console.log('🔍 GeoFirestore 쿼리 결과:', geoSnapshot.size, '개');
+
       // GeoFirestore 결과 추가
       geoSnapshot.forEach((doc) => {
         const eventData = doc.data();
+        console.log('🔍 GeoFirestore 모임:', doc.id, {
+          hasCoordinates: !!eventData.coordinates,
+          hasCustomMarkerCoords: !!eventData.customMarkerCoords,
+          status: eventData.status,
+          title: eventData.title
+        });
         // 종료된 모임(status: 'ended')은 제외
         if (eventData.status !== 'ended') {
           nearbyEvents.push({ id: doc.id, ...eventData });
@@ -857,26 +886,47 @@ class FirestoreService {
       });
 
       // 2. 일반 Firestore 쿼리 (기존 모임 - customMarkerCoords만 있는 모임)
+      // 종료된 모임은 제외 (status != 'ended')
       const eventsRef = collection(this.db, 'events');
-      const allEventsSnapshot = await getDocs(eventsRef);
+      const eventsQuery = query(
+        eventsRef,
+        where('status', '!=', 'ended')
+      );
+      const allEventsSnapshot = await getDocs(eventsQuery);
+
+      console.log('🔍 종료되지 않은 Firestore 모임 수:', allEventsSnapshot.size, '개');
 
       // 기존 모임 중 반경 내 모임 추가
       allEventsSnapshot.forEach((doc) => {
         const eventData = doc.data();
+        const hasCoordinates = !!eventData.coordinates;
+        const hasCustomMarkerCoords = !!eventData.customMarkerCoords;
+        
+        console.log('🔍 Firestore 모임:', doc.id, {
+          hasCoordinates,
+          hasCustomMarkerCoords,
+          status: eventData.status,
+          title: eventData.title,
+          customMarkerCoords: eventData.customMarkerCoords
+        });
+        
         // coordinates가 없고 customMarkerCoords만 있는 모임
-        if (!eventData.coordinates && eventData.customMarkerCoords) {
+        if (!hasCoordinates && hasCustomMarkerCoords) {
           const distance = this.calculateDistance(
             latitude,
             longitude,
             eventData.customMarkerCoords.latitude,
             eventData.customMarkerCoords.longitude
           );
-          if (distance <= radiusInKm && eventData.status !== 'ended') {
+          console.log('🔍 거리 계산:', doc.id, distance, 'km');
+          if (distance <= radiusInKm) {
             nearbyEvents.push({ id: doc.id, ...eventData });
+            console.log('✅ 반경 내 모임 추가:', doc.id);
           }
         }
       });
 
+      console.log('✅ 최종 반경 내 모임 수:', nearbyEvents.length, '개');
       return nearbyEvents;
     } catch (error) {
       console.error('반경 내 모임 검색 실패:', error);
@@ -893,6 +943,8 @@ class FirestoreService {
    */
   async getCafesNearby(latitude, longitude, radiusInKm = 0.7) {
     try {
+      console.log('🔍 getCafesNearby 시작:', { latitude, longitude, radiusInKm });
+      const geofirestore = getGeoFirestore();
       const geocollection = geofirestore.collection('cafes');
       const center = new GeoPoint(latitude, longitude);
       
@@ -904,14 +956,23 @@ class FirestoreService {
       const snapshot = await query.get();
       const cafes = [];
       
+      console.log('🔍 GeoFirestore 카페 쿼리 결과:', snapshot.size, '개');
+      
       snapshot.forEach((doc) => {
         cafes.push({ id: doc.id, ...doc.data() });
       });
       
+      console.log('✅ 반경 내 카페 수:', cafes.length, '개');
       return cafes;
     } catch (error) {
+      // 권한 오류 또는 기타 오류 시 빈 배열 반환 (카페가 없을 수도 있음)
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ 카페 검색 권한 오류 (카페가 없거나 권한 없음):', error.message);
+        return [];
+      }
       console.error('반경 내 카페 검색 실패:', error);
-      throw error;
+      // 다른 오류도 빈 배열 반환 (앱이 계속 작동하도록)
+      return [];
     }
   }
 
@@ -972,8 +1033,14 @@ class FirestoreService {
       // 최대 5개 결과 반환
       return results.slice(0, 5);
     } catch (error) {
+      // 권한 오류 또는 기타 오류 시 빈 배열 반환 (검색이 계속 진행되도록)
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ 모임/카페 검색 권한 오류:', error.message);
+        return [];
+      }
       console.error('모임/카페 검색 실패:', error);
-      throw error;
+      // 다른 오류도 빈 배열 반환하여 검색이 계속 진행되도록 함
+      return [];
     }
   }
 
