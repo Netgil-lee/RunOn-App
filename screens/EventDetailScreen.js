@@ -723,8 +723,17 @@ const EventDetailScreen = ({ route, navigation }) => {
         }} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>모임 상세</Text>
-        <View style={styles.headerSpacer} />
+        <Text style={styles.headerTitle} numberOfLines={1}>{event.title}</Text>
+        <View style={styles.headerRightSection}>
+          {event.difficulty && (
+            <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(event.difficulty) }]}>
+              <Text style={styles.difficultyText}>{event.difficulty}</Text>
+            </View>
+          )}
+          <View style={styles.typeContainer}>
+            <Text style={styles.typeText}>{event.type}</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView 
@@ -732,90 +741,57 @@ const EventDetailScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 65 }}
       >
-        {/* 이벤트 제목 */}
-        <View style={styles.titleSection}>
-          <View style={styles.titleRow}>
-            <Text style={styles.eventTitle}>{event.title}</Text>
-            <View style={styles.titleRightSection}>
-              {event.difficulty && (
-                <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(event.difficulty) }]}>
-                  <Text style={styles.difficultyText}>{event.difficulty}</Text>
+
+        {/* 기본 정보 */}
+        <View style={styles.infoSection}>
+          <View style={styles.infoGrid}>
+            {/* 첫 번째 행: 날짜 | 시간 */}
+            <View style={styles.infoGridRow}>
+              <View style={styles.infoGridItem}>
+                <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>날짜</Text>
+                  <Text style={styles.infoValue}>
+                    {formatDate(event.date)}
+                  </Text>
                 </View>
-              )}
-              <View style={styles.typeContainer}>
-                <Text style={styles.typeText}>{event.type}</Text>
+              </View>
+              
+              <View style={styles.infoGridItem}>
+                <Ionicons name="time" size={16} color={COLORS.ICON_DEFAULT} />
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>시간</Text>
+                  <Text style={styles.infoValue}>{event.time}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* 구분선 */}
+            <View style={styles.infoGridHorizontalDivider} />
+
+            {/* 두 번째 행: 거리 | 페이스 */}
+            <View style={styles.infoGridRow}>
+              <View style={styles.infoGridItem}>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>거리</Text>
+                  <Text style={styles.infoValue}>{event.distance}km</Text>
+                </View>
+              </View>
+              
+              <View style={styles.infoGridItem}>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>페이스</Text>
+                  <Text style={styles.infoValue}>{event.pace}</Text>
+                </View>
               </View>
             </View>
           </View>
         </View>
 
-        {/* 기본 정보 */}
-        <View style={styles.infoSection}>
-          <View style={styles.infoRow}>
-            <Ionicons name="location" size={20} color={COLORS.ICON_DEFAULT} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>장소</Text>
-              <Text style={styles.infoValue}>{event.location}</Text>
-              {event.customLocation && (
-                <Text style={styles.infoDetailValue}>📍 {event.customLocation}</Text>
-              )}
-            </View>
-          </View>
-
-          {/* 인라인 지도 */}
-          <View style={styles.inlineMapContainer}>
-            <WebView
-              source={{ html: createInlineMapHTML() }}
-              style={styles.inlineMapWebView}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              scrollEnabled={false}
-              showsHorizontalScrollIndicator={false}
-              showsVerticalScrollIndicator={false}
-
-            />
-          </View>
-
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar" size={20} color={COLORS.ICON_DEFAULT} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>날짜</Text>
-              <Text style={styles.infoValue}>
-                {formatDate(event.date)}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Ionicons name="time" size={20} color={COLORS.ICON_DEFAULT} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>시간</Text>
-              <Text style={styles.infoValue}>{event.time}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 러닝 정보 */}
-        <View style={styles.runningInfoSection}>
-          <Text style={styles.sectionTitle}>러닝 정보</Text>
-          
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statLabel}>거리</Text>
-              <Text style={styles.statValue}>{event.distance}km</Text>
-            </View>
-            
-            <View style={styles.statDivider} />
-            
-            <View style={styles.statItem}>
-              <Text style={styles.statLabel}>페이스</Text>
-              <Text style={styles.statValue}>{event.pace}</Text>
-            </View>
-          </View>
-
-
-          {/* 해시태그를 러닝 정보 카드 내부로 이동 */}
-          {event.hashtags && parseHashtags(event.hashtags).length > 0 && (
+        {/* 러닝 정보 - 해시태그만 */}
+        {event.hashtags && parseHashtags(event.hashtags).length > 0 && (
+          <View style={styles.runningInfoSection}>
+            <Text style={styles.sectionTitle}>러닝 정보</Text>
             <View style={styles.hashtagContainer}>
               {parseHashtags(event.hashtags).map((tag, index) => (
                 <View key={index} style={styles.hashtagBadge}>
@@ -823,8 +799,8 @@ const EventDetailScreen = ({ route, navigation }) => {
                 </View>
               ))}
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* 참여자 정보 */}
         <View style={styles.participantsSection}>
@@ -1016,6 +992,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
+    marginTop: -16, // 위로 올리기
   },
   header: {
     flexDirection: 'row',
@@ -1023,80 +1000,86 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
+    backgroundColor: COLORS.BACKGROUND,
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 22,
+    flex: 1,
+    fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.TEXT,
+    marginLeft: 12,
+    marginRight: 12,
   },
-  headerSpacer: {
-    width: 32,
+  headerRightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   content: {
     flex: 1,
-    padding: 16,
-  },
-  titleSection: {
-    marginBottom: 24,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  eventTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.TEXT,
-    flex: 1,
-    marginRight: 12,
-  },
-  titleRightSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    padding: 10,
+    backgroundColor: COLORS.BACKGROUND,
   },
   typeContainer: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: '#FF0073CC', // 구독서비스 하단버튼 색상 투명도 80% (CC = 204/255 ≈ 80%)
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 5, // 위아래 여백 감소
     borderRadius: 20,
   },
   typeText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: COLORS.TEXT,
   },
   infoSection: {
     backgroundColor: COLORS.CARD,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     marginBottom: 16,
+  },
+  infoGrid: {
+    flexDirection: 'column',
+  },
+  infoGridRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  infoGridItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  infoGridHorizontalDivider: {
+    height: 1,
+    width: '100%',
+    backgroundColor: COLORS.BORDER,
+    marginVertical: 12,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   infoContent: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   infoLabel: {
-    fontSize: 16,
+    fontSize: 12,
     color: COLORS.SECONDARY,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   infoValue: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.TEXT,
   },
   infoDetailValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: COLORS.PRIMARY,
     marginTop: 4,
@@ -1117,10 +1100,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.TEXT,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -1131,12 +1114,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statLabel: {
-    fontSize: 16,
+    fontSize: 12,
     color: COLORS.SECONDARY,
     marginBottom: 4,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: 'bold',
     color: COLORS.TEXT,
   },
@@ -1151,23 +1134,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   difficultyText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#000000',
   },
   participantsSection: {
     backgroundColor: COLORS.CARD,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     marginBottom: 16,
   },
   participantsInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   participantsText: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.TEXT,
     marginLeft: 8,
   },
@@ -1218,7 +1201,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   participantInitial: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#ffffff',
   },
@@ -1227,15 +1210,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   participantName: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.TEXT,
     fontWeight: '500',
     marginBottom: 4,
   },
   participantBio: {
-    fontSize: 14,
+    fontSize: 12,
     color: COLORS.SECONDARY,
-    lineHeight: 18,
+    lineHeight: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -1244,7 +1227,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.TEXT_SECONDARY,
   },
   emptyContainer: {
@@ -1254,7 +1237,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.TEXT_SECONDARY,
   },
   hashtagSection: {
@@ -1275,7 +1258,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   hashtagText: {
-    fontSize: 14,
+    fontSize: 12,
     color: COLORS.PRIMARY,
     fontWeight: '500',
   },
@@ -1309,7 +1292,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.PRIMARY,
   },
   actionButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   completedButton: {

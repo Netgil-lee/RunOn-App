@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Image,
   Switch,
+  Animated,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
@@ -157,6 +158,10 @@ const ProfileScreen = ({ navigation }) => {
   const [editData, setEditData] = useState({});
   const [loading, setLoading] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  
+  // 모달 오버레이 페이드 애니메이션
+  const editModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const settingsModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   const [settings, setSettings] = useState({
     notifications: true,
     vibration: false,
@@ -264,6 +269,39 @@ const ProfileScreen = ({ navigation }) => {
       console.error('매너거리 데이터 가져오기 실패:', error);
     }
   };
+
+  // 모달 애니메이션 효과
+  useEffect(() => {
+    if (editModalVisible) {
+      Animated.timing(editModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(editModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [editModalVisible, editModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (settingsVisible) {
+      Animated.timing(settingsModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(settingsModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [settingsVisible, settingsModalBackdropOpacity]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -1070,8 +1108,16 @@ const ProfileScreen = ({ navigation }) => {
 
 
         {/* 프로필 수정 모달 */}
-        <Modal visible={editModalVisible} animationType="slide" transparent>
+        <Modal visible={editModalVisible} animationType="none" transparent>
           <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: editModalBackdropOpacity,
+                },
+              ]}
+            />
             <View style={styles.modalContent}>
               {/* 모달 헤더 */}
               <View style={styles.modalHeader}>
@@ -1588,9 +1634,16 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
     backgroundColor: COLORS.CARD,

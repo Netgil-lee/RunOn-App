@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -25,6 +26,28 @@ const COLORS = {
 const TermsPrivacyModal = ({ visible, onClose, type }) => {
   const isTerms = type === 'terms';
   const isChildSafety = type === 'child-safety';
+  
+  // 모달 오버레이 페이드 애니메이션
+  const modalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  
+  // 모달이 열릴 때 애니메이션
+  useEffect(() => {
+    if (visible) {
+      // 배경 페이드 인 애니메이션
+      Animated.timing(modalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // 배경 페이드 아웃 애니메이션
+      Animated.timing(modalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible, modalBackdropOpacity]);
   
   let title = '개인정보처리방침';
   if (isTerms) title = '이용약관(EULA)';
@@ -204,11 +227,19 @@ RunOn은 모든 사용자가 안전하고 즐겁게 이용할 수 있는 환경�
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="none"
       transparent={true}
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
+        <Animated.View
+          style={[
+            styles.modalBackdrop,
+            {
+              opacity: modalBackdropOpacity,
+            },
+          ]}
+        />
         <View style={styles.modalContainer}>
           <SafeAreaView style={styles.modalContent}>
             {/* 헤더 */}
@@ -233,8 +264,15 @@ RunOn은 모든 사용자가 안전하고 즐겁게 이용할 수 있는 환경�
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   modalContainer: {
     backgroundColor: COLORS.BACKGROUND,

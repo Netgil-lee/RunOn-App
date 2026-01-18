@@ -77,8 +77,7 @@ const MeetingCard = ({ meeting, onClose, onJoin }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          <Ionicons name="location" size={16} color={COLORS.PRIMARY} />
-          <Text style={styles.locationName}>{meeting.location}</Text>
+          <Text style={styles.title}>{meeting.title}</Text>
         </View>
         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
           <Ionicons name="close" size={20} color={COLORS.SECONDARY} />
@@ -86,9 +85,6 @@ const MeetingCard = ({ meeting, onClose, onJoin }) => {
       </View>
 
       <View style={styles.content}>
-        {/* 제목 */}
-        <Text style={styles.title}>{meeting.title}</Text>
-        
         {/* 설명 */}
         <Text style={styles.description}>{meeting.description}</Text>
         

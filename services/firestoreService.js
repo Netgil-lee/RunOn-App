@@ -214,24 +214,41 @@ class FirestoreService {
         // customMarkerCoords가 있으면 GeoPoint로 변환하여 coordinates에 저장
         let coordinates = null;
         if (eventData.customMarkerCoords) {
-          coordinates = new GeoPoint(
-            eventData.customMarkerCoords.latitude,
-            eventData.customMarkerCoords.longitude
-          );
+          // lat/lng 또는 latitude/longitude 둘 다 지원
+          const lat = eventData.customMarkerCoords.latitude || eventData.customMarkerCoords.lat;
+          const lng = eventData.customMarkerCoords.longitude || eventData.customMarkerCoords.lng;
+          
+          if (lat != null && lng != null) {
+            coordinates = new GeoPoint(lat, lng);
+          } else {
+            console.error('❌ customMarkerCoords에 유효한 좌표가 없습니다:', eventData.customMarkerCoords);
+            throw new Error('유효한 좌표가 필요합니다.');
+          }
         }
         
         // customMarkerCoords 제거하고 coordinates만 저장
         const { customMarkerCoords, ...eventDataWithoutCustomCoords } = eventData;
         
+        // 저장할 데이터 로그 출력 (디버깅용)
+        console.log('📝 저장할 이벤트 데이터:', {
+          location: eventDataWithoutCustomCoords.location,
+          customLocation: eventDataWithoutCustomCoords.customLocation,
+          coordinates: coordinates ? { lat: coordinates.latitude, lng: coordinates.longitude } : null,
+          title: eventDataWithoutCustomCoords.title,
+          type: eventDataWithoutCustomCoords.type
+        });
+        
         const docRef = await geocollection.add({
           ...eventDataWithoutCustomCoords,
           coordinates: coordinates,  // GeoPoint로 저장 (새 필드)
+          status: eventDataWithoutCustomCoords.status || 'active', // status 필드 명시적 설정
           // customMarkerCoords는 저장하지 않음 (새 모임은 새 형식만 사용)
           // GeoFirestore가 자동으로 'g', 'l' 필드 추가
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
         
+        console.log('✅ 이벤트 저장 완료, ID:', docRef.id);
         return { success: true, id: docRef.id };
         
       } catch (error) {
@@ -279,6 +296,53 @@ class FirestoreService {
       return events;
     } catch (error) {
       console.error('이벤트 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 종료되지 않은 모든 모임 조회 (반경 제한 없음)
+  async getAllActiveEvents() {
+    try {
+      const eventsRef = collection(this.db, 'events');
+      // status가 'ended'가 아닌 모든 이벤트 조회 (status가 없는 경우도 포함)
+      const eventsQuery = query(
+        eventsRef,
+        where('status', '!=', 'ended')
+      );
+      
+      const querySnapshot = await getDocs(eventsQuery);
+      const events = [];
+      querySnapshot.forEach((doc) => {
+        const eventData = doc.data();
+        const processedEvent = {
+          id: doc.id,
+          ...eventData,
+          createdAt: eventData.createdAt?.toDate?.() || eventData.createdAt,
+          updatedAt: eventData.updatedAt?.toDate?.() || eventData.updatedAt,
+        };
+        
+        // 디버깅: location 필드 확인
+        if (!processedEvent.location) {
+          console.warn('⚠️ location 필드가 없는 이벤트:', doc.id, processedEvent);
+        }
+        
+        events.push(processedEvent);
+      });
+      
+      // 클라이언트 측에서 생성일 기준 내림차순 정렬
+      events.sort((a, b) => {
+        const aDate = a.createdAt?.getTime?.() || 0;
+        const bDate = b.createdAt?.getTime?.() || 0;
+        return bDate - aDate;
+      });
+      
+      console.log('✅ 전체 활성 모임 조회 완료:', events.length, '개');
+      // 디버깅: location 필드가 있는 이벤트 수 확인
+      const eventsWithLocation = events.filter(e => e.location);
+      console.log('📍 location 필드가 있는 모임:', eventsWithLocation.length, '개');
+      return events;
+    } catch (error) {
+      console.error('전체 활성 모임 조회 실패:', error);
       throw error;
     }
   }

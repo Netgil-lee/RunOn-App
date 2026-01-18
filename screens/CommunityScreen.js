@@ -44,6 +44,23 @@ const CommunityScreen = ({ navigation, route }) => {
     console.log('🔍 CommunityScreen - unread board notifications:', notifications.filter(n => (n.type === 'like' || n.type === 'comment') && !n.isRead).length);
   }, [hasChatNotification, hasBoardNotification, notifications]);
 
+  // 모달 애니메이션 효과
+  useEffect(() => {
+    if (showFilters) {
+      Animated.timing(filtersModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(filtersModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showFilters, filtersModalBackdropOpacity]);
+
   // 특정 채팅방의 읽지 않은 알림 개수 계산
   const getUnreadCountForChatRoom = (chatRoomId) => {
     // chatRoomId를 문자열로 변환하여 비교
@@ -83,6 +100,9 @@ const CommunityScreen = ({ navigation, route }) => {
   // 검색 및 필터 상태
   const [searchText, setSearchText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  
+  // 모달 오버레이 페이드 애니메이션
+  const filtersModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   const [selectedLocation, setSelectedLocation] = useState('전체');
   const [selectedDifficulty, setSelectedDifficulty] = useState('전체');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('전체');
@@ -986,10 +1006,18 @@ const CommunityScreen = ({ navigation, route }) => {
       <Modal
         visible={showFilters}
         transparent={true}
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setShowFilters(false)}
       >
         <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.modalBackdrop,
+              {
+                opacity: filtersModalBackdropOpacity,
+              },
+            ]}
+          />
           <View style={styles.filterModal}>
             <View style={styles.filterHeader}>
               <Text style={styles.filterTitle}>필터 설정</Text>
@@ -1517,8 +1545,15 @@ const styles = StyleSheet.create({
   // 필터 모달 스타일
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   filterModal: {
     backgroundColor: COLORS.BACKGROUND,

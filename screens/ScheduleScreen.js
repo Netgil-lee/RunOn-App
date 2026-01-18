@@ -14,6 +14,7 @@ import {
   SafeAreaView,
   Image,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,6 +33,8 @@ import RunningShareModal from '../components/RunningShareModal';
 import ENV from '../config/environment';
 import storageService from '../services/storageService';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { searchPlace } from '../services/kakaoPlacesService';
+import * as Location from 'expo-location';
 
 const firestore = getFirestore();
 
@@ -1490,9 +1493,24 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   // 장소 선택 관련 상태
   const [selectedLocationType, setSelectedLocationType] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
-  const [showMapModal, setShowMapModal] = useState(false);
-  const [selectedLocationData, setSelectedLocationData] = useState(null);
+  // 기본 위치: 서울 중심 (서울시청) - GPS 위치 가져오기 실패 시 사용
+  const [selectedLocationData, setSelectedLocationData] = useState({
+    name: '서울시청',
+    lat: 37.5665,
+    lng: 126.9780,
+    address: '',
+  });
+  const [isLocationInitialized, setIsLocationInitialized] = useState(false);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false); // 드롭다운 표시 상태
+  // 검색 관련 state
+  const [locationSearchQuery, setLocationSearchQuery] = useState('');
+  const [locationSearchResults, setLocationSearchResults] = useState([]);
+  const [isLocationSearching, setIsLocationSearching] = useState(false);
+  const [showLocationSearchResults, setShowLocationSearchResults] = useState(false);
+  
+  // 모달 오버레이 페이드 애니메이션
+  const datePickerModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const timePickerModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   
   // 커스텀 마커 관련 상태
   const [customLocation, setCustomLocation] = useState('');
@@ -1505,10 +1523,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [inputLayout, setInputLayout] = useState(null);
   const [customLocationInputLayout, setCustomLocationInputLayout] = useState(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  
-  // 코스 사진 모달 관련 상태
-  const [showCoursePhotoModal, setShowCoursePhotoModal] = useState(false);
-  const [selectedCoursePhoto, setSelectedCoursePhoto] = useState(null);
 
   // 사용자 프로필 정보 가져오기
   useEffect(() => {
@@ -1531,6 +1545,62 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
     fetchUserProfile();
   }, [user?.uid]);
+
+  // 현재 위치 가져오기 (편집 모드가 아닐 때만)
+  useEffect(() => {
+    const getCurrentLocation = async () => {
+      // 편집 모드이거나 이미 초기화된 경우 스킵
+      if (editingEvent || isLocationInitialized) {
+        return;
+      }
+
+      try {
+        // 위치 권한 요청
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        
+        if (status === 'granted') {
+          // 현재 위치 가져오기
+          try {
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+              timeout: 10000, // 10초 타임아웃
+            });
+
+            if (location && location.coords) {
+              setSelectedLocationData({
+                name: '',
+                lat: location.coords.latitude,
+                lng: location.coords.longitude,
+                address: '',
+              });
+              setIsLocationInitialized(true);
+              return;
+            }
+          } catch (locationError) {
+            console.log('현재 위치 가져오기 실패 (네트워크/타임아웃):', locationError);
+            // 네트워크 문제나 타임아웃 시 기본 위치 사용
+          }
+        } else {
+          console.log('위치 권한이 거부됨');
+          // 권한 거부 시 기본 위치 사용
+        }
+      } catch (error) {
+        console.log('위치 권한 요청 실패:', error);
+        // 에러 발생 시 기본 위치 사용
+      }
+
+      // 권한 거부, 네트워크 문제, 또는 에러 발생 시 기본 위치(서울시청) 사용
+      setSelectedLocationData({
+        name: '서울시청',
+        lat: 37.5665,
+        lng: 126.9780,
+        address: '',
+      });
+      setIsLocationInitialized(true);
+    };
+
+    getCurrentLocation();
+  }, [editingEvent, isLocationInitialized]);
 
 
 
@@ -1603,20 +1673,38 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   // 편집 모드 초기화
   useEffect(() => {
     if (editingEvent) {
+      // 편집 모드에서는 위치 초기화를 스킵하도록 플래그 설정
+      setIsLocationInitialized(true);
+      
       // 장소 관련 데이터 초기화
       if (editingEvent.location) {
-        // 기존 장소가 한강공원인지 강변인지 판단
+        // 기존 장소가 한강공원인지 강변인지 판단 (하위 호환성)
         const hanRiverPark = hanRiverParks.find(park => park.name === editingEvent.location);
         const riverSide = riverSides.find(river => river.name === editingEvent.location);
         
         if (hanRiverPark) {
-          setSelectedLocationType('hanriver');
-          setSelectedLocation(hanRiverPark.id);
+          // 기존 한강공원 데이터 사용
+          setSelectedLocation('custom');
           setSelectedLocationData(hanRiverPark);
+          setLocationSearchQuery(editingEvent.location);
         } else if (riverSide) {
-          setSelectedLocationType('riverside');
-          setSelectedLocation(riverSide.id);
+          // 기존 강변 데이터 사용
+          setSelectedLocation('custom');
           setSelectedLocationData(riverSide);
+          setLocationSearchQuery(editingEvent.location);
+        } else {
+          // 검색으로 선택된 장소 또는 기타 장소
+          setSelectedLocation('custom');
+          setLocationSearchQuery(editingEvent.location);
+          // customMarkerCoords가 있으면 사용, 없으면 기본 좌표 설정
+          if (editingEvent.customMarkerCoords) {
+            setSelectedLocationData({
+              name: editingEvent.location,
+              lat: editingEvent.customMarkerCoords.lat,
+              lng: editingEvent.customMarkerCoords.lng,
+              address: '',
+            });
+          }
         }
       }
       
@@ -1630,6 +1718,9 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         setCustomMarkerCoords(editingEvent.customMarkerCoords);
         setHasCustomMarker(true);
       }
+    } else {
+      // 편집 모드가 아닐 때는 위치 초기화 플래그 리셋
+      setIsLocationInitialized(false);
     }
   }, [editingEvent]);
 
@@ -1743,10 +1834,80 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     };
   };
 
+  // 장소 검색 함수
+  const performLocationSearch = async (query) => {
+    if (!query.trim()) {
+      setLocationSearchResults([]);
+      setShowLocationSearchResults(false);
+      setIsLocationSearching(false);
+      return;
+    }
+
+    setIsLocationSearching(true);
+    setShowLocationSearchResults(true);
+
+    try {
+      const results = await searchPlace(query, { size: 10 });
+      setLocationSearchResults(results);
+      
+      if (results.length === 0) {
+        Alert.alert('검색 결과 없음', '장소를 찾을 수 없습니다.');
+      }
+    } catch (error) {
+      console.error('장소 검색 실패:', error);
+      Alert.alert('검색 실패', '장소를 찾을 수 없습니다.');
+      setLocationSearchResults([]);
+    } finally {
+      setIsLocationSearching(false);
+    }
+  };
+
+  // 검색 결과 선택 핸들러
+  const handleLocationSearchResultSelect = (result) => {
+    const locationName = result.place_name || result.name;
+    const locationLat = parseFloat(result.y || result.lat);
+    const locationLng = parseFloat(result.x || result.lng);
+    
+    // 선택된 장소 정보 저장
+    setLocation(locationName);
+    setSelectedLocationData({
+      name: locationName,
+      lat: locationLat,
+      lng: locationLng,
+      address: result.address_name || result.road_address_name || '',
+    });
+    setSelectedLocation('custom'); // 커스텀 위치로 설정
+    setLocationSearchQuery(locationName);
+    setShowLocationSearchResults(false);
+    
+    // 지도에 마커 표시를 위해 커스텀 마커 좌표 설정
+    setCustomMarkerCoords({
+      lat: locationLat,
+      lng: locationLng
+    });
+    setHasCustomMarker(true);
+  };
+
+  // Debounce를 통한 자동 검색
+  useEffect(() => {
+    if (!locationSearchQuery.trim()) {
+      setLocationSearchResults([]);
+      setShowLocationSearchResults(false);
+      setIsLocationSearching(false);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      performLocationSearch(locationSearchQuery);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [locationSearchQuery]);
+
   const canProceed = () => {
     switch (currentStep) {
       case 1: return eventType && title.trim();
-      case 2: return selectedLocation && location && dateString && timeString; // 마커와 상세 위치 설명은 handleNext에서 체크
+      case 2: return location && dateString && timeString; // 검색으로 선택된 장소만 확인
       case 3: return distance && minPace && maxPace && difficulty;
       case 4: return maxParticipants && parseInt(maxParticipants) >= 1 && parseInt(maxParticipants) <= 5; // 호스트 제외 최대 5명
       default: return false;
@@ -1859,10 +2020,27 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     const finalOrganizerImage = organizerImage;
     
     
+    // location 필드 검증 및 설정
+    const finalLocation = location && location.trim() ? location.trim() : (selectedLocationData?.name || '');
+    
+    if (!finalLocation) {
+      Alert.alert('장소를 선택해주세요', '검색을 통해 모임 장소를 선택해주세요.');
+      return;
+    }
+
+    // 디버깅: 저장 전 데이터 확인
+    console.log('📝 모임 생성 데이터 확인:', {
+      location: finalLocation,
+      locationState: location,
+      selectedLocationData: selectedLocationData,
+      customMarkerCoords: customMarkerCoords,
+      customLocation: customLocation
+    });
+    
     const newEvent = {
       type: eventType,
       title: title.trim(),
-      location: location.trim(),
+      location: finalLocation, // 검색으로 선택한 장소명 사용
       date: dateString,
       time: timeString,
       distance,
@@ -1878,6 +2056,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       createdBy: user?.uid, // 모임 생성자 UID 추가
     };
 
+    console.log('📤 onEventCreated 호출, location:', newEvent.location);
     onEventCreated(newEvent);
   };
 
@@ -2061,154 +2240,78 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       <Text style={styles.inputLabel}>장소 선택</Text>
       
       {/* 1단계: 장소 유형 선택 */}
-      <View style={styles.locationTypeContainer}>
-        <TouchableOpacity
-          style={[
-            styles.locationTypeButton,
-            selectedLocationType === 'hanriver' && styles.locationTypeButtonSelected,
-          ]}
-          onPress={() => {
-            if (selectedLocationType === 'hanriver') {
-              // 이미 선택된 경우 초기화
-              setSelectedLocationType('');
-              setSelectedLocation('');
-              setLocation('');
-              setSelectedLocationData(null);
-              setShowLocationDropdown(false);
-            } else {
-              // 새로 선택
-              setSelectedLocationType('hanriver');
-              setSelectedLocation('');
-              setLocation('');
-              setSelectedLocationData(null);
-              setShowLocationDropdown(false);
-            }
+      {/* 장소 검색바 */}
+      <View style={styles.locationSearchContainer}>
+        <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.locationSearchIcon} />
+        <TextInput
+          style={styles.locationSearchInput}
+          placeholder="장소 검색 (예: 뚝섬한강공원, 반포한강공원 등)"
+          placeholderTextColor={COLORS.SECONDARY}
+          value={locationSearchQuery}
+          onChangeText={setLocationSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onFocus={() => setShowLocationSearchResults(true)}
+          onBlur={() => {
+            // 약간의 지연 후 드롭다운 닫기 (선택 이벤트가 먼저 발생하도록)
+            setTimeout(() => setShowLocationSearchResults(false), 200);
           }}
-        >
-          <Text style={styles.locationTypeEmoji}>🌉</Text>
-          <Text style={styles.locationTypeText}>한강공원</Text>
-        </TouchableOpacity>
-        
+        />
+        {isLocationSearching && (
+          <ActivityIndicator size="small" color={COLORS.PRIMARY} style={styles.locationSearchLoading} />
+        )}
+        {locationSearchQuery.length > 0 && !isLocationSearching && (
         <TouchableOpacity
-          style={[
-            styles.locationTypeButton,
-            selectedLocationType === 'riverside' && styles.locationTypeButtonSelected,
-          ]}
           onPress={() => {
-            if (selectedLocationType === 'riverside') {
-              // 이미 선택된 경우 초기화
-              setSelectedLocationType('');
-              setSelectedLocation('');
-              setLocation('');
-              setSelectedLocationData(null);
-              setShowLocationDropdown(false);
-            } else {
-              // 새로 선택
-              setSelectedLocationType('riverside');
-              setSelectedLocation('');
-              setLocation('');
-              setSelectedLocationData(null);
-              setShowLocationDropdown(false);
-            }
-          }}
-        >
-          <Text style={styles.locationTypeEmoji}>🏞️</Text>
-          <Text style={styles.locationTypeText}>강변</Text>
+              setLocationSearchQuery('');
+              setLocationSearchResults([]);
+              setShowLocationSearchResults(false);
+            }}
+            style={styles.locationSearchClearButton}
+          >
+            <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
         </TouchableOpacity>
+        )}
       </View>
 
-      {/* 2단계: 구체적 장소 선택 드롭다운 */}
-      {selectedLocationType && (
-        <View style={styles.specificLocationContainer}>
-          <Text style={styles.specificLocationLabel}>
-            {selectedLocationType === 'hanriver' ? '한강공원 선택' : '강변 선택'}
-          </Text>
+      {/* 검색 결과 리스트 */}
+      {showLocationSearchResults && locationSearchResults.length > 0 && (
+        <View style={styles.locationSearchResultsDropdown}>
+          <ScrollView style={styles.locationSearchResultsList}>
+            {locationSearchResults.map((result, index) => (
           <TouchableOpacity
-            style={styles.dropdownButton}
-            onPress={() => setShowLocationDropdown(!showLocationDropdown)}
-          >
-            <Text style={[
-              styles.dropdownButtonText,
-              selectedLocationData ? styles.dropdownButtonTextSelected : null
-            ]}>
-              {selectedLocationData ? selectedLocationData.name : 
-               `${selectedLocationType === 'hanriver' ? '한강공원을' : '강변을'} 선택해주세요`}
-            </Text>
-            <Ionicons 
-              name={showLocationDropdown ? "chevron-up" : "chevron-down"} 
-              size={20} 
-              color="#666666" 
-            />
-          </TouchableOpacity>
-          
-          {/* 드롭다운 목록 */}
-          {showLocationDropdown && (
-            <View style={styles.dropdownList}>
-              <ScrollView 
-                style={styles.dropdownScrollView}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled={true}
+                key={index}
+                style={styles.locationSearchResultItem}
+                onPress={() => handleLocationSearchResultSelect(result)}
               >
-                {(selectedLocationType === 'hanriver' ? hanRiverParks : riverSides).map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.dropdownItem,
-                      selectedLocation === item.id && styles.dropdownItemSelected
-                    ]}
-                    onPress={() => {
-                      setSelectedLocation(item.id);
-                      setLocation(item.name);
-                      setSelectedLocationData(item);
-                      setShowLocationDropdown(false);
-                    }}
-                  >
-                    {item.popular && (
-                      <View style={styles.popularBadgeSmall}>
-                        <Text style={styles.popularBadgeSmallText}>인기</Text>
-                      </View>
-                    )}
-                    <Text style={styles.dropdownItemText}>{item.name}</Text>
-                    <Text style={styles.dropdownItemDistance}>{item.distance}</Text>
+            <Ionicons 
+                  name="location"
+              size={20} 
+                  color={COLORS.PRIMARY}
+                  style={styles.locationSearchResultIcon}
+                />
+                <View style={styles.locationSearchResultContent}>
+                  <Text style={styles.locationSearchResultTitle}>
+                    {result.place_name || result.name}
+                  </Text>
+                  <Text style={styles.locationSearchResultSubtitle} numberOfLines={1}>
+                    {result.address_name || result.road_address_name || ''}
+                  </Text>
+                  {result.category_name && (
+                    <Text style={styles.locationSearchResultCategory}>{result.category_name}</Text>
+                  )}
+                </View>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-            </View>
-          )}
         </View>
       )}
 
       {/* 3단계: 선택된 장소 정보 및 지도 */}
-      {selectedLocationData && (
-        <View style={styles.selectedLocationSection}>
-                      {selectedLocationType === 'riverside' && (
-              <View style={styles.coursePhotoSection}>
-                <TouchableOpacity
-                  style={styles.coursePhotoButton}
-                  onPress={() => {
-                    if (selectedLocationData) {
-                      setSelectedCoursePhoto(selectedLocationData);
-                      setShowCoursePhotoModal(true);
-                    } else {
-                    }
-                  }}
-                >
-                  <View style={styles.coursePhotoButtonContent}>
-                    <View style={styles.coursePhotoIconContainer}>
-                      <Ionicons name="camera" size={20} color={COLORS.PRIMARY} />
-                    </View>
-                    <View style={styles.coursePhotoTextContainer}>
-                      <Text style={styles.coursePhotoButtonTitle}>코스 사진</Text>
-                      <Text style={styles.coursePhotoButtonSubtitle}>러닝 코스 사진을 확인해보세요</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#666666" />
-                  </View>
-                </TouchableOpacity>
-              </View>
-            )}
-          
-          {/* 카카오맵 표시 - 상태 변경 격리 */}
-          {memoizedInlineMap}
+      <View style={styles.selectedLocationSection}>
+        
+        {/* 카카오맵 표시 - 상태 변경 격리 */}
+        {memoizedInlineMap}
           
           {/* 상세 위치 입력칸 */}
           {hasCustomMarker && (
@@ -2263,6 +2366,39 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     </View>
   );
 
+  // 모달 애니메이션 효과
+  useEffect(() => {
+    if (showDatePicker) {
+      Animated.timing(datePickerModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(datePickerModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showDatePicker, datePickerModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (showTimePicker) {
+      Animated.timing(timePickerModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(timePickerModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showTimePicker, timePickerModalBackdropOpacity]);
+
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
     const handleOutsideClick = () => {
@@ -2284,102 +2420,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     };
   }, [showLocationDropdown]);
 
-  // 카카오맵 모달 렌더링
-  const renderKakaoMapModal = () => (
-    <Modal visible={showMapModal} transparent animationType="slide">
-      <View style={styles.mapModalOverlay}>
-        <View style={styles.mapModalContainer}>
-          <View style={styles.mapModalHeader}>
-            <TouchableOpacity onPress={() => setShowMapModal(false)}>
-              <Text style={styles.mapModalCancelText}>닫기</Text>
-            </TouchableOpacity>
-            <Text style={styles.mapModalTitle}>
-              {selectedLocationData?.name || '위치 확인'}
-            </Text>
-            <TouchableOpacity onPress={() => {
-              // 카카오맵 검색으로 구체적 장소 설정 기능 (추후 구현)
-              setShowMapModal(false);
-            }}>
-              <Text style={styles.mapModalConfirmText}>상세 설정</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.mapModalMapContainer}>
-            <InlineKakaoMapComponent 
-              selectedLocation={selectedLocationData}
-              locationType={selectedLocationType}
-              onCustomMarkerChange={handleCustomMarkerChange}
-              hasCustomMarker={hasCustomMarker}
-              customMarkerCoords={customMarkerCoords}
-            />
-          </View>
-          <View style={styles.mapModalInfo}>
-            {selectedLocationData && (
-              <>
-                <Text style={styles.mapModalLocationName}>{selectedLocationData.name}</Text>
-                <Text style={styles.mapModalLocationDescription}>
-                  {selectedLocationType === 'hanriver' ? '한강공원' : selectedLocationData.description}
-                </Text>
-                <Text style={styles.mapModalLocationDistance}>코스 길이: {selectedLocationData.distance}</Text>
-              </>
-            )}
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  // 코스 사진 모달 렌더링
-  const renderCoursePhotoModal = () => (
-    <Modal visible={showCoursePhotoModal} transparent animationType="slide">
-      <View style={styles.coursePhotoModalOverlay}>
-        <View style={styles.coursePhotoModalContainer}>
-          <View style={styles.coursePhotoModalHeader}>
-            <TouchableOpacity 
-              onPress={() => setShowCoursePhotoModal(false)}
-              style={styles.coursePhotoModalCloseButton}
-            >
-              <Text style={styles.coursePhotoModalCancelText}>닫기</Text>
-            </TouchableOpacity>
-            <Text style={styles.coursePhotoModalTitle}>
-              {selectedCoursePhoto?.name || '코스 사진'}
-            </Text>
-          </View>
-          <View style={styles.coursePhotoModalContent}>
-            {selectedCoursePhoto ? (
-              (() => {
-                const imageSource = getRiversideImageSource(selectedCoursePhoto.id);
-                return imageSource ? (
-                  <Image
-                    source={imageSource}
-                    style={styles.coursePhotoImageOnly}
-                    resizeMode="contain"
-                  />
-                ) : (
-                  <View style={styles.coursePhotoError}>
-                    <Ionicons name="image-outline" size={48} color="#666666" />
-                    <Text style={styles.coursePhotoErrorText}>이미지를 찾을 수 없습니다</Text>
-                    <Text style={styles.coursePhotoErrorSubtext}>assets/images/riverside/{selectedCoursePhoto.id}.png</Text>
-                  </View>
-                );
-              })()
-            ) : (
-              <View style={styles.coursePhotoLoading}>
-                <Text style={styles.coursePhotoLoadingText}>이미지를 불러오는 중...</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-
   // 인라인 카카오맵 컴포넌트를 별도로 분리하여 격리
-  const InlineKakaoMapComponent = React.memo(({ selectedLocation, locationType, onCustomMarkerChange, hasCustomMarker, customMarkerCoords }) => {
+  const InlineKakaoMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, hasCustomMarker, customMarkerCoords }) => {
     // WebView 재렌더링 방지를 위한 안정적인 key 생성
     const stableKey = React.useMemo(() => {
       if (!selectedLocation) return 'no-location-no-boundary-v24';
-      return `${selectedLocation.id}-${selectedLocation.name}-${locationType}-no-boundary-v24`;
-    }, [selectedLocation?.id, selectedLocation?.name, locationType]);
+      return `${selectedLocation.id || 'custom'}-${selectedLocation.name}-no-boundary-v24`;
+    }, [selectedLocation?.id, selectedLocation?.name]);
 
     // 커스텀 마커 상태를 문자열로 변환하여 비교 최적화
     const customMarkerState = React.useMemo(() => {
@@ -2396,8 +2443,16 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
       }
       
-      // 마커 색상 결정 (한강공원: 파란색, 강변: 노란색)
-      const markerColor = locationType === 'hanriver' ? '#3AF8FF' : '#FFD700';
+      // 마커 색상 결정 (기본 파란색)
+      const markerColor = '#3AF8FF';
+      
+      // selectedLocation 값들을 변수로 추출 (템플릿 문자열에서 사용)
+      const locationName = selectedLocation?.name || '';
+      const locationLat = selectedLocation?.lat || 37.5665;
+      const locationLng = selectedLocation?.lng || 126.9780;
+      const customMarkerLat = customMarkerCoords?.lat || null;
+      const customMarkerLng = customMarkerCoords?.lng || null;
+      const hasCustomMarkerValue = customMarkerCoords ? true : false;
       
       return `
         <!DOCTYPE html>
@@ -2406,7 +2461,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-            <title>${selectedLocation.name} 위치</title>
+            <title>${locationName || '위치'} 위치</title>
             <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${ENV.kakaoMapApiKey}"></script>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2506,14 +2561,14 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                         
                         // 지도 중심 설정 (커스텀 마커가 있으면 그 위치 중심으로)
                         var mapCenter, mapLevel = 4;
-                        var hasCustomMarker = ${customMarkerCoords ? 'true' : 'false'};
+                        var hasCustomMarker = ${hasCustomMarkerValue};
                         
                         if (hasCustomMarker) {
                             // 커스텀 마커가 있으면 그 위치를 중심으로
-                            mapCenter = new kakao.maps.LatLng(${customMarkerCoords?.lat || selectedLocation.lat}, ${customMarkerCoords?.lng || selectedLocation.lng});
+                            mapCenter = new kakao.maps.LatLng(${customMarkerLat || locationLat}, ${customMarkerLng || locationLng});
                         } else {
                             // 기본 장소를 중심으로
-                            mapCenter = new kakao.maps.LatLng(${selectedLocation.lat}, ${selectedLocation.lng});
+                            mapCenter = new kakao.maps.LatLng(${locationLat}, ${locationLng});
                         }
                         
                         var mapOption = {
@@ -2531,7 +2586,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                         currentMapLevel = map.getLevel();
                         
                         // 기본 장소 마커 위치
-                        var markerPosition = new kakao.maps.LatLng(${selectedLocation.lat}, ${selectedLocation.lng});
+                        var markerPosition = new kakao.maps.LatLng(${locationLat}, ${locationLng});
                         
                         // 기본 마커 이미지 생성
                         var svgString = '<svg width="24" height="30" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
@@ -2559,24 +2614,33 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                         });
                         
                         // 기본 정보창 생성 (홈화면과 동일한 스타일)
-                        var infoWindowContent = '<div class="info-window">${selectedLocation.name}</div>';
-                        var infoWindow = new kakao.maps.InfoWindow({
-                            content: infoWindowContent,
-                            removable: false,
-                            yAnchor: 1.0
-                        });
-                        
-                        // 정보창 자동 표시
-                        infoWindow.open(map, marker);
+                        // 기본 위치(서울시청)일 때만 푯말 표시, GPS 위치일 때는 표시하지 않음
+                        var infoWindowContent = '';
+                        var locationNameValue = '${locationName}';
+                        if (locationNameValue && locationNameValue.trim() !== '') {
+                            infoWindowContent = '<div class="info-window">' + locationNameValue + '</div>';
+                        }
+                        var infoWindow = null;
+                        if (infoWindowContent) {
+                            infoWindow = new kakao.maps.InfoWindow({
+                                content: infoWindowContent,
+                                removable: false,
+                                yAnchor: 1.0
+                            });
+                            // 정보창 자동 표시
+                            infoWindow.open(map, marker);
+                        }
                         
                         // 기본 마커 클릭 이벤트
-                        kakao.maps.event.addListener(marker, 'click', function() {
-                            if (infoWindow.getMap()) {
-                                infoWindow.close();
-                            } else {
-                                infoWindow.open(map, marker);
-                            }
-                        });
+                        if (infoWindow) {
+                            kakao.maps.event.addListener(marker, 'click', function() {
+                                if (infoWindow.getMap()) {
+                                    infoWindow.close();
+                                } else {
+                                    infoWindow.open(map, marker);
+                                }
+                            });
+                        }
                         
                         // 커스텀 마커 이미지 생성 (빨간색)
                         var customSvgString = '<svg width="28" height="35" viewBox="0 0 28 35" xmlns="http://www.w3.org/2000/svg">' +
@@ -2596,37 +2660,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                             { offset: customMarkerImageOffset }
                         );
                         
-                        // 서울 경계 정의 (HanRiverMap과 동일한 범위)
-                        var SEOUL_BOUNDARY = {
-                            north: 37.7150,  // 최북단 (의정부시 근처까지 확장)
-                            south: 37.4080,  // 최남단 (과천시 근처까지 확장)
-                            east: 127.1950,  // 최동단 (하남시 근처까지 확장)
-                            west: 126.7750   // 최서단 (김포시 근처까지 확장)
-                        };
-                        
-                        // 서울 경계 내부인지 확인하는 함수
-                        function isWithinSeoulBoundary(lat, lng) {
-                            return lat >= SEOUL_BOUNDARY.south && 
-                                   lat <= SEOUL_BOUNDARY.north && 
-                                   lng >= SEOUL_BOUNDARY.west && 
-                                   lng <= SEOUL_BOUNDARY.east;
-                        }
-                        
                         // 지도 클릭 이벤트 (상세 위치 설정)
                         kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
                             var latlng = mouseEvent.latLng;
                             var clickLat = latlng.getLat();
                             var clickLng = latlng.getLng();
-                            
-                            // 서울 경계 체크
-                            if (!isWithinSeoulBoundary(clickLat, clickLng)) {
-                                // 서울 경계 외 지역 클릭 시 알림
-                                if (window.ReactNativeWebView) {
-                                    window.ReactNativeWebView.postMessage('LOG: WARNING - 서울 경계 외 지역 클릭: ' + clickLat + ', ' + clickLng);
-                                    window.ReactNativeWebView.postMessage('seoulBoundaryWarning');
-                                }
-                                return; // 마커 생성하지 않음
-                            }
                             
                             // 디버그 로그
                             if (window.ReactNativeWebView) {
@@ -2731,7 +2769,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         </body>
         </html>
       `;
-    }, [selectedLocation, locationType, customMarkerCoords]);
+    }, [selectedLocation, customMarkerCoords]);
 
     // 메시지 처리 함수를 useCallback으로 최적화
     const handleWebViewMessage = React.useCallback((event) => {
@@ -2741,13 +2779,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         // 지도 로딩 완료
               } else if (data.startsWith('inlineMapError')) {
         console.error('인라인 지도 로딩 실패:', data);
-              } else if (data === 'seoulBoundaryWarning') {
-        // 서울 경계 외 지역 클릭 시 알림
-        Alert.alert(
-          '⚠️ 서울 지역 제한',
-          '한강 러닝 코스는 서울 지역 내에서만 이용 가능합니다.\n\n서울 지역 내에서 위치를 선택해주세요.',
-          [{ text: '확인', style: 'default' }]
-        );
               } else if (data.startsWith('customMarkerAdded:')) {
                 const coords = data.replace('customMarkerAdded:', '');
                 const [lat, lng] = coords.split(',');
@@ -2767,7 +2798,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           }
         }
       }
-    }, [selectedLocation.name, customMarkerCoords, onCustomMarkerChange]);
+    }, [selectedLocation?.name, selectedLocation?.lat, selectedLocation?.lng, customMarkerCoords, onCustomMarkerChange]);
 
     return (
       <View style={styles.inlineMapSection}>
@@ -2806,13 +2837,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     const locationChanged = prevProps.selectedLocation?.id !== nextProps.selectedLocation?.id ||
                            prevProps.selectedLocation?.name !== nextProps.selectedLocation?.name;
     
-    const locationTypeChanged = prevProps.locationType !== nextProps.locationType;
-    
     const customMarkerChanged = prevProps.hasCustomMarker !== nextProps.hasCustomMarker ||
                                JSON.stringify(prevProps.customMarkerCoords) !== JSON.stringify(nextProps.customMarkerCoords);
     
     // 지도 관련 props가 변경되지 않았으면 재렌더링하지 않음
-    const shouldNotRerender = !locationChanged && !locationTypeChanged && !customMarkerChanged;
+    const shouldNotRerender = !locationChanged && !customMarkerChanged;
     
 
     
@@ -2820,24 +2849,27 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   });
 
   // 인라인 지도 컴포넌트 메모이제이션
-  const memoizedInlineMap = useMemo(() => (
-    <React.Fragment>
-      <View style={styles.mapGuideSection}>
-        <View style={styles.mapGuideTextContainer}>
-          <Text style={styles.requiredMark}>*</Text>
-          <Text style={styles.mapGuideText}>지도를 클릭하여 상세한 모임장소를 정하세요!</Text>
+  const memoizedInlineMap = useMemo(() => {
+    if (!selectedLocationData) return null;
+    
+    return (
+      <React.Fragment>
+        <View style={styles.mapGuideSection}>
+          <View style={styles.mapGuideTextContainer}>
+            <Text style={styles.requiredMark}>*</Text>
+            <Text style={styles.mapGuideText}>지도를 클릭하여 상세한 모임장소를 정하세요!</Text>
+          </View>
         </View>
-      </View>
-      <InlineKakaoMapComponent 
-        key={`map-${selectedLocationData?.id}-${selectedLocationType}`}
-        selectedLocation={selectedLocationData}
-        locationType={selectedLocationType}
-        onCustomMarkerChange={handleCustomMarkerChange}
-        hasCustomMarker={hasCustomMarker}
-        customMarkerCoords={customMarkerCoords}
-      />
-    </React.Fragment>
-  ), [selectedLocationData?.id, selectedLocationType, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange]);
+        <InlineKakaoMapComponent 
+          key={`map-${selectedLocationData.id || selectedLocationData.name || 'custom'}-${selectedLocationData.lat}-${selectedLocationData.lng}`}
+          selectedLocation={selectedLocationData}
+          onCustomMarkerChange={handleCustomMarkerChange}
+          hasCustomMarker={hasCustomMarker}
+          customMarkerCoords={customMarkerCoords}
+        />
+      </React.Fragment>
+    );
+  }, [selectedLocationData, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange]);
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
@@ -2922,8 +2954,16 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
       {/* 날짜 선택기 */}
       {showDatePicker && (
-        <Modal visible={showDatePicker} transparent animationType="slide">
+        <Modal visible={showDatePicker} transparent animationType="none">
           <View style={styles.datePickerModalOverlay}>
+            <Animated.View
+              style={[
+                styles.datePickerModalBackdrop,
+                {
+                  opacity: datePickerModalBackdropOpacity,
+                },
+              ]}
+            />
             <View style={styles.datePickerContainer}>
               <View style={styles.datePickerHeader}>
                 <TouchableOpacity onPress={handleDatePickerCancel}>
@@ -2951,8 +2991,16 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
       {/* 시간 선택 모달 */}
       {showTimePicker && (
-        <Modal visible={showTimePicker} transparent animationType="slide">
+        <Modal visible={showTimePicker} transparent animationType="none">
           <View style={styles.datePickerModalOverlay}>
+            <Animated.View
+              style={[
+                styles.datePickerModalBackdrop,
+                {
+                  opacity: timePickerModalBackdropOpacity,
+                },
+              ]}
+            />
             <View style={styles.datePickerContainer}>
               <View style={styles.datePickerHeader}>
                 <TouchableOpacity onPress={handleTimePickerCancel}>
@@ -2977,14 +3025,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           </View>
         </Modal>
       )}
-
-
-
-      {/* 카카오맵 모달 */}
-      {showMapModal && renderKakaoMapModal()}
-      
-      {/* 코스 사진 모달 */}
-      {showCoursePhotoModal && renderCoursePhotoModal()}
     </View>
   );
 
@@ -4363,68 +4403,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   
-  // 카카오맵 모달 스타일
-  mapModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mapModalContainer: {
-    backgroundColor: COLORS.SURFACE,
-    margin: 20,
-    borderRadius: 12,
-    width: '90%',
-    height: '70%',
-    overflow: 'hidden',
-  },
-  mapModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
-  },
-  mapModalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.TEXT,
-  },
-  mapModalCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666666',
-  },
-  mapModalConfirmText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.PRIMARY,
-  },
-  mapModalContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  mapPlaceholder: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  mapPlaceholderText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.TEXT,
-    marginBottom: 8,
-  },
-  mapPlaceholderSubtext: {
-    fontSize: 14,
-    color: '#666666',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  
   // 선택된 장소 표시 스타일
   selectedLocationDisplay: {
     backgroundColor: COLORS.SURFACE,
@@ -4533,33 +4511,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   
-  // 카카오맵 모달 업데이트
-  mapModalMapContainer: {
-    flex: 1,
-    backgroundColor: COLORS.CARD,
-  },
-  mapModalInfo: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#333333',
-  },
-  mapModalLocationName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.TEXT,
-    marginBottom: 4,
-  },
-  mapModalLocationDescription: {
-    fontSize: 14,
-    color: '#666666',
-    marginBottom: 4,
-  },
-  mapModalLocationDistance: {
-    fontSize: 14,
-    color: COLORS.PRIMARY,
-    fontWeight: '500',
-  },
-  
   // 카카오맵 WebView 스타일
   kakaoMapContainer: {
     flex: 1,
@@ -4571,6 +4522,77 @@ const styles = StyleSheet.create({
   },
   
   // 새로운 인라인 장소 선택 스타일
+  // 장소 검색바 스타일
+  locationSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  locationSearchIcon: {
+    marginRight: 8,
+  },
+  locationSearchInput: {
+    flex: 1,
+    color: COLORS.TEXT,
+    fontSize: 14,
+  },
+  locationSearchLoading: {
+    marginLeft: 8,
+  },
+  locationSearchClearButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  locationSearchResultsDropdown: {
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    maxHeight: 300,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#333333',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  locationSearchResultsList: {
+    maxHeight: 300,
+  },
+  locationSearchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  locationSearchResultIcon: {
+    marginRight: 12,
+  },
+  locationSearchResultContent: {
+    flex: 1,
+  },
+  locationSearchResultTitle: {
+    color: COLORS.TEXT,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  locationSearchResultSubtitle: {
+    color: COLORS.SECONDARY,
+    fontSize: 12,
+  },
+  locationSearchResultCategory: {
+    color: COLORS.PRIMARY,
+    fontSize: 10,
+    marginTop: 2,
+  },
   locationTypeContainer: {
     flexDirection: 'row',
     gap: 12,
@@ -5114,9 +5136,16 @@ const styles = StyleSheet.create({
   // 날짜/시간 선택 모달 오버레이
   datePickerModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  datePickerModalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   
   // 알림 표시 스타일
@@ -5151,52 +5180,6 @@ const styles = StyleSheet.create({
   optionRightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  coursePhotoModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coursePhotoModalContainer: {
-    backgroundColor: COLORS.SURFACE,
-    borderRadius: 16,
-    width: '95%',
-    maxWidth: 500,
-    alignSelf: 'center',
-    overflow: 'hidden',
-  },
-  coursePhotoModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
-    position: 'relative',
-  },
-  coursePhotoModalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.TEXT,
-    textAlign: 'center',
-    flex: 1,
-  },
-  coursePhotoModalCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666666',
-  },
-  coursePhotoModalCloseButton: {
-    position: 'absolute',
-    left: 20,
-    zIndex: 1,
-  },
-  coursePhotoModalContent: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   coursePhotoImageContainer: {
     alignItems: 'center',
@@ -5260,31 +5243,6 @@ const styles = StyleSheet.create({
   coursePhotoLoadingText: {
     color: COLORS.SECONDARY,
     fontSize: 15,
-  },
-  coursePhotoImageOnly: {
-    width: '100%',
-    height: 300,
-    borderRadius: 12,
-    backgroundColor: '#222',
-  },
-  coursePhotoError: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 300,
-    backgroundColor: '#222',
-    borderRadius: 12,
-  },
-  coursePhotoErrorText: {
-    color: '#666666',
-    fontSize: 16,
-    marginTop: 12,
-    fontWeight: '500',
-  },
-  coursePhotoErrorSubtext: {
-    color: '#444444',
-    fontSize: 12,
-    marginTop: 4,
-    fontFamily: 'monospace',
   },
   
   // 러닝매너 작성 모달창 스타일

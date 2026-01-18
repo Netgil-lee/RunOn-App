@@ -618,6 +618,13 @@ export const EventProvider = ({ children }) => {
         isPublic: newEvent.isPublic || true
       };
 
+      // 디버깅: EventContext에서 받은 데이터 확인
+      console.log('📥 EventContext.addEvent - 받은 데이터:', {
+        location: eventData.location,
+        customMarkerCoords: eventData.customMarkerCoords,
+        title: eventData.title
+      });
+      
       const result = await firestoreService.createEvent(eventData);
       
       if (result.success) {
@@ -628,6 +635,11 @@ export const EventProvider = ({ children }) => {
         await evaluationService.incrementParticipationCount(user.uid, true);
         
         console.log('✅ 이벤트 생성 완료:', result.id);
+        console.log('📤 반환하는 이벤트 데이터:', {
+          id: result.id,
+          location: eventData.location,
+          title: eventData.title
+        });
         return { ...eventData, id: result.id, chatRoomId: chatRoomResult?.id };
       }
     } catch (error) {

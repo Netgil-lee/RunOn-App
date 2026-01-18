@@ -13,6 +13,7 @@ import {
   Modal,
   StatusBar,
   Image,
+  Animated,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -60,6 +61,26 @@ const ChatScreen = ({ route, navigation }) => {
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const flatListRef = useRef(null);
+  
+  // 모달 오버레이 페이드 애니메이션
+  const participantsModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+
+  // 모달 애니메이션 효과
+  useEffect(() => {
+    if (showParticipantsModal) {
+      Animated.timing(participantsModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(participantsModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showParticipantsModal, participantsModalBackdropOpacity]);
 
   // 채팅방 진입 시 알림 해제 (한 번만 실행)
   useEffect(() => {
@@ -521,11 +542,19 @@ const ChatScreen = ({ route, navigation }) => {
       {/* 참여자 목록 모달 */}
       <Modal
         visible={showParticipantsModal}
-        animationType="slide"
+        animationType="none"
         transparent={true}
         onRequestClose={() => setShowParticipantsModal(false)}
       >
         <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.modalBackdrop,
+              {
+                opacity: participantsModalBackdropOpacity,
+              },
+            ]}
+          />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>참여자 목록</Text>
@@ -741,9 +770,16 @@ const styles = StyleSheet.create({
   // 모달 스타일
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
     backgroundColor: COLORS.SURFACE,

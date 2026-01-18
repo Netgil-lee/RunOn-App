@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Modal,
   Alert,
   Keyboard,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCommunity } from '../contexts/CommunityContext';
@@ -57,6 +58,13 @@ const PostDetailScreen = ({ route, navigation }) => {
   const [editCommentText, setEditCommentText] = useState('');
   const [showPostReportModal, setShowPostReportModal] = useState(false);
   const [showCommentReportModal, setShowCommentReportModal] = useState(false);
+  
+  // 모달 오버레이 페이드 애니메이션
+  const menuModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const commentMenuModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const commentEditModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const postReportModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const commentReportModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   const [selectedReportReason, setSelectedReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
   const [shouldBlockPostAuthor, setShouldBlockPostAuthor] = useState(false);
@@ -107,6 +115,87 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     fetchBlacklist();
   }, [user]);
+
+  // 모달 애니메이션 효과
+  useEffect(() => {
+    if (showMenuModal) {
+      Animated.timing(menuModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(menuModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showMenuModal, menuModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (showCommentMenuModal) {
+      Animated.timing(commentMenuModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(commentMenuModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showCommentMenuModal, commentMenuModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (showCommentEditModal) {
+      Animated.timing(commentEditModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(commentEditModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showCommentEditModal, commentEditModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (showPostReportModal) {
+      Animated.timing(postReportModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(postReportModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showPostReportModal, postReportModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (showCommentReportModal) {
+      Animated.timing(commentReportModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(commentReportModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showCommentReportModal, commentReportModalBackdropOpacity]);
 
   // 차단된 사용자의 게시글이면 뒤로 가기
   useEffect(() => {
@@ -937,14 +1026,24 @@ const PostDetailScreen = ({ route, navigation }) => {
         <Modal
           visible={showMenuModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowMenuModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowMenuModal(false)}
-          >
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: menuModalBackdropOpacity,
+                },
+              ]}
+            >
+              <TouchableOpacity 
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setShowMenuModal(false)}
+              />
+            </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.bottomModal}>
                 <TouchableOpacity 
@@ -968,21 +1067,31 @@ const PostDetailScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               </View>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
 
         {/* 댓글 메뉴 모달 */}
         <Modal
           visible={showCommentMenuModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowCommentMenuModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowCommentMenuModal(false)}
-          >
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: commentMenuModalBackdropOpacity,
+                },
+              ]}
+            >
+              <TouchableOpacity 
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setShowCommentMenuModal(false)}
+              />
+            </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.bottomModal}>
                 <TouchableOpacity 
@@ -1006,17 +1115,26 @@ const PostDetailScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               </View>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
 
         {/* 댓글 수정 모달 */}
         <Modal
           visible={showCommentEditModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowCommentEditModal(false)}
         >
-          <View style={styles.editCommentModal}>
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: commentEditModalBackdropOpacity,
+                },
+              ]}
+            />
+            <View style={styles.editCommentModal}>
             <View style={styles.editCommentHeader}>
               <Text style={styles.editCommentTitle}>댓글 수정</Text>
             </View>
@@ -1048,20 +1166,31 @@ const PostDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
+          </View>
         </Modal>
 
         {/* 게시글 신고 모달 */}
         <Modal
           visible={showPostReportModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowPostReportModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowPostReportModal(false)}
-          >
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: postReportModalBackdropOpacity,
+                },
+              ]}
+            >
+              <TouchableOpacity 
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setShowPostReportModal(false)}
+              />
+            </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.reportModal} onStartShouldSetResponder={() => true}>
                 <View style={styles.reportModalHeader}>
@@ -1136,21 +1265,31 @@ const PostDetailScreen = ({ route, navigation }) => {
                 </View>
               </View>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
 
         {/* 댓글 신고 모달 */}
         <Modal
           visible={showCommentReportModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowCommentReportModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowCommentReportModal(false)}
-          >
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: commentReportModalBackdropOpacity,
+                },
+              ]}
+            >
+              <TouchableOpacity 
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setShowCommentReportModal(false)}
+              />
+            </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.reportModal} onStartShouldSetResponder={() => true}>
                 <View style={styles.reportModalHeader}>
@@ -1225,7 +1364,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 </View>
               </View>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
       </SafeAreaView>
     );
@@ -1526,8 +1665,15 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   bottomModalContainer: {
     justifyContent: 'flex-end',
@@ -1567,7 +1713,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editCommentModal: {
-    flex: 1,
     backgroundColor: COLORS.BACKGROUND,
     marginTop: 100,
     borderTopLeftRadius: 20,
