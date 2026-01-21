@@ -22,7 +22,6 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { WebView } from 'react-native-webview';
 import { useFocusEffect } from '@react-navigation/native';
-import HanRiverMap from '../components/HanRiverMap';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import { useGuide } from '../contexts/GuideContext';
@@ -1423,6 +1422,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [userProfile, setUserProfile] = useState(null);
   const [eventType, setEventType] = useState(editingEvent?.type || '');
   const [title, setTitle] = useState(editingEvent?.title || '');
+  const [description, setDescription] = useState(editingEvent?.description || '');
   const [location, setLocation] = useState(editingEvent?.location || '');
   const [date, setDate] = useState(() => {
     if (editingEvent?.date) {
@@ -1462,8 +1462,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     if (editingEvent?.time) {
       return editingEvent.time;
     }
-    // 기본값: 오전 9시
-    return '오전 9:00';
+    // 기본값: 오전 12시
+    return '오전 12:00';
   });
   const [distance, setDistance] = useState(editingEvent?.distance || '');
   const [minPace, setMinPace] = useState(() => {
@@ -1678,33 +1678,17 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       
       // 장소 관련 데이터 초기화
       if (editingEvent.location) {
-        // 기존 장소가 한강공원인지 강변인지 판단 (하위 호환성)
-        const hanRiverPark = hanRiverParks.find(park => park.name === editingEvent.location);
-        const riverSide = riverSides.find(river => river.name === editingEvent.location);
-        
-        if (hanRiverPark) {
-          // 기존 한강공원 데이터 사용
-          setSelectedLocation('custom');
-          setSelectedLocationData(hanRiverPark);
-          setLocationSearchQuery(editingEvent.location);
-        } else if (riverSide) {
-          // 기존 강변 데이터 사용
-          setSelectedLocation('custom');
-          setSelectedLocationData(riverSide);
-          setLocationSearchQuery(editingEvent.location);
-        } else {
-          // 검색으로 선택된 장소 또는 기타 장소
-          setSelectedLocation('custom');
-          setLocationSearchQuery(editingEvent.location);
-          // customMarkerCoords가 있으면 사용, 없으면 기본 좌표 설정
-          if (editingEvent.customMarkerCoords) {
-            setSelectedLocationData({
-              name: editingEvent.location,
-              lat: editingEvent.customMarkerCoords.lat,
-              lng: editingEvent.customMarkerCoords.lng,
-              address: '',
-            });
-          }
+        // 검색으로 선택된 장소 또는 기타 장소
+        setSelectedLocation('custom');
+        setLocationSearchQuery(editingEvent.location);
+        // customMarkerCoords가 있으면 사용, 없으면 기본 좌표 설정
+        if (editingEvent.customMarkerCoords) {
+          setSelectedLocationData({
+            name: editingEvent.location,
+            lat: editingEvent.customMarkerCoords.lat,
+            lng: editingEvent.customMarkerCoords.lng,
+            address: '',
+          });
         }
       }
       
@@ -1766,73 +1750,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     { name: '고급', description: '높은 강도' },
   ];
 
-  // 한강공원 데이터 (가나다순 정렬)
-  const hanRiverParks = [
-    { id: 'gwangnaru', name: '광나루한강공원', lat: 37.5463, lng: 127.1205, distance: '2.7km', popular: false },
-    { id: 'nanji', name: '난지한강공원', lat: 37.5664, lng: 126.8758, distance: '4.2km', popular: false },
-    { id: 'ttukseom', name: '뚝섬한강공원', lat: 37.5292, lng: 127.069, distance: '4.8km', popular: true },
-    { id: 'mangwon', name: '망원한강공원', lat: 37.5543, lng: 126.8964, distance: '5.4km', popular: false },
-    { id: 'banpo', name: '반포한강공원', lat: 37.5110, lng: 126.9975, distance: '8.5km', popular: true },
-    { id: 'ichon', name: '이촌한강공원', lat: 37.5175, lng: 126.9700, distance: '4.9km', popular: false },
-    { id: 'jamwon', name: '잠원한강공원', lat: 37.5273, lng: 127.0188, distance: '3.8km', popular: false },
-    { id: 'jamsil', name: '잠실한강공원', lat: 37.5176, lng: 127.0825, distance: '6.2km', popular: true },
-    { id: 'yanghwa', name: '양화한강공원', lat: 37.5365, lng: 126.9039, distance: '2.1km', popular: false },
-    { id: 'yeouido', name: '여의도한강공원', lat: 37.5263, lng: 126.9351, distance: '9.8km', popular: true },
-  ];
-
-  // 강변 데이터 (가나다순 정렬)
-  const riverSides = [
-    { id: 'danghyeon', name: '당현천', lat: 37.6497, lng: 127.0672, distance: '6.5km', description: '노원구 대표 생태하천', color: '#FF6B6B' },
-    { id: 'dorim', name: '도림천', lat: 37.5076, lng: 126.8930, distance: '8.9km', description: '영등포구 도시하천', color: '#4ECDC4' },
-    { id: 'bulgwang', name: '불광천', lat: 37.5900, lng: 126.9140, distance: '11.8km', description: '은평구 대표 하천', color: '#45B7D1' },
-    { id: 'seongnae', name: '성내천', lat: 37.5234, lng: 127.1267, distance: '8.3km', description: '강동구 자연하천', color: '#96CEB4' },
-    { id: 'anyang', name: '안양천', lat: 37.5200, lng: 126.8800, distance: '13.9km', description: '서남부 주요 하천', color: '#FFEAA7' },
-    { id: 'yangjae', name: '양재천', lat: 37.4881, lng: 127.0581, distance: '15.6km', description: '강남구 생태하천', color: '#DDA0DD' },
-    { id: 'jungnang', name: '중랑천', lat: 37.5947, lng: 127.0700, distance: '18.0km', description: '서울 동북부 주요 하천', color: '#74B9FF' },
-    { id: 'jeongneung', name: '정릉천', lat: 37.5970, lng: 127.0410, distance: '4.2km', description: '북한산 기슭 자연천', color: '#A29BFE' },
-    { id: 'cheonggyecheon', name: '청계천', lat: 37.5696, lng: 127.0150, distance: '5.8km', description: '도심 속 생태하천', color: '#FD79A8' },
-    { id: 'tan', name: '탄천', lat: 37.5027, lng: 127.0718, distance: '8.3km', description: '서울 구간 생태복원 하천', color: '#FDCB6E' },
-    { id: 'hongje', name: '홍제천', lat: 37.5680, lng: 126.9170, distance: '7.8km', description: '서대문구 도심하천', color: '#E17055' },
-  ];
-
-  // 강변 이미지 소스 매핑 (정적 require만 사용)
-  const riversideImages = {
-    danghyeon: require('../assets/images/riverside/danghyeon.png'),
-    dorim: require('../assets/images/riverside/dorim.png'),
-    bulgwang: require('../assets/images/riverside/bulgwang.png'),
-    seongnae: require('../assets/images/riverside/seongnae.png'),
-    anyang: require('../assets/images/riverside/anyang.png'),
-    yangjae: require('../assets/images/riverside/yangjae.png'),
-    jungnang: require('../assets/images/riverside/jungnang.png'),
-    jeongneung: require('../assets/images/riverside/jeongneung.png'),
-    cheonggyecheon: require('../assets/images/riverside/cheonggyecheon.png'),
-    tan: require('../assets/images/riverside/tan.png'),
-    hongje: require('../assets/images/riverside/hongje.png'),
-  };
-
-  // 강변 이미지 소스 가져오기 함수
-  const getRiversideImageSource = (id) => {
-    
-    if (riversideImages[id]) {
-      return riversideImages[id];
-    } else {
-      // 기본 이미지가 있다면 사용
-      try {
-        const defaultImage = require('../assets/images/riverside/default.png');
-        return defaultImage;
-      } catch (defaultError) {
-        return null;
-      }
-    }
-  };
-
-  // 강변 이미지 생성 함수 (임시 그라데이션) - 기존 호환성 유지
-  const getRiverImage = (riverColor) => {
-    return {
-      background: `linear-gradient(135deg, ${riverColor}40, ${riverColor}80)`,
-      borderColor: riverColor,
-    };
-  };
 
   // 장소 검색 함수
   const performLocationSearch = async (query) => {
@@ -1907,7 +1824,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const canProceed = () => {
     switch (currentStep) {
       case 1: return eventType && title.trim();
-      case 2: return location && dateString && timeString; // 검색으로 선택된 장소만 확인
+      case 2: return hasCustomMarker && customLocation.trim() && dateString && timeString;
       case 3: return distance && minPace && maxPace && difficulty;
       case 4: return maxParticipants && parseInt(maxParticipants) >= 1 && parseInt(maxParticipants) <= 5; // 호스트 제외 최대 5명
       default: return false;
@@ -2040,6 +1957,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     const newEvent = {
       type: eventType,
       title: title.trim(),
+      description: description.trim() || null, // 모임설명 추가
       location: finalLocation, // 검색으로 선택한 장소명 사용
       date: dateString,
       time: timeString,
@@ -2245,7 +2163,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.locationSearchIcon} />
         <TextInput
           style={styles.locationSearchInput}
-          placeholder="장소 검색 (예: 뚝섬한강공원, 반포한강공원 등)"
+          placeholder="장소 키워드 입력 (예: 여의도, 해운대, 석촌호수 등)"
           placeholderTextColor={COLORS.SECONDARY}
           value={locationSearchQuery}
           onChangeText={setLocationSearchQuery}
@@ -2362,7 +2280,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             </View>
           )}
         </View>
-      )}
     </View>
   );
 
@@ -2443,8 +2360,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
       }
       
-      // 마커 색상 결정 (기본 파란색)
-      const markerColor = '#3AF8FF';
+      // 마커 색상 결정 (검색으로 선택한 장소는 노란색)
+      const markerColor = '#FFD700';
       
       // selectedLocation 값들을 변수로 추출 (템플릿 문자열에서 사용)
       const locationName = selectedLocation?.name || '';
@@ -2453,6 +2370,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       const customMarkerLat = customMarkerCoords?.lat || null;
       const customMarkerLng = customMarkerCoords?.lng || null;
       const hasCustomMarkerValue = customMarkerCoords ? true : false;
+      // 현재 위치는 selectedLocationData에 저장되어 있음 (GPS 위치 또는 기본 위치)
+      const currentLocationLat = selectedLocation?.lat || 37.5665;
+      const currentLocationLng = selectedLocation?.lng || 126.9780;
+      // 현재 위치가 GPS 위치인지 확인 (name이 비어있으면 GPS 위치)
+      const isCurrentLocationGPS = !selectedLocation?.name || selectedLocation.name === '';
       
       return `
         <!DOCTYPE html>
@@ -2542,6 +2464,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                 var map;
                 var customMarker = null;
                 var customInfoWindow = null;
+                var currentLocationMarker = null;
                 var currentMapCenter = null;
                 var currentMapLevel = 4;
                 
@@ -2591,7 +2514,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                         // 기본 마커 이미지 생성
                         var svgString = '<svg width="24" height="30" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
                             '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="${markerColor}"/>' +
-                            '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="none" stroke="#ffffff" stroke-width="2"/>' +
                             '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
                             '<circle cx="12" cy="12" r="3" fill="${markerColor}"/>' +
                             '</svg>';
@@ -2642,10 +2564,39 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                             });
                         }
                         
+                        // 현재 위치 마커 생성 (GPS 위치일 때만 표시) - SVG 사용
+                        var isCurrentLocationGPS = ${isCurrentLocationGPS};
+                        if (isCurrentLocationGPS) {
+                            var currentLocationPosition = new kakao.maps.LatLng(${currentLocationLat}, ${currentLocationLng});
+                            
+                            // SVG 사용 (넓은 반경의 파란색 원 + 투명도 40%)
+                            var currentLocationSvg = '<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">' +
+                                '<circle cx="25" cy="25" r="25" fill="#2294FF" fill-opacity="0.4"/>' +
+                                '<circle cx="25" cy="25" r="10" fill="#ffffff"/>' +
+                                '<circle cx="25" cy="25" r="6" fill="#2294FF"/>' +
+                                '</svg>';
+                            
+                            var currentLocationImageSrc = 'data:image/svg+xml;base64,' + btoa(currentLocationSvg);
+                            var currentLocationImageSize = new kakao.maps.Size(50, 50);
+                            var currentLocationImageOffset = new kakao.maps.Point(25, 50);
+                            
+                            var currentLocationImage = new kakao.maps.MarkerImage(
+                                currentLocationImageSrc,
+                                currentLocationImageSize,
+                                { offset: currentLocationImageOffset }
+                            );
+                            
+                            currentLocationMarker = new kakao.maps.Marker({
+                                position: currentLocationPosition,
+                                image: currentLocationImage,
+                                map: map,
+                                zIndex: 500 // 기본 마커(600)와 커스텀 마커(700)보다 낮게
+                            });
+                        }
+                        
                         // 커스텀 마커 이미지 생성 (빨간색)
                         var customSvgString = '<svg width="28" height="35" viewBox="0 0 28 35" xmlns="http://www.w3.org/2000/svg">' +
                             '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="#FF4444"/>' +
-                            '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="none" stroke="#ffffff" stroke-width="2"/>' +
                             '<circle cx="14" cy="14" r="7" fill="#ffffff"/>' +
                             '<circle cx="14" cy="14" r="4" fill="#FF4444"/>' +
                             '</svg>';
@@ -2915,6 +2866,24 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           }}
         />
         <Text style={styles.inputHint}>다른 사람들이 쉽게 찾을 수 있는 제목을 입력해주세요</Text>
+      </View>
+
+      <View style={[styles.inputGroup, { marginTop: 20 }]}>
+        <Text style={styles.inputLabel}>모임설명</Text>
+        <TextInput
+          style={[styles.textInput, { minHeight: 100, textAlignVertical: 'top' }]}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="모임에 대한 설명을 입력해주세요"
+          placeholderTextColor="#666666"
+          multiline={true}
+          numberOfLines={4}
+          returnKeyType="default"
+          blurOnSubmit={true}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
+        />
+        <Text style={styles.inputHint}>모임의 목적이나 특징을 자유롭게 작성해주세요</Text>
       </View>
     </View>
   );
@@ -4350,55 +4319,6 @@ const styles = StyleSheet.create({
   },
   mapButtonText: {
     fontSize: 11,
-    color: COLORS.PRIMARY,
-    fontWeight: '500',
-  },
-  
-  // 강변 카드 스타일
-  riverCard: {
-    backgroundColor: COLORS.SURFACE,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333333',
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  riverCardSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '10',
-    borderWidth: 1,
-  },
-  riverImageArea: {
-    height: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderBottomWidth: 0,
-  },
-  riverImagePlaceholder: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  riverImageText: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  riverInfo: {
-    padding: 12,
-  },
-  riverName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.TEXT,
-    marginBottom: 4,
-  },
-  riverDescription: {
-    fontSize: 12,
-    color: '#666666',
-    marginBottom: 4,
-  },
-  riverDistance: {
-    fontSize: 12,
     color: COLORS.PRIMARY,
     fontWeight: '500',
   },

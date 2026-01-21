@@ -480,7 +480,6 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
             var riverMarkers = [];
             var allInfoWindows = [];
             var currentLocationMarker = null;
-            var currentLocationCircle = null;
             
             // 서울시 경계 좌표 (확장된 범위)
             var SEOUL_BOUNDARY = {
@@ -581,21 +580,19 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
                 if (currentLocationMarker) {
                     currentLocationMarker.setMap(null);
                 }
-                if (currentLocationCircle) {
-                    currentLocationCircle.setMap(null);
-                }
                 
                 var currentPosition = new kakao.maps.LatLng(lat, lng);
                 
-                // 현재 위치 원형 마커 생성 (빨간색)
-                var currentLocationSvg = '<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">' +
-                    '<circle cx="10" cy="10" r="8" fill="#FF3A3A" stroke="#ffffff" stroke-width="2"/>' +
-                    '<circle cx="10" cy="10" r="3" fill="#ffffff"/>' +
+                // 현재 위치 마커 생성 (넓은 반경의 파란색 원 + 투명도 40%)
+                var currentLocationSvg = '<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">' +
+                    '<circle cx="25" cy="25" r="25" fill="#2294FF" fill-opacity="0.4"/>' +
+                    '<circle cx="25" cy="25" r="10" fill="#ffffff"/>' +
+                    '<circle cx="25" cy="25" r="6" fill="#2294FF"/>' +
                     '</svg>';
                 
                 var currentLocationImageSrc = 'data:image/svg+xml;base64,' + btoa(currentLocationSvg);
-                var currentLocationImageSize = new kakao.maps.Size(20, 20);
-                var currentLocationImageOffset = new kakao.maps.Point(10, 10);
+                var currentLocationImageSize = new kakao.maps.Size(50, 50);
+                var currentLocationImageOffset = new kakao.maps.Point(25, 50);
                 
                 var currentLocationImage = new kakao.maps.MarkerImage(
                     currentLocationImageSrc,
@@ -608,19 +605,6 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
                     image: currentLocationImage,
                     map: map,
                     zIndex: 1000 // 다른 마커들보다 위에 표시
-                });
-                
-                // 현재 위치 정확도를 나타내는 원 생성
-                currentLocationCircle = new kakao.maps.Circle({
-                    center: currentPosition,
-                    radius: 50, // 50미터 반경
-                    strokeWeight: 1,
-                    strokeColor: '#FF3A3A',
-                    strokeOpacity: 0.3,
-                    strokeStyle: 'dashed',
-                    fillColor: '#FF3A3A',
-                    fillOpacity: 0.1,
-                    map: map
                 });
                 
                 log('📍 현재 위치 마커 생성: ' + lat + ', ' + lng, 'success');
@@ -790,7 +774,6 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
                                 
                                 var svgString = '<svg width="24" height="30" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
                                     '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#3AF8FF"/>' +
-                                    '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="none" stroke="#ffffff" stroke-width="2"/>' +
                                     '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
                                     '<circle cx="12" cy="12" r="3" fill="#3AF8FF"/>' +
                                     '</svg>';
@@ -871,7 +854,6 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
                                 
                                 var riverSvgString = '<svg width="24" height="30" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
                                     '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#3AF8FF"/>' +
-                                    '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="none" stroke="#ffffff" stroke-width="2"/>' +
                                     '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
                                     '<circle cx="12" cy="12" r="3" fill="#3AF8FF"/>' +
                                     '</svg>';

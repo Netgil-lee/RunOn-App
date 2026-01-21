@@ -5,23 +5,19 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-import BottomSheet, { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetView, BottomSheetFooter } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import MeetingCard from '../components/MeetingCard';
-import EventDetailScreen from './EventDetailScreen';
+import EventDetailScreen, { EventDetailBottomButton } from './EventDetailScreen';
 import ENV from '../config/environment';
 import firestoreService from '../services/firestoreService';
 import { unifiedSearch } from '../services/searchService';
+import { useAuth } from '../contexts/AuthContext';
+import { useEvents } from '../contexts/EventContext';
+import evaluationService from '../services/evaluationService';
 
-// 현재 위치 마커 이미지
-const currentLocationMarkerImage = require('../assets/images/current-location-marker.png');
-
-// 이미지 URI 가져오기
-const getCurrentLocationMarkerImageUri = () => {
-  const resolvedAsset = Image.resolveAssetSource(currentLocationMarkerImage);
-  return resolvedAsset ? resolvedAsset.uri : null;
-};
+// 현재 위치 마커는 SVG로 직접 생성 (이미지 파일 사용 안 함)
 
 const MapScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -36,6 +32,8 @@ const MapScreen = ({ navigation }) => {
   const [clusterData, setClusterData] = useState(null); // 클러스터 클릭 시 데이터
   const [selectedEvent, setSelectedEvent] = useState(null); // 선택된 모임 (상세 화면 표시용)
   const [selectedCafe, setSelectedCafe] = useState(null); // 선택된 카페 (상세 화면 표시용)
+  const [showAllEvents, setShowAllEvents] = useState(false); // 전체 모임 목록 표시 여부
+  const [showAllCafes, setShowAllCafes] = useState(false); // 전체 카페 목록 표시 여부
   const [searchQuery, setSearchQuery] = useState(''); // 검색어
   const [cafeSearchQuery, setCafeSearchQuery] = useState(''); // 카페 검색어
   const [mapSearchQuery, setMapSearchQuery] = useState(''); // 지도 탭 검색어
@@ -47,6 +45,37 @@ const MapScreen = ({ navigation }) => {
   const webViewRef = useRef(null);
   const bottomSheetRef = useRef(null);
   const searchInputRef = useRef(null);
+  const eventDetailScreenRef = useRef(null);
+  const [bottomButtonProps, setBottomButtonProps] = useState(null);
+  const { user } = useAuth();
+  const { endEvent, joinEvent, leaveEvent, chatRooms } = useEvents();
+  
+  // footerComponent를 위한 render 함수
+  const renderFooter = useCallback((props) => {
+    if (activeToggle === 'events' && selectedEvent && bottomButtonProps) {
+      try {
+        return (
+          <BottomSheetFooter {...props} bottomInset={-10}>
+            <EventDetailBottomButton
+              {...bottomButtonProps}
+              onJoinPress={bottomButtonProps.handleJoinPress}
+              onEvaluationPress={bottomButtonProps.handleEvaluationPress}
+            />
+          </BottomSheetFooter>
+        );
+      } catch (error) {
+        console.error('하단 버튼 렌더링 오류:', error);
+        return null;
+      }
+    }
+    return null;
+  }, [activeToggle, selectedEvent, bottomButtonProps, insets.bottom]);
+
+  useEffect(() => {
+    if (!selectedEvent) {
+      setBottomButtonProps(null);
+    }
+  }, [selectedEvent]);
   
   // 애니메이션 값들
   const locationButtonOpacity = useRef(new Animated.Value(1)).current;
@@ -65,12 +94,15 @@ const MapScreen = ({ navigation }) => {
   
   const snapPoints = useMemo(() => {
     const maxHeightPercent = (maxBottomSheetHeight / screenHeight) * 100;
-    // 전체 확장 높이를 60%로 제한 (기존 90%에서 감소)
-    return ['10%', `${Math.min(maxHeightPercent, 60)}%`];
+    // 3단계 snapPoints: 부분 확장(10%), 일반 확장(60%), 전체 확장(90%)
+    return ['10%', `${Math.min(maxHeightPercent, 60)}%`, `${Math.min(maxHeightPercent, 90)}%`];
   }, [screenHeight, maxBottomSheetHeight]);
   
-  // Bottom Sheet 최대 높이 제한
-  const maxDynamicContentSize = useMemo(() => maxBottomSheetHeight, [maxBottomSheetHeight]);
+  // Bottom Sheet 최대 높이 제한 (스와이프로 올릴 때의 최대 높이)
+  // 스크롤 테스트를 위해 60% 제한 제거
+  const maxDynamicContentSize = useMemo(() => {
+    return maxBottomSheetHeight;
+  }, [maxBottomSheetHeight]);
   
   // 필터링된 모임 목록 (검색어 기반)
   const filteredEvents = useMemo(() => {
@@ -132,9 +164,6 @@ const MapScreen = ({ navigation }) => {
 
   // 카카오맵 HTML 생성 (HanRiverMap.js의 createKakaoMapHTML을 그대로 사용, 높이만 화면 전체로 조정)
   const createKakaoMapHTML = (javascriptKey, initialLat, initialLng) => {
-    // 현재 위치 마커 이미지 URI 가져오기
-    const markerImageUri = getCurrentLocationMarkerImageUri();
-    
     // 화면 전체 높이를 계산 (WebView에서 사용 가능한 최대 높이)
     return `
       <!DOCTYPE html>
@@ -205,7 +234,6 @@ const MapScreen = ({ navigation }) => {
         <script>
           var map;
           var currentLocationMarker = null;
-          var currentLocationCircle = null;
           var eventMarkers = [];
           var cafeMarkers = [];
           var eventInfoWindows = []; // 모임 마커 정보창 배열
@@ -217,6 +245,8 @@ const MapScreen = ({ navigation }) => {
           var searchPlaceMarker = null; // 검색한 장소 마커
           var isProgrammaticMove = false; // 프로그래밍 방식 지도 이동 중 플래그
           var currentMapLevel = 9; // 현재 지도 레벨
+          var openEventInfoWindowId = null; // 현재 열려있는 모임 인포윈도우의 이벤트 ID
+          var openCafeInfoWindowId = null; // 현재 열려있는 카페 인포윈도우의 카페 ID
           
           function log(message, type = 'info') {
             if (window.ReactNativeWebView) {
@@ -280,6 +310,9 @@ const MapScreen = ({ navigation }) => {
               return;
             }
             
+            // 열려있던 인포윈도우의 이벤트 ID 저장
+            var previouslyOpenEventId = openEventInfoWindowId;
+            
             // 기존 마커 및 정보창 제거
             eventMarkers.forEach(function(marker) {
               marker.setMap(null);
@@ -319,7 +352,6 @@ const MapScreen = ({ navigation }) => {
                 // 모임 마커 SVG (청록색)
                 var eventSvg = '<svg width="' + markerSize.width + '" height="' + markerSize.height + '" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
                   '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#3AF8FF"/>' +
-                  '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="none" stroke="#ffffff" stroke-width="2"/>' +
                   '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
                   '<circle cx="12" cy="12" r="3" fill="#3AF8FF"/>' +
                   '</svg>';
@@ -356,8 +388,13 @@ const MapScreen = ({ navigation }) => {
                 (function(currentEvent, currentMarker, currentInfoWindow, currentIndex) {
                   kakao.maps.event.addListener(currentMarker, 'click', function(mouseEvent) {
                     // 이벤트 전파 중지 (지도 클릭 이벤트로 버블링 방지)
-                    if (mouseEvent && mouseEvent.stopPropagation) {
-                      mouseEvent.stopPropagation();
+                    if (mouseEvent) {
+                      if (mouseEvent.stopPropagation) {
+                        mouseEvent.stopPropagation();
+                      }
+                      if (mouseEvent.preventDefault) {
+                        mouseEvent.preventDefault();
+                      }
                     }
                     
                     // 다른 정보창들 닫기
@@ -370,9 +407,17 @@ const MapScreen = ({ navigation }) => {
                     // 현재 정보창 토글
                     if (currentInfoWindow.getMap()) {
                       currentInfoWindow.close();
+                      openEventInfoWindowId = null;
                     } else {
                       currentInfoWindow.open(map, currentMarker);
+                      openEventInfoWindowId = currentEvent.id; // 열린 인포윈도우 ID 저장
                     }
+                    
+                    // 마커 클릭 플래그 설정 (지도 클릭 이벤트 무시용)
+                    window.isMarkerClick = true;
+                    setTimeout(function() {
+                      window.isMarkerClick = false;
+                    }, 100);
                     
                     if (window.ReactNativeWebView) {
                       window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -393,11 +438,27 @@ const MapScreen = ({ navigation }) => {
             // 클러스터 업데이트
             updateClusterer();
             
+            // 이전에 열려있던 인포윈도우 다시 열기
+            if (previouslyOpenEventId) {
+              setTimeout(function() {
+                eventsData.forEach(function(event, index) {
+                  if (event.id === previouslyOpenEventId && eventInfoWindows[index]) {
+                    eventInfoWindows[index].open(map, eventMarkers[index]);
+                    openEventInfoWindowId = previouslyOpenEventId;
+                    log('📍 인포윈도우 복원: ' + (event.title || event.id), 'info');
+                  }
+                });
+              }, 100);
+            }
+            
             log('✅ 모임 마커 생성 완료: ' + eventMarkers.length + '개', 'success');
           }
           
           // 카페 마커 생성 함수
           function createCafeMarkers(cafesData) {
+            // 열려있던 인포윈도우의 카페 ID 저장
+            var previouslyOpenCafeId = openCafeInfoWindowId;
+            
             // 기존 마커 및 정보창 제거
             cafeMarkers.forEach(function(marker) {
               marker.setMap(null);
@@ -434,7 +495,6 @@ const MapScreen = ({ navigation }) => {
                 // 카페 마커 SVG (주황색)
                 var cafeSvg = '<svg width="' + markerSize.width + '" height="' + markerSize.height + '" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
                   '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#FF9500"/>' +
-                  '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="none" stroke="#ffffff" stroke-width="2"/>' +
                   '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
                   '<circle cx="12" cy="12" r="3" fill="#FF9500"/>' +
                   '</svg>';
@@ -469,7 +529,17 @@ const MapScreen = ({ navigation }) => {
                 
                 // 마커 클릭 이벤트
                 (function(currentCafe, currentMarker, currentInfoWindow, currentIndex) {
-                  kakao.maps.event.addListener(currentMarker, 'click', function() {
+                  kakao.maps.event.addListener(currentMarker, 'click', function(mouseEvent) {
+                    // 이벤트 전파 중지 (지도 클릭 이벤트로 버블링 방지)
+                    if (mouseEvent) {
+                      if (mouseEvent.stopPropagation) {
+                        mouseEvent.stopPropagation();
+                      }
+                      if (mouseEvent.preventDefault) {
+                        mouseEvent.preventDefault();
+                      }
+                    }
+                    
                     // 다른 정보창들 닫기
                     cafeInfoWindows.forEach(function(iw, i) {
                       if (i !== currentIndex) {
@@ -480,9 +550,17 @@ const MapScreen = ({ navigation }) => {
                     // 현재 정보창 토글
                     if (currentInfoWindow.getMap()) {
                       currentInfoWindow.close();
+                      openCafeInfoWindowId = null;
                     } else {
                       currentInfoWindow.open(map, currentMarker);
+                      openCafeInfoWindowId = currentCafe.id; // 열린 인포윈도우 ID 저장
                     }
+                    
+                    // 마커 클릭 플래그 설정 (지도 클릭 이벤트 무시용)
+                    window.isMarkerClick = true;
+                    setTimeout(function() {
+                      window.isMarkerClick = false;
+                    }, 100);
                     
                     if (window.ReactNativeWebView) {
                       window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -503,191 +581,40 @@ const MapScreen = ({ navigation }) => {
             // 클러스터 업데이트
             updateClusterer();
             
+            // 이전에 열려있던 인포윈도우 다시 열기
+            if (previouslyOpenCafeId) {
+              setTimeout(function() {
+                cafesData.forEach(function(cafe, index) {
+                  if (cafe.id === previouslyOpenCafeId && cafeInfoWindows[index]) {
+                    cafeInfoWindows[index].open(map, cafeMarkers[index]);
+                    openCafeInfoWindowId = previouslyOpenCafeId;
+                    log('📍 인포윈도우 복원: ' + (cafe.name || cafe.id), 'info');
+                  }
+                });
+              }, 100);
+            }
+            
             log('✅ 카페 마커 생성 완료: ' + cafeMarkers.length + '개', 'success');
           }
           
-          // 현재 위치 마커 생성 함수
+          // 현재 위치 마커 생성 함수 (SVG만 사용)
           function createCurrentLocationMarker(lat, lng) {
             if (currentLocationMarker) {
               currentLocationMarker.setMap(null);
             }
-            if (currentLocationCircle) {
-              currentLocationCircle.setMap(null);
-            }
             
             var currentPosition = new kakao.maps.LatLng(lat, lng);
             
-            // 이미지 파일 사용 (Base64로 변환)
-            var markerImageUri = '${markerImageUri || ''}';
-            var currentLocationImageSrc;
-            var currentLocationImageSize;
-            var currentLocationImageOffset;
-            
-            if (markerImageUri) {
-              // 이미지 파일을 Base64로 변환
-              fetch(markerImageUri)
-                .then(function(response) {
-                  return response.blob();
-                })
-                .then(function(blob) {
-                  return new Promise(function(resolve, reject) {
-                    var reader = new FileReader();
-                    reader.onloadend = function() {
-                      var base64data = reader.result;
-                      currentLocationImageSrc = base64data;
-                      
-                      // 이미지 크기 설정 (실제 이미지 크기에 맞게 조정)
-                      // 이미지가 로드된 후 실제 크기를 가져와서 설정
-                      var img = new Image();
-                      img.onload = function() {
-                        var imgWidth = img.width || 20;
-                        var imgHeight = img.height || 20;
-                        currentLocationImageSize = new kakao.maps.Size(imgWidth, imgHeight);
-                        currentLocationImageOffset = new kakao.maps.Point(imgWidth / 2, imgHeight);
-                        
-                        var currentLocationImage = new kakao.maps.MarkerImage(
-                          currentLocationImageSrc,
-                          currentLocationImageSize,
-                          { offset: currentLocationImageOffset }
-                        );
-                        
-                        currentLocationMarker = new kakao.maps.Marker({
-                          position: currentPosition,
-                          image: currentLocationImage,
-                          map: map,
-                          zIndex: 1000
-                        });
-                        
-                        currentLocationCircle = new kakao.maps.Circle({
-                          center: currentPosition,
-                          radius: 50,
-                          strokeWeight: 1,
-                          strokeColor: '#FF3A3A',
-                          strokeOpacity: 0.3,
-                          strokeStyle: 'dashed',
-                          fillColor: '#FF3A3A',
-                          fillOpacity: 0.1,
-                          map: map
-                        });
-                        
-                        log('📍 현재 위치 마커 생성: ' + lat + ', ' + lng, 'success');
-                      };
-                      img.onerror = function() {
-                        // 이미지 로드 실패 시 기본 크기 사용
-                        currentLocationImageSize = new kakao.maps.Size(20, 20);
-                        currentLocationImageOffset = new kakao.maps.Point(10, 10);
-                        
-                        var currentLocationImage = new kakao.maps.MarkerImage(
-                          currentLocationImageSrc,
-                          currentLocationImageSize,
-                          { offset: currentLocationImageOffset }
-                        );
-                        
-                        currentLocationMarker = new kakao.maps.Marker({
-                          position: currentPosition,
-                          image: currentLocationImage,
-                          map: map,
-                          zIndex: 1000
-                        });
-                        
-                        currentLocationCircle = new kakao.maps.Circle({
-                          center: currentPosition,
-                          radius: 50,
-                          strokeWeight: 1,
-                          strokeColor: '#FF3A3A',
-                          strokeOpacity: 0.3,
-                          strokeStyle: 'dashed',
-                          fillColor: '#FF3A3A',
-                          fillOpacity: 0.1,
-                          map: map
-                        });
-                        
-                        log('📍 현재 위치 마커 생성 (기본 크기): ' + lat + ', ' + lng, 'success');
-                      };
-                      img.src = base64data;
-                      
-                      var currentLocationImage = new kakao.maps.MarkerImage(
-                        currentLocationImageSrc,
-                        currentLocationImageSize,
-                        { offset: currentLocationImageOffset }
-                      );
-                      
-                      currentLocationMarker = new kakao.maps.Marker({
-                        position: currentPosition,
-                        image: currentLocationImage,
-                        map: map,
-                        zIndex: 1000
-                      });
-                      
-                      currentLocationCircle = new kakao.maps.Circle({
-                        center: currentPosition,
-                        radius: 50,
-                        strokeWeight: 1,
-                        strokeColor: '#FF3A3A',
-                        strokeOpacity: 0.3,
-                        strokeStyle: 'dashed',
-                        fillColor: '#FF3A3A',
-                        fillOpacity: 0.1,
-                        map: map
-                      });
-                      
-                      log('📍 현재 위치 마커 생성: ' + lat + ', ' + lng, 'success');
-                    };
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                  });
-                })
-                .catch(function(error) {
-                  log('❌ 현재 위치 마커 이미지 로드 실패, SVG 사용: ' + error.message, 'warning');
-                  // 이미지 로드 실패 시 SVG 사용
-                  var currentLocationSvg = '<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">' +
-                    '<circle cx="10" cy="10" r="8" fill="#FF3A3A" stroke="#ffffff" stroke-width="2"/>' +
-                    '<circle cx="10" cy="10" r="3" fill="#ffffff"/>' +
-                    '</svg>';
-                  
-                  currentLocationImageSrc = 'data:image/svg+xml;base64,' + btoa(currentLocationSvg);
-                  currentLocationImageSize = new kakao.maps.Size(20, 20);
-                  currentLocationImageOffset = new kakao.maps.Point(10, 10);
-                  
-                  var currentLocationImage = new kakao.maps.MarkerImage(
-                    currentLocationImageSrc,
-                    currentLocationImageSize,
-                    { offset: currentLocationImageOffset }
-                  );
-                  
-                  currentLocationMarker = new kakao.maps.Marker({
-                    position: currentPosition,
-                    image: currentLocationImage,
-                    map: map,
-                    zIndex: 1000
-                  });
-                  
-                  currentLocationCircle = new kakao.maps.Circle({
-                    center: currentPosition,
-                    radius: 50,
-                    strokeWeight: 1,
-                    strokeColor: '#FF3A3A',
-                    strokeOpacity: 0.3,
-                    strokeStyle: 'dashed',
-                    fillColor: '#FF3A3A',
-                    fillOpacity: 0.1,
-                    map: map
-                  });
-                  
-                  log('📍 현재 위치 마커 생성 (SVG): ' + lat + ', ' + lng, 'success');
-                });
-              return; // 비동기 처리이므로 여기서 반환
-            }
-            
-            // 이미지 URI가 없으면 SVG 사용 (기본값)
-            var currentLocationSvg = '<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">' +
-              '<circle cx="10" cy="10" r="8" fill="#FF3A3A" stroke="#ffffff" stroke-width="2"/>' +
-              '<circle cx="10" cy="10" r="3" fill="#ffffff"/>' +
+            // SVG 사용 (넓은 반경의 파란색 원 + 투명도 40%)
+            var currentLocationSvg = '<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">' +
+              '<circle cx="25" cy="25" r="25" fill="#2294FF" fill-opacity="0.4"/>' +
+              '<circle cx="25" cy="25" r="10" fill="#ffffff"/>' +
+              '<circle cx="25" cy="25" r="6" fill="#2294FF"/>' +
               '</svg>';
             
-            currentLocationImageSrc = 'data:image/svg+xml;base64,' + btoa(currentLocationSvg);
-            currentLocationImageSize = new kakao.maps.Size(20, 20);
-            currentLocationImageOffset = new kakao.maps.Point(10, 10);
+            var currentLocationImageSrc = 'data:image/svg+xml;base64,' + btoa(currentLocationSvg);
+            var currentLocationImageSize = new kakao.maps.Size(50, 50);
+            var currentLocationImageOffset = new kakao.maps.Point(25, 50);
             
             var currentLocationImage = new kakao.maps.MarkerImage(
               currentLocationImageSrc,
@@ -700,18 +627,6 @@ const MapScreen = ({ navigation }) => {
               image: currentLocationImage,
               map: map,
               zIndex: 1000
-            });
-            
-            currentLocationCircle = new kakao.maps.Circle({
-              center: currentPosition,
-              radius: 50,
-              strokeWeight: 1,
-              strokeColor: '#FF3A3A',
-              strokeOpacity: 0.3,
-              strokeStyle: 'dashed',
-              fillColor: '#FF3A3A',
-              fillOpacity: 0.1,
-              map: map
             });
             
             log('📍 현재 위치 마커 생성: ' + lat + ', ' + lng, 'success');
@@ -949,12 +864,28 @@ const MapScreen = ({ navigation }) => {
                 // 지도 클릭 이벤트 리스너 추가 (bottom sheet만 닫고, 지도는 자동으로 움직임)
                 // 마커 클릭은 별도로 처리되므로 여기서는 지도 영역 클릭만 처리
                 kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
+                  // 마커 클릭 플래그 확인
+                  if (window.isMarkerClick) {
+                    return; // 마커 클릭 중이면 무시
+                  }
+                  
                   // 마커 클릭이 아닐 때만 처리
                   var target = mouseEvent && mouseEvent.target;
-                  if (target && target.tagName === 'IMG' && target.closest('.kakao-marker')) {
+                  if (target && (target.tagName === 'IMG' || target.closest('.kakao-marker'))) {
                     // 마커 클릭이면 무시
                     return;
                   }
+                  
+                  // 열려있는 인포윈도우 모두 닫기
+                  eventInfoWindows.forEach(function(infoWindow) {
+                    infoWindow.close();
+                  });
+                  cafeInfoWindows.forEach(function(infoWindow) {
+                    infoWindow.close();
+                  });
+                  openEventInfoWindowId = null;
+                  openCafeInfoWindowId = null;
+                  
                   if (window.ReactNativeWebView) {
                     window.ReactNativeWebView.postMessage(JSON.stringify({
                       type: 'mapClick'
@@ -1098,7 +1029,7 @@ const MapScreen = ({ navigation }) => {
           type: 'updateEvents',
           events: allEvents
         });
-        webViewRef.current.postMessage(message);
+        webViewRef.current?.postMessage(message);
       }
     } catch (error) {
       console.error('❌ 모임 데이터 로드 실패:', error);
@@ -1122,7 +1053,7 @@ const MapScreen = ({ navigation }) => {
           type: 'updateEvents',
           events: nearbyEvents
         });
-        webViewRef.current.postMessage(message);
+        webViewRef.current?.postMessage(message);
       }
     } catch (error) {
       console.error('❌ 모임 필터링 실패:', error);
@@ -1143,7 +1074,7 @@ const MapScreen = ({ navigation }) => {
           type: 'updateCafes',
           cafes: nearbyCafes
         });
-        webViewRef.current.postMessage(message);
+        webViewRef.current?.postMessage(message);
       }
     } catch (error) {
       console.error('❌ 카페 데이터 로드 실패:', error);
@@ -1162,6 +1093,18 @@ const MapScreen = ({ navigation }) => {
     
     initializeLocation();
   }, []);
+
+  // 로딩 타임아웃 처리 (무한 로딩 방지)
+  useEffect(() => {
+    if (isLoading) {
+      const timeout = setTimeout(() => {
+        console.warn('⚠️ 지도 로딩 타임아웃 (10초) - 강제로 로딩 해제');
+        setIsLoading(false);
+      }, 10000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isLoading]);
 
   // 화면 포커스 시 StatusBar 설정 및 위치 업데이트, 모임 데이터 새로고침
   useFocusEffect(
@@ -1219,7 +1162,7 @@ const MapScreen = ({ navigation }) => {
             latitude: currentLocation.latitude,
             longitude: currentLocation.longitude
           });
-          webViewRef.current.postMessage(locationMessage);
+          webViewRef.current?.postMessage(locationMessage);
           console.log('🗺️ 지도 로드 후 현재 위치 전송:', locationMessage);
         }, 500);
       } else {
@@ -1234,21 +1177,21 @@ const MapScreen = ({ navigation }) => {
               type: 'updateEvents',
               events: events
             });
-            webViewRef.current.postMessage(eventsMessage);
+            webViewRef.current?.postMessage(eventsMessage);
           }
           if (cafes.length > 0) {
             const cafesMessage = JSON.stringify({
               type: 'updateCafes',
               cafes: cafes
             });
-            webViewRef.current.postMessage(cafesMessage);
+            webViewRef.current?.postMessage(cafesMessage);
           }
           // 기본 토글 설정
           const toggleMessage = JSON.stringify({
             type: 'switchToggle',
             toggle: activeToggle
           });
-          webViewRef.current.postMessage(toggleMessage);
+          webViewRef.current?.postMessage(toggleMessage);
         }, 1000);
       }
     } else if (data.startsWith('kakaoMapError')) {
@@ -1321,7 +1264,7 @@ const MapScreen = ({ navigation }) => {
               longitude: parseFloat(result.x),
               name: result.name || result.place_name // 마커에 표시할 이름
             });
-            webViewRef.current.postMessage(message);
+            webViewRef.current?.postMessage(message);
           }
         }
         
@@ -1358,19 +1301,49 @@ const MapScreen = ({ navigation }) => {
   // 토글 변경 핸들러
   const handleToggleChange = (toggle) => {
     setActiveToggle(toggle);
+    setShowAllEvents(false); // 전체 보기 모드 해제
+    setShowAllCafes(false); // 전체 보기 모드 해제
     if (webViewRef.current) {
       const message = JSON.stringify({
         type: 'switchToggle',
         toggle: toggle
       });
-      webViewRef.current.postMessage(message);
+      webViewRef.current?.postMessage(message);
     }
   };
 
   // Bottom Sheet 핸들러
+  const [currentSheetIndex, setCurrentSheetIndex] = useState(0);
+  
   const handleSheetChanges = useCallback((index) => {
     console.log('📄 Bottom Sheet 변경:', index);
+    setCurrentSheetIndex(index);
+    // Bottom Sheet가 10% 또는 60%로 축소되면 전체 보기 모드 해제
+    if (index === 0 || index === 1) {
+      setShowAllEvents(false);
+      setShowAllCafes(false);
+    }
   }, []);
+  
+  // 헤더 클릭 시 BottomSheet 확장
+  const handleHeaderPress = useCallback(() => {
+    if (bottomSheetRef.current) {
+      // 현재 인덱스에서 다음 단계로 확장
+      const nextIndex = currentSheetIndex < 2 ? currentSheetIndex + 1 : 0;
+      bottomSheetRef.current.snapToIndex(nextIndex);
+    }
+  }, [currentSheetIndex]);
+  
+  // 커스텀 핸들 컴포넌트
+  const renderHandle = useCallback(() => (
+    <TouchableOpacity 
+      onPress={handleHeaderPress}
+      activeOpacity={0.7}
+      style={styles.bottomSheetHandleContainer}
+    >
+      <View style={styles.bottomSheetIndicator} />
+    </TouchableOpacity>
+  ), [handleHeaderPress]);
 
   // 지도 클릭/드래그 시 Bottom Sheet 축소
   const handleMapInteraction = useCallback(() => {
@@ -1380,13 +1353,16 @@ const MapScreen = ({ navigation }) => {
     setSelectedEvent(null); // 상세 화면 닫기
     setSelectedCafe(null); // 카페 상세 화면 닫기
     setClusterData(null); // 클러스터 데이터 초기화
+    setShowAllEvents(false); // 전체 보기 모드 해제
+    setShowAllCafes(false); // 전체 보기 모드 해제
   }, []);
   
   // 모임 클릭 핸들러
   const handleEventClick = useCallback((event) => {
     setSelectedEvent(event);
+    setShowAllEvents(false); // 전체 보기 모드 해제 (상세 화면으로 전환)
     
-    // Bottom Sheet 전체 확장
+    // Bottom Sheet 전체 확장 (60%)
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(1);
     }
@@ -1409,7 +1385,7 @@ const MapScreen = ({ navigation }) => {
           longitude: lng,
           level: 4
         });
-        webViewRef.current.postMessage(message);
+        webViewRef.current?.postMessage(message);
       }
     }
   }, []);
@@ -1417,14 +1393,32 @@ const MapScreen = ({ navigation }) => {
   // 모임 상세 화면 닫기
   const handleCloseEventDetail = useCallback(() => {
     setSelectedEvent(null);
+    setShowAllEvents(false); // 전체 보기 모드 해제
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(0); // 부분 확장으로 복귀
+    }
+  }, []);
+
+  // 더보기 버튼 클릭 핸들러 (모임)
+  const handleShowAllEvents = useCallback(() => {
+    setShowAllEvents(true);
+    if (bottomSheetRef.current) {
+      bottomSheetRef.current.snapToIndex(2); // 전체 확장 (90%)
+    }
+  }, []);
+
+  // 더보기 버튼 클릭 핸들러 (카페)
+  const handleShowAllCafes = useCallback(() => {
+    setShowAllCafes(true);
+    if (bottomSheetRef.current) {
+      bottomSheetRef.current.snapToIndex(2); // 전체 확장 (90%)
     }
   }, []);
   
   // 카페 클릭 핸들러
   const handleCafeClick = useCallback((cafe) => {
     setSelectedCafe(cafe);
+    setShowAllCafes(false); // 전체 보기 모드 해제 (상세 화면으로 전환)
     // 해당 마커가 지도 가운데에 나타나도록 이동
     if (webViewRef.current && cafe) {
       let lat, lng;
@@ -1439,11 +1433,11 @@ const MapScreen = ({ navigation }) => {
           latitude: lat,
           longitude: lng
         });
-        webViewRef.current.postMessage(message);
+        webViewRef.current?.postMessage(message);
       }
     }
     
-    // Bottom Sheet 전체 확장
+    // Bottom Sheet 전체 확장 (60%)
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(1);
     }
@@ -1454,13 +1448,14 @@ const MapScreen = ({ navigation }) => {
         type: 'setMapLevel',
         level: 4
       });
-      webViewRef.current.postMessage(message);
+      webViewRef.current?.postMessage(message);
     }
   }, []);
   
   // 카페 상세 화면 닫기
   const handleCloseCafeDetail = useCallback(() => {
     setSelectedCafe(null);
+    setShowAllCafes(false); // 전체 보기 모드 해제
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(0); // 부분 확장으로 복귀
     }
@@ -1767,7 +1762,7 @@ const MapScreen = ({ navigation }) => {
                     latitude: location.latitude,
                     longitude: location.longitude
                   });
-                  webViewRef.current.postMessage(message);
+                  webViewRef.current?.postMessage(message);
                   
                   // 현재 위치 기준 3km 내 모임만 필터링
                   await filterEventsByLocation(location.latitude, location.longitude);
@@ -1963,32 +1958,44 @@ const MapScreen = ({ navigation }) => {
           snapPoints={snapPoints}
           onChange={handleSheetChanges}
           enablePanDownToClose={false}
+          enableContentPanningGesture={false}
           backgroundStyle={styles.bottomSheetBackground}
-          handleIndicatorStyle={styles.bottomSheetIndicator}
+          handleComponent={renderHandle}
           maxDynamicContentSize={maxDynamicContentSize}
           topInset={insets.top + 77 + 40 + 12}
+          footerComponent={renderFooter}
         >
           <BottomSheetView style={styles.bottomSheetContent}>
             {activeToggle === 'events' && selectedEvent ? (
-              // 모임 상세 화면
-              <BottomSheetScrollView style={styles.bottomSheetBody} contentContainerStyle={[styles.bottomSheetScrollContent, { paddingTop: 0 }]}>
-                <EventDetailScreen
-                  route={{
-                    params: {
-                      event: selectedEvent,
-                      isJoined: false,
-                      returnToScreen: 'MapScreen'
-                    }
-                  }}
-                  navigation={{
-                    ...navigation,
-                    goBack: handleCloseEventDetail
-                  }}
-                />
-              </BottomSheetScrollView>
+              // 모임 상세 화면 (EventDetailScreen 내부에서 레이아웃 처리)
+              <EventDetailScreen
+                ref={eventDetailScreenRef}
+                route={{
+                  params: {
+                    event: selectedEvent,
+                    isJoined: false,
+                    returnToScreen: 'MapScreen'
+                  }
+                }}
+                onBottomButtonPropsChange={setBottomButtonProps}
+                navigation={{
+                  ...navigation,
+                  goBack: handleCloseEventDetail
+                }}
+              />
             ) : activeToggle === 'cafes' && selectedCafe ? (
               // 카페 상세 화면
-              <BottomSheetScrollView style={styles.bottomSheetBody}>
+              <View style={styles.scrollContainer}>
+                <ScrollView 
+                  style={styles.scrollView}
+                  contentContainerStyle={{ 
+                    paddingTop: 16, 
+                    paddingBottom: insets.bottom + 80,
+                    flexGrow: 1
+                  }}
+                  showsVerticalScrollIndicator={true}
+                  nestedScrollEnabled={true}
+                >
                 <View style={styles.cafeDetailContainer}>
                   <View style={styles.cafeDetailHeader}>
                     <Text style={styles.cafeDetailName}>{selectedCafe.name || '카페'}</Text>
@@ -2063,7 +2070,8 @@ const MapScreen = ({ navigation }) => {
                     </View>
                   )}
                 </View>
-              </BottomSheetScrollView>
+              </ScrollView>
+              </View>
             ) : (
               // 모임 목록 화면
               <>
@@ -2114,81 +2122,121 @@ const MapScreen = ({ navigation }) => {
                   )}
                 </View>
                 {activeToggle === 'events' && (
-                  <BottomSheetScrollView style={styles.bottomSheetBody}>
-                      {filteredEvents.length > 0 ? (
-                        filteredEvents.map((event, index) => (
-                          <TouchableOpacity
-                            key={event.id || index}
-                            onPress={() => handleEventClick(event)}
-                            style={styles.eventCardContainer}
-                          >
-                            <MeetingCard
-                              meeting={event}
-                              onClose={() => {}}
-                              onJoin={() => handleEventClick(event)}
-                            />
-                          </TouchableOpacity>
-                        ))
-                      ) : (
-                        <View style={styles.emptyContainer}>
-                          <Text style={styles.emptyText}>
-                            {searchQuery.trim() 
-                              ? '검색 결과가 없습니다'
-                              : '주변에 러닝모임이 없습니다'}
-                          </Text>
-                        </View>
-                      )}
-                    </BottomSheetScrollView>
+                  <View style={styles.scrollContainer}>
+                    <ScrollView 
+                      style={styles.scrollView}
+                      contentContainerStyle={{ 
+                        paddingTop: 16, 
+                        paddingBottom: insets.bottom + 80
+                      }}
+                      showsVerticalScrollIndicator={true}
+                      nestedScrollEnabled={true}
+                    >
+                        {filteredEvents.length > 0 ? (
+                          <>
+                            {(showAllEvents ? filteredEvents : filteredEvents.slice(0, 5)).map((event, index) => (
+                              <TouchableOpacity
+                                key={event.id || index}
+                                onPress={() => handleEventClick(event)}
+                                style={styles.eventCardContainer}
+                              >
+                                <MeetingCard
+                                  meeting={event}
+                                  onClose={() => {}}
+                                  onJoin={() => handleEventClick(event)}
+                                />
+                              </TouchableOpacity>
+                            ))}
+                            {!showAllEvents && filteredEvents.length > 5 && (
+                              <TouchableOpacity
+                                onPress={handleShowAllEvents}
+                                style={styles.showMoreButton}
+                              >
+                                <Text style={styles.showMoreButtonText}>더보기</Text>
+                                <Ionicons name="chevron-down" size={20} color={COLORS.PRIMARY} />
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        ) : (
+                          <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>
+                              {searchQuery.trim() 
+                                ? '검색 결과가 없습니다'
+                                : '주변에 러닝모임이 없습니다'}
+                            </Text>
+                          </View>
+                        )}
+                    </ScrollView>
+                  </View>
                 )}
                 {activeToggle === 'cafes' && (
-                  <>
-                    <BottomSheetScrollView style={styles.bottomSheetBody}>
-                      {filteredCafes.length > 0 ? (
-                        filteredCafes.map((cafe, index) => (
-                          <TouchableOpacity
-                            key={cafe.id || index}
-                            onPress={() => handleCafeClick(cafe)}
-                            style={styles.cafeCardContainer}
-                          >
-                            <View style={styles.cafeCard}>
-                              {/* 카페 이미지 */}
-                              {cafe.images && cafe.images.length > 0 && (
-                                <Image
-                                  source={{ uri: cafe.images[0] }}
-                                  style={styles.cafeImage}
-                                  resizeMode="cover"
-                                />
-                              )}
-                              <View style={styles.cafeCardContent}>
-                                <Text style={styles.cafeName}>{cafe.name || '카페'}</Text>
-                                {cafe.description && (
-                                  <Text style={styles.cafeDescription} numberOfLines={2}>
-                                    {cafe.description}
-                                  </Text>
-                                )}
-                                {cafe.runningCertificationBenefit && (
-                                  <View style={styles.cafeBenefit}>
-                                    <Ionicons name="gift" size={14} color={COLORS.PRIMARY} />
-                                    <Text style={styles.cafeBenefitText}>
-                                      {cafe.runningCertificationBenefit}
-                                    </Text>
+                  <View style={styles.scrollContainer}>
+                    <ScrollView 
+                      style={styles.scrollView}
+                      contentContainerStyle={{ 
+                        paddingTop: 16, 
+                        paddingBottom: insets.bottom + 80
+                      }}
+                      showsVerticalScrollIndicator={true}
+                      nestedScrollEnabled={true}
+                    >
+                        {filteredCafes.length > 0 ? (
+                          <>
+                            {(showAllCafes ? filteredCafes : filteredCafes.slice(0, 5)).map((cafe, index) => (
+                              <TouchableOpacity
+                                key={cafe.id || index}
+                                onPress={() => handleCafeClick(cafe)}
+                                style={styles.cafeCardContainer}
+                              >
+                                <View style={styles.cafeCard}>
+                                  {/* 카페 이미지 */}
+                                  {cafe.images && cafe.images.length > 0 && (
+                                    <Image
+                                      source={{ uri: cafe.images[0] }}
+                                      style={styles.cafeImage}
+                                      resizeMode="cover"
+                                    />
+                                  )}
+                                  <View style={styles.cafeCardContent}>
+                                    <Text style={styles.cafeName}>{cafe.name || '카페'}</Text>
+                                    {cafe.description && (
+                                      <Text style={styles.cafeDescription} numberOfLines={2}>
+                                        {cafe.description}
+                                      </Text>
+                                    )}
+                                    {cafe.runningCertificationBenefit && (
+                                      <View style={styles.cafeBenefit}>
+                                        <Ionicons name="gift" size={14} color={COLORS.PRIMARY} />
+                                        <Text style={styles.cafeBenefitText}>
+                                          {cafe.runningCertificationBenefit}
+                                        </Text>
+                                      </View>
+                                    )}
                                   </View>
-                                )}
-                              </View>
-                            </View>
-                          </TouchableOpacity>
-                        ))
-                      ) : (
-                        <View style={styles.emptyContainer}>
-                          <Text style={styles.emptyText}>
-                            {cafeSearchQuery.trim() 
-                              ? '검색 결과가 없습니다'
-                              : '주변에 러닝카페가 없습니다'}
-                          </Text>
-                        </View>
-                      )}
-                    </BottomSheetScrollView>
-                  </>
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                            {!showAllCafes && filteredCafes.length > 5 && (
+                              <TouchableOpacity
+                                onPress={handleShowAllCafes}
+                                style={styles.showMoreButton}
+                              >
+                                <Text style={styles.showMoreButtonText}>더보기</Text>
+                                <Ionicons name="chevron-down" size={20} color={COLORS.PRIMARY} />
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        ) : (
+                          <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>
+                              {cafeSearchQuery.trim() 
+                                ? '검색 결과가 없습니다'
+                                : '주변에 러닝카페가 없습니다'}
+                            </Text>
+                          </View>
+                        )}
+                    </ScrollView>
+                  </View>
                 )}
               </>
             )}
@@ -2281,10 +2329,19 @@ const styles = StyleSheet.create({
     // Android 그림자
     elevation: 8,
   },
+  bottomSheetHandleContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#000000',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
   bottomSheetIndicator: {
     backgroundColor: '#666666',
     width: 50,
     height: 4,
+    borderRadius: 2,
   },
   bottomSheetContent: {
     flex: 1,
@@ -2316,10 +2373,35 @@ const styles = StyleSheet.create({
   },
   bottomSheetBody: {
     flex: 1,
-    paddingTop: 0,
+  },
+  scrollContainer: {
+    flex: 1,
+    minHeight: 0, // flexbox에서 스크롤 가능하도록
+  },
+  scrollView: {
+    flex: 1,
+    minHeight: 0, // flexbox에서 스크롤 가능하도록
   },
   bottomSheetScrollContent: {
-    flexGrow: 1,
+    // flexGrow 제거: 콘텐츠 길이에 따라 스크롤 범위가 자동으로 결정되도록
+  },
+  showMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 8,
+    backgroundColor: '#1F1F24', // COLORS.SURFACE
+    borderRadius: 12,
+    marginHorizontal: 16,
+  },
+  showMoreButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#3AF8FF', // COLORS.PRIMARY
+    marginRight: 8,
   },
   bottomSheetPlaceholder: {
     color: '#999999',

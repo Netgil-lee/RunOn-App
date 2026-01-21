@@ -40,6 +40,8 @@ class PaymentService {
     this.isHandlingError = false; // 에러 처리 중복 방지 플래그
     this.lastErrorTime = null; // 마지막 에러 발생 시간
     this.currentPurchaseProductId = null; // 현재 진행 중인 구매 제품 ID
+    this.processedTransactionIds = new Set(); // 처리된 거래 ID 추적 (중복 Alert 방지)
+    this.isProcessingPending = false; // processPendingPurchases 실행 중 플래그
   }
 
   // 결제 서비스 초기화
@@ -94,7 +96,14 @@ class PaymentService {
 
   // 미완료 거래 확인 및 처리 (앱 시작 시 또는 백그라운드에서 복귀 시 호출)
   async processPendingPurchases() {
+    // 중복 실행 방지
+    if (this.isProcessingPending) {
+      console.log('⚠️ processPendingPurchases가 이미 실행 중입니다. 중복 실행 방지.');
+      return;
+    }
+    
     try {
+      this.isProcessingPending = true;
       console.log('🔄 미완료 거래 확인 시작...');
       
       const purchases = await getAvailablePurchases();
@@ -109,6 +118,18 @@ class PaymentService {
       for (const purchase of purchases) {
         try {
           const productId = this.getProductIdFromPurchase(purchase);
+          
+          // 거래 ID 추출 (중복 처리 방지용)
+          const transactionId = purchase.transactionId 
+            || purchase.originalTransactionIdentifierIOS 
+            || purchase.originalTransactionIdAndroid;
+          
+          // 이미 처리된 거래인지 확인
+          if (transactionId && this.processedTransactionIds.has(transactionId)) {
+            console.log(`⚠️ 이미 처리된 거래입니다. 건너뜁니다: ${transactionId}`);
+            continue;
+          }
+          
           console.log(`🔄 미완료 거래 처리 중: ${productId}`);
           
           // userId 찾기 (transactionId로 Firestore에서 찾기)
@@ -130,6 +151,11 @@ class PaymentService {
             userId: userId || '없음',
             transactionId: purchase.transactionId,
           });
+          
+          // 거래 ID를 처리된 목록에 추가 (중복 Alert 방지)
+          if (transactionId) {
+            this.processedTransactionIds.add(transactionId);
+          }
           
           // 영수증 검증 및 처리
           const validationResult = await this.validateReceipt(purchase);
@@ -168,9 +194,11 @@ class PaymentService {
               console.error(`❌ 미완료 거래 완료 처리 실패: ${productId}`, finishError);
             }
           } else {
-            console.error(`❌ 미완료 거래 검증 실패: ${productId}`, validationResult.error);
+            const errorMessage = validationResult?.error || '영수증 검증에 실패했습니다.';
+            console.error(`❌ 미완료 거래 검증 실패: ${productId}`, errorMessage);
             // 영수증 검증 실패 시 Firestore 업데이트를 하지 않음 (보안)
             // 거래는 완료 처리 (이미 구매가 완료되었으므로)
+            // Alert는 표시하지 않음 (processPendingPurchases는 백그라운드 처리이므로)
             try {
               await finishTransaction({ purchase, isConsumable: false });
               console.log(`⚠️ 검증 실패했지만 거래 완료 처리: ${productId}`);
@@ -187,7 +215,9 @@ class PaymentService {
       console.log('✅ 미완료 거래 처리 완료');
     } catch (error) {
       console.error('❌ 미완료 거래 확인 실패:', error);
-      throw error;
+      // 에러를 다시 throw하지 않음 (초기화 과정에서 실패해도 계속 진행)
+    } finally {
+      this.isProcessingPending = false;
     }
   }
 
@@ -436,9 +466,31 @@ class PaymentService {
         throw new Error('purchase 객체가 유효하지 않습니다.');
       }
       
+      // 거래 ID 추출 (중복 처리 방지용)
+      const transactionId = purchase.transactionId 
+        || purchase.originalTransactionIdentifierIOS 
+        || purchase.originalTransactionIdAndroid;
+      
+      // processPendingPurchases에서 이미 처리된 거래인지 확인
+      if (transactionId && this.processedTransactionIds.has(transactionId)) {
+        console.log(`⚠️ 이미 processPendingPurchases에서 처리된 거래입니다. handlePurchaseUpdate에서 건너뜁니다: ${transactionId}`);
+        // 거래는 완료 처리만 수행 (Alert는 표시하지 않음)
+        try {
+          await finishTransaction({ purchase, isConsumable: false });
+        } catch (finishError) {
+          console.error('❌ finishTransaction 실패:', finishError);
+        }
+        return;
+      }
+      
       productId = this.getProductIdFromPurchase(purchase);
       if (!productId) {
         throw new Error('productId를 찾을 수 없습니다.');
+      }
+      
+      // 거래 ID를 처리된 목록에 추가 (중복 Alert 방지)
+      if (transactionId) {
+        this.processedTransactionIds.add(transactionId);
       }
       
       // userId 찾기 (여러 방법 시도)
@@ -543,14 +595,26 @@ class PaymentService {
           console.error('❌ 성공 콜백 호출 실패:', callbackError);
         }
       } else {
-        console.error('❌ 영수증 검증 실패:', validationResult.error);
+        const errorMessage = validationResult?.error || '영수증 검증에 실패했습니다.';
+        console.error('❌ 영수증 검증 실패:', errorMessage);
         
         // 영수증 검증 실패 시 에러 콜백 호출
         try {
-          const error = new Error(validationResult.error || '영수증 검증에 실패했습니다.');
+          const error = new Error(errorMessage);
           const hasCallback = this.invokeCallback(productId, 'error', error);
-          if (!hasCallback) {
-            Alert.alert('구매 실패', validationResult.error || '영수증 검증에 실패했습니다.');
+          // processPendingPurchases 실행 중이면 Alert 표시하지 않음 (중복 방지)
+          if (!hasCallback && !this.isProcessingPending) {
+            // 중복 Alert 방지: 같은 에러 메시지가 최근에 표시되었는지 확인
+            const errorKey = `receipt_error_${transactionId || productId}`;
+            const lastErrorTime = this.lastErrorTime || 0;
+            const now = Date.now();
+            
+            // 3초 이내에 같은 거래에 대한 에러가 표시되지 않았을 때만 Alert 표시
+            if (!this.processedTransactionIds.has(errorKey) || (now - lastErrorTime) > 3000) {
+              Alert.alert('구매 실패', errorMessage);
+              this.processedTransactionIds.add(errorKey);
+              this.lastErrorTime = now;
+            }
           }
         } catch (callbackError) {
           console.error('❌ 에러 콜백 호출 실패:', callbackError);
@@ -699,8 +763,9 @@ class PaymentService {
         
         return { isValid: true };
       } else {
-        console.error('❌ 영수증 검증 실패:', validationResult.error);
-        return { isValid: false, error: validationResult.error };
+        const errorMessage = validationResult?.error || '영수증 검증에 실패했습니다.';
+        console.error('❌ 영수증 검증 실패:', errorMessage);
+        return { isValid: false, error: errorMessage };
       }
     } catch (error) {
       console.error('❌ 영수증 검증 실패:', error);

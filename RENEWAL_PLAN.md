@@ -872,6 +872,12 @@ const clusterer = new kakao.maps.MarkerClusterer({
 - [x] GPS 위치 권한 처리
 - [x] 기본 위치 설정 (서울 중심, GPS 권한 승인 시 현재 위치)
 
+#### 0-4. 에러 처리 개선
+- [x] `services/paymentService.js` 에러 처리 개선 ✅
+  - `validationResult.error` 안전하게 접근 (옵셔널 체이닝 사용) ✅
+  - `finally` 블록에서 `error` 변수 접근 문제 해결 ✅
+  - 모든 `validationResult.error` 접근을 안전하게 변경 ✅
+
 ---
 
 ### 🗺️ Phase 1: 지도 탭 핵심 기능 (모임 + 카페 통합)
@@ -888,6 +894,14 @@ const clusterer = new kakao.maps.MarkerClusterer({
 - [x] 토글 버튼 구현 (러닝모임/러닝카페) ✅
 - [x] 토글별 마커 필터링 ✅
 - [x] 새 모임 생성 시 `coordinates` 필드만 저장하도록 수정 ✅
+- [x] 현재 위치 마커 SVG로 변경
+  - `current-location-marker.png` 이미지 삭제 ✅
+  - SVG 직접 임베딩 방식으로 변경 ✅
+  - 파란색 (#2294FF) 투명도 40% 원 포함 (50x50 크기) ✅
+- [x] 마커 디자인 개선
+  - 모든 마커에서 흰색 테두리 제거 ✅
+  - 검색 결과 마커 노란색 (#FFD700)으로 변경 ✅
+  - 현재 위치 마커 파란색 (#2294FF) 유지 ✅
 
 #### 1-2. 클러스터링
 - [x] 카카오맵 MarkerClusterer 설정 ✅
@@ -905,6 +919,13 @@ const clusterer = new kakao.maps.MarkerClusterer({
 - [x] 목록 표시 (`MeetingCard` 컴포넌트 재사용) ✅
 - [x] 모임 상세 화면 표시 (`EventDetailScreen` 통합) ✅
 - [x] 검색바 추가 (모임 제목, 모임 태그로 필터링) ✅
+- [ ] 모임카드 개수 제한 및 "더보기" 기능
+  - [ ] 초기 상태: 최대 5개 모임카드만 표시
+  - [ ] 5개 초과 시: "더보기" 버튼 표시 (5번째 카드 아래)
+  - [ ] "더보기" 클릭 시: Bottom Sheet 전체화면 확장, 모든 모임카드 표시
+  - [ ] Bottom Sheet 축소 시: 5개 제한 상태로 복귀
+  - [ ] 검색 필터링 적용 시에도 동일한 로직 적용
+  - [ ] 클러스터 클릭 시에도 동일한 로직 적용
 
 #### 1-5. Bottom Sheet - 러닝카페 모드
 - [x] 목록 표시 (카페 카드 컴포넌트) ✅
@@ -1022,12 +1043,31 @@ const clusterer = new kakao.maps.MarkerClusterer({
 - [x] Kakao Places API 검색 통합 (Phase 0-2에서 구현한 서비스 재사용)
 - [x] 서울 경계 체크 로직 제거
 - [x] 기존 모임 수정 시 하위 호환성 유지
+- [x] 모임 생성 2단계 '다음' 버튼 활성화 로직 수정
+  - `location` 검색은 필수 조건이 아님 ✅
+  - `hasCustomMarker` (지도 클릭)와 `customLocation` (상세 위치 설명)이 필수 조건 ✅
+  - `timeString` 기본값 '오전 12:00' 설정 ✅
+- [x] 모임 생성 시 장소 검색 플레이스홀더 개선
+  - "장소 키워드 입력 (예: 여의도, 해운대, 석촌호수 등)"으로 변경 ✅
 
-#### 3-2. 공유 이미지 place 입력
+#### 3-2. 모임설명(description) 필드 추가
+- [x] 모임 생성 1단계에 "모임설명" 입력 필드 추가 ✅
+- [x] `screens/ScheduleScreen.js`에 `description` state 및 TextInput 추가 ✅
+- [x] 모임 생성 시 `description` 필드 Firestore에 저장 ✅
+- [x] `screens/EventDetailScreen.js`에 모임설명 표시 카드 추가 ✅
+  - 상세 위치 설명 아래에 표시 ✅
+  - 통일된 UI 카드 스타일 적용 ✅
+
+#### 3-3. 공유 이미지 place 입력
 - [x] `components/RunningShareModal.js`에 입력 필드 추가
 - [x] 입력한 값이 이미지에 반영되는지 확인
 
-#### 3-3. 홈화면 리뉴얼
+#### 3-4. 홈화면 리뉴얼
+- [x] `screens/HomeScreen.js`에서 홈 탭 오버레이 가이드 삭제 ✅
+  - 가이드 관련 import 제거 ✅
+  - 가이드 관련 state 및 함수 제거 ✅
+  - `GuideOverlay` 컴포넌트 제거 ✅
+  - 모임 탭 가이드는 유지 ✅
 - [ ] `screens/HomeScreen.js`에서 `HanRiverMap` 제거
 - [ ] 마이 대시보드 컴포넌트 생성 (`components/MyDashboard.js`)
 - [ ] 사용자 활동 데이터 수집 로직 구현 (추후 논의)

@@ -77,6 +77,23 @@ const MeetingCard = ({ meeting, onClose, onJoin }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
+          {/* 모임 생성자 프로필 */}
+          <View style={styles.organizerAvatar}>
+            {meeting.organizerImage && !meeting.organizerImage.startsWith('file://') ? (
+              <Image 
+                source={{ uri: meeting.organizerImage }} 
+                style={styles.organizerAvatarImage}
+              />
+            ) : (
+              <Ionicons name="person" size={16} color="#ffffff" />
+            )}
+          </View>
+          {/* 생성자 이름 */}
+          <View style={styles.organizerDetails}>
+            <Text style={styles.organizerName}>
+              {meeting.organizer}
+            </Text>
+          </View>
           <Text style={styles.title}>{meeting.title}</Text>
         </View>
         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -88,13 +105,24 @@ const MeetingCard = ({ meeting, onClose, onJoin }) => {
         {/* 설명 */}
         <Text style={styles.description}>{meeting.description}</Text>
         
-        {/* 위치와 날짜/시간을 한 줄로 배치 (ScheduleCard 스타일) */}
+        {/* 날짜/시간과 참여자수를 한 줄로 배치 */}
         <View style={styles.locationDateTimeRow}>
           {/* 날짜/시간 */}
           <View style={styles.infoRow}>
             <Ionicons name="time-outline" size={16} color={COLORS.PRIMARY} />
             <Text style={styles.infoText}>
               {formatDateWithoutYear(meeting.date)} {meeting.time}
+            </Text>
+          </View>
+          {/* 참여자수 (우측) */}
+          <View style={[styles.infoRow, styles.participantInfoRow]}>
+            <Ionicons name="people-outline" size={16} color={COLORS.PRIMARY} />
+            <Text style={styles.infoText}>
+              {(() => {
+                const participantCount = Array.isArray(meeting.participants) ? meeting.participants.length : (meeting.participants || 1);
+                const maxParticipantText = meeting.maxParticipants ? `/${meeting.maxParticipants}` : '';
+                return `${participantCount}${maxParticipantText}`;
+              })()}
             </Text>
           </View>
         </View>
@@ -122,60 +150,6 @@ const MeetingCard = ({ meeting, onClose, onJoin }) => {
             ))}
           </View>
         )}
-
-        {/* 하단 정보 (ScheduleCard 스타일) */}
-        <View style={styles.footer}>
-          <View style={styles.organizerInfo}>
-            <View style={styles.organizerAvatar}>
-              {meeting.organizerImage && !meeting.organizerImage.startsWith('file://') ? (
-                <Image 
-                  source={{ uri: meeting.organizerImage }} 
-                  style={styles.organizerAvatarImage}
-                />
-              ) : (
-                <Ionicons name="person" size={14} color="#ffffff" />
-              )}
-            </View>
-            <View style={styles.organizerDetails}>
-              <Text style={styles.organizerName}>
-                {meeting.organizer}
-              </Text>
-              <Text style={styles.organizerLevel}>
-                {meeting.organizerLevel || '러너'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.rightSection}>
-            <Text style={[styles.participantInfo, { color: '#ffffff' }]}>
-              {(() => {
-                const participantCount = Array.isArray(meeting.participants) ? meeting.participants.length : (meeting.participants || 1);
-                const maxParticipantText = meeting.maxParticipants ? `/${meeting.maxParticipants}` : '';
-                const finalParticipantText = `참여자 ${participantCount}${maxParticipantText}`;
-                return finalParticipantText;
-              })()}
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.joinButton, 
-                { backgroundColor: meeting.canJoin ? COLORS.PRIMARY : COLORS.SECONDARY },
-                // 참여 마감된 경우 버튼 비활성화 스타일
-                !meeting.canJoin ? styles.disabledButton : {}
-              ]}
-              onPress={onJoin}
-              disabled={!meeting.canJoin}
-            >
-              <Text style={[
-                styles.joinButtonText,
-                { color: meeting.canJoin ? COLORS.BACKGROUND : COLORS.TEXT },
-                // 참여 마감된 경우 텍스트 스타일 변경
-                !meeting.canJoin ? styles.disabledButtonText : {}
-              ]}>
-                {meeting.canJoin ? '참여하기' : '마감되었습니다'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </View>
     </View>
   );
@@ -201,6 +175,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 8,
   },
   locationName: {
     fontSize: 14,
@@ -218,7 +193,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.TEXT,
-    marginBottom: 8,
+    flex: 1,
   },
   description: {
     fontSize: 14,
@@ -229,15 +204,19 @@ const styles = StyleSheet.create({
   locationDateTimeRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
     gap: 12,
-    flexWrap: 'wrap',
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
     minWidth: 0,
+  },
+  participantInfoRow: {
+    flex: 0,
+    alignSelf: 'flex-end',
   },
   infoText: {
     fontSize: 15,
@@ -304,19 +283,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   organizerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#6B7280',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
     overflow: 'hidden',
   },
   organizerAvatarImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
   organizerAvatarText: {
     fontSize: 14,
@@ -324,17 +302,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   organizerDetails: {
-    flex: 1,
+    marginRight: 8,
   },
   organizerName: {
     fontSize: 15,
     color: COLORS.TEXT,
     fontWeight: '500',
-  },
-  organizerLevel: {
-    fontSize: 12,
-    color: COLORS.SECONDARY,
-    marginTop: 2,
   },
   rightSection: {
     flexDirection: 'row',

@@ -9,6 +9,8 @@ import {
   Dimensions,
   TextInput,
   Animated,
+  Platform,
+  InteractionManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
@@ -33,6 +35,7 @@ const RunningShareModal = ({
   const [customPlace, setCustomPlace] = useState('');
   const [hasEnteredPlace, setHasEnteredPlace] = useState(false);
   const shareCardRef = useRef(null);
+  const placeInputRef = useRef(null);
   
   // 모달 오버레이 페이드 애니메이션
   const modalBackdropOpacity = useRef(new Animated.Value(0)).current;
@@ -68,6 +71,31 @@ const RunningShareModal = ({
       }).start();
     }
   }, [visible, modalBackdropOpacity]);
+
+  // 모달이 열리고 place 입력 화면일 때 키보드 자동 표시
+  useEffect(() => {
+    if (visible && !hasEnteredPlace) {
+      // 모달이 완전히 렌더링된 후 키보드 표시
+      const timer = setTimeout(() => {
+        if (placeInputRef.current) {
+          // 여러 단계로 포커스 시도
+          requestAnimationFrame(() => {
+            if (placeInputRef.current) {
+              placeInputRef.current.focus();
+              // 추가로 한 번 더 시도 (iOS에서 필요할 수 있음)
+              setTimeout(() => {
+                if (placeInputRef.current) {
+                  placeInputRef.current.focus();
+                }
+              }, 100);
+            }
+          });
+        }
+      }, Platform.OS === 'ios' ? 500 : 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [visible, hasEnteredPlace]);
 
   // 실제 운동기록 데이터 가져오기 (place 입력 후에만 실행)
   useEffect(() => {
@@ -218,6 +246,7 @@ const RunningShareModal = ({
       transparent={true}
       animationType="none"
       onRequestClose={onClose}
+      presentationStyle="overFullScreen"
     >
       <View style={styles.overlay}>
         <Animated.View
@@ -255,6 +284,7 @@ const RunningShareModal = ({
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>place를 입력해주세요</Text>
                 <TextInput
+                  ref={placeInputRef}
                   style={styles.placeInput}
                   placeholder="Enter place (English only)"
                   placeholderTextColor="#666666"
@@ -269,6 +299,7 @@ const RunningShareModal = ({
                   autoFocus={true}
                   returnKeyType="done"
                   onSubmitEditing={handlePlaceSubmit}
+                  blurOnSubmit={false}
                 />
               </View>
             ) : (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useMemo, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -33,8 +33,10 @@ const COLORS = {
   ICON_DEFAULT: '#9CA3AF',
 };
 
-const EventDetailScreen = ({ route, navigation }) => {
+const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsChange }, ref) => {
   const { event: rawEvent, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe, returnToScreen, evaluationCompleted = false } = route.params;
+  // BottomSheet 내부에서 렌더링되는지 확인 (MapScreen에서 호출될 때)
+  const isInBottomSheet = returnToScreen === 'MapScreen';
   const [isJoinedState, setIsJoinedState] = useState(isJoined);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [isEvaluationCompleted, setIsEvaluationCompleted] = useState(evaluationCompleted);
@@ -281,7 +283,7 @@ const EventDetailScreen = ({ route, navigation }) => {
     return hashtags;
   };
 
-  const handleJoinPress = () => {
+  const handleJoinPress = useCallback(() => {
     if (isCreatedByMe) {
       // 내가 생성한 일정인 경우 종료하기
       Alert.alert(
@@ -416,7 +418,18 @@ const EventDetailScreen = ({ route, navigation }) => {
         ]
       );
     }
-  };
+  }, [
+    isCreatedByMe,
+    isJoinedState,
+    event,
+    endEvent,
+    navigation,
+    leaveEvent,
+    joinEvent,
+    chatRooms,
+    user,
+    setIsJoinedState
+  ]);
 
   const handleParticipantPress = (participant) => {
     // 호스트가 현재 사용자인 경우 프로필 탭으로 이동
@@ -690,8 +703,91 @@ const EventDetailScreen = ({ route, navigation }) => {
     `;
   };
 
+  // BottomSheet 내부에서는 View, 일반 화면에서는 SafeAreaView 사용
+  const ContainerComponent = isInBottomSheet ? View : SafeAreaView;
+  
+  const handleEvaluationPress = useCallback(() => {
+    const hostName = event.organizer || '알 수 없음';
+    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+    
+    const isCurrentUserHost = user && (
+      user.displayName === hostName || 
+      user.email?.split('@')[0] === hostName ||
+      hostName === '나'
+    );
+    
+    const hostParticipant = isCurrentUserHost ? {
+      id: user.uid,
+      name: user.displayName || user.email?.split('@')[0] || '나',
+      profileImage: user.photoURL || null,
+      isHost: true,
+      role: 'host',
+      bio: user.bio || '새벽 러닝의 매력을 알려드리는 코치입니다!'
+    } : {
+      id: event.organizerId,
+      name: hostName,
+      profileImage: null,
+      isHost: true,
+      role: 'host',
+      bio: '새벽 러닝의 매력을 알려드리는 코치입니다!'
+    };
+
+    const actualParticipants = participantsList.length > 0 
+      ? participantsList 
+      : [hostParticipant];
+    
+    const serializableEvent = {
+      ...event,
+      date: event.date ? event.date.toISOString() : null,
+      createdAt: event.createdAt ? event.createdAt.toISOString() : null,
+      updatedAt: event.updatedAt ? event.updatedAt.toISOString() : null
+    };
+    
+    navigation.navigate('RunningMeetingReview', { event: serializableEvent, participants: actualParticipants });
+  }, [event, participantsList, navigation, user]);
+
+  const bottomButtonProps = useMemo(() => ({
+    event,
+    user,
+    isEnded,
+    isEvaluationCompleted,
+    isCreatedByMe,
+    isJoinedState,
+    participantsList,
+    handleJoinPress,
+    handleEvaluationPress,
+    styles
+  }), [event, user, isEnded, isEvaluationCompleted, isCreatedByMe, isJoinedState, participantsList, handleJoinPress, handleEvaluationPress, styles]);
+
+  const lastBottomButtonSignatureRef = useRef(null);
+  const bottomButtonSignature = useMemo(() => {
+    const eventId = event?.id || '';
+    const participantsCount = Array.isArray(participantsList) ? participantsList.length : 0;
+    return [
+      eventId,
+      isEnded,
+      isEvaluationCompleted,
+      isCreatedByMe,
+      isJoinedState,
+      participantsCount
+    ].join('|');
+  }, [event?.id, isEnded, isEvaluationCompleted, isCreatedByMe, isJoinedState, participantsList]);
+
+  // footer에서 사용할 props 전달 (BottomSheet 렌더 타이밍 보정)
+  useEffect(() => {
+    if (!isInBottomSheet || !onBottomButtonPropsChange) return;
+    if (lastBottomButtonSignatureRef.current === bottomButtonSignature) return;
+    lastBottomButtonSignatureRef.current = bottomButtonSignature;
+    onBottomButtonPropsChange(bottomButtonProps);
+  }, [isInBottomSheet, onBottomButtonPropsChange, bottomButtonSignature, bottomButtonProps]);
+
+  // ref를 통해 하단 버튼 정보 노출
+  useImperativeHandle(ref, () => ({
+    getBottomButtonProps: () => bottomButtonProps
+  }), [bottomButtonProps]);
+  
   return (
-    <SafeAreaView style={styles.container}>
+    <ContainerComponent style={[styles.container, isInBottomSheet && styles.containerInSheet]}>
       {/* 6단계 가이드 오버레이 */}
       {currentGuide === 'meeting' && currentStep === 5 && (
         <GuideOverlay
@@ -716,31 +812,56 @@ const EventDetailScreen = ({ route, navigation }) => {
           targetId={step6Guide.targetId}
         />
       )}
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          navigation.goBack();
-        }} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#ffffff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{event.title}</Text>
-        <View style={styles.headerRightSection}>
-          {event.difficulty && (
-            <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(event.difficulty) }]}>
-              <Text style={styles.difficultyText}>{event.difficulty}</Text>
+      
+      {isInBottomSheet ? (
+        // BottomSheet 내부: Flexbox 레이아웃으로 헤더/설명 고정, 중간 스크롤, 하단 버튼 고정
+        <View style={styles.bottomSheetContainer}>
+          {/* 고정 영역: 헤더, 상세위치설명, 모임설명 */}
+          <View style={styles.fixedHeaderSection}>
+            {/* 헤더 */}
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => {
+                navigation.goBack();
+              }} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={24} color="#ffffff" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle} numberOfLines={1}>{event.title}</Text>
+              <View style={styles.headerRightSection}>
+                {event.difficulty && (
+                  <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(event.difficulty) }]}>
+                    <Text style={styles.difficultyText}>{event.difficulty}</Text>
+                  </View>
+                )}
+                <View style={styles.typeContainer}>
+                  <Text style={styles.typeText}>{event.type}</Text>
+                </View>
+              </View>
             </View>
-          )}
-          <View style={styles.typeContainer}>
-            <Text style={styles.typeText}>{event.type}</Text>
-          </View>
-        </View>
-      </View>
 
-      <ScrollView 
-        style={styles.content} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 65 }}
-      >
+            {/* 상세위치설명 - 헤더 아래 */}
+            {event.customLocation && event.customLocation.trim() && (
+              <View style={styles.customLocationContainer}>
+                <Text style={styles.customLocationText} numberOfLines={2}>
+                  {event.customLocation}
+                </Text>
+              </View>
+            )}
+
+            {/* 모임설명 - 상세위치설명 아래 */}
+            {event.description && event.description.trim() && (
+              <View style={styles.descriptionCard}>
+                <Text style={styles.descriptionText}>{event.description}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* 스크롤 영역: 기본정보, 러닝정보, 참여자정보 */}
+          <ScrollView 
+            style={styles.scrollableSection}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+            contentContainerStyle={{ paddingHorizontal: 10 }}
+          >
 
         {/* 기본 정보 */}
         <View style={styles.infoSection}>
@@ -828,165 +949,297 @@ const EventDetailScreen = ({ route, navigation }) => {
             {renderParticipantsList()}
           </View>
         </View>
-
-
-      </ScrollView>
-
-      {/* 하단 버튼 */}
-      <View style={styles.bottomActions}>
-        {(() => {
-          console.log('🔍 EventDetailScreen - 버튼 표시 조건 확인:', {
-            eventId: event.id,
-            eventTitle: event.title,
-            isEnded,
-            isEvaluationCompleted,
-            isCheckingEvaluation,
-            evaluationCompleted,
-            isCreatedByMe,
-            isJoinedState
-          });
-          return null;
-        })()}
-        {isEnded && !isEvaluationCompleted ? (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.endButton]} 
-            onPress={() => {
-              // 참여자 목록 데이터 생성
-              const hostName = event.organizer || '알 수 없음';
-              const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-              
-              const isCurrentUserHost = user && (
-                user.displayName === hostName || 
-                user.email?.split('@')[0] === hostName ||
-                hostName === '나'
-              );
-              
-              const hostParticipant = isCurrentUserHost ? {
-                id: user.uid, // 실제 사용자 ID 사용
-                name: user.displayName || user.email?.split('@')[0] || '나',
-                profileImage: user.photoURL || null,
-                isHost: true,
-                role: 'host',
-                bio: user.bio || '새벽 러닝의 매력을 알려드리는 코치입니다!'
-              } : {
-                id: event.organizerId, // 실제 호스트 ID 사용
-                name: hostName,
-                profileImage: null,
-                isHost: true,
-                role: 'host',
-                bio: '새벽 러닝의 매력을 알려드리는 코치입니다!'
-              };
-
-              // 더미 데이터 제거 - 실제 참여자 데이터 사용
-
-              // 실제 모임 참여자 데이터 사용 (더미 데이터 대신)
-              const actualParticipants = participantsList.length > 0 
-                ? participantsList 
-                : [hostParticipant]; // 참여자 데이터가 없으면 호스트만
-              
-              console.log('🔍 EventDetailScreen - 러닝매너 작성 참여자 데이터:', {
-                eventId: event.id,
-                actualParticipantsCount: actualParticipants.length,
-                participantsListCount: participantsList.length,
-                actualParticipants: actualParticipants.map(p => ({ id: p.id, name: p.name, isHost: p.isHost }))
-              });
-              
-              // Date 객체를 문자열로 변환하여 직렬화 가능하게 만듦
-              const serializableEvent = {
-                ...event,
-                date: event.date ? event.date.toISOString() : null,
-                createdAt: event.createdAt ? event.createdAt.toISOString() : null,
-                updatedAt: event.updatedAt ? event.updatedAt.toISOString() : null
-              };
-              
-              navigation.navigate('RunningMeetingReview', { event: serializableEvent, participants: actualParticipants });
-            }}
-          >
-            <Ionicons name="create-outline" size={24} color="#000000" />
-            <Text style={[styles.actionButtonText, styles.endButtonText]}>러닝매너 작성하기</Text>
-          </TouchableOpacity>
-        ) : isEnded && isEvaluationCompleted ? (
-          <View style={[styles.actionButton, styles.completedButton]}>
-            <Ionicons name="checkmark-circle" size={24} color={COLORS.PRIMARY} />
-            <Text style={[styles.actionButtonText, styles.completedButtonText]}>러닝매너 작성완료</Text>
+          </ScrollView>
+        </View>
+      ) : (
+        // 일반 화면: 기존 구조 유지
+        <>
+          {/* 헤더 */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => {
+              navigation.goBack();
+            }} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle} numberOfLines={1}>{event.title}</Text>
+            <View style={styles.headerRightSection}>
+              {event.difficulty && (
+                <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(event.difficulty) }]}>
+                  <Text style={styles.difficultyText}>{event.difficulty}</Text>
+                </View>
+              )}
+              <View style={styles.typeContainer}>
+                <Text style={styles.typeText}>{event.type}</Text>
+              </View>
+            </View>
           </View>
-        ) : (
-          <TouchableOpacity 
-            id={isCreatedByMe ? 'endMeetingButton' : undefined}
-            style={[
-              styles.actionButton, 
-              isCreatedByMe ? styles.endButton : (isJoinedState ? styles.leaveButton : styles.joinButton),
-              // 참여 마감된 경우 버튼 비활성화
-              !isCreatedByMe && !isJoinedState && (() => {
-                const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-                const maxParticipants = event.maxParticipants || 6;
-                const isFull = currentParticipants >= maxParticipants;
-                
-                // 디버깅 로그 추가
-                console.log('🔍 EventDetailScreen - 참여자 수 계산 (UI):', {
-                  eventId: event.id,
-                  participants: event.participants,
-                  participantsType: typeof event.participants,
-                  isArray: Array.isArray(event.participants),
-                  currentParticipants,
-                  maxParticipants,
-                  isFull,
-                  buttonDisabled: isFull
-                });
-                
-                return isFull ? styles.disabledButton : {};
-              })()
-            ]} 
-            onPress={handleJoinPress}
-            // 참여 마감된 경우 버튼 비활성화
-            disabled={!isCreatedByMe && !isJoinedState && (() => {
-              const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-              const maxParticipants = event.maxParticipants || 6;
-              return currentParticipants >= maxParticipants;
-            })()}
+
+          {/* 상세위치설명 - 헤더 아래 */}
+          {event.customLocation && event.customLocation.trim() && (
+            <View style={styles.customLocationContainer}>
+              <Text style={styles.customLocationText} numberOfLines={2}>
+                {event.customLocation}
+              </Text>
+            </View>
+          )}
+
+          {/* 모임설명 - 상세위치설명 아래 */}
+          {event.description && event.description.trim() && (
+            <View style={styles.descriptionCard}>
+              <Text style={styles.descriptionText}>{event.description}</Text>
+            </View>
+          )}
+
+          <ScrollView 
+            style={styles.content} 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 65 }}
           >
-            {/* 참여 마감 시에는 아이콘을 표시하지 않음 */}
+            {/* 기본 정보 */}
+            <View style={styles.infoSection}>
+              <View style={styles.infoGrid}>
+                {/* 첫 번째 행: 날짜 | 시간 */}
+                <View style={styles.infoGridRow}>
+                  <View style={styles.infoGridItem}>
+                    <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>날짜</Text>
+                      <Text style={styles.infoValue}>
+                        {formatDate(event.date)}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.infoGridItem}>
+                    <Ionicons name="time" size={16} color={COLORS.ICON_DEFAULT} />
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>시간</Text>
+                      <Text style={styles.infoValue}>{event.time}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* 구분선 */}
+                <View style={styles.infoGridHorizontalDivider} />
+
+                {/* 두 번째 행: 거리 | 페이스 */}
+                <View style={styles.infoGridRow}>
+                  <View style={styles.infoGridItem}>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>거리</Text>
+                      <Text style={styles.infoValue}>{event.distance}km</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.infoGridItem}>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>페이스</Text>
+                      <Text style={styles.infoValue}>{event.pace}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* 러닝 정보 - 해시태그만 */}
+            {event.hashtags && parseHashtags(event.hashtags).length > 0 && (
+              <View style={styles.runningInfoSection}>
+                <Text style={styles.sectionTitle}>러닝 정보</Text>
+                <View style={styles.hashtagContainer}>
+                  {parseHashtags(event.hashtags).map((tag, index) => (
+                    <View key={index} style={styles.hashtagBadge}>
+                      <Text style={styles.hashtagText}>#{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* 참여자 정보 */}
+            <View style={styles.participantsSection}>
+              <Text style={styles.sectionTitle}>참여자</Text>
+              <View style={styles.participantsInfo}>
+                <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
+                <Text style={styles.participantsText}>
+                  {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
+                  {event.maxParticipants ? ` / ${event.maxParticipants}명` : ' (제한 없음)'}
+                </Text>
+                {event.maxParticipants && (
+                  <View style={styles.participantsBar}>
+                    <View 
+                      style={[
+                        styles.participantsProgress, 
+                        { width: `${Math.min((Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)) / event.maxParticipants, 1) * 100}%` }
+                      ]} 
+                    />
+                  </View>
+                )}
+              </View>
+              
+              {/* 참여자 목록 */}
+              <View style={styles.participantsList}>
+                {renderParticipantsList()}
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* 하단 버튼 */}
+          <View style={styles.bottomActions}>
             {(() => {
-              const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-              const maxParticipants = event.maxParticipants || 6;
-              const isFull = currentParticipants >= maxParticipants;
-              
-              // 참여 마감된 경우 아이콘을 표시하지 않음
-              if (!isCreatedByMe && !isJoinedState && isFull) {
-                return null;
-              }
-              
-              // 참여 가능하거나 다른 상태인 경우 기존 아이콘 표시
-              return (
-                <Ionicons 
-                  name={isCreatedByMe ? "checkmark-circle" : (isJoinedState ? "exit" : "add")} 
-                  size={24} 
-                  color={isCreatedByMe ? "#000000" : (isJoinedState ? COLORS.TEXT : "#000000")} 
-                />
-              );
+              console.log('🔍 EventDetailScreen - 버튼 표시 조건 확인:', {
+                eventId: event.id,
+                eventTitle: event.title,
+                isEnded,
+                isEvaluationCompleted,
+                isCheckingEvaluation,
+                evaluationCompleted,
+                isCreatedByMe,
+                isJoinedState
+              });
+              return null;
             })()}
-            <Text style={[
-              styles.actionButtonText, 
-              isCreatedByMe ? styles.endButtonText : (isJoinedState ? styles.leaveButtonText : styles.joinButtonText),
-              // 참여 마감된 경우 텍스트 스타일 변경
-              !isCreatedByMe && !isJoinedState && (() => {
-                const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-                const maxParticipants = event.maxParticipants || 6;
-                return currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
-              })()
-            ]}>
-              {isCreatedByMe ? '종료하기' : (isJoinedState ? '나가기' : (() => {
-                const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-                const maxParticipants = event.maxParticipants || 6;
-                return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
-              })())}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </SafeAreaView>
+            {isEnded && !isEvaluationCompleted ? (
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.endButton]} 
+                onPress={() => {
+                  // 참여자 목록 데이터 생성
+                  const hostName = event.organizer || '알 수 없음';
+                  const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+                  
+                  const isCurrentUserHost = user && (
+                    user.displayName === hostName || 
+                    user.email?.split('@')[0] === hostName ||
+                    hostName === '나'
+                  );
+                  
+                  const hostParticipant = isCurrentUserHost ? {
+                    id: user.uid, // 실제 사용자 ID 사용
+                    name: user.displayName || user.email?.split('@')[0] || '나',
+                    profileImage: user.photoURL || null,
+                    isHost: true,
+                    role: 'host',
+                    bio: user.bio || '새벽 러닝의 매력을 알려드리는 코치입니다!'
+                  } : {
+                    id: event.organizerId, // 실제 호스트 ID 사용
+                    name: hostName,
+                    profileImage: null,
+                    isHost: true,
+                    role: 'host',
+                    bio: '새벽 러닝의 매력을 알려드리는 코치입니다!'
+                  };
+
+                  // 더미 데이터 제거 - 실제 참여자 데이터 사용
+
+                  // 실제 모임 참여자 데이터 사용 (더미 데이터 대신)
+                  const actualParticipants = participantsList.length > 0 
+                    ? participantsList 
+                    : [hostParticipant]; // 참여자 데이터가 없으면 호스트만
+                  
+                  console.log('🔍 EventDetailScreen - 러닝매너 작성 참여자 데이터:', {
+                    eventId: event.id,
+                    actualParticipantsCount: actualParticipants.length,
+                    participantsListCount: participantsList.length,
+                    actualParticipants: actualParticipants.map(p => ({ id: p.id, name: p.name, isHost: p.isHost }))
+                  });
+                  
+                  // Date 객체를 문자열로 변환하여 직렬화 가능하게 만듦
+                  const serializableEvent = {
+                    ...event,
+                    date: event.date ? event.date.toISOString() : null,
+                    createdAt: event.createdAt ? event.createdAt.toISOString() : null,
+                    updatedAt: event.updatedAt ? event.updatedAt.toISOString() : null
+                  };
+                  
+                  navigation.navigate('RunningMeetingReview', { event: serializableEvent, participants: actualParticipants });
+                }}
+              >
+                <Ionicons name="create-outline" size={24} color="#000000" />
+                <Text style={[styles.actionButtonText, styles.endButtonText]}>러닝매너 작성하기</Text>
+              </TouchableOpacity>
+            ) : isEnded && isEvaluationCompleted ? (
+              <View style={[styles.actionButton, styles.completedButton]}>
+                <Ionicons name="checkmark-circle" size={24} color={COLORS.PRIMARY} />
+                <Text style={[styles.actionButtonText, styles.completedButtonText]}>러닝매너 작성완료</Text>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                id={isCreatedByMe ? 'endMeetingButton' : undefined}
+                style={[
+                  styles.actionButton, 
+                  isCreatedByMe ? styles.endButton : (isJoinedState ? styles.leaveButton : styles.joinButton),
+                  // 참여 마감된 경우 버튼 비활성화
+                  !isCreatedByMe && !isJoinedState && (() => {
+                    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+                    const maxParticipants = event.maxParticipants || 6;
+                    const isFull = currentParticipants >= maxParticipants;
+                    
+                    // 디버깅 로그 추가
+                    console.log('🔍 EventDetailScreen - 참여자 수 계산 (UI):', {
+                      eventId: event.id,
+                      participants: event.participants,
+                      participantsType: typeof event.participants,
+                      isArray: Array.isArray(event.participants),
+                      currentParticipants,
+                      maxParticipants,
+                      isFull,
+                      buttonDisabled: isFull
+                    });
+                    
+                    return isFull ? styles.disabledButton : {};
+                  })()
+                ]} 
+                onPress={handleJoinPress}
+                // 참여 마감된 경우 버튼 비활성화
+                disabled={!isCreatedByMe && !isJoinedState && (() => {
+                  const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+                  const maxParticipants = event.maxParticipants || 6;
+                  return currentParticipants >= maxParticipants;
+                })()}
+              >
+                {/* 참여 마감 시에는 아이콘을 표시하지 않음 */}
+                {(() => {
+                  const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+                  const maxParticipants = event.maxParticipants || 6;
+                  const isFull = currentParticipants >= maxParticipants;
+                  
+                  // 참여 마감된 경우 아이콘을 표시하지 않음
+                  if (!isCreatedByMe && !isJoinedState && isFull) {
+                    return null;
+                  }
+                  
+                  // 참여 가능하거나 다른 상태인 경우 기존 아이콘 표시
+                  return (
+                    <Ionicons 
+                      name={isCreatedByMe ? "checkmark-circle" : (isJoinedState ? "exit" : "add")} 
+                      size={24} 
+                      color={isCreatedByMe ? "#000000" : (isJoinedState ? COLORS.TEXT : "#000000")} 
+                    />
+                  );
+                })()}
+                <Text style={[
+                  styles.actionButtonText, 
+                  isCreatedByMe ? styles.endButtonText : (isJoinedState ? styles.leaveButtonText : styles.joinButtonText),
+                  // 참여 마감된 경우 텍스트 스타일 변경
+                  !isCreatedByMe && !isJoinedState && (() => {
+                    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+                    const maxParticipants = event.maxParticipants || 6;
+                    return currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
+                  })()
+                ]}>
+                  {isCreatedByMe ? '종료하기' : (isJoinedState ? '나가기' : (() => {
+                    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+                    const maxParticipants = event.maxParticipants || 6;
+                    return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
+                  })())}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </>
+      )}
+    </ContainerComponent>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -994,12 +1247,39 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
     marginTop: -16, // 위로 올리기
   },
+  containerInSheet: {
+    // BottomSheet 내부에서는 marginTop 제거
+    marginTop: 0,
+  },
+  bottomSheetContainer: {
+    // BottomSheet 내부 컨테이너: flexbox 레이아웃
+    flex: 1,
+    flexDirection: 'column',
+  },
+  fixedHeaderSection: {
+    // 고정 헤더 영역 (스크롤되지 않음)
+    flexShrink: 0,
+  },
+  scrollableSection: {
+    // 스크롤 가능한 영역 - 하단 버튼 공간 확보
+    flex: 1,
+    minHeight: 0,
+  },
+  fixedBottomSection: {
+    // 고정 하단 버튼 영역 (스크롤되지 않음)
+    flexShrink: 0,
+    flexGrow: 0,
+    minHeight: 70, // 최소 높이 보장
+    zIndex: 10, // 다른 요소 위에 표시
+    marginTop: 0, // 상단 여백 제거
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 16,
+    paddingBottom: 8, // 하단 여백 줄임
     backgroundColor: COLORS.BACKGROUND,
   },
   backButton: {
@@ -1012,6 +1292,30 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT,
     marginLeft: 12,
     marginRight: 12,
+  },
+  customLocationContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 0, // 상단 여백 제거
+    paddingBottom: 4, // 하단 여백 줄임
+    backgroundColor: COLORS.BACKGROUND,
+  },
+  customLocationText: {
+    fontSize: 15,
+    color: COLORS.PRIMARY,
+    lineHeight: 21,
+  },
+  descriptionCard: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 10, // 러닝정보 카드와 동일한 좌우 여백
+    marginTop: 4, // 상단 여백 줄임
+    marginBottom: 12, // 하단 여백
+  },
+  descriptionText: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    lineHeight: 24,
   },
   headerRightSection: {
     flexDirection: 'row',
@@ -1038,7 +1342,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12, // 모든 카드 사이 여백 통일
+    marginHorizontal: 0, // ScrollView의 paddingHorizontal 사용
   },
   infoGrid: {
     flexDirection: 'column',
@@ -1097,7 +1402,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD,
     borderRadius: 16,
     padding: 20,
-    marginBottom: 16,
+    marginBottom: 12, // 모든 카드 사이 여백 통일
+    marginHorizontal: 0, // ScrollView의 paddingHorizontal 사용
   },
   sectionTitle: {
     fontSize: 16,
@@ -1142,7 +1448,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12, // 모든 카드 사이 여백 통일
+    marginHorizontal: 0, // ScrollView의 paddingHorizontal 사용
   },
   participantsInfo: {
     flexDirection: 'row',
@@ -1268,11 +1575,22 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: COLORS.BACKGROUND,
-    paddingHorizontal: 16,
+    paddingHorizontal: 10, // 카드와 동일한 좌우 여백
     paddingTop: 12,
     paddingBottom: 22,
     borderTopWidth: 0.25,
     borderTopColor: '#333333',
+  },
+  bottomActionsInSheet: {
+    // BottomSheet 내부에서는 absolute 제거, flexbox로 자연스럽게 하단 배치
+    position: 'relative',
+    width: '100%',
+    backgroundColor: COLORS.BACKGROUND,
+    // 명시적으로 높이 보장
+    minHeight: 70,
+    paddingHorizontal: 10, // 카드와 동일한 좌우 여백
+    paddingBottom: 22, // 하단 여백
+    paddingTop: 0, // 상단 여백 제거 (ScrollView와 바로 연결)
   },
   actionButton: {
     flexDirection: 'row',
@@ -1321,5 +1639,92 @@ const styles = StyleSheet.create({
     color: '#CCCCCC', // 더 밝은 회색으로 변경
   },
 });
+
+// 하단 버튼 컴포넌트를 별도로 export (BottomSheet footerComponent에서 사용)
+export const EventDetailBottomButton = ({ 
+  event, 
+  user, 
+  isEnded, 
+  isEvaluationCompleted, 
+  isCreatedByMe, 
+  isJoinedState, 
+  participantsList,
+  onJoinPress,
+  onEvaluationPress,
+  navigation,
+  styles: componentStyles
+}) => {
+  return (
+    <View style={[componentStyles.bottomActions, componentStyles.bottomActionsInSheet]}>
+      {isEnded && !isEvaluationCompleted ? (
+        <TouchableOpacity 
+          style={[componentStyles.actionButton, componentStyles.endButton]} 
+          onPress={onEvaluationPress}
+        >
+          <Ionicons name="create-outline" size={24} color="#000000" />
+          <Text style={[componentStyles.actionButtonText, componentStyles.endButtonText]}>러닝매너 작성하기</Text>
+        </TouchableOpacity>
+      ) : isEnded && isEvaluationCompleted ? (
+        <View style={[componentStyles.actionButton, componentStyles.completedButton]}>
+          <Ionicons name="checkmark-circle" size={24} color={COLORS.PRIMARY} />
+          <Text style={[componentStyles.actionButtonText, componentStyles.completedButtonText]}>러닝매너 작성완료</Text>
+        </View>
+      ) : (
+        <TouchableOpacity 
+          id={isCreatedByMe ? 'endMeetingButton' : undefined}
+          style={[
+            componentStyles.actionButton, 
+            isCreatedByMe ? componentStyles.endButton : (isJoinedState ? componentStyles.leaveButton : componentStyles.joinButton),
+            !isCreatedByMe && !isJoinedState && (() => {
+              const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+              const maxParticipants = event.maxParticipants || 6;
+              const isFull = currentParticipants >= maxParticipants;
+              return isFull ? componentStyles.disabledButton : {};
+            })()
+          ]} 
+          onPress={onJoinPress}
+          disabled={!isCreatedByMe && !isJoinedState && (() => {
+            const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+            const maxParticipants = event.maxParticipants || 6;
+            return currentParticipants >= maxParticipants;
+          })()}
+        >
+          {(() => {
+            const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+            const maxParticipants = event.maxParticipants || 6;
+            const isFull = currentParticipants >= maxParticipants;
+            
+            if (!isCreatedByMe && !isJoinedState && isFull) {
+              return null;
+            }
+            
+            return (
+              <Ionicons 
+                name={isCreatedByMe ? "checkmark-circle" : (isJoinedState ? "exit" : "add")} 
+                size={24} 
+                color={isCreatedByMe ? "#000000" : (isJoinedState ? COLORS.TEXT : "#000000")} 
+              />
+            );
+          })()}
+          <Text style={[
+            componentStyles.actionButtonText, 
+            isCreatedByMe ? componentStyles.endButtonText : (isJoinedState ? componentStyles.leaveButtonText : componentStyles.joinButtonText),
+            !isCreatedByMe && !isJoinedState && (() => {
+              const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+              const maxParticipants = event.maxParticipants || 6;
+              return currentParticipants >= maxParticipants ? componentStyles.disabledButtonText : {};
+            })()
+          ]}>
+            {isCreatedByMe ? '종료하기' : (isJoinedState ? '나가기' : (() => {
+              const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
+              const maxParticipants = event.maxParticipants || 6;
+              return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
+            })())}
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
 
 export default EventDetailScreen; 
