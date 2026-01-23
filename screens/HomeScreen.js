@@ -20,7 +20,7 @@ import AppBar from '../components/AppBar';
 import InsightCard from '../components/InsightCard';
 import RecommendationCard from '../components/RecommendationCard';
 import WeatherCard from '../components/WeatherCard';
-import HanRiverMap from '../components/HanRiverMap';
+import MyDashboard from '../components/MyDashboard';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import updateService from '../services/updateService';
 import storageService from '../services/storageService';
@@ -53,7 +53,6 @@ const HomeScreen = ({ navigation }) => {
   const { hasMeetingNotification, hasUpdateNotification } = eventsContext;
   const { hasCommunityNotification } = communityContext;
   const scrollViewRef = useRef(null);
-  const MapRef = useRef(null);
   const weatherCardRef = useRef(null);
   
   // 알림 유무만 체크 (빨간색 점 표시용)
@@ -69,11 +68,6 @@ const HomeScreen = ({ navigation }) => {
   
   // 스크롤 위치 추적
   const [currentScrollOffset, setCurrentScrollOffset] = useState(0);
-  
-  // 광나루한강공원 클릭 핸들러
-  const handleLocationClick = () => {
-    // 가이드 관련 로직 제거, 기본 기능만 유지
-  };
   
   // 날씨 데이터 상태
   const [weatherData, setWeatherData] = useState(null);
@@ -475,14 +469,8 @@ const HomeScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* 한강 지도 섹션 */}
-        <View ref={MapRef}>
-          <HanRiverMap 
-            navigation={navigation}
-            initialActiveTab="hanriver"
-            onHanriverLocationClick={handleLocationClick}
-          />
-        </View>
+        {/* 마이 대시보드 섹션 */}
+        <MyDashboard navigation={navigation} />
 
 
         {/* 하단 여백 */}

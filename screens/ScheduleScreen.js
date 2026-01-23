@@ -34,6 +34,7 @@ import storageService from '../services/storageService';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { searchPlace } from '../services/kakaoPlacesService';
 import * as Location from 'expo-location';
+import { recordMeetingLocation } from '../services/userActivityService';
 
 const firestore = getFirestore();
 
@@ -2035,6 +2036,17 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     };
 
     console.log('📤 onEventCreated 호출, location:', newEvent.location);
+    
+    // 모임 장소 기록 저장 (마이 대시보드용)
+    if (user?.uid && finalLocation) {
+      recordMeetingLocation(user.uid, {
+        location: finalLocation,
+        customLocation: customLocation.trim() || null
+      }).catch(error => {
+        console.warn('⚠️ 모임 장소 기록 저장 실패:', error);
+      });
+    }
+    
     onEventCreated(newEvent);
   };
 

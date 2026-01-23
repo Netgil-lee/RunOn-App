@@ -16,12 +16,16 @@ import { unifiedSearch } from '../services/searchService';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import evaluationService from '../services/evaluationService';
+import { recordCafeVisit } from '../services/userActivityService';
 
 // 현재 위치 마커는 SVG로 직접 생성 (이미지 파일 사용 안 함)
 
-const MapScreen = ({ navigation }) => {
+const MapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const nav = useNavigation();
+  
+  // route params에서 대시보드에서 전달된 데이터 받기
+  const { targetCafeId, activeToggle: initialToggle, searchQuery: initialSearchQuery } = route?.params || {};
   const [isLoading, setIsLoading] = useState(true);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationPermission, setLocationPermission] = useState(false);
@@ -1113,6 +1117,18 @@ const MapScreen = ({ navigation }) => {
       // StatusBar 설정 (iOS) - 한 번만 설정
       StatusBar.setBarStyle('dark-content', true);
       
+      // 지도탭에서만 bottombar 구분선 추가
+      navigation.setOptions({
+        tabBarStyle: {
+          backgroundColor: '#1F1F24',
+          borderTopWidth: 1,
+          borderTopColor: '#333333', // 약간 밝은 구분선 색상
+          height: 85,
+          paddingBottom: 36,
+          paddingTop: 0,
+        },
+      });
+      
       // 화면 포커스 시 모임 데이터 새로고침 (약간의 지연을 두어 Firestore 업데이트 반영)
       setTimeout(() => {
         loadAllEvents();
@@ -1135,11 +1151,54 @@ const MapScreen = ({ navigation }) => {
       
       checkAndUpdateLocation();
       
+      // 대시보드에서 카페 카드 클릭으로 진입한 경우 처리
+      if (targetCafeId && cafes.length > 0) {
+        const targetCafe = cafes.find(cafe => cafe.id === targetCafeId);
+        if (targetCafe) {
+          // 토글을 카페로 변경
+          setActiveToggle('cafes');
+          // 해당 카페 선택 (상세 화면 표시 및 지도 이동)
+          setTimeout(() => {
+            handleCafeClick(targetCafe);
+          }, 300);
+          // params 초기화 (재진입 시 중복 실행 방지)
+          navigation.setParams({ targetCafeId: undefined, activeToggle: undefined });
+        }
+      }
+      
+      // 대시보드에서 토글 변경 요청이 있는 경우
+      if (initialToggle && !targetCafeId) {
+        setActiveToggle(initialToggle);
+        navigation.setParams({ activeToggle: undefined });
+      }
+      
+      // 대시보드에서 장소 검색 요청이 있는 경우
+      if (initialSearchQuery) {
+        // 검색 모드 진입 및 검색어 설정
+        setIsSearchMode(true);
+        setMapSearchQuery(initialSearchQuery);
+        // 검색 실행
+        setTimeout(() => {
+          performMapSearch(initialSearchQuery);
+        }, 500);
+        navigation.setParams({ searchQuery: undefined });
+      }
+      
       return () => {
         // 화면을 벗어날 때 원래 설정으로 복원
         StatusBar.setBarStyle('light-content', true);
+        // bottombar 구분선 제거 (원래 스타일로 복원)
+        navigation.setOptions({
+          tabBarStyle: {
+            backgroundColor: '#1F1F24',
+            borderTopWidth: 0,
+            height: 85,
+            paddingBottom: 36,
+            paddingTop: 0,
+          },
+        });
       };
-    }, []) // dependency를 빈 배열로 하여 화면 포커스 시에만 실행되도록 함
+    }, [navigation, targetCafeId, initialToggle, initialSearchQuery, cafes, handleCafeClick]) // 의존성 추가
   );
 
   // WebView 메시지 핸들러 (HanRiverMap.js의 handleWebViewMessage 기반)
@@ -1420,6 +1479,18 @@ const MapScreen = ({ navigation }) => {
   const handleCafeClick = useCallback((cafe) => {
     setSelectedCafe(cafe);
     setShowAllCafes(false); // 전체 보기 모드 해제 (상세 화면으로 전환)
+    
+    // 카페 방문 기록 저장 (마이 대시보드용)
+    if (user?.uid && cafe?.id) {
+      recordCafeVisit(user.uid, {
+        cafeId: cafe.id,
+        cafeName: cafe.name,
+        representativeImage: cafe.representativeImage || cafe.images?.[0] || null
+      }).catch(error => {
+        console.warn('⚠️ 카페 방문 기록 저장 실패:', error);
+      });
+    }
+    
     // 해당 마커가 지도 가운데에 나타나도록 이동
     if (webViewRef.current && cafe) {
       let lat, lng;
@@ -1451,7 +1522,7 @@ const MapScreen = ({ navigation }) => {
       });
       webViewRef.current?.postMessage(message);
     }
-  }, []);
+  }, [user?.uid]);
   
   // 카페 상세 화면 닫기
   const handleCloseCafeDetail = useCallback(() => {
@@ -2326,7 +2397,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   bottomSheetBackground: {
-    backgroundColor: '#000000', // 검은색으로 통일
+    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (COLORS.SURFACE)
     // iOS 그림자
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -2339,7 +2410,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: '#000000',
+    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (COLORS.SURFACE)
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },

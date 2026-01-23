@@ -931,48 +931,97 @@ class AppleFitnessService {
         }
       }
       
-      // 지속 시간 계산: start와 end로부터 계산
-      // react-native-health는 duration 필드를 제공하지 않으므로 start와 end의 차이로 계산
+      // 운동 시간(Active Time) 추출 - 일시정지 시간 제외
+      // HealthKit의 duration 필드 = 실제 운동 시간 (일시정지 제외)
+      // start/end 차이 = 경과 시간 (일시정지 포함) - 사용하지 않음!
       let durationSeconds = 0;
+      let durationSource = 'unknown';
       
-      if (closestWorkout.duration) {
-        // duration 필드가 있으면 사용 (다른 라이브러리 호환성)
+      // 워크아웃의 모든 필드 로깅 (디버깅용)
+      console.log('🔍 [AppleFitnessService] 워크아웃 전체 필드:', {
+        duration: closestWorkout.duration,
+        totalDuration: closestWorkout.totalDuration,
+        activeDuration: closestWorkout.activeDuration,
+        movingTime: closestWorkout.movingTime,
+        activeTime: closestWorkout.activeTime,
+        allKeys: Object.keys(closestWorkout)
+      });
+      
+      // 1순위: duration 필드 (HealthKit의 실제 운동 시간 = Active Time)
+      if (closestWorkout.duration && closestWorkout.duration > 0) {
         durationSeconds = closestWorkout.duration;
-        console.log('🔍 [AppleFitnessService] duration 필드에서 추출:', durationSeconds);
-      } else if (matchedWorkoutStartTime && workoutEndDate && !isNaN(workoutEndDate.getTime())) {
-        // start와 end로부터 계산
+        durationSource = 'duration (Active Time)';
+        console.log('✅ [AppleFitnessService] duration 필드에서 운동 시간 추출:', durationSeconds, '초');
+      }
+      // 2순위: 다른 가능한 운동 시간 필드명들
+      else if (closestWorkout.activeDuration && closestWorkout.activeDuration > 0) {
+        durationSeconds = closestWorkout.activeDuration;
+        durationSource = 'activeDuration';
+        console.log('✅ [AppleFitnessService] activeDuration 필드에서 운동 시간 추출:', durationSeconds, '초');
+      }
+      else if (closestWorkout.movingTime && closestWorkout.movingTime > 0) {
+        durationSeconds = closestWorkout.movingTime;
+        durationSource = 'movingTime';
+        console.log('✅ [AppleFitnessService] movingTime 필드에서 운동 시간 추출:', durationSeconds, '초');
+      }
+      else if (closestWorkout.activeTime && closestWorkout.activeTime > 0) {
+        durationSeconds = closestWorkout.activeTime;
+        durationSource = 'activeTime';
+        console.log('✅ [AppleFitnessService] activeTime 필드에서 운동 시간 추출:', durationSeconds, '초');
+      }
+      else if (closestWorkout.totalDuration && closestWorkout.totalDuration > 0) {
+        durationSeconds = closestWorkout.totalDuration;
+        durationSource = 'totalDuration';
+        console.log('✅ [AppleFitnessService] totalDuration 필드에서 운동 시간 추출:', durationSeconds, '초');
+      }
+      // 3순위 (Fallback): start/end로부터 계산 - 경과 시간 (일시정지 포함)
+      // ⚠️ 이 방식은 일시정지 시간이 포함되어 정확하지 않음
+      else if (matchedWorkoutStartTime && workoutEndDate && !isNaN(workoutEndDate.getTime())) {
         durationSeconds = Math.floor((workoutEndDate.getTime() - matchedWorkoutStartTime.getTime()) / 1000);
-        console.log('🔍 [AppleFitnessService] start/end로부터 계산된 duration:', durationSeconds, '초');
+        durationSource = 'start/end 계산 (경과 시간 - 부정확)';
+        console.warn('⚠️ [AppleFitnessService] duration 필드 없음! start/end로 경과 시간 계산 (일시정지 포함됨):', durationSeconds, '초');
       } else if (closestWorkout.start && closestWorkout.end) {
-        // start와 end 문자열로부터 계산
         const startTime = new Date(closestWorkout.start);
         const endTime = new Date(closestWorkout.end);
         if (!isNaN(startTime.getTime()) && !isNaN(endTime.getTime())) {
           durationSeconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-          console.log('🔍 [AppleFitnessService] start/end 문자열로부터 계산된 duration:', durationSeconds, '초');
+          durationSource = 'start/end 문자열 계산 (경과 시간 - 부정확)';
+          console.warn('⚠️ [AppleFitnessService] duration 필드 없음! start/end 문자열로 경과 시간 계산 (일시정지 포함됨):', durationSeconds, '초');
         }
       }
       
-      console.log('🔍 [AppleFitnessService] 최종 duration (초):', durationSeconds);
+      console.log('🔍 [AppleFitnessService] 최종 duration:', {
+        초: durationSeconds,
+        출처: durationSource,
+        분: Math.floor(durationSeconds / 60),
+        설명: durationSource.includes('경과 시간') ? '⚠️ 일시정지 포함됨' : '✅ 실제 운동 시간'
+      });
 
-      // 페이스 추출 (averageSpeed 또는 pace 필드 확인)
-      // react-native-health는 페이스 정보를 직접 제공하지 않으므로 계산 필요
+      // 페이스 계산 - 운동 시간(Active Time) 기반
+      // 페이스 = 운동 시간 / 거리 (일시정지 제외된 정확한 페이스)
       let paceFormatted = '0:00/km';
+      let paceSource = 'unknown';
       
       if (durationSeconds > 0 && distanceMeters > 0) {
-        // 거리와 시간으로부터 페이스 계산
+        // 운동 시간과 거리로부터 페이스 계산
         const paceSecondsPerKm = (durationSeconds / distanceMeters) * 1000; // 초/km
         const paceMinutes = Math.floor(paceSecondsPerKm / 60);
         const paceSeconds = Math.floor(paceSecondsPerKm % 60);
         paceFormatted = `${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}/km`;
-        console.log('🔍 [AppleFitnessService] 계산된 페이스:', paceFormatted, { 
-          durationSeconds, 
-          distanceMeters, 
-          paceSecondsPerKm 
+        paceSource = `계산 (${durationSource})`;
+        
+        const isAccuratePace = !durationSource.includes('경과 시간');
+        console.log(isAccuratePace ? '✅' : '⚠️', '[AppleFitnessService] 페이스 계산:', {
+          페이스: paceFormatted,
+          운동시간: `${Math.floor(durationSeconds / 60)}분 ${durationSeconds % 60}초`,
+          거리: `${(distanceMeters / 1000).toFixed(2)}km`,
+          시간출처: durationSource,
+          정확도: isAccuratePace ? '정확 (운동 시간 기반)' : '부정확 (경과 시간 기반 - 일시정지 포함)'
         });
       } else if (closestWorkout.averagePace) {
         paceFormatted = this.formatPace(closestWorkout.averagePace);
-        console.log('🔍 [AppleFitnessService] averagePace에서 추출:', paceFormatted);
+        paceSource = 'averagePace 필드';
+        console.log('✅ [AppleFitnessService] averagePace 필드에서 추출:', paceFormatted);
       } else if (closestWorkout.averageSpeed) {
         // averageSpeed를 페이스로 변환 (m/s → min/km)
         const speedMps = closestWorkout.averageSpeed; // m/s
@@ -981,12 +1030,14 @@ class AppleFitnessService {
           const paceMinutes = Math.floor(paceSecondsPerKm / 60);
           const paceSeconds = Math.floor(paceSecondsPerKm % 60);
           paceFormatted = `${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}/km`;
-          console.log('🔍 [AppleFitnessService] averageSpeed에서 계산된 페이스:', paceFormatted);
+          paceSource = 'averageSpeed 변환';
+          console.log('✅ [AppleFitnessService] averageSpeed에서 페이스 계산:', paceFormatted);
         }
       } else {
         console.warn('⚠️ [AppleFitnessService] 페이스를 계산할 수 없습니다:', {
           durationSeconds,
           distanceMeters,
+          durationSource,
           averagePace: closestWorkout.averagePace,
           averageSpeed: closestWorkout.averageSpeed
         });
