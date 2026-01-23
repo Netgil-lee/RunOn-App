@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,17 @@ import {
   Animated,
   Platform,
   InteractionManager,
+  KeyboardAvoidingView,
+  ScrollView,
+  Keyboard,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
+
+// Android에서 LayoutAnimation 활성화
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
@@ -39,6 +49,8 @@ const RunningShareModal = ({
   
   // 모달 오버레이 페이드 애니메이션
   const modalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  // 모달 슬라이드 애니메이션
+  const modalSlideAnim = useRef(new Animated.Value(300)).current;
 
   // 권한 요청
   useEffect(() => {
@@ -56,46 +68,77 @@ const RunningShareModal = ({
       setHasEnteredPlace(false);
       setActualWorkoutData(null);
       
-      // 배경 페이드 인 애니메이션
-      Animated.timing(modalBackdropOpacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      // 배경 페이드 아웃 애니메이션
+      // 모달 슬라이드 초기 위치 설정
+      modalSlideAnim.setValue(300);
+      
+      // 배경 페이드 인 + 모달 슬라이드 업 동시 애니메이션
+      Animated.parallel([
+        Animated.timing(modalBackdropOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(modalSlideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible, modalBackdropOpacity, modalSlideAnim]);
+
+  // 키보드 애니메이션 부드럽게 처리
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        LayoutAnimation.configureNext({
+          duration: 250,
+          create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+          update: { type: LayoutAnimation.Types.easeInEaseOut },
+        });
+      }
+    );
+
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        LayoutAnimation.configureNext({
+          duration: 200,
+          create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+          update: { type: LayoutAnimation.Types.easeInEaseOut },
+        });
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, []);
+
+  // 부드러운 닫기 애니메이션
+  const handleClose = useCallback(() => {
+    Keyboard.dismiss();
+    
+    // 배경 페이드 아웃 + 모달 슬라이드 다운 동시 애니메이션
+    Animated.parallel([
       Animated.timing(modalBackdropOpacity, {
         toValue: 0,
-        duration: 300,
+        duration: 200,
         useNativeDriver: true,
-      }).start();
-    }
-  }, [visible, modalBackdropOpacity]);
-
-  // 모달이 열리고 place 입력 화면일 때 키보드 자동 표시
-  useEffect(() => {
-    if (visible && !hasEnteredPlace) {
-      // 모달이 완전히 렌더링된 후 키보드 표시
-      const timer = setTimeout(() => {
-        if (placeInputRef.current) {
-          // 여러 단계로 포커스 시도
-          requestAnimationFrame(() => {
-            if (placeInputRef.current) {
-              placeInputRef.current.focus();
-              // 추가로 한 번 더 시도 (iOS에서 필요할 수 있음)
-              setTimeout(() => {
-                if (placeInputRef.current) {
-                  placeInputRef.current.focus();
-                }
-              }, 100);
-            }
-          });
-        }
-      }, Platform.OS === 'ios' ? 500 : 300);
-
-      return () => clearTimeout(timer);
-    }
-  }, [visible, hasEnteredPlace]);
+      }),
+      Animated.timing(modalSlideAnim, {
+        toValue: 300,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // 애니메이션 완료 후 모달 닫기
+      onClose();
+    });
+  }, [modalBackdropOpacity, modalSlideAnim, onClose]);
 
   // 실제 운동기록 데이터 가져오기 (place 입력 후에만 실행)
   useEffect(() => {
@@ -260,111 +303,125 @@ const RunningShareModal = ({
           <TouchableOpacity 
             style={StyleSheet.absoluteFill}
             activeOpacity={1} 
-            onPress={onClose}
+            onPressIn={handleClose}
           />
         </Animated.View>
-        <View style={styles.bottomModalContainer}>
-          <View style={styles.modalContainer}>
-            {/* 헤더 */}
-            <View style={styles.header}>
-              <Text style={styles.title}>러닝 기록 공유</Text>
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={onClose}
-              >
-                <Ionicons name="close" size={24} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
-            
-            {/* 구분선 */}
-            <View style={styles.headerDivider} />
-
-            {!hasEnteredPlace ? (
-              /* Place 입력 화면 */
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>place를 입력해주세요</Text>
-                <TextInput
-                  ref={placeInputRef}
-                  style={styles.placeInput}
-                  placeholder="Enter place (English only)"
-                  placeholderTextColor="#666666"
-                  value={customPlace}
-                  onChangeText={(text) => {
-                    // 영어, 숫자, 공백, 특수문자만 허용
-                    const englishOnly = text.replace(/[^a-zA-Z0-9\s\-_.,!?]/g, '');
-                    setCustomPlace(englishOnly);
-                  }}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoFocus={true}
-                  returnKeyType="done"
-                  onSubmitEditing={handlePlaceSubmit}
-                  blurOnSubmit={false}
-                />
+        <KeyboardAvoidingView 
+          style={styles.bottomModalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContentContainer}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+          >
+            <Animated.View style={[
+              styles.modalContainer,
+              { transform: [{ translateY: modalSlideAnim }] }
+            ]}>
+              {/* 헤더 */}
+              <View style={styles.header}>
+                <Text style={styles.title}>러닝 기록 공유</Text>
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPressIn={handleClose}
+                >
+                  <Ionicons name="close" size={24} color="#ffffff" />
+                </TouchableOpacity>
               </View>
-            ) : (
-              /* 공유카드 */
-              <View style={styles.cardContainer}>
-                {isLoadingWorkout ? (
-                  <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>운동기록을 조회하는 중...</Text>
-                  </View>
-                ) : (
-                  <RunningShareCard
-                    ref={shareCardRef}
-                    distance={shareCardData.distance}
-                    pace={shareCardData.pace}
-                    duration={shareCardData.duration}
-                    location={shareCardData.location}
-                    calories={shareCardData.calories}
-                    routeCoordinates={shareCardData.routeCoordinates}
+            
+              {/* 구분선 */}
+              <View style={styles.headerDivider} />
+
+              {!hasEnteredPlace ? (
+                /* Place 입력 화면 */
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>place를 입력해주세요</Text>
+                  <TextInput
+                    ref={placeInputRef}
+                    style={styles.placeInput}
+                    placeholder="Enter place (English only)"
+                    placeholderTextColor="#666666"
+                    value={customPlace}
+                    onChangeText={(text) => {
+                      // 영어, 숫자, 공백, 특수문자만 허용
+                      const englishOnly = text.replace(/[^a-zA-Z0-9\s\-_.,!?]/g, '');
+                      setCustomPlace(englishOnly);
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoFocus={false}
+                    returnKeyType="done"
+                    onSubmitEditing={handlePlaceSubmit}
+                    blurOnSubmit={false}
                   />
+                </View>
+              ) : (
+                /* 공유카드 */
+                <View style={styles.cardContainer}>
+                  {isLoadingWorkout ? (
+                    <View style={styles.loadingContainer}>
+                      <Text style={styles.loadingText}>운동기록을 조회하는 중...</Text>
+                    </View>
+                  ) : (
+                    <RunningShareCard
+                      ref={shareCardRef}
+                      distance={shareCardData.distance}
+                      pace={shareCardData.pace}
+                      duration={shareCardData.duration}
+                      location={shareCardData.location}
+                      calories={shareCardData.calories}
+                      routeCoordinates={shareCardData.routeCoordinates}
+                    />
+                  )}
+                </View>
+              )}
+
+              {/* 액션 버튼 */}
+              <View style={styles.actionButtons}>
+                {!hasEnteredPlace ? (
+                  /* 입력 버튼 */
+                  <TouchableOpacity 
+                    style={[
+                      styles.actionButton, 
+                      styles.saveButton,
+                      !customPlace.trim() && styles.disabledButton
+                    ]}
+                    onPress={handlePlaceSubmit}
+                    disabled={!customPlace.trim()}
+                  >
+                    <Text style={styles.saveButtonText}>입력</Text>
+                  </TouchableOpacity>
+                ) : (
+                  /* 이미지 저장 버튼 */
+                  <TouchableOpacity 
+                    style={[
+                      styles.actionButton, 
+                      styles.saveButton,
+                      (isGenerating || isLoadingWorkout || !actualWorkoutData) && styles.disabledButton
+                    ]}
+                    onPress={handleSaveImage}
+                    disabled={isGenerating || isLoadingWorkout || !actualWorkoutData}
+                  >
+                    <Ionicons name="download" size={20} color="#000000" />
+                    <Text style={styles.saveButtonText}>
+                      {isGenerating ? '저장 중...' : 
+                       isLoadingWorkout ? '데이터 조회 중...' : 
+                       !actualWorkoutData ? '데이터 없음' : '이미지 저장'}
+                    </Text>
+                  </TouchableOpacity>
                 )}
               </View>
-            )}
 
-             {/* 액션 버튼 */}
-             <View style={styles.actionButtons}>
-               {!hasEnteredPlace ? (
-                 /* 입력 버튼 */
-                 <TouchableOpacity 
-                   style={[
-                     styles.actionButton, 
-                     styles.saveButton,
-                     !customPlace.trim() && styles.disabledButton
-                   ]}
-                   onPress={handlePlaceSubmit}
-                   disabled={!customPlace.trim()}
-                 >
-                   <Text style={styles.saveButtonText}>입력</Text>
-                 </TouchableOpacity>
-               ) : (
-                 /* 이미지 저장 버튼 */
-                 <TouchableOpacity 
-                   style={[
-                     styles.actionButton, 
-                     styles.saveButton,
-                     (isGenerating || isLoadingWorkout || !actualWorkoutData) && styles.disabledButton
-                   ]}
-                   onPress={handleSaveImage}
-                   disabled={isGenerating || isLoadingWorkout || !actualWorkoutData}
-                 >
-                   <Ionicons name="download" size={20} color="#000000" />
-                   <Text style={styles.saveButtonText}>
-                     {isGenerating ? '저장 중...' : 
-                      isLoadingWorkout ? '데이터 조회 중...' : 
-                      !actualWorkoutData ? '데이터 없음' : '이미지 저장'}
-                   </Text>
-                 </TouchableOpacity>
-               )}
-             </View>
-
-            {/* 하단 안내 텍스트 */}
-            <Text style={styles.helpText}>
-              러닝 기록을 갤러리에 저장할 수 있습니다
-            </Text>
-          </View>
-        </View>
+              {/* 하단 안내 텍스트 */}
+              <Text style={styles.helpText}>
+                러닝 기록을 갤러리에 저장할 수 있습니다
+              </Text>
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -384,6 +441,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   bottomModalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  scrollContentContainer: {
+    flexGrow: 1,
     justifyContent: 'flex-end',
   },
   modalContainer: {

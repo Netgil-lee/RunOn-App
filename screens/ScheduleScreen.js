@@ -1517,6 +1517,10 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [hasCustomMarker, setHasCustomMarker] = useState(false);
   const [customMarkerCoords, setCustomMarkerCoords] = useState(null);
   
+  // GPS 현재 위치 저장 (현재 위치 버튼용)
+  const [gpsLocation, setGpsLocation] = useState(null);
+  const mapWebViewRef = useRef(null);
+  
   const scrollViewRef = useRef(null);
   const titleInputRef = useRef(null);
   const customLocationInputRef = useRef(null);
@@ -1567,12 +1571,17 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             });
 
             if (location && location.coords) {
-              setSelectedLocationData({
-                name: '',
+              const coords = {
                 lat: location.coords.latitude,
                 lng: location.coords.longitude,
+              };
+              setSelectedLocationData({
+                name: '',
+                ...coords,
                 address: '',
               });
+              // GPS 위치 별도 저장 (현재 위치 버튼용)
+              setGpsLocation(coords);
               setIsLocationInitialized(true);
               return;
             }
@@ -1752,32 +1761,80 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
 
   // 장소 검색 함수
+  const [noSearchResults, setNoSearchResults] = useState(false);
+  
   const performLocationSearch = async (query) => {
     if (!query.trim()) {
       setLocationSearchResults([]);
       setShowLocationSearchResults(false);
       setIsLocationSearching(false);
+      setNoSearchResults(false);
       return;
     }
 
     setIsLocationSearching(true);
     setShowLocationSearchResults(true);
+    setNoSearchResults(false);
 
     try {
       const results = await searchPlace(query, { size: 10 });
       setLocationSearchResults(results);
       
       if (results.length === 0) {
-        Alert.alert('검색 결과 없음', '장소를 찾을 수 없습니다.');
+        // Alert 대신 UI에서 표시 (더 부드러운 UX)
+        setNoSearchResults(true);
       }
     } catch (error) {
       console.error('장소 검색 실패:', error);
-      Alert.alert('검색 실패', '장소를 찾을 수 없습니다.');
+      setNoSearchResults(true);
       setLocationSearchResults([]);
     } finally {
       setIsLocationSearching(false);
     }
   };
+
+  // 지도 이동 함수 (WebView에 postMessage로 좌표 전달)
+  const moveMapToLocation = useCallback((lat, lng, addMarker = false) => {
+    if (mapWebViewRef.current) {
+      const message = JSON.stringify({
+        type: 'moveToLocation',
+        lat: lat,
+        lng: lng,
+        addMarker: addMarker
+      });
+      mapWebViewRef.current.postMessage(message);
+    }
+  }, []);
+
+  // 현재 GPS 위치로 이동
+  const moveToCurrentLocation = useCallback(async () => {
+    if (gpsLocation) {
+      // 저장된 GPS 위치로 이동
+      moveMapToLocation(gpsLocation.lat, gpsLocation.lng, false);
+    } else {
+      // GPS 위치가 없으면 새로 가져오기
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+            timeout: 10000,
+          });
+          if (location && location.coords) {
+            const coords = {
+              lat: location.coords.latitude,
+              lng: location.coords.longitude,
+            };
+            setGpsLocation(coords);
+            moveMapToLocation(coords.lat, coords.lng, false);
+          }
+        }
+      } catch (error) {
+        console.log('현재 위치 가져오기 실패:', error);
+        Alert.alert('위치 오류', '현재 위치를 가져올 수 없습니다.');
+      }
+    }
+  }, [gpsLocation, moveMapToLocation]);
 
   // 검색 결과 선택 핸들러
   const handleLocationSearchResultSelect = (result) => {
@@ -1803,6 +1860,9 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       lng: locationLng
     });
     setHasCustomMarker(true);
+    
+    // WebView에 좌표 전달하여 지도 이동
+    moveMapToLocation(locationLat, locationLng, true);
   };
 
   // Debounce를 통한 자동 검색
@@ -2225,6 +2285,15 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         </View>
       )}
 
+      {/* 검색 결과 없음 표시 */}
+      {showLocationSearchResults && noSearchResults && locationSearchResults.length === 0 && !isLocationSearching && (
+        <View style={styles.noSearchResultsContainer}>
+          <Ionicons name="search-outline" size={24} color={COLORS.SECONDARY} />
+          <Text style={styles.noSearchResultsText}>검색 결과가 없습니다</Text>
+          <Text style={styles.noSearchResultsSubtext}>다른 키워드로 검색해 보세요</Text>
+        </View>
+      )}
+
       {/* 3단계: 선택된 장소 정보 및 지도 */}
       <View style={styles.selectedLocationSection}>
         
@@ -2338,7 +2407,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   }, [showLocationDropdown]);
 
   // 인라인 카카오맵 컴포넌트를 별도로 분리하여 격리
-  const InlineKakaoMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, hasCustomMarker, customMarkerCoords }) => {
+  const InlineKakaoMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, hasCustomMarker, customMarkerCoords, mapWebViewRef, onCurrentLocationPress }) => {
     // WebView 재렌더링 방지를 위한 안정적인 key 생성
     const stableKey = React.useMemo(() => {
       if (!selectedLocation) return 'no-location-no-boundary-v24';
@@ -2706,6 +2775,114 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                             window.ReactNativeWebView.postMessage('inlineMapLoaded');
                         }
                         
+                        // React Native에서 보낸 메시지 처리 (지도 이동)
+                        document.addEventListener('message', function(event) {
+                            try {
+                                var data = JSON.parse(event.data);
+                                if (data.type === 'moveToLocation') {
+                                    var newCenter = new kakao.maps.LatLng(data.lat, data.lng);
+                                    map.setCenter(newCenter);
+                                    map.setLevel(4);
+                                    
+                                    // 마커 추가 옵션이 있으면 커스텀 마커 추가
+                                    if (data.addMarker) {
+                                        // 기존 커스텀 마커 제거
+                                        if (customMarker) {
+                                            customMarker.setMap(null);
+                                        }
+                                        if (customInfoWindow) {
+                                            customInfoWindow.close();
+                                        }
+                                        
+                                        // 새 커스텀 마커 생성
+                                        customMarker = new kakao.maps.Marker({
+                                            position: newCenter,
+                                            image: customMarkerImage,
+                                            map: map,
+                                            zIndex: 700
+                                        });
+                                        
+                                        // 커스텀 인포윈도우 생성
+                                        customInfoWindow = new kakao.maps.InfoWindow({
+                                            content: '<div style="padding:8px 12px;font-size:12px;background:#1F1F24;color:#3AF8FF;border:1px solid #3AF8FF;border-radius:4px;white-space:nowrap;">여기서 만나요! 📍</div>',
+                                            removable: true
+                                        });
+                                        
+                                        // 마커 클릭 이벤트
+                                        kakao.maps.event.addListener(customMarker, 'click', function() {
+                                            if (customInfoWindow.getMap()) {
+                                                customInfoWindow.close();
+                                            } else {
+                                                customInfoWindow.open(map, customMarker);
+                                            }
+                                        });
+                                        
+                                        // React Native에 커스텀 마커 정보 전송
+                                        if (window.ReactNativeWebView) {
+                                            var message = 'customMarkerAdded:' + data.lat + ',' + data.lng;
+                                            window.ReactNativeWebView.postMessage(message);
+                                        }
+                                    }
+                                    
+                                    currentMapCenter = newCenter;
+                                    currentMapLevel = 4;
+                                }
+                            } catch (e) {
+                                // JSON 파싱 실패 시 무시
+                            }
+                        });
+                        
+                        // iOS용 메시지 리스너
+                        window.addEventListener('message', function(event) {
+                            try {
+                                var data = JSON.parse(event.data);
+                                if (data.type === 'moveToLocation') {
+                                    var newCenter = new kakao.maps.LatLng(data.lat, data.lng);
+                                    map.setCenter(newCenter);
+                                    map.setLevel(4);
+                                    
+                                    if (data.addMarker) {
+                                        if (customMarker) {
+                                            customMarker.setMap(null);
+                                        }
+                                        if (customInfoWindow) {
+                                            customInfoWindow.close();
+                                        }
+                                        
+                                        customMarker = new kakao.maps.Marker({
+                                            position: newCenter,
+                                            image: customMarkerImage,
+                                            map: map,
+                                            zIndex: 700
+                                        });
+                                        
+                                        customInfoWindow = new kakao.maps.InfoWindow({
+                                            content: '<div style="padding:8px 12px;font-size:12px;background:#1F1F24;color:#3AF8FF;border:1px solid #3AF8FF;border-radius:4px;white-space:nowrap;">여기서 만나요! 📍</div>',
+                                            removable: true
+                                        });
+                                        
+                                        kakao.maps.event.addListener(customMarker, 'click', function() {
+                                            if (customInfoWindow.getMap()) {
+                                                customInfoWindow.close();
+                                            } else {
+                                                customInfoWindow.open(map, customMarker);
+                                            }
+                                        });
+                                        
+                                        if (window.ReactNativeWebView) {
+                                            var message = 'customMarkerAdded:' + data.lat + ',' + data.lng;
+                                            window.ReactNativeWebView.postMessage(message);
+                                        }
+                                    }
+                                    
+                                    currentMapCenter = newCenter;
+                                    currentMapLevel = 4;
+                                }
+                            } catch (e) {
+                                // JSON 파싱 실패 시 무시
+                            }
+                        });
+                        
                     } catch (error) {
                         console.error('Inline map error:', error);
                         if (window.ReactNativeWebView) {
@@ -2761,6 +2938,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           onResponderRelease={() => {}}
         >
           <WebView
+            ref={mapWebViewRef}
             key={stableKey}
             source={{ html: createInlineMapHTML() }}
             style={styles.inlineMapWebView}
@@ -2780,6 +2958,14 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             thirdPartyCookiesEnabled={false}
             sharedCookiesEnabled={false}
           />
+          {/* 현재 위치 버튼 */}
+          <TouchableOpacity
+            style={styles.currentLocationButton}
+            onPress={onCurrentLocationPress}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="locate" size={22} color="#3AF8FF" />
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -2817,10 +3003,12 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           onCustomMarkerChange={handleCustomMarkerChange}
           hasCustomMarker={hasCustomMarker}
           customMarkerCoords={customMarkerCoords}
+          mapWebViewRef={mapWebViewRef}
+          onCurrentLocationPress={moveToCurrentLocation}
         />
       </React.Fragment>
     );
-  }, [selectedLocationData, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange]);
+  }, [selectedLocationData, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange, moveToCurrentLocation]);
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
@@ -4513,6 +4701,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 2,
   },
+  noSearchResultsContainer: {
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  noSearchResultsText: {
+    color: COLORS.TEXT,
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 8,
+  },
+  noSearchResultsSubtext: {
+    color: COLORS.SECONDARY,
+    fontSize: 12,
+    marginTop: 4,
+  },
   locationTypeContainer: {
     flexDirection: 'row',
     gap: 12,
@@ -4715,6 +4923,24 @@ const styles = StyleSheet.create({
   inlineMapWebView: {
     flex: 1,
     backgroundColor: 'transparent',
+  },
+  currentLocationButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.CARD,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3AF8FF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   
   // 상세 위치 입력 스타일

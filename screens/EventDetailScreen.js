@@ -11,6 +11,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { useAuth } from '../contexts/AuthContext';
@@ -856,11 +857,10 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
           </View>
 
           {/* 스크롤 영역: 기본정보, 러닝정보, 참여자정보 */}
-          <ScrollView 
+          <BottomSheetScrollView 
             style={styles.scrollableSection}
+            contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 120 }}
             showsVerticalScrollIndicator={true}
-            nestedScrollEnabled={true}
-            contentContainerStyle={{ paddingHorizontal: 10 }}
           >
 
         {/* 기본 정보 */}
@@ -949,7 +949,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             {renderParticipantsList()}
           </View>
         </View>
-          </ScrollView>
+          </BottomSheetScrollView>
         </View>
       ) : (
         // 일반 화면: 기존 구조 유지

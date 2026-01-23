@@ -5,7 +5,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-import BottomSheet, { BottomSheetView, BottomSheetFooter } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetView, BottomSheetFooter, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import MeetingCard from '../components/MeetingCard';
@@ -93,10 +93,11 @@ const MapScreen = ({ navigation }) => {
   const maxBottomSheetHeight = screenHeight - toggleBottom;
   
   const snapPoints = useMemo(() => {
-    const maxHeightPercent = (maxBottomSheetHeight / screenHeight) * 100;
-    // 3단계 snapPoints: 부분 확장(10%), 일반 확장(60%), 전체 확장(90%)
-    return ['10%', `${Math.min(maxHeightPercent, 60)}%`, `${Math.min(maxHeightPercent, 90)}%`];
-  }, [screenHeight, maxBottomSheetHeight]);
+    // 시스템바를 가리지 않는 최대 높이 계산
+    const maxHeightPercent = ((screenHeight - insets.top) / screenHeight) * 100;
+    // 3단계 snapPoints: 부분 확장(10%), 중간 확장(50%), 전체 확장(시스템바 아래까지)
+    return ['10%', '50%', `${maxHeightPercent}%`];
+  }, [screenHeight, insets.top]);
   
   // Bottom Sheet 최대 높이 제한 (스와이프로 올릴 때의 최대 높이)
   // 스크롤 테스트를 위해 60% 제한 제거
@@ -1395,7 +1396,7 @@ const MapScreen = ({ navigation }) => {
     setSelectedEvent(null);
     setShowAllEvents(false); // 전체 보기 모드 해제
     if (bottomSheetRef.current) {
-      bottomSheetRef.current.snapToIndex(0); // 부분 확장으로 복귀
+      bottomSheetRef.current.snapToIndex(1); // 중간 확장(50%)으로 복귀 - 마커 클릭 시 상태
     }
   }, []);
 
@@ -1958,16 +1959,17 @@ const MapScreen = ({ navigation }) => {
           snapPoints={snapPoints}
           onChange={handleSheetChanges}
           enablePanDownToClose={false}
-          enableContentPanningGesture={false}
+          enableContentPanningGesture={true}
           backgroundStyle={styles.bottomSheetBackground}
+          containerStyle={{ zIndex: 500 }}
           handleComponent={renderHandle}
           maxDynamicContentSize={maxDynamicContentSize}
-          topInset={insets.top + 77 + 40 + 12}
+          topInset={0}
           footerComponent={renderFooter}
         >
-          <BottomSheetView style={styles.bottomSheetContent}>
-            {activeToggle === 'events' && selectedEvent ? (
-              // 모임 상세 화면 (EventDetailScreen 내부에서 레이아웃 처리)
+          {activeToggle === 'events' && selectedEvent ? (
+            // 모임 상세 화면 - BottomSheetView 사용 (내부에서 스크롤 처리)
+            <BottomSheetView style={styles.bottomSheetContent}>
               <EventDetailScreen
                 ref={eventDetailScreenRef}
                 route={{
@@ -1983,7 +1985,10 @@ const MapScreen = ({ navigation }) => {
                   goBack: handleCloseEventDetail
                 }}
               />
-            ) : activeToggle === 'cafes' && selectedCafe ? (
+            </BottomSheetView>
+          ) : (
+          <BottomSheetView style={styles.bottomSheetContent}>
+            {activeToggle === 'cafes' && selectedCafe ? (
               // 카페 상세 화면
               <View style={styles.scrollContainer}>
                 <ScrollView 
@@ -2241,6 +2246,7 @@ const MapScreen = ({ navigation }) => {
               </>
             )}
           </BottomSheetView>
+          )}
           </BottomSheet>
         )}
       </View>
