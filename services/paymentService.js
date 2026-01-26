@@ -42,6 +42,8 @@ class PaymentService {
     this.currentPurchaseProductId = null; // 현재 진행 중인 구매 제품 ID
     this.processedTransactionIds = new Set(); // 처리된 거래 ID 추적 (중복 Alert 방지)
     this.isProcessingPending = false; // processPendingPurchases 실행 중 플래그
+    this.shownAlerts = new Set(); // 표시된 Alert 추적 (중복 Alert 방지)
+    this.lastAlertTime = null; // 마지막 Alert 표시 시간
   }
 
   // 결제 서비스 초기화
@@ -604,16 +606,25 @@ class PaymentService {
           const hasCallback = this.invokeCallback(productId, 'error', error);
           // processPendingPurchases 실행 중이면 Alert 표시하지 않음 (중복 방지)
           if (!hasCallback && !this.isProcessingPending) {
-            // 중복 Alert 방지: 같은 에러 메시지가 최근에 표시되었는지 확인
-            const errorKey = `receipt_error_${transactionId || productId}`;
-            const lastErrorTime = this.lastErrorTime || 0;
+            // 중복 Alert 방지: 더 강력한 체크
             const now = Date.now();
+            const alertKey = `receipt_error_${errorMessage}`; // 에러 메시지 기반 키
+            const lastAlertTime = this.lastAlertTime || 0;
             
-            // 3초 이내에 같은 거래에 대한 에러가 표시되지 않았을 때만 Alert 표시
-            if (!this.processedTransactionIds.has(errorKey) || (now - lastErrorTime) > 3000) {
+            // 5초 이내에 같은 에러 메시지가 표시되지 않았고, 이미 표시된 Alert가 아닐 때만 표시
+            const shouldShowAlert = !this.shownAlerts.has(alertKey) && (now - lastAlertTime) > 5000;
+            
+            if (shouldShowAlert) {
               Alert.alert('구매 실패', errorMessage);
-              this.processedTransactionIds.add(errorKey);
-              this.lastErrorTime = now;
+              this.shownAlerts.add(alertKey);
+              this.lastAlertTime = now;
+              
+              // 10초 후 shownAlerts에서 제거 (메모리 누수 방지)
+              setTimeout(() => {
+                this.shownAlerts.delete(alertKey);
+              }, 10000);
+            } else {
+              console.log('⚠️ 중복 Alert 방지: 이미 표시된 에러 메시지입니다.', errorMessage);
             }
           }
         } catch (callbackError) {
@@ -636,8 +647,27 @@ class PaymentService {
       if (productId) {
         try {
           const hasCallback = this.invokeCallback(productId, 'error', error);
-          if (!hasCallback) {
-            Alert.alert('구매 실패', '구매 처리 중 오류가 발생했습니다.');
+          if (!hasCallback && !this.isProcessingPending) {
+            // 중복 Alert 방지: 더 강력한 체크
+            const now = Date.now();
+            const alertKey = 'purchase_error_general';
+            const lastAlertTime = this.lastAlertTime || 0;
+            
+            // 5초 이내에 같은 에러가 표시되지 않았을 때만 표시
+            const shouldShowAlert = !this.shownAlerts.has(alertKey) && (now - lastAlertTime) > 5000;
+            
+            if (shouldShowAlert) {
+              Alert.alert('구매 실패', '구매 처리 중 오류가 발생했습니다.');
+              this.shownAlerts.add(alertKey);
+              this.lastAlertTime = now;
+              
+              // 10초 후 shownAlerts에서 제거 (메모리 누수 방지)
+              setTimeout(() => {
+                this.shownAlerts.delete(alertKey);
+              }, 10000);
+            } else {
+              console.log('⚠️ 중복 Alert 방지: 이미 표시된 일반 구매 에러입니다.');
+            }
           }
         } catch (callbackError) {
           console.error('❌ 에러 콜백 호출 실패:', callbackError);
