@@ -71,7 +71,7 @@ const MyDashboard = ({ navigation }) => {
   // 카페 카드 클릭 핸들러
   const handleCafePress = (cafe) => {
     // 지도탭의 해당 카페로 이동
-    navigation.navigate('지도', {
+    navigation.navigate('MapTab', {
       targetCafeId: cafe.cafeId,
       activeToggle: 'cafes'
     });
@@ -81,7 +81,7 @@ const MyDashboard = ({ navigation }) => {
   const handleLocationPress = (location) => {
     // 모임 생성 화면으로 이동하거나 지도로 이동
     // 현재는 지도탭으로 이동
-    navigation.navigate('지도', {
+    navigation.navigate('MapTab', {
       searchQuery: location.location
     });
   };
@@ -94,6 +94,7 @@ const MyDashboard = ({ navigation }) => {
       onPress={() => handleCafePress(cafe)}
       activeOpacity={0.7}
     >
+      {/* 좌측: 대표사진 */}
       {cafe.representativeImage ? (
         <Image
           source={{ uri: cafe.representativeImage }}
@@ -102,16 +103,30 @@ const MyDashboard = ({ navigation }) => {
         />
       ) : (
         <View style={styles.cafeImagePlaceholder}>
-          <Ionicons name="cafe-outline" size={24} color={COLORS.SECONDARY} />
+          <Ionicons name="cafe-outline" size={32} color={COLORS.SECONDARY} />
         </View>
       )}
-      <View style={styles.cafeInfo}>
-        <Text style={styles.cafeName} numberOfLines={1}>
-          {cafe.cafeName}
-        </Text>
-        <View style={styles.visitBadge}>
-          <Text style={styles.visitCount}>{cafe.visitCount}회</Text>
+      
+      {/* 우측: 정보 컨테이너 */}
+      <View style={styles.cafeInfoContainer}>
+        {/* 상호명과 러닝인증 혜택 */}
+        <View style={styles.cafeNameRow}>
+          <Text style={styles.cafeName} numberOfLines={1}>
+            {cafe.cafeName}
+          </Text>
+          {cafe.runningCertificationBenefit && (
+            <Text style={styles.cafeBenefit} numberOfLines={1}>
+              {cafe.runningCertificationBenefit}
+            </Text>
+          )}
         </View>
+        
+        {/* 위치 */}
+        {cafe.address && (
+          <Text style={styles.cafeAddress} numberOfLines={1}>
+            {cafe.address}
+          </Text>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -172,7 +187,6 @@ const MyDashboard = ({ navigation }) => {
       {/* 자주 찾아가는 러닝카페 */}
       <View style={styles.subSection}>
         <Text style={styles.subSectionTitle}>자주 찾아가는 러닝카페</Text>
-        <Text style={styles.subSectionSubtitle}>마커 클릭 횟수 기준</Text>
         
         <View style={styles.cardsRow}>
           {frequentCafes.length > 0 ? (
@@ -186,7 +200,6 @@ const MyDashboard = ({ navigation }) => {
       {/* 자주 개설하는 모임장소 */}
       <View style={styles.subSection}>
         <Text style={styles.subSectionTitle}>자주 개설하는 모임장소</Text>
-        <Text style={styles.subSectionSubtitle}>모임 생성 횟수 기준</Text>
         
         <View style={styles.cardsRow}>
           {frequentLocations.length > 0 ? (
@@ -227,7 +240,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.TEXT,
-    marginBottom: 2,
+    marginBottom: 12,
   },
   subSectionSubtitle: {
     fontSize: 11,
@@ -235,38 +248,54 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
+    flexDirection: 'column',
     gap: 10,
   },
-  // 카페 카드 스타일
+  // 카페 카드 스타일 (가로형)
   cafeCard: {
-    width: 100,
-    backgroundColor: COLORS.CARD_INNER,  // 내부 카드는 약간 밝은 색상
+    width: '100%',
+    height: 100,
+    backgroundColor: '#2A2A2A',  // 미세먼지 카드와 동일한 색상
     borderRadius: 10,
     overflow: 'hidden',
+    flexDirection: 'row',
   },
   cafeImage: {
-    width: '100%',
-    height: 70,
+    width: 120,  // 크기 증가 (100 → 120)
+    height: '100%',
   },
   cafeImagePlaceholder: {
-    width: '100%',
-    height: 70,
+    width: 120,  // 크기 증가 (100 → 120)
+    height: '100%',
     backgroundColor: COLORS.CARD,  // 플레이스홀더는 더 어두운 색상
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cafeInfo: {
-    padding: 8,
+  cafeInfoContainer: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'center',
+  },
+  cafeNameRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 6,
+    gap: 8,
   },
   cafeName: {
-    fontSize: 11,
+    fontSize: 16,  // 크기 증가 (14 → 16)
     fontWeight: 'bold',
     color: COLORS.TEXT,
-    marginBottom: 4,
-    textAlign: 'center',
+    flexShrink: 1,
+  },
+  cafeBenefit: {
+    fontSize: 14,  // 크기 증가 (12 → 14)
+    color: COLORS.PRIMARY,  // 프라이머리 색상 (#3AF8FF)
+    flexShrink: 1,
+  },
+  cafeAddress: {
+    fontSize: 13,  // 크기 증가 (11 → 13)
+    color: '#FFFFFF',
   },
   visitBadge: {
     backgroundColor: COLORS.PRIMARY,

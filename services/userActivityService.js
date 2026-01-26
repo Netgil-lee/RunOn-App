@@ -28,19 +28,31 @@ export const recordCafeVisit = async (userId, cafeData) => {
       return false;
     }
 
+    const userData = userSnap.data();
     const { cafeId, cafeName, representativeImage } = cafeData;
+
+    // frequentCafes 필드가 없으면 초기화
+    if (!userData.frequentCafes) {
+      await updateDoc(userRef, {
+        frequentCafes: {}
+      });
+    }
+
+    // 기존 방문 횟수 확인
+    const existingCafe = userData.frequentCafes?.[cafeId];
+    const currentVisitCount = existingCafe?.visitCount || 0;
 
     // frequentCafes 맵 업데이트
     await updateDoc(userRef, {
       [`frequentCafes.${cafeId}`]: {
         cafeName: cafeName || '알 수 없는 카페',
         representativeImage: representativeImage || null,
-        visitCount: increment(1),
+        visitCount: currentVisitCount + 1,  // increment 대신 직접 계산
         lastVisit: serverTimestamp()
       }
     });
 
-    console.log('✅ [userActivityService] 카페 방문 기록 저장 완료:', cafeName);
+    console.log('✅ [userActivityService] 카페 방문 기록 저장 완료:', cafeName, `(방문 횟수: ${currentVisitCount + 1})`);
     return true;
   } catch (error) {
     console.error('❌ [userActivityService] 카페 방문 기록 저장 실패:', error);
@@ -68,7 +80,15 @@ export const recordMeetingLocation = async (userId, locationData) => {
       return false;
     }
 
+    const userData = userSnap.data();
     const { location, customLocation } = locationData;
+
+    // frequentMeetingLocations 필드가 없으면 초기화
+    if (!userData.frequentMeetingLocations) {
+      await updateDoc(userRef, {
+        frequentMeetingLocations: {}
+      });
+    }
 
     // location + customLocation 조합으로 고유 키 생성
     // 특수문자 및 공백을 언더스코어로 치환하여 Firestore 필드명으로 사용 가능하게 함
@@ -77,17 +97,21 @@ export const recordMeetingLocation = async (userId, locationData) => {
       .replace(/\s+/g, '_')       // 공백을 언더스코어로
       .substring(0, 100);          // 최대 길이 제한
 
+    // 기존 개설 횟수 확인
+    const existingLocation = userData.frequentMeetingLocations?.[locationKey];
+    const currentCount = existingLocation?.count || 0;
+
     // frequentMeetingLocations 맵 업데이트
     await updateDoc(userRef, {
       [`frequentMeetingLocations.${locationKey}`]: {
         location: location,
         customLocation: customLocation || '',
-        count: increment(1),
+        count: currentCount + 1,  // increment 대신 직접 계산
         lastCreated: serverTimestamp()
       }
     });
 
-    console.log('✅ [userActivityService] 모임 장소 기록 저장 완료:', location, customLocation);
+    console.log('✅ [userActivityService] 모임 장소 기록 저장 완료:', location, customLocation, `(개설 횟수: ${currentCount + 1})`);
     return true;
   } catch (error) {
     console.error('❌ [userActivityService] 모임 장소 기록 저장 실패:', error);
@@ -113,24 +137,39 @@ export const getFrequentCafes = async (userId, minVisits = 2, limit = 3) => {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
+      console.log('📋 [userActivityService] 사용자 문서가 존재하지 않습니다.');
       return [];
     }
 
     const userData = userSnap.data();
     const frequentCafes = userData.frequentCafes || {};
 
+    console.log('📋 [userActivityService] frequentCafes 데이터:', Object.keys(frequentCafes).length, '개');
+
     // 맵을 배열로 변환하고 정렬
     const cafesArray = Object.entries(frequentCafes)
-      .map(([cafeId, data]) => ({
-        cafeId,
-        cafeName: data.cafeName,
-        representativeImage: data.representativeImage,
-        visitCount: data.visitCount || 0,
-        lastVisit: data.lastVisit
-      }))
-      .filter(cafe => cafe.visitCount >= minVisits)  // 최소 방문 횟수 필터
+      .map(([cafeId, data]) => {
+        // visitCount가 숫자인지 확인 (increment로 저장된 경우 대비)
+        const visitCount = typeof data.visitCount === 'number' ? data.visitCount : (data.visitCount?.toNumber?.() || 0);
+        return {
+          cafeId,
+          cafeName: data.cafeName,
+          representativeImage: data.representativeImage,
+          visitCount: visitCount,
+          lastVisit: data.lastVisit
+        };
+      })
+      .filter(cafe => {
+        const meetsMinVisits = cafe.visitCount >= minVisits;
+        if (!meetsMinVisits) {
+          console.log(`📋 [userActivityService] 카페 ${cafe.cafeName} 필터링됨 (방문 횟수: ${cafe.visitCount} < ${minVisits})`);
+        }
+        return meetsMinVisits;
+      })  // 최소 방문 횟수 필터
       .sort((a, b) => b.visitCount - a.visitCount)   // 방문 횟수 내림차순
       .slice(0, limit);                               // 상위 N개
+
+    console.log('📋 [userActivityService] 필터링 후 카페 개수:', cafesArray.length);
 
     // 삭제된 카페 필터링 (카페가 실제로 존재하는지 확인)
     const validCafes = [];
@@ -144,15 +183,20 @@ export const getFrequentCafes = async (userId, minVisits = 2, limit = 3) => {
           validCafes.push({
             ...cafe,
             cafeName: cafeData.name || cafe.cafeName,
-            representativeImage: cafeData.representativeImage || cafeData.images?.[0] || cafe.representativeImage
+            representativeImage: cafeData.representativeImage || cafeData.images?.[0] || cafe.representativeImage,
+            runningCertificationBenefit: cafeData.runningCertificationBenefit || null,
+            address: cafeData.address || null
           });
+        } else {
+          console.log(`📋 [userActivityService] 카페 ${cafe.cafeId}는 삭제되었습니다.`);
         }
         // 존재하지 않는 카페는 자동 제외
       } catch (error) {
-        console.warn('⚠️ [userActivityService] 카페 존재 확인 실패:', cafe.cafeId);
+        console.warn('⚠️ [userActivityService] 카페 존재 확인 실패:', cafe.cafeId, error);
       }
     }
 
+    console.log('✅ [userActivityService] 최종 반환 카페 개수:', validCafes.length);
     return validCafes;
   } catch (error) {
     console.error('❌ [userActivityService] 자주 찾는 카페 조회 실패:', error);
@@ -178,25 +222,39 @@ export const getFrequentMeetingLocations = async (userId, minCount = 2, limit = 
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
+      console.log('📋 [userActivityService] 사용자 문서가 존재하지 않습니다.');
       return [];
     }
 
     const userData = userSnap.data();
     const frequentLocations = userData.frequentMeetingLocations || {};
 
+    console.log('📋 [userActivityService] frequentMeetingLocations 데이터:', Object.keys(frequentLocations).length, '개');
+
     // 맵을 배열로 변환하고 정렬
     const locationsArray = Object.entries(frequentLocations)
-      .map(([locationKey, data]) => ({
-        locationKey,
-        location: data.location,
-        customLocation: data.customLocation,
-        count: data.count || 0,
-        lastCreated: data.lastCreated
-      }))
-      .filter(loc => loc.count >= minCount)  // 최소 개설 횟수 필터
+      .map(([locationKey, data]) => {
+        // count가 숫자인지 확인 (increment로 저장된 경우 대비)
+        const count = typeof data.count === 'number' ? data.count : (data.count?.toNumber?.() || 0);
+        return {
+          locationKey,
+          location: data.location,
+          customLocation: data.customLocation,
+          count: count,
+          lastCreated: data.lastCreated
+        };
+      })
+      .filter(loc => {
+        const meetsMinCount = loc.count >= minCount;
+        if (!meetsMinCount) {
+          console.log(`📋 [userActivityService] 장소 ${loc.location} 필터링됨 (개설 횟수: ${loc.count} < ${minCount})`);
+        }
+        return meetsMinCount;
+      })  // 최소 개설 횟수 필터
       .sort((a, b) => b.count - a.count)     // 개설 횟수 내림차순
       .slice(0, limit);                       // 상위 N개
 
+    console.log('✅ [userActivityService] 최종 반환 장소 개수:', locationsArray.length);
     return locationsArray;
   } catch (error) {
     console.error('❌ [userActivityService] 자주 개설하는 장소 조회 실패:', error);

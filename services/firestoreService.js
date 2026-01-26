@@ -1007,35 +1007,177 @@ class FirestoreService {
    */
   async getCafesNearby(latitude, longitude, radiusInKm = 0.7) {
     try {
-      console.log('🔍 getCafesNearby 시작:', { latitude, longitude, radiusInKm });
+      console.log('🔍 [getCafesNearby] 시작:', { latitude, longitude, radiusInKm });
       const geofirestore = getGeoFirestore();
       const geocollection = geofirestore.collection('cafes');
       const center = new GeoPoint(latitude, longitude);
+      
+      console.log('🔍 [getCafesNearby] GeoFirestore 컬렉션 준비 완료');
       
       const query = geocollection.near({
         center: center,
         radius: radiusInKm
       });
       
+      console.log('🔍 [getCafesNearby] 쿼리 실행 중...');
       const snapshot = await query.get();
       const cafes = [];
       
-      console.log('🔍 GeoFirestore 카페 쿼리 결과:', snapshot.size, '개');
+      console.log('🔍 [getCafesNearby] GeoFirestore 쿼리 결과:', snapshot.size, '개');
       
       snapshot.forEach((doc) => {
-        cafes.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        console.log('📍 [getCafesNearby] 카페 발견:', {
+          id: doc.id,
+          name: data.name,
+          hasG: !!data.g,
+          gType: typeof data.g,
+          hasL: !!data.l,
+          hasCoordinates: !!data.coordinates
+        });
+        cafes.push({ id: doc.id, ...data });
       });
       
-      console.log('✅ 반경 내 카페 수:', cafes.length, '개');
+      console.log('✅ [getCafesNearby] 반경 내 카페 수:', cafes.length, '개');
       return cafes;
     } catch (error) {
       // 권한 오류 또는 기타 오류 시 빈 배열 반환 (카페가 없을 수도 있음)
+      console.error('❌ [getCafesNearby] 카페 검색 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        latitude,
+        longitude,
+        radiusInKm
+      });
+      
       if (error.code === 'permission-denied') {
-        console.warn('⚠️ 카페 검색 권한 오류 (카페가 없거나 권한 없음):', error.message);
+        console.warn('⚠️ [getCafesNearby] 카페 검색 권한 오류:', error.message);
         return [];
       }
-      console.error('반경 내 카페 검색 실패:', error);
       // 다른 오류도 빈 배열 반환 (앱이 계속 작동하도록)
+      return [];
+    }
+  }
+
+  /**
+   * 모든 카페 조회 (반경 제한 없음)
+   * @returns {Promise<Array>} 카페 배열
+   */
+  async getAllCafes() {
+    try {
+      console.log('🔍 [getAllCafes] 모든 카페 조회 시작');
+      
+      // 일반 Firestore 쿼리로 모든 카페 가져오기
+      const cafesRef = collection(this.db, 'cafes');
+      const snapshot = await getDocs(cafesRef);
+      const cafes = [];
+      
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        cafes.push({ id: doc.id, ...data });
+      });
+      
+      console.log('✅ [getAllCafes] 모든 카페 조회 완료:', cafes.length, '개');
+      return cafes;
+    } catch (error) {
+      console.error('❌ [getAllCafes] 카페 조회 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
+      
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ [getAllCafes] 카페 조회 권한 오류:', error.message);
+        return [];
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 카페 ID로 개별 조회 (최신 데이터)
+   * @param {string} cafeId - 카페 ID
+   * @returns {Promise<Object|null>} 카페 데이터
+   */
+  async getCafeById(cafeId) {
+    try {
+      console.log('🔍 [getCafeById] 카페 조회 시작:', cafeId);
+      
+      const cafeRef = doc(this.db, 'cafes', cafeId);
+      const cafeDoc = await getDoc(cafeRef);
+      
+      if (!cafeDoc.exists()) {
+        console.warn('⚠️ [getCafeById] 카페를 찾을 수 없음:', cafeId);
+        return null;
+      }
+      
+      const cafeData = {
+        id: cafeDoc.id,
+        ...cafeDoc.data()
+      };
+      
+      console.log('✅ [getCafeById] 카페 조회 완료:', cafeData.name);
+      return cafeData;
+    } catch (error) {
+      console.error('❌ [getCafeById] 카페 조회 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        cafeId
+      });
+      
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ [getCafeById] 카페 조회 권한 오류:', error.message);
+        return null;
+      }
+      return null;
+    }
+  }
+
+  /**
+   * 신규 입점 카페 조회 (최근 1개월)
+   * @param {number} maxCount - 최대 개수, 기본값 10
+   * @returns {Promise<Array>} 카페 배열
+   */
+  async getNewCafes(maxCount = 10) {
+    try {
+      console.log('🔍 getNewCafes 시작');
+      
+      // 1개월 전 날짜 계산
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      
+      const cafesRef = collection(this.db, 'cafes');
+      const q = query(
+        cafesRef,
+        where('createdAt', '>=', oneMonthAgo),
+        orderBy('createdAt', 'desc'),
+        limit(maxCount)
+      );
+      
+      const snapshot = await getDocs(q);
+      const cafes = [];
+      
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        cafes.push({
+          id: doc.id,
+          name: data.name || '알 수 없는 카페',
+          location: data.address || data.location || '위치 정보 없음',
+          representativeImage: data.representativeImage || data.images?.[0] || null,
+          createdAt: data.createdAt,
+        });
+      });
+      
+      console.log('✅ 신규 카페 조회 완료:', cafes.length, '개');
+      return cafes;
+    } catch (error) {
+      // 권한 오류 또는 기타 오류 시 빈 배열 반환
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ 신규 카페 조회 권한 오류 (카페가 없거나 권한 없음)');
+        return [];
+      }
+      console.error('❌ 신규 카페 조회 실패:', error);
       return [];
     }
   }

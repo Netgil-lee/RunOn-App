@@ -1845,25 +1845,44 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     
     // 선택된 장소 정보 저장
     setLocation(locationName);
-    setSelectedLocationData({
+    const newSelectedLocationData = {
       name: locationName,
       lat: locationLat,
       lng: locationLng,
       address: result.address_name || result.road_address_name || '',
-    });
+    };
+    setSelectedLocationData(newSelectedLocationData);
     setSelectedLocation('custom'); // 커스텀 위치로 설정
     setLocationSearchQuery(locationName);
     setShowLocationSearchResults(false);
     
-    // 지도에 마커 표시를 위해 커스텀 마커 좌표 설정
-    setCustomMarkerCoords({
-      lat: locationLat,
-      lng: locationLng
-    });
-    setHasCustomMarker(true);
+    // 검색 결과 선택 시에는 빨간 마커(상세 위치 마커)를 설정하지 않음
+    // 지도 클릭 시에만 빨간 마커가 나타나도록 함
+    // 기존 커스텀 마커 초기화 (검색 결과 선택 시에는 노란 마커만 표시)
+    setCustomMarkerCoords(null);
+    setHasCustomMarker(false);
+    setCustomLocation(''); // 상세 위치 설명도 초기화
     
-    // WebView에 좌표 전달하여 지도 이동
-    moveMapToLocation(locationLat, locationLng, true);
+    // WebView가 준비될 때까지 기다린 후 지도 이동 (노란 마커만 표시)
+    // selectedLocationData가 설정된 후 지도가 렌더링되도록 약간의 지연 추가
+    setTimeout(() => {
+      if (mapWebViewRef.current) {
+        moveMapToLocation(locationLat, locationLng, true); // addMarker: true = 노란 마커 표시
+      } else {
+        // WebView가 아직 준비되지 않았으면 다시 시도
+        const retryInterval = setInterval(() => {
+          if (mapWebViewRef.current) {
+            moveMapToLocation(locationLat, locationLng, true);
+            clearInterval(retryInterval);
+          }
+        }, 100);
+        
+        // 최대 2초 후 타임아웃
+        setTimeout(() => {
+          clearInterval(retryInterval);
+        }, 2000);
+      }
+    }, 100);
   };
 
   // Debounce를 통한 자동 검색
@@ -1999,10 +2018,23 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     
     
     // location 필드 검증 및 설정
-    const finalLocation = location && location.trim() ? location.trim() : (selectedLocationData?.name || '');
+    // hasCustomMarker와 customLocation이 있으면 location은 선택 사항
+    let finalLocation = location && location.trim() ? location.trim() : (selectedLocationData?.name || '');
     
-    if (!finalLocation) {
-      Alert.alert('장소를 선택해주세요', '검색을 통해 모임 장소를 선택해주세요.');
+    // 장소 검색 없이 지도에서 직접 위치를 설정한 경우
+    if (!finalLocation && hasCustomMarker && customMarkerCoords) {
+      // customLocation을 location으로 사용하거나, 기본값 설정
+      finalLocation = customLocation.trim() || '지도에서 선택한 위치';
+    }
+    
+    // 최종 검증: hasCustomMarker와 customLocation이 필수
+    if (!hasCustomMarker || !customMarkerCoords) {
+      Alert.alert('모임장소를 정해주세요', '지도를 클릭하여 상세한 모임장소를 정해주세요.');
+      return;
+    }
+    
+    if (!customLocation.trim()) {
+      Alert.alert('상세 위치 설명을 입력해주세요', '지도에 표시한 빨간 마커의 구체적인 위치를 설명해주세요.');
       return;
     }
 

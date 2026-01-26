@@ -21,6 +21,7 @@ import InsightCard from '../components/InsightCard';
 import RecommendationCard from '../components/RecommendationCard';
 import WeatherCard from '../components/WeatherCard';
 import MyDashboard from '../components/MyDashboard';
+import NewCafesList from '../components/NewCafesList';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import updateService from '../services/updateService';
 import storageService from '../services/storageService';
@@ -472,6 +473,8 @@ const HomeScreen = ({ navigation }) => {
         {/* 마이 대시보드 섹션 */}
         <MyDashboard navigation={navigation} />
 
+        {/* 신규 입점 카페 섹션 */}
+        <NewCafesList navigation={navigation} />
 
         {/* 하단 여백 */}
         <View style={styles.bottomSpacing} />
