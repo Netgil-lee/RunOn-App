@@ -4,7 +4,6 @@ import {
   requestPurchase,
   finishTransaction,
   getAvailablePurchases,
-  getReceiptIOS,
   purchaseUpdatedListener,
   purchaseErrorListener,
 } from 'react-native-iap';
@@ -761,36 +760,8 @@ class PaymentService {
     try {
       console.log('🔍 영수증 검증 시작');
       
-      // iOS 구독의 경우 Purchase 객체에 영수증이 없을 수 있으므로 전체 앱 영수증 사용
-      let receiptData = null;
-      if (Platform.OS === 'ios') {
-        // 먼저 Purchase 객체에서 영수증 찾기 시도
-        receiptData = purchase.transactionReceipt 
-          || purchase.transactionReceiptIOS 
-          || purchase.receiptData
-          || purchase.receipt
-          || purchase.transactionReceiptString
-          || purchase.transactionReceiptBase64
-          || purchase.originalTransactionReceipt;
-        
-        // Purchase 객체에 영수증이 없으면 전체 앱 영수증 가져오기 (구독 거래의 경우)
-        if (!receiptData) {
-          console.log('📱 Purchase 객체에 영수증이 없습니다. 전체 앱 영수증을 가져옵니다...');
-          try {
-            receiptData = await getReceiptIOS();
-            console.log('✅ 전체 앱 영수증 가져오기 성공');
-          } catch (receiptError) {
-            console.error('❌ 전체 앱 영수증 가져오기 실패:', receiptError);
-            // 영수증 검증 서비스에 purchase 객체 전달 (기존 방식 유지)
-            return await receiptValidationService.validateReceipt(purchase);
-          }
-        }
-      }
-      
-      // 영수증 검증 서비스 사용 (receiptData가 있으면 직접 전달, 없으면 purchase 객체 전달)
-      const validationResult = receiptData 
-        ? await receiptValidationService.validateIOSReceipt(receiptData)
-        : await receiptValidationService.validateReceipt(purchase);
+      // 영수증 검증 서비스 사용
+      const validationResult = await receiptValidationService.validateReceipt(purchase);
       
       if (validationResult.isValid) {
         console.log('✅ 영수증 검증 성공');

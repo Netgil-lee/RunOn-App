@@ -275,19 +275,12 @@ class ReceiptValidationService {
   }
 
   // 영수증 검증 (플랫폼별 자동 처리)
-  // receiptData가 직접 전달되면 사용, 없으면 purchase 객체에서 찾기
-  async validateReceipt(purchase, receiptData = null) {
+  async validateReceipt(purchase) {
     try {
       if (Platform.OS === 'ios') {
-        // receiptData가 직접 전달된 경우 (전체 앱 영수증)
-        if (receiptData) {
-          console.log('📄 전체 앱 영수증으로 검증합니다.');
-          return await this.validateIOSReceipt(receiptData);
-        }
-        
         // react-native-iap v14에서는 영수증 데이터 필드명이 다를 수 있음
         // 여러 필드명을 시도하여 영수증 데이터 찾기
-        const foundReceiptData = purchase.transactionReceipt 
+        const receiptData = purchase.transactionReceipt 
           || purchase.transactionReceiptIOS 
           || purchase.receiptData
           || purchase.receipt
@@ -295,8 +288,8 @@ class ReceiptValidationService {
           || purchase.transactionReceiptBase64
           || purchase.originalTransactionReceipt;
         
-        if (!foundReceiptData) {
-          console.error('❌ Purchase 객체에 영수증 데이터가 없습니다.');
+        if (!receiptData) {
+          console.error('❌ 영수증 데이터를 찾을 수 없습니다.');
           console.error('📦 Purchase 객체 키:', Object.keys(purchase));
           console.error('📦 Purchase 객체 (민감 정보 제외):', JSON.stringify({
             productId: purchase.productId,
@@ -313,10 +306,9 @@ class ReceiptValidationService {
             hasTransactionReceiptBase64: !!purchase.transactionReceiptBase64,
             hasOriginalTransactionReceipt: !!purchase.originalTransactionReceipt,
           }, null, 2));
-          console.warn('⚠️ iOS 구독 거래는 전체 앱 영수증을 사용해야 합니다. paymentService에서 getReceiptIOS()를 호출하세요.');
           return {
             isValid: false,
-            error: 'Purchase 객체에 영수증 데이터가 없습니다. 전체 앱 영수증을 사용하세요.',
+            error: '영수증 데이터를 찾을 수 없습니다.',
           };
         }
         
@@ -331,12 +323,12 @@ class ReceiptValidationService {
         
         console.log('📄 영수증 데이터 발견:', { 
           foundIn: foundInField,
-          hasData: !!foundReceiptData, 
-          dataLength: foundReceiptData?.length || 0,
-          dataType: typeof foundReceiptData,
+          hasData: !!receiptData, 
+          dataLength: receiptData?.length || 0,
+          dataType: typeof receiptData,
         });
         
-        return await this.validateIOSReceipt(foundReceiptData);
+        return await this.validateIOSReceipt(receiptData);
       } else if (Platform.OS === 'android') {
         return await this.validateAndroidReceipt(
           'com.runon.app',
