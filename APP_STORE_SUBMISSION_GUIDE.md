@@ -51,7 +51,7 @@
 
 📞 고객 지원:
 • 이메일: dlrhdkgml12@gmail.com
-• 정책 페이지: https://netgil-lee.github.io/RunOn-App/
+• 정책 페이지: https://runonapp.kr/
 
 지금 바로 RunOn과 함께 건강한 러닝 라이프를 시작하세요! 🌟
 ```

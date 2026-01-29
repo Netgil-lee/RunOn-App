@@ -24,8 +24,8 @@
 - 생성 시간: 2024년 8월 17일 16:23
 
 **🔗 정책 링크**:
-- 아동 안전 정책: https://netgil-lee.github.io/RunOn-App/
-- 개인정보처리방침: https://netgil-lee.github.io/RunOn-App/privacy-policy.html
+- 아동 안전 정책: https://runonapp.kr/
+- 개인정보처리방침: https://runonapp.kr/privacy-policy.html
 
 **📞 신고 채널**:
 - 일반 신고: dlrhdkgml12@gmail.com
@@ -59,8 +59,8 @@
 - 키스토어: `upload-keystore.jks`
 
 **🔗 정책 링크**:
-- 아동 안전 정책: https://netgil-lee.github.io/RunOn-App/
-- 개인정보처리방침: https://netgil-lee.github.io/RunOn-App/privacy-policy.html
+- 아동 안전 정책: https://runonapp.kr/
+- 개인정보처리방침: https://runonapp.kr/privacy-policy.html
 
 **📞 신고 채널**:
 - 일반 신고: dlrhdkgml12@gmail.com

@@ -51,6 +51,17 @@ class PushNotificationService {
 
       // 실제 디바이스에서만 Expo Push Token 획득 및 저장
       if (isRealDevice) {
+        // iOS 원격 알림 등록 (명시적으로 등록하여 안정성 향상)
+        try {
+          if (Platform.OS === 'ios') {
+            await Notifications.registerForNotificationsAsync();
+            console.log('✅ iOS 원격 알림 등록 완료');
+          }
+        } catch (error) {
+          console.warn('⚠️ 원격 알림 등록 중 경고 (계속 진행):', error);
+          // 원격 알림 등록 실패해도 계속 진행 (getExpoPushTokenAsync가 내부적으로 처리할 수 있음)
+        }
+
         // Expo Push Token 획득
         this.expoPushToken = await this.getExpoPushToken();
         
