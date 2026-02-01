@@ -34,10 +34,12 @@ const COLORS = {
   ICON_DEFAULT: '#9CA3AF',
 };
 
-const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsChange }, ref) => {
+const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsChange, embedInExternalScrollView = false }, ref) => {
   const { event: rawEvent, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe, returnToScreen, evaluationCompleted = false } = route.params;
   // BottomSheet 내부에서 렌더링되는지 확인 (MapScreen에서 호출될 때)
   const isInBottomSheet = returnToScreen === 'MapScreen';
+  // MapScreen 단일 BottomSheetScrollView 안에 넣을 때: 자체 스크롤뷰 없이 내용만 렌더
+  const useExternalScrollView = isInBottomSheet && embedInExternalScrollView;
   const [isJoinedState, setIsJoinedState] = useState(isJoined);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [isEvaluationCompleted, setIsEvaluationCompleted] = useState(evaluationCompleted);
@@ -815,12 +817,12 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
       )}
       
       {isInBottomSheet ? (
-        // BottomSheet 내부: Flexbox 레이아웃으로 헤더/설명 고정, 중간 스크롤, 하단 버튼 고정
+        // BottomSheet 내부: useExternalScrollView면 상위 BottomSheetScrollView와 함께 스크롤, 아니면 자체 BottomSheetScrollView
         <View style={styles.bottomSheetContainer}>
-          {/* 고정 영역: 헤더, 상세위치설명, 모임설명 */}
+          {/* 고정 영역: 헤더, 상세위치설명, 모임설명 (외부 스크롤 사용 시에도 함께 스크롤됨) */}
           <View style={styles.fixedHeaderSection}>
             {/* 헤더 */}
-            <View style={styles.header}>
+            <View style={[styles.header, styles.headerInSheet]}>
               <TouchableOpacity onPress={() => {
                 navigation.goBack();
               }} style={styles.backButton}>
@@ -841,7 +843,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
 
             {/* 상세위치설명 - 헤더 아래 */}
             {event.customLocation && event.customLocation.trim() && (
-              <View style={styles.customLocationContainer}>
+              <View style={[styles.customLocationContainer, styles.customLocationContainerInSheet]}>
                 <Text style={styles.customLocationText} numberOfLines={2}>
                   {event.customLocation}
                 </Text>
@@ -856,13 +858,9 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             )}
           </View>
 
-          {/* 스크롤 영역: 기본정보, 러닝정보, 참여자정보 */}
-          <BottomSheetScrollView 
-            style={styles.scrollableSection}
-            contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 120 }}
-            showsVerticalScrollIndicator={true}
-          >
-
+          {/* 스크롤 영역: 외부 스크롤 사용 시 View만, 아니면 BottomSheetScrollView */}
+          {useExternalScrollView ? (
+            <View style={[styles.scrollableSection, { paddingHorizontal: 10, paddingBottom: 120 }]}>
         {/* 기본 정보 */}
         <View style={styles.infoSection}>
           <View style={styles.infoGrid}>
@@ -949,7 +947,96 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             {renderParticipantsList()}
           </View>
         </View>
+            </View>
+          ) : (
+          <BottomSheetScrollView 
+            style={styles.scrollableSection}
+            contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 120 }}
+            showsVerticalScrollIndicator={true}
+          >
+        {/* 기본 정보 */}
+        <View style={styles.infoSection}>
+          <View style={styles.infoGrid}>
+            {/* 첫 번째 행: 날짜 | 시간 */}
+            <View style={styles.infoGridRow}>
+              <View style={styles.infoGridItem}>
+                <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>날짜</Text>
+                  <Text style={styles.infoValue}>
+                    {formatDate(event.date)}
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.infoGridItem}>
+                <Ionicons name="time" size={16} color={COLORS.ICON_DEFAULT} />
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>시간</Text>
+                  <Text style={styles.infoValue}>{event.time}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.infoGridHorizontalDivider} />
+
+            <View style={styles.infoGridRow}>
+              <View style={styles.infoGridItem}>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>거리</Text>
+                  <Text style={styles.infoValue}>{event.distance}km</Text>
+                </View>
+              </View>
+              
+              <View style={styles.infoGridItem}>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>페이스</Text>
+                  <Text style={styles.infoValue}>{event.pace}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {event.hashtags && parseHashtags(event.hashtags).length > 0 && (
+          <View style={styles.runningInfoSection}>
+            <Text style={styles.sectionTitle}>러닝 정보</Text>
+            <View style={styles.hashtagContainer}>
+              {parseHashtags(event.hashtags).map((tag, index) => (
+                <View key={index} style={styles.hashtagBadge}>
+                  <Text style={styles.hashtagText}>#{tag}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        <View style={styles.participantsSection}>
+          <Text style={styles.sectionTitle}>참여자</Text>
+          <View style={styles.participantsInfo}>
+            <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
+            <Text style={styles.participantsText}>
+              {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
+              {event.maxParticipants ? ` / ${event.maxParticipants}명` : ' (제한 없음)'}
+            </Text>
+            {event.maxParticipants && (
+              <View style={styles.participantsBar}>
+                <View 
+                  style={[
+                    styles.participantsProgress, 
+                    { width: `${Math.min((Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)) / event.maxParticipants, 1) * 100}%` }
+                  ]} 
+                />
+              </View>
+            )}
+          </View>
+          
+          <View style={styles.participantsList}>
+            {renderParticipantsList()}
+          </View>
+        </View>
           </BottomSheetScrollView>
+          )}
         </View>
       ) : (
         // 일반 화면: 기존 구조 유지
@@ -1248,17 +1335,26 @@ const styles = StyleSheet.create({
     marginTop: -16, // 위로 올리기
   },
   containerInSheet: {
-    // BottomSheet 내부에서는 marginTop 제거
+    // BottomSheet 내부: 배경색을 시트와 동일하게
     marginTop: 0,
+    backgroundColor: COLORS.SURFACE,
   },
   bottomSheetContainer: {
     // BottomSheet 내부 컨테이너: flexbox 레이아웃
     flex: 1,
     flexDirection: 'column',
+    backgroundColor: COLORS.SURFACE,
   },
   fixedHeaderSection: {
     // 고정 헤더 영역 (스크롤되지 않음)
     flexShrink: 0,
+    backgroundColor: COLORS.SURFACE, // BottomSheet와 동일
+  },
+  headerInSheet: {
+    backgroundColor: COLORS.SURFACE,
+  },
+  customLocationContainerInSheet: {
+    backgroundColor: COLORS.SURFACE,
   },
   scrollableSection: {
     // 스크롤 가능한 영역 - 하단 버튼 공간 확보
@@ -1585,7 +1681,7 @@ const styles = StyleSheet.create({
     // BottomSheet 내부에서는 absolute 제거, flexbox로 자연스럽게 하단 배치
     position: 'relative',
     width: '100%',
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: COLORS.SURFACE, // BottomSheet와 동일
     // 명시적으로 높이 보장
     minHeight: 70,
     paddingHorizontal: 10, // 카드와 동일한 좌우 여백

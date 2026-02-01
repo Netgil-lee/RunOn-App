@@ -5,7 +5,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-import BottomSheet, { BottomSheetView, BottomSheetFooter, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetFooter, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import MeetingCard from '../components/MeetingCard';
@@ -19,6 +19,67 @@ import evaluationService from '../services/evaluationService';
 import { recordCafeVisit } from '../services/userActivityService';
 
 // 현재 위치 마커는 SVG로 직접 생성 (이미지 파일 사용 안 함)
+
+// 운영시간 요일 키 → 한국어 표기
+const OPERATING_HOURS_DAY_LABELS = {
+  monday: '월요일',
+  tuesday: '화요일',
+  wednesday: '수요일',
+  thursday: '목요일',
+  friday: '금요일',
+  saturday: '토요일',
+  sunday: '일요일',
+  월요일: '월요일',
+  화요일: '화요일',
+  수요일: '수요일',
+  목요일: '목요일',
+  금요일: '금요일',
+  토요일: '토요일',
+  일요일: '일요일',
+};
+
+const OPERATING_HOURS_DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+
+// 요일 키 → 요일 인덱스 (0=월요일, 6=일요일, 현재 주 기준 날짜 계산용)
+const OPERATING_HOURS_DAY_INDEX = {
+  monday: 0, tuesday: 1, wednesday: 2, thursday: 3, friday: 4, saturday: 5, sunday: 6,
+  월요일: 0, 화요일: 1, 수요일: 2, 목요일: 3, 금요일: 4, 토요일: 5, 일요일: 6,
+};
+
+/** 현재 주(월~일)에서 해당 요일의 날짜를 (month)/(date) 형식으로 반환 */
+function getOperatingHoursDateLabel(dayKey) {
+  const index = OPERATING_HOURS_DAY_INDEX[dayKey];
+  if (index == null) return '';
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const d = new Date(weekStart);
+  d.setDate(weekStart.getDate() + index);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+// 운영시간 값에서 표시 텍스트 반환 (휴무 버튼 클릭 시 '휴무' 등)
+function getOperatingHoursDisplayText(hours) {
+  if (hours == null || hours === '') return '휴무';
+  if (typeof hours === 'string') {
+    const s = hours.trim().toLowerCase();
+    if (s === '휴무' || s === 'closed' || s === 'close') return '휴무';
+    return hours; // 그 외 문자열은 그대로 (예: "휴무")
+  }
+  if (typeof hours === 'object') {
+    if (hours.closed === true) return '휴무';
+    const open = hours.open != null ? String(hours.open).trim() : '';
+    const close = hours.close != null ? String(hours.close).trim() : '';
+    if (!open && !close) return '휴무';
+    if (open.toLowerCase() === '휴무' || close.toLowerCase() === '휴무') return '휴무';
+    if (open === 'closed' || close === 'closed') return '휴무';
+    if (open && close) return `${open} - ${close}`;
+    if (open) return open;
+    if (close) return close;
+    return '휴무';
+  }
+  return '휴무';
+}
 
 const MapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -2102,11 +2163,21 @@ const MapScreen = ({ navigation, route }) => {
           topInset={0}
           footerComponent={renderFooter}
         >
-          {activeToggle === 'events' && selectedEvent ? (
-            // 모임 상세 화면 - BottomSheetView 사용 (내부에서 스크롤 처리)
-            <BottomSheetView style={styles.bottomSheetContent}>
+          {/* 단일 BottomSheetScrollView: 모임 상세·카페 상세·목록 모두 같은 스크롤 (튕김 방지) */}
+          <BottomSheetScrollView
+            style={[styles.bottomSheetContent, styles.scrollView]}
+            contentContainerStyle={{
+              paddingTop: 16,
+              paddingBottom: insets.bottom + 80,
+              flexGrow: 1,
+            }}
+            showsVerticalScrollIndicator={true}
+          >
+            {activeToggle === 'events' && selectedEvent ? (
+              // 러닝모임 상세 (외부 스크롤에 포함되어 튕김 없음)
               <EventDetailScreen
                 ref={eventDetailScreenRef}
+                embedInExternalScrollView={true}
                 route={{
                   params: {
                     event: selectedEvent,
@@ -2120,23 +2191,9 @@ const MapScreen = ({ navigation, route }) => {
                   goBack: handleCloseEventDetail
                 }}
               />
-            </BottomSheetView>
-          ) : (
-          <BottomSheetView style={styles.bottomSheetContent}>
-            {activeToggle === 'cafes' && selectedCafe ? (
+            ) : activeToggle === 'cafes' && selectedCafe ? (
               // 카페 상세 화면
-              <View style={styles.scrollContainer}>
-                <ScrollView 
-                  style={styles.scrollView}
-                  contentContainerStyle={{ 
-                    paddingTop: 16, 
-                    paddingBottom: insets.bottom + 80,
-                    flexGrow: 1
-                  }}
-                  showsVerticalScrollIndicator={true}
-                  nestedScrollEnabled={true}
-                >
-                <View style={styles.cafeDetailContainer}>
+              <View style={styles.cafeDetailContainer}>
                   <View style={styles.cafeDetailHeader}>
                     <Text style={styles.cafeDetailName}>{selectedCafe.name || '카페'}</Text>
                     <TouchableOpacity
@@ -2219,10 +2276,12 @@ const MapScreen = ({ navigation, route }) => {
                   {/* 러닝인증 혜택 */}
                   {selectedCafe.runningCertificationBenefit && (
                     <View style={styles.cafeDetailSection}>
-                      <Text style={styles.cafeDetailSectionTitle}>러닝인증 혜택</Text>
-                      <View style={styles.cafeBenefit}>
-                        <Ionicons name="gift" size={18} color={COLORS.PRIMARY} />
-                        <Text style={styles.cafeBenefitText}>
+                      <View style={styles.cafeDetailSectionTitleRow}>
+                        <Ionicons name="gift-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Text style={styles.cafeDetailSectionTitle}>러닝인증 혜택</Text>
+                      </View>
+                      <View style={[styles.cafeDetailSectionContent, styles.cafeBenefit]}>
+                        <Text style={styles.cafeDetailBenefitText}>
                           {selectedCafe.runningCertificationBenefit}
                         </Text>
                       </View>
@@ -2233,7 +2292,10 @@ const MapScreen = ({ navigation, route }) => {
                   {selectedCafe.address && (
                     <View style={styles.cafeDetailSection}>
                       <View style={styles.cafeDetailAddressRow}>
-                        <Text style={[styles.cafeDetailSectionTitle, { marginBottom: 0, marginRight: 8 }]}>주소</Text>
+                        <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 0, marginRight: 8 }]}>
+                          <Ionicons name="location-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                          <Text style={[styles.cafeDetailSectionTitle, { marginBottom: 0 }]}>주소</Text>
+                        </View>
                         <Text style={styles.cafeDetailText}>{selectedCafe.address}</Text>
                       </View>
                     </View>
@@ -2242,22 +2304,40 @@ const MapScreen = ({ navigation, route }) => {
                   {/* 운영시간 */}
                   {selectedCafe.operatingHours && (
                     <View style={styles.cafeDetailSection}>
-                      <Text style={[styles.cafeDetailSectionTitle, { marginBottom: 8 }]}>운영시간</Text>
-                      {Object.entries(selectedCafe.operatingHours).map(([day, hours]) => (
-                        <View key={day} style={styles.operatingHoursRow}>
-                          <Text style={styles.operatingHoursDay}>{day}</Text>
-                          <Text style={styles.operatingHoursTime}>
-                            {hours ? `${hours.open} - ${hours.close}` : '휴무'}
-                          </Text>
-                        </View>
-                      ))}
+                      <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 8 }]}>
+                        <Ionicons name="time-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Text style={styles.cafeDetailSectionTitle}>운영시간</Text>
+                      </View>
+                      <View style={styles.cafeDetailSectionContent}>
+                        {(() => {
+                          const entries = Object.entries(selectedCafe.operatingHours);
+                          const sorted = entries.sort(([a], [b]) => {
+                            const ia = OPERATING_HOURS_DAY_ORDER.indexOf(a);
+                            const ib = OPERATING_HOURS_DAY_ORDER.indexOf(b);
+                            if (ia !== -1 && ib !== -1) return ia - ib;
+                            if (ia !== -1) return -1;
+                            if (ib !== -1) return 1;
+                            return String(a).localeCompare(String(b));
+                          });
+                          return sorted.map(([day, hours]) => {
+                            const dayLabel = OPERATING_HOURS_DAY_LABELS[day] ?? day;
+                            const dateLabel = getOperatingHoursDateLabel(day);
+                            const timeText = getOperatingHoursDisplayText(hours);
+                            return (
+                              <View key={day} style={styles.operatingHoursRow}>
+                                {dateLabel ? <Text style={styles.operatingHoursDate}>{dateLabel}</Text> : null}
+                                <Text style={styles.operatingHoursDay}>{dayLabel}</Text>
+                                <Text style={styles.operatingHoursTime}>{timeText}</Text>
+                              </View>
+                            );
+                          });
+                        })()}
+                      </View>
                     </View>
                   )}
-                </View>
-              </ScrollView>
               </View>
             ) : (
-              // 모임 목록 화면
+              // 모임/카페 목록 화면 (같은 BottomSheetScrollView 안에서 스크롤)
               <>
                 <View style={styles.bottomSheetHeader}>
                   {activeToggle === 'events' && (
@@ -2306,16 +2386,7 @@ const MapScreen = ({ navigation, route }) => {
                   )}
                 </View>
                 {activeToggle === 'events' && (
-                  <View style={styles.scrollContainer}>
-                    <ScrollView 
-                      style={styles.scrollView}
-                      contentContainerStyle={{ 
-                        paddingTop: 16, 
-                        paddingBottom: insets.bottom + 80
-                      }}
-                      showsVerticalScrollIndicator={true}
-                      nestedScrollEnabled={true}
-                    >
+                  <View style={styles.listContent}>
                         {filteredEvents.length > 0 ? (
                           <>
                             {(showAllEvents ? filteredEvents : filteredEvents.slice(0, 5)).map((event, index) => (
@@ -2350,20 +2421,10 @@ const MapScreen = ({ navigation, route }) => {
                             </Text>
                           </View>
                         )}
-                    </ScrollView>
                   </View>
                 )}
                 {activeToggle === 'cafes' && (
-                  <View style={styles.scrollContainer}>
-                    <ScrollView 
-                      style={styles.scrollView}
-                      contentContainerStyle={{ 
-                        paddingTop: 16, 
-                        paddingBottom: insets.bottom + 80
-                      }}
-                      showsVerticalScrollIndicator={true}
-                      nestedScrollEnabled={true}
-                    >
+                  <View style={styles.listContent}>
                         {filteredCafes.length > 0 ? (
                           <>
                             {(showAllCafes ? filteredCafes : filteredCafes.slice(0, 5)).map((cafe, index) => (
@@ -2419,13 +2480,11 @@ const MapScreen = ({ navigation, route }) => {
                             </Text>
                           </View>
                         )}
-                    </ScrollView>
                   </View>
                 )}
               </>
             )}
-          </BottomSheetView>
-          )}
+          </BottomSheetScrollView>
           </BottomSheet>
         )}
       </View>
@@ -2563,6 +2622,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0, // flexbox에서 스크롤 가능하도록
   },
+  listContent: {
+    paddingBottom: 8,
+  },
   scrollView: {
     flex: 1,
     minHeight: 0, // flexbox에서 스크롤 가능하도록
@@ -2668,6 +2730,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: 4,
   },
+  cafeDetailBenefitText: {
+    color: '#3AF8FF',
+    fontSize: 16,
+    marginLeft: 0,
+  },
   cafeDetailContainer: {
     padding: 20,
   },
@@ -2679,7 +2746,7 @@ const styles = StyleSheet.create({
   },
   cafeDetailName: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '700',
     flex: 1,
   },
@@ -2688,14 +2755,14 @@ const styles = StyleSheet.create({
   },
   cafeImageSlider: {
     marginBottom: 12,
-    height: 200,
+    height: Dimensions.get('window').width - 32,
   },
   cafeImageSliderContent: {
     paddingHorizontal: 0,
   },
   cafeDetailImage: {
-    width: Dimensions.get('window').width - 32, // 화면 너비에서 좌우 패딩 제외
-    height: 200,
+    width: Dimensions.get('window').width - 32,
+    height: Dimensions.get('window').width - 32,
     borderRadius: 12,
     backgroundColor: '#333333',
   },
@@ -2723,20 +2790,32 @@ const styles = StyleSheet.create({
   },
   cafeDetailDescription: {
     color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 22,
     marginBottom: 10,
+  },
+  cafeDetailSectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginRight: 0,
+  },
+  cafeDetailSectionTitleIcon: {
+    opacity: 0.2,
+  },
+  cafeDetailSectionContent: {
+    paddingLeft: 24,
   },
   cafeDetailSectionTitle: {
     color: '#FFFFFF', // 흰색
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     marginRight: 0, // 주소 타이틀 옆에 내용이 오도록
   },
   cafeDetailText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 22,
   },
   cafeDetailAddressRow: {
     flexDirection: 'row',
@@ -2746,16 +2825,24 @@ const styles = StyleSheet.create({
   },
   operatingHoursRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 6,
+    gap: 8,
+  },
+  operatingHoursDate: {
+    color: '#999999',
+    fontSize: 16,
+    minWidth: 36,
   },
   operatingHoursDay: {
     color: '#999999',
-    fontSize: 14,
+    fontSize: 16,
+    minWidth: 48,
   },
   operatingHoursTime: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 16,
   },
   mapSearchWrapper: {
     position: 'absolute',

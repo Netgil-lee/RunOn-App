@@ -1398,6 +1398,8 @@
             const targetPage = document.getElementById(pageId);
             if (targetPage) {
                 targetPage.classList.add('active');
+                // 전환 후 해당 섹션이 보이도록 스크롤
+                targetPage.scrollIntoView && targetPage.scrollIntoView({ block: 'start', behavior: 'auto' });
             }
         }
         
@@ -1425,20 +1427,34 @@
                 dropdownMenu.classList.remove('active');
             });
             
-            // 메뉴얼 링크 - 메뉴얼 페이지로 전환
-            manualLink.addEventListener('click', function(e) {
+            function goToManualPage(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 showPage('manualPage');
                 menuIcon.classList.remove('active');
                 dropdownMenu.classList.remove('active');
-            });
-            
-            // 방침 링크 - 방침 페이지로 전환
-            policyLink.addEventListener('click', function(e) {
+            }
+            function goToPolicyPage(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 showPage('policyPage');
                 menuIcon.classList.remove('active');
                 dropdownMenu.classList.remove('active');
+            }
+            // 메뉴얼 링크 - 메뉴얼 페이지로 전환 (mousedown/touchstart로 먼저 처리해 드롭다운이 닫히기 전에 전환)
+            manualLink.addEventListener('mousedown', goToManualPage);
+            manualLink.addEventListener('touchstart', goToManualPage, { passive: false });
+            manualLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            
+            // 방침 링크 - 방침 페이지로 전환
+            policyLink.addEventListener('mousedown', goToPolicyPage);
+            policyLink.addEventListener('touchstart', goToPolicyPage, { passive: false });
+            policyLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
             });
             
             // 뒤로가기 버튼들
