@@ -247,7 +247,7 @@ const MapScreen = ({ navigation, route }) => {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-            background: #0a1a2a; 
+            background: #FFFDE7; 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             overflow: hidden;
             height: 100vh;
@@ -2495,7 +2495,7 @@ const MapScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#FFFDE7',
   },
   webview: {
     flex: 1,

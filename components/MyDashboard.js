@@ -107,26 +107,27 @@ const MyDashboard = ({ navigation }) => {
         </View>
       )}
       
-      {/* 우측: 정보 컨테이너 */}
+      {/* 우측: 정보 컨테이너 (상호명 · 러닝인증할인 · 주소 배열) */}
       <View style={styles.cafeInfoContainer}>
-        {/* 상호명과 러닝인증 혜택 */}
-        <View style={styles.cafeNameRow}>
+        <View style={styles.cafeInfoRow}>
           <Text style={styles.cafeName} numberOfLines={1}>
             {cafe.cafeName}
           </Text>
-          {cafe.runningCertificationBenefit && (
+        </View>
+        {cafe.runningCertificationBenefit ? (
+          <View style={styles.cafeInfoRow}>
             <Text style={styles.cafeBenefit} numberOfLines={1}>
               {cafe.runningCertificationBenefit}
             </Text>
-          )}
-        </View>
-        
-        {/* 위치 */}
-        {cafe.address && (
-          <Text style={styles.cafeAddress} numberOfLines={1}>
-            {cafe.address}
-          </Text>
-        )}
+          </View>
+        ) : null}
+        {cafe.address ? (
+          <View style={styles.cafeInfoRow}>
+            <Text style={styles.cafeAddress} numberOfLines={1}>
+              {cafe.address}
+            </Text>
+          </View>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -275,27 +276,28 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     justifyContent: 'center',
+    gap: 4,
   },
-  cafeNameRow: {
+  cafeInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
-    gap: 8,
+    minHeight: 20,
   },
   cafeName: {
-    fontSize: 16,  // 크기 증가 (14 → 16)
+    fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.TEXT,
     flexShrink: 1,
   },
   cafeBenefit: {
-    fontSize: 14,  // 크기 증가 (12 → 14)
-    color: COLORS.PRIMARY,  // 프라이머리 색상 (#3AF8FF)
+    fontSize: 14,
+    color: COLORS.PRIMARY,
     flexShrink: 1,
   },
   cafeAddress: {
-    fontSize: 13,  // 크기 증가 (11 → 13)
-    color: '#FFFFFF',
+    fontSize: 13,
+    color: COLORS.TEXT,
+    flexShrink: 1,
   },
   visitBadge: {
     backgroundColor: COLORS.PRIMARY,
