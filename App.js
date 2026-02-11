@@ -145,15 +145,15 @@ export default function App() {
         <NetworkProvider>
           <AuthProvider isDemoMode={isDemoMode}>
             <PremiumProvider>
-              <NotificationSettingsProvider>
-                <EventProvider>
-                  <CommunityProvider>
-                    <GuideProvider>
-                      <AppNavigator isDemoMode={isDemoMode} />
-                    </GuideProvider>
-                  </CommunityProvider>
-                </EventProvider>
-              </NotificationSettingsProvider>
+            <NotificationSettingsProvider>
+              <EventProvider>
+                <CommunityProvider>
+                  <GuideProvider>
+                    <AppNavigator isDemoMode={isDemoMode} />
+                  </GuideProvider>
+                </CommunityProvider>
+              </EventProvider>
+            </NotificationSettingsProvider>
             </PremiumProvider>
           </AuthProvider>
         </NetworkProvider>

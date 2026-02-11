@@ -1,5 +1,14 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
+def minGradleVersion = "8.13"
+def currentVersion = gradle.gradleVersion
+if (currentVersion != "unknown" && currentVersion < minGradleVersion) {
+  throw new GradleException(
+    "Gradle ${currentVersion} is not supported. Minimum is ${minGradleVersion}. " +
+    "Use the project wrapper: cd android && ./gradlew --version (then run your build with ./gradlew or npx expo run:android)."
+  )
+}
+
 buildscript {
   repositories {
     google()

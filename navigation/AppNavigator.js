@@ -12,6 +12,7 @@ import PhoneAuthScreen from '../screens/PhoneAuthScreen';
 
 import VerificationScreen from '../screens/VerificationScreen';
 import HomeScreen from '../screens/HomeScreen';
+import MapScreen from '../screens/MapScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -57,6 +58,8 @@ const MainTabNavigator = () => {
 
     if (route.name === 'HomeTab') {
       iconName = focused ? 'home' : 'home-outline';
+    } else if (route.name === 'MapTab') {
+      iconName = focused ? 'map' : 'map-outline';
     } else if (route.name === 'ScheduleTab') {
       iconName = focused ? 'calendar-clear' : 'calendar-clear-outline';
       hasBadge = hasMeetingNotification;
@@ -124,6 +127,11 @@ const MainTabNavigator = () => {
         name="ScheduleTab" 
         component={ScheduleScreen}
         options={{ tabBarLabel: '모임' }}
+      />
+      <Tab.Screen 
+        name="MapTab" 
+        component={MapScreen}
+        options={{ tabBarLabel: '지도' }}
       />
       <Tab.Screen 
         name="CommunityTab" 

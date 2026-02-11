@@ -128,12 +128,12 @@ class PaymentService {
           this.currentPurchaseCallbacks = null; // 콜백 초기화
           this.currentPurchaseUserId = null; // userId 초기화
         } else {
-          // 성공 알림
-          Alert.alert(
-            '구매 완료',
-            '프리미엄 구독이 활성화되었습니다!',
-            [{ text: '확인' }]
-          );
+        // 성공 알림
+        Alert.alert(
+          '구매 완료',
+          '프리미엄 구독이 활성화되었습니다!',
+          [{ text: '확인' }]
+        );
         }
       } else {
         console.error('❌ 영수증 검증 실패:', validationResult.error);
@@ -144,7 +144,7 @@ class PaymentService {
           this.currentPurchaseCallbacks = null; // 콜백 초기화
           this.currentPurchaseUserId = null; // userId 초기화
         } else {
-          Alert.alert('구매 실패', validationResult.error || '영수증 검증에 실패했습니다.');
+        Alert.alert('구매 실패', validationResult.error || '영수증 검증에 실패했습니다.');
         }
       }
     } catch (error) {
@@ -169,17 +169,17 @@ class PaymentService {
       this.currentPurchaseCallbacks = null; // 콜백 초기화
       this.currentPurchaseUserId = null; // userId 초기화
     } else {
-      let errorMessage = '구매 중 오류가 발생했습니다.';
-      
-      if (error.code === 'E_USER_CANCELLED') {
-        errorMessage = '구매가 취소되었습니다.';
-      } else if (error.code === 'E_ITEM_UNAVAILABLE') {
-        errorMessage = '해당 상품을 구매할 수 없습니다.';
-      } else if (error.code === 'E_NETWORK_ERROR') {
-        errorMessage = '네트워크 연결을 확인해주세요.';
-      }
-      
-      Alert.alert('구매 실패', errorMessage);
+    let errorMessage = '구매 중 오류가 발생했습니다.';
+    
+    if (error.code === 'E_USER_CANCELLED') {
+      errorMessage = '구매가 취소되었습니다.';
+    } else if (error.code === 'E_ITEM_UNAVAILABLE') {
+      errorMessage = '해당 상품을 구매할 수 없습니다.';
+    } else if (error.code === 'E_NETWORK_ERROR') {
+      errorMessage = '네트워크 연결을 확인해주세요.';
+    }
+    
+    Alert.alert('구매 실패', errorMessage);
     }
   }
 

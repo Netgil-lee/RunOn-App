@@ -15,9 +15,11 @@ import {
   onSnapshot,
   arrayUnion,
   arrayRemove,
-  increment
+  increment,
+  GeoPoint
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import getGeoFirestore from './geofirestoreService';
 
 class FirestoreService {
   constructor() {
@@ -781,6 +783,192 @@ class FirestoreService {
     const messagesQuery = query(messagesRef, orderBy('timestamp', 'asc'));
     
     return onSnapshot(messagesQuery, callback, errorCallback);
+  }
+
+  calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // 지구 반지름 (km)
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  /**
+   * 반경 내 모임 검색 (하위 호환성 포함)
+   */
+  async getEventsNearbyHybrid(latitude, longitude, radiusInKm = 3) {
+    try {
+      const nearbyEvents = [];
+      const geofirestore = getGeoFirestore();
+      const geocollection = geofirestore.collection('events');
+      const center = new GeoPoint(latitude, longitude);
+      const geoQuery = geocollection.near({
+        center: center,
+        radius: radiusInKm
+      });
+      const geoSnapshot = await geoQuery.get();
+      geoSnapshot.forEach((doc) => {
+        const eventData = doc.data();
+        if (eventData.status !== 'ended') {
+          nearbyEvents.push({ id: doc.id, ...eventData });
+        }
+      });
+      const eventsRef = collection(this.db, 'events');
+      const eventsQuery = query(
+        eventsRef,
+        where('status', '!=', 'ended')
+      );
+      const allEventsSnapshot = await getDocs(eventsQuery);
+      allEventsSnapshot.forEach((doc) => {
+        const eventData = doc.data();
+        const hasCoordinates = !!eventData.coordinates;
+        const hasCustomMarkerCoords = !!eventData.customMarkerCoords;
+        if (!hasCoordinates && hasCustomMarkerCoords) {
+          const distance = this.calculateDistance(
+            latitude,
+            longitude,
+            eventData.customMarkerCoords.latitude,
+            eventData.customMarkerCoords.longitude
+          );
+          if (distance <= radiusInKm) {
+            nearbyEvents.push({ id: doc.id, ...eventData });
+          }
+        }
+      });
+      return nearbyEvents;
+    } catch (error) {
+      console.error('반경 내 모임 검색 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 반경 내 카페 검색
+   */
+  async getCafesNearby(latitude, longitude, radiusInKm = 0.7) {
+    try {
+      const geofirestore = getGeoFirestore();
+      const geocollection = geofirestore.collection('cafes');
+      const center = new GeoPoint(latitude, longitude);
+      const q = geocollection.near({
+        center: center,
+        radius: radiusInKm
+      });
+      const snapshot = await q.get();
+      const cafes = [];
+      snapshot.forEach((doc) => {
+        cafes.push({ id: doc.id, ...doc.data() });
+      });
+      return cafes;
+    } catch (error) {
+      if (error.code === 'permission-denied') return [];
+      return [];
+    }
+  }
+
+  /**
+   * 모든 카페 조회
+   */
+  async getAllCafes() {
+    try {
+      const cafesRef = collection(this.db, 'cafes');
+      const snapshot = await getDocs(cafesRef);
+      const cafes = [];
+      snapshot.forEach((doc) => {
+        cafes.push({ id: doc.id, ...doc.data() });
+      });
+      return cafes;
+    } catch (error) {
+      if (error.code === 'permission-denied') return [];
+      return [];
+    }
+  }
+
+  /**
+   * 카페 ID로 개별 조회
+   */
+  async getCafeById(cafeId) {
+    try {
+      const cafeRef = doc(this.db, 'cafes', cafeId);
+      const cafeDoc = await getDoc(cafeRef);
+      if (!cafeDoc.exists()) return null;
+      return { id: cafeDoc.id, ...cafeDoc.data() };
+    } catch (error) {
+      if (error.code === 'permission-denied') return null;
+      return null;
+    }
+  }
+
+  /**
+   * 신규 입점 카페 조회 (최근 1개월)
+   */
+  async getNewCafes(maxCount = 10) {
+    try {
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      const cafesRef = collection(this.db, 'cafes');
+      const q = query(
+        cafesRef,
+        where('createdAt', '>=', oneMonthAgo),
+        orderBy('createdAt', 'desc'),
+        limit(maxCount)
+      );
+      const snapshot = await getDocs(q);
+      const cafes = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        cafes.push({
+          id: doc.id,
+          name: data.name || '알 수 없는 카페',
+          location: data.address || data.location || '위치 정보 없음',
+          representativeImage: data.representativeImage || data.images?.[0] || null,
+          createdAt: data.createdAt,
+        });
+      });
+      return cafes;
+    } catch (error) {
+      if (error.code === 'permission-denied') return [];
+      return [];
+    }
+  }
+
+  /**
+   * 모임/카페 검색 (제목, 상호명, 태그)
+   */
+  async searchEventsAndCafes(searchQuery) {
+    try {
+      if (!searchQuery || searchQuery.trim().length === 0) return [];
+      const queryLower = searchQuery.toLowerCase().trim();
+      const results = [];
+      const eventsRef = collection(this.db, 'events');
+      const eventsQuery = query(eventsRef, where('status', '!=', 'ended'));
+      const eventsSnapshot = await getDocs(eventsQuery);
+      eventsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        const titleMatch = data.title?.toLowerCase().includes(queryLower);
+        const tagMatch = data.hashtags?.toLowerCase().includes(queryLower) ||
+          data.tags?.some(tag => tag.toLowerCase().includes(queryLower));
+        if (titleMatch || tagMatch) {
+          results.push({ type: 'event', id: doc.id, ...data });
+        }
+      });
+      const cafesRef = collection(this.db, 'cafes');
+      const cafesSnapshot = await getDocs(cafesRef);
+      cafesSnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.name?.toLowerCase().includes(queryLower)) {
+          results.push({ type: 'cafe', id: doc.id, ...data });
+        }
+      });
+      return results.slice(0, 5);
+    } catch (error) {
+      if (error.code === 'permission-denied') return [];
+      return [];
+    }
   }
 
   // 모임 종료 시 상태를 'ended'로 변경 (채팅방 데이터 삭제)

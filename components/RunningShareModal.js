@@ -8,6 +8,9 @@ import {
   Alert,
   Dimensions,
   Platform,
+  TextInput,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
@@ -29,7 +32,10 @@ const RunningShareModal = ({
   const [hasPermission, setHasPermission] = useState(false);
   const [isLoadingWorkout, setIsLoadingWorkout] = useState(false);
   const [actualWorkoutData, setActualWorkoutData] = useState(null);
+  const [customPlace, setCustomPlace] = useState('');
+  const [hasEnteredPlace, setHasEnteredPlace] = useState(false);
   const shareCardRef = useRef(null);
+  const placeInputRef = useRef(null);
 
   // 권한 요청
   useEffect(() => {
@@ -40,12 +46,21 @@ const RunningShareModal = ({
     requestPermission();
   }, []);
 
-  // 실제 운동기록 데이터 가져오기
+  // 모달이 열릴 때 상태 초기화 (iOS와 동일: place 입력부터 시작)
   useEffect(() => {
-    if (visible && eventData) {
+    if (visible) {
+      setCustomPlace('');
+      setHasEnteredPlace(false);
+      setActualWorkoutData(null);
+    }
+  }, [visible]);
+
+  // 실제 운동기록 데이터 가져오기 (place 입력 후에만 실행, iOS와 동일)
+  useEffect(() => {
+    if (visible && eventData && hasEnteredPlace) {
       fetchActualWorkoutData();
     }
-  }, [visible, eventData]);
+  }, [visible, eventData, hasEnteredPlace]);
 
   const fetchActualWorkoutData = async () => {
     try {
@@ -101,12 +116,21 @@ const RunningShareModal = ({
     }
   };
 
-  // 공유카드 데이터 준비 (실제 운동기록 우선 사용)
+  // place 입력 처리 (iOS와 동일)
+  const handlePlaceSubmit = () => {
+    if (!customPlace.trim()) {
+      Alert.alert('입력 필요', 'Place를 입력해주세요.');
+      return;
+    }
+    setHasEnteredPlace(true);
+  };
+
+  // 공유카드 데이터 준비 (실제 운동기록 우선 사용, location은 사용자 입력 place 사용)
   const shareCardData = actualWorkoutData ? {
     distance: actualWorkoutData.distance || 0,
     pace: actualWorkoutData.pace || '0:00',
     duration: actualWorkoutData.duration || 0,
-    location: getEnglishLocation(eventData?.location || '한강'),
+    location: customPlace || getEnglishLocation(eventData?.location || '한강'),
     calories: actualWorkoutData.calories || 0,
     routeCoordinates: actualWorkoutData.routeCoordinates || []
   } : {
@@ -114,7 +138,7 @@ const RunningShareModal = ({
     distance: workoutData?.distance || 0,
     pace: workoutData?.pace || '0:00',
     duration: workoutData?.duration || 0,
-    location: getEnglishLocation(eventData?.location || '한강'),
+    location: customPlace || getEnglishLocation(eventData?.location || '한강'),
     calories: workoutData?.calories || 0,
     routeCoordinates: workoutData?.routeCoordinates || []
   };
@@ -186,67 +210,115 @@ const RunningShareModal = ({
         activeOpacity={1} 
         onPress={onClose}
       >
-        <View style={styles.bottomModalContainer}>
-          <View style={styles.modalContainer}>
-            {/* 헤더 */}
-            <View style={styles.header}>
-              <Text style={styles.title}>러닝 기록 공유</Text>
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={onClose}
-              >
-                <Ionicons name="close" size={24} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
-            
-            {/* 구분선 */}
-            <View style={styles.headerDivider} />
+        <KeyboardAvoidingView 
+          style={styles.bottomModalContainer} 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
+          <ScrollView 
+            contentContainerStyle={styles.scrollContentContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.modalContainer}>
+              {/* 헤더 */}
+              <View style={styles.header}>
+                <Text style={styles.title}>러닝 기록 공유</Text>
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPress={onClose}
+                >
+                  <Ionicons name="close" size={24} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
+              
+              {/* 구분선 */}
+              <View style={styles.headerDivider} />
 
-            {/* 공유카드 */}
-            <View style={styles.cardContainer}>
-              {isLoadingWorkout ? (
-                <View style={styles.loadingContainer}>
-                  <Text style={styles.loadingText}>운동기록을 조회하는 중...</Text>
+              {!hasEnteredPlace ? (
+                /* Place 입력 화면 (iOS와 동일) */
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>place를 입력해주세요</Text>
+                  <TextInput
+                    ref={placeInputRef}
+                    style={styles.placeInput}
+                    placeholder="Enter place (English only)"
+                    placeholderTextColor="#666666"
+                    value={customPlace}
+                    onChangeText={(text) => {
+                      const englishOnly = text.replace(/[^a-zA-Z0-9\s\-_.,!?]/g, '');
+                      setCustomPlace(englishOnly);
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoFocus={false}
+                    returnKeyType="done"
+                    onSubmitEditing={handlePlaceSubmit}
+                    blurOnSubmit={false}
+                  />
                 </View>
               ) : (
-                <RunningShareCard
-                  ref={shareCardRef}
-                  distance={shareCardData.distance}
-                  pace={shareCardData.pace}
-                  duration={shareCardData.duration}
-                  location={shareCardData.location}
-                  calories={shareCardData.calories}
-                  routeCoordinates={shareCardData.routeCoordinates}
-                />
+                /* 공유카드 */
+                <View style={styles.cardContainer}>
+                  {isLoadingWorkout ? (
+                    <View style={styles.loadingContainer}>
+                      <Text style={styles.loadingText}>운동기록을 조회하는 중...</Text>
+                    </View>
+                  ) : (
+                    <RunningShareCard
+                      ref={shareCardRef}
+                      distance={shareCardData.distance}
+                      pace={shareCardData.pace}
+                      duration={shareCardData.duration}
+                      location={shareCardData.location}
+                      calories={shareCardData.calories}
+                      routeCoordinates={shareCardData.routeCoordinates}
+                    />
+                  )}
+                </View>
               )}
+
+              {/* 액션 버튼 */}
+              <View style={styles.actionButtons}>
+                {!hasEnteredPlace ? (
+                  <TouchableOpacity 
+                    style={[
+                      styles.actionButton, 
+                      styles.saveButton,
+                      !customPlace.trim() && styles.disabledButton
+                    ]}
+                    onPress={handlePlaceSubmit}
+                    disabled={!customPlace.trim()}
+                  >
+                    <Text style={styles.saveButtonText}>입력</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity 
+                    style={[
+                      styles.actionButton, 
+                      styles.saveButton,
+                      (isGenerating || isLoadingWorkout || !actualWorkoutData) && styles.disabledButton
+                    ]}
+                    onPress={handleSaveImage}
+                    disabled={isGenerating || isLoadingWorkout || !actualWorkoutData}
+                  >
+                    <Ionicons name="download" size={20} color="#000000" />
+                    <Text style={styles.saveButtonText}>
+                      {isGenerating ? '저장 중...' : 
+                       isLoadingWorkout ? '데이터 조회 중...' : 
+                       !actualWorkoutData ? '데이터 없음' : '이미지 저장'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* 하단 안내 텍스트 */}
+              <Text style={styles.helpText}>
+                러닝 기록을 갤러리에 저장할 수 있습니다
+              </Text>
             </View>
-
-             {/* 액션 버튼 */}
-             <View style={styles.actionButtons}>
-               <TouchableOpacity 
-                 style={[
-                   styles.actionButton, 
-                   styles.saveButton,
-                   (isGenerating || isLoadingWorkout || !actualWorkoutData) && styles.disabledButton
-                 ]}
-                 onPress={handleSaveImage}
-                 disabled={isGenerating || isLoadingWorkout || !actualWorkoutData}
-               >
-                 <Ionicons name="download" size={20} color="#000000" />
-                 <Text style={styles.saveButtonText}>
-                   {isGenerating ? '저장 중...' : 
-                    isLoadingWorkout ? '데이터 조회 중...' : 
-                    !actualWorkoutData ? '데이터 없음' : '이미지 저장'}
-                 </Text>
-               </TouchableOpacity>
-             </View>
-
-            {/* 하단 안내 텍스트 */}
-            <Text style={styles.helpText}>
-              러닝 기록을 갤러리에 저장할 수 있습니다
-            </Text>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </TouchableOpacity>
     </Modal>
   );
@@ -259,6 +331,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomModalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  scrollContentContainer: {
+    flexGrow: 1,
     justifyContent: 'flex-end',
   },
   modalContainer: {
@@ -347,6 +424,29 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontFamily: 'Pretendard-Regular',
     textAlign: 'center',
+  },
+  inputContainer: {
+    width: '100%',
+    paddingVertical: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    color: '#ffffff',
+    fontFamily: 'Pretendard-SemiBold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  placeInput: {
+    width: '100%',
+    height: 48,
+    backgroundColor: '#333333',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#ffffff',
+    fontFamily: 'Pretendard-Regular',
+    borderWidth: 1,
+    borderColor: '#444444',
   },
 });
 

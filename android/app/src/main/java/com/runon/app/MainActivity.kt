@@ -42,8 +42,15 @@ class MainActivity : ReactActivity() {
                             val permissionController = healthConnectClient.permissionController
                             val requestedPermissions = getRequestedHealthPermissions()
                             val grantedPermissions = permissionController.getGrantedPermissions()
+                            
+                            Log.d("MainActivity", "권한 요청 결과 확인")
+                            Log.d("MainActivity", "요청한 권한: $requestedPermissions")
+                            Log.d("MainActivity", "부여된 권한: $grantedPermissions")
+                            
                             // getGrantedPermissions()와 requestedPermissions 모두 Set<String>이므로 직접 비교
                             val hasAllPermissions = grantedPermissions.containsAll(requestedPermissions)
+                            
+                            Log.d("MainActivity", "모든 권한 부여됨: $hasAllPermissions")
                             promise.resolve(hasAllPermissions)
                         } catch (e: Exception) {
                             Log.e("MainActivity", "권한 결과 처리 실패", e)
@@ -69,13 +76,8 @@ class MainActivity : ReactActivity() {
     
     fun requestHealthConnectPermissions(permissions: List<String>, promise: Promise) {
         try {
-            // Health Connect 권한 요청은 Health Connect 앱을 직접 열어야 함
-            val intent = Intent("androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE")
-                .setPackage("com.google.android.apps.healthdata")
-            
-            // 권한을 Intent에 추가
-            intent.putExtra("androidx.health.REQUESTED_PERMISSIONS", 
-                permissions.map { it.toString() }.toTypedArray())
+            Log.d("MainActivity", "Health Connect 권한 요청 시작")
+            Log.d("MainActivity", "요청할 권한: $permissions")
             
             pendingPermissionPromise = promise
             
@@ -83,13 +85,44 @@ class MainActivity : ReactActivity() {
                 setupHealthConnectPermissionLauncher()
             }
             
+            // Health Connect 앱이 설치되어 있는지 확인
+            val healthConnectPackage = "com.google.android.apps.healthdata"
+            val packageManager = packageManager
+            try {
+                packageManager.getPackageInfo(healthConnectPackage, 0)
+                Log.d("MainActivity", "Health Connect 앱이 설치되어 있습니다.")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Health Connect 앱이 설치되지 않았습니다.", e)
+                // Play 스토어로 이동
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW)
+                        .setData(android.net.Uri.parse("market://details?id=$healthConnectPackage"))
+                    startActivity(intent)
+                    promise.reject("ERROR", "Health Connect 앱이 설치되지 않았습니다. Play 스토어에서 설치해주세요.")
+                } catch (fallbackError: Exception) {
+                    promise.reject("ERROR", "Health Connect 앱이 설치되지 않았습니다. Play 스토어에서 'Health Connect'를 검색하여 설치해주세요.")
+                }
+                return
+            }
+            
+            // Health Connect 권한 요청 Intent 생성
+            // 최신 Health Connect SDK에서는 이 방식이 권장됨
+            val intent = Intent("androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE")
+                .setPackage(healthConnectPackage)
+            
+            // 권한을 Intent에 추가
+            val requestedPermissions = getRequestedHealthPermissions()
+            intent.putExtra("androidx.health.REQUESTED_PERMISSIONS", 
+                requestedPermissions.toTypedArray())
+            
+            Log.d("MainActivity", "Health Connect 권한 요청 Intent 생성 완료")
+            
             if (healthConnectPermissionLauncher != null) {
                 healthConnectPermissionLauncher!!.launch(intent)
+                Log.d("MainActivity", "Health Connect 권한 요청 Intent 실행됨")
             } else {
-                // 폴백: 직접 Intent 실행
-                startActivityForResult(intent, 1001)
-                // 결과는 onActivityResult에서 처리
-                promise.reject("ERROR", "권한 요청은 처리되었지만 결과 확인이 필요합니다.")
+                Log.e("MainActivity", "healthConnectPermissionLauncher가 null입니다.")
+                promise.reject("ERROR", "권한 요청 launcher를 초기화할 수 없습니다.")
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "권한 요청 실패", e)
@@ -152,4 +185,3 @@ class MainActivity : ReactActivity() {
       super.invokeDefaultOnBackPressed()
   }
 }
-

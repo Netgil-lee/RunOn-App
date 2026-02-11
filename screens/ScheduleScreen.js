@@ -14,6 +14,7 @@ import {
   SafeAreaView,
   Image,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +34,9 @@ import RunningShareModal from '../components/RunningShareModal';
 import ENV from '../config/environment';
 import storageService from '../services/storageService';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { searchPlace } from '../services/kakaoPlacesService';
+import * as Location from 'expo-location';
+import { recordMeetingLocation } from '../services/userActivityService';
 
 const firestore = getFirestore();
 
@@ -1425,6 +1429,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [userProfile, setUserProfile] = useState(null);
   const [eventType, setEventType] = useState(editingEvent?.type || '');
   const [title, setTitle] = useState(editingEvent?.title || '');
+  const [description, setDescription] = useState(editingEvent?.description || '');
   const [location, setLocation] = useState(editingEvent?.location || '');
   const [date, setDate] = useState(() => {
     if (editingEvent?.date) {
@@ -1464,8 +1469,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     if (editingEvent?.time) {
       return editingEvent.time;
     }
-    // 기본값: 오전 9시
-    return '오전 9:00';
+    // 기본값: 오전 12시 (iOS와 동일)
+    return '오전 12:00';
   });
   const [distance, setDistance] = useState(editingEvent?.distance || '');
   const [minPace, setMinPace] = useState(() => {
@@ -1492,12 +1497,25 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   
-  // 장소 선택 관련 상태
+  // 장소 선택 관련 상태 (iOS와 동일: 검색바 + 지도)
   const [selectedLocationType, setSelectedLocationType] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [showMapModal, setShowMapModal] = useState(false);
-  const [selectedLocationData, setSelectedLocationData] = useState(null);
-  const [showLocationDropdown, setShowLocationDropdown] = useState(false); // 드롭다운 표시 상태
+  const [selectedLocationData, setSelectedLocationData] = useState({
+    name: '서울시청',
+    lat: 37.5665,
+    lng: 126.9780,
+    address: '',
+  });
+  const [isLocationInitialized, setIsLocationInitialized] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [locationSearchQuery, setLocationSearchQuery] = useState('');
+  const [locationSearchResults, setLocationSearchResults] = useState([]);
+  const [isLocationSearching, setIsLocationSearching] = useState(false);
+  const [showLocationSearchResults, setShowLocationSearchResults] = useState(false);
+  const [noSearchResults, setNoSearchResults] = useState(false);
+  const [gpsLocation, setGpsLocation] = useState(null);
+  const mapWebViewRef = useRef(null);
   
   // 커스텀 마커 관련 상태
   const [customLocation, setCustomLocation] = useState('');
@@ -1540,7 +1558,53 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     fetchUserProfile();
   }, [user?.uid]);
 
-
+  // 현재 위치 가져오기 (편집 모드가 아닐 때만, 2단계 지도 초기 중심용)
+  useEffect(() => {
+    const getCurrentLocation = async () => {
+      if (editingEvent || isLocationInitialized) return;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          try {
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+              timeout: 10000,
+            });
+            if (location?.coords) {
+              const coords = { lat: location.coords.latitude, lng: location.coords.longitude };
+              setSelectedLocationData({ name: '', ...coords, address: '' });
+              setGpsLocation(coords);
+              setIsLocationInitialized(true);
+              return;
+            }
+          } catch (e) {
+            console.log('현재 위치 가져오기 실패 (네트워크/타임아웃):', e);
+            // 네트워크 문제나 타임아웃 시 기본 위치 사용
+          }
+        } else {
+          console.log('위치 권한이 거부됨');
+        }
+        // 권한 거부·네트워크 문제·에러 시 기본 위치(서울시청) 사용 (iOS와 동일)
+        setSelectedLocationData({
+          name: '서울시청',
+          lat: 37.5665,
+          lng: 126.9780,
+          address: '',
+        });
+        setIsLocationInitialized(true);
+      } catch (error) {
+        console.log('위치 권한 요청 실패:', error);
+        setSelectedLocationData({
+          name: '서울시청',
+          lat: 37.5665,
+          lng: 126.9780,
+          address: '',
+        });
+        setIsLocationInitialized(true);
+      }
+    };
+    getCurrentLocation();
+  }, [editingEvent, isLocationInitialized]);
 
   useEffect(() => {
     const keyboardDidShow = Keyboard.addListener('keyboardDidShow', (event) => {
@@ -1608,36 +1672,31 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     };
   }, [currentStep, hasCustomMarker]);
 
-  // 편집 모드 초기화
+  // 편집 모드 초기화 (iOS와 동일: 검색/지도 기반)
   useEffect(() => {
     if (editingEvent) {
-      // 장소 관련 데이터 초기화
       if (editingEvent.location) {
-        // 기존 장소가 한강공원인지 강변인지 판단
-        const hanRiverPark = hanRiverParks.find(park => park.name === editingEvent.location);
-        const riverSide = riverSides.find(river => river.name === editingEvent.location);
-        
-        if (hanRiverPark) {
-          setSelectedLocationType('hanriver');
-          setSelectedLocation(hanRiverPark.id);
-          setSelectedLocationData(hanRiverPark);
-        } else if (riverSide) {
-          setSelectedLocationType('riverside');
-          setSelectedLocation(riverSide.id);
-          setSelectedLocationData(riverSide);
+        setSelectedLocation('custom');
+        setLocationSearchQuery(editingEvent.location);
+        if (editingEvent.customMarkerCoords) {
+          setSelectedLocationData({
+            name: editingEvent.location,
+            lat: editingEvent.customMarkerCoords.lat ?? editingEvent.customMarkerCoords.latitude,
+            lng: editingEvent.customMarkerCoords.lng ?? editingEvent.customMarkerCoords.longitude,
+            address: '',
+          });
         }
       }
-      
-      // 상세 위치 관련 데이터 초기화
       if (editingEvent.customLocation) {
         setCustomLocation(editingEvent.customLocation);
         setHasCustomMarker(true);
       }
-      
       if (editingEvent.customMarkerCoords) {
         setCustomMarkerCoords(editingEvent.customMarkerCoords);
         setHasCustomMarker(true);
       }
+    } else {
+      setIsLocationInitialized(false);
     }
   }, [editingEvent]);
 
@@ -1667,6 +1726,110 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const handleInputBlur = () => {
     // 키보드 이벤트에서 이미 스크롤 처리하므로 여기서는 별도 처리 없음
   };
+
+  // 장소 검색 (Kakao Places API)
+  const performLocationSearch = async (query) => {
+    if (!query.trim()) {
+      setLocationSearchResults([]);
+      setShowLocationSearchResults(false);
+      setIsLocationSearching(false);
+      setNoSearchResults(false);
+      return;
+    }
+    setIsLocationSearching(true);
+    setShowLocationSearchResults(true);
+    setNoSearchResults(false);
+    try {
+      const results = await searchPlace(query, { size: 10 });
+      setLocationSearchResults(results);
+      if (results.length === 0) setNoSearchResults(true);
+    } catch (error) {
+      console.error('장소 검색 실패:', error);
+      setNoSearchResults(true);
+      setLocationSearchResults([]);
+    } finally {
+      setIsLocationSearching(false);
+    }
+  };
+
+  const moveMapToLocation = useCallback((lat, lng, addMarker = false) => {
+    if (mapWebViewRef.current) {
+      mapWebViewRef.current.postMessage(JSON.stringify({
+        type: 'moveToLocation',
+        lat,
+        lng,
+        addMarker,
+      }));
+    }
+  }, []);
+
+  const moveToCurrentLocation = useCallback(async () => {
+    if (gpsLocation) {
+      moveMapToLocation(gpsLocation.lat, gpsLocation.lng, false);
+    } else {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+            timeout: 10000,
+          });
+          if (location?.coords) {
+            const coords = { lat: location.coords.latitude, lng: location.coords.longitude };
+            setGpsLocation(coords);
+            moveMapToLocation(coords.lat, coords.lng, false);
+          }
+        }
+      } catch (error) {
+        console.log('현재 위치 가져오기 실패:', error);
+        Alert.alert('위치 오류', '현재 위치를 가져올 수 없습니다.');
+      }
+    }
+  }, [gpsLocation, moveMapToLocation]);
+
+  const handleLocationSearchResultSelect = (result) => {
+    const locationName = result.place_name || result.name;
+    const locationLat = parseFloat(result.y || result.lat);
+    const locationLng = parseFloat(result.x || result.lng);
+    setLocation(locationName);
+    setSelectedLocationData({
+      name: locationName,
+      lat: locationLat,
+      lng: locationLng,
+      address: result.address_name || result.road_address_name || '',
+    });
+    setSelectedLocation('custom');
+    setLocationSearchQuery(locationName);
+    setShowLocationSearchResults(false);
+    setCustomMarkerCoords(null);
+    setHasCustomMarker(false);
+    setCustomLocation('');
+    setTimeout(() => {
+      if (mapWebViewRef.current) {
+        moveMapToLocation(locationLat, locationLng, true);
+      } else {
+        const retryInterval = setInterval(() => {
+          if (mapWebViewRef.current) {
+            moveMapToLocation(locationLat, locationLng, true);
+            clearInterval(retryInterval);
+          }
+        }, 100);
+      }
+    }, 100);
+  };
+
+  // 검색어 디바운스 후 검색 (iOS와 동일: 500ms)
+  useEffect(() => {
+    if (!locationSearchQuery.trim()) {
+      setLocationSearchResults([]);
+      setNoSearchResults(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      performLocationSearch(locationSearchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [locationSearchQuery]);
 
   const eventTypes = [
     { name: '모닝러닝', emoji: '🌅', popular: true },
@@ -1754,7 +1917,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const canProceed = () => {
     switch (currentStep) {
       case 1: return eventType && title.trim();
-      case 2: return selectedLocation && location && dateString && timeString; // 마커와 상세 위치 설명은 handleNext에서 체크
+      case 2: return hasCustomMarker && customLocation.trim() && dateString && timeString;
       case 3: return distance && minPace && maxPace && difficulty;
       case 4: return maxParticipants && parseInt(maxParticipants) >= 1 && parseInt(maxParticipants) <= 5; // 호스트 제외 최대 5명
       default: return false;
@@ -1865,12 +2028,25 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     // 최종 값 설정
     const finalOrganizerName = organizerName;
     const finalOrganizerImage = organizerImage;
-    
+
+    let finalLocation = (location && location.trim()) || selectedLocationData?.name || '';
+    if (!finalLocation && hasCustomMarker && customMarkerCoords) {
+      finalLocation = customLocation.trim() || '지도에서 선택한 위치';
+    }
+    if (!hasCustomMarker || !customMarkerCoords) {
+      Alert.alert('모임장소를 정해주세요', '지도를 클릭하여 상세한 모임장소를 정해주세요.');
+      return;
+    }
+    if (!customLocation.trim()) {
+      Alert.alert('상세 위치 설명을 입력해주세요', '지도에 표시한 빨간 마커의 구체적인 위치를 설명해주세요.');
+      return;
+    }
     
     const newEvent = {
       type: eventType,
       title: title.trim(),
-      location: location.trim(),
+      description: description.trim() || null,
+      location: finalLocation,
       date: dateString,
       time: timeString,
       distance,
@@ -1879,12 +2055,23 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       isPublic,
       hashtags: hashtags.trim(),
       maxParticipants: maxParticipants ? parseInt(maxParticipants) : null,
-      customMarkerCoords: customMarkerCoords, // 커스텀 마커 좌표 추가
-      customLocation: customLocation.trim() || null, // 사용자가 입력한 상세 위치 설명
-      organizer: finalOrganizerName, // 실제 사용자 정보를 호스트로 설정
-      organizerImage: finalOrganizerImage, // 생성자 프로필 이미지 추가
-      createdBy: user?.uid, // 모임 생성자 UID 추가
+      customMarkerCoords: customMarkerCoords,
+      customLocation: customLocation.trim() || null,
+      organizer: finalOrganizerName,
+      organizerImage: finalOrganizerImage,
+      createdBy: user?.uid,
     };
+
+    if (user?.uid && finalLocation && customLocation.trim()) {
+      try {
+        await recordMeetingLocation(user.uid, {
+          location: finalLocation,
+          customLocation: customLocation.trim(),
+        });
+      } catch (e) {
+        console.log('recordMeetingLocation 실패:', e);
+      }
+    }
 
     onEventCreated(newEvent);
   };
@@ -2063,158 +2250,81 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     setCustomMarkerCoords(coords);
   }, []);
 
-  // 장소 선택 렌더링 (인라인 드롭다운 방식)
+  // 장소 선택 렌더링 (iOS와 동일: 검색바 + Kakao 지도)
   const renderLocationSelection = () => (
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>장소 선택</Text>
       
-      {/* 1단계: 장소 유형 선택 */}
-      <View style={styles.locationTypeContainer}>
-        <TouchableOpacity
-          style={[
-            styles.locationTypeButton,
-            selectedLocationType === 'hanriver' && styles.locationTypeButtonSelected,
-          ]}
-          onPress={() => {
-            if (selectedLocationType === 'hanriver') {
-              // 이미 선택된 경우 초기화
-              setSelectedLocationType('');
-              setSelectedLocation('');
-              setLocation('');
-              setSelectedLocationData(null);
-              setShowLocationDropdown(false);
-            } else {
-              // 새로 선택
-              setSelectedLocationType('hanriver');
-              setSelectedLocation('');
-              setLocation('');
-              setSelectedLocationData(null);
-              setShowLocationDropdown(false);
-            }
-          }}
-        >
-          <Text style={styles.locationTypeEmoji}>🌉</Text>
-          <Text style={styles.locationTypeText}>한강공원</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[
-            styles.locationTypeButton,
-            selectedLocationType === 'riverside' && styles.locationTypeButtonSelected,
-          ]}
-          onPress={() => {
-            if (selectedLocationType === 'riverside') {
-              // 이미 선택된 경우 초기화
-              setSelectedLocationType('');
-              setSelectedLocation('');
-              setLocation('');
-              setSelectedLocationData(null);
-              setShowLocationDropdown(false);
-            } else {
-              // 새로 선택
-              setSelectedLocationType('riverside');
-              setSelectedLocation('');
-              setLocation('');
-              setSelectedLocationData(null);
-              setShowLocationDropdown(false);
-            }
-          }}
-        >
-          <Text style={styles.locationTypeEmoji}>🏞️</Text>
-          <Text style={styles.locationTypeText}>강변</Text>
-        </TouchableOpacity>
+      {/* 장소 검색바 */}
+      <View style={styles.locationSearchContainer}>
+        <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.locationSearchIcon} />
+        <TextInput
+          style={styles.locationSearchInput}
+          placeholder="장소 키워드 입력 (예: 여의도, 해운대, 석촌호수 등)"
+          placeholderTextColor={COLORS.SECONDARY}
+          value={locationSearchQuery}
+          onChangeText={setLocationSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onFocus={() => setShowLocationSearchResults(true)}
+          onBlur={() => setTimeout(() => setShowLocationSearchResults(false), 200)}
+        />
+        {isLocationSearching && (
+          <ActivityIndicator size="small" color={COLORS.PRIMARY} style={styles.locationSearchLoading} />
+        )}
+        {locationSearchQuery.length > 0 && !isLocationSearching && (
+          <TouchableOpacity
+            onPress={() => {
+              setLocationSearchQuery('');
+              setLocationSearchResults([]);
+              setShowLocationSearchResults(false);
+            }}
+            style={styles.locationSearchClearButton}
+          >
+            <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* 2단계: 구체적 장소 선택 드롭다운 */}
-      {selectedLocationType && (
-        <View style={styles.specificLocationContainer}>
-          <Text style={styles.specificLocationLabel}>
-            {selectedLocationType === 'hanriver' ? '한강공원 선택' : '강변 선택'}
-          </Text>
-          <TouchableOpacity
-            style={styles.dropdownButton}
-            onPress={() => setShowLocationDropdown(!showLocationDropdown)}
-          >
-            <Text style={[
-              styles.dropdownButtonText,
-              selectedLocationData ? styles.dropdownButtonTextSelected : null
-            ]}>
-              {selectedLocationData ? selectedLocationData.name : 
-               `${selectedLocationType === 'hanriver' ? '한강공원을' : '강변을'} 선택해주세요`}
-            </Text>
-            <Ionicons 
-              name={showLocationDropdown ? "chevron-up" : "chevron-down"} 
-              size={20} 
-              color="#666666" 
-            />
-          </TouchableOpacity>
-          
-          {/* 드롭다운 목록 */}
-          {showLocationDropdown && (
-            <View style={styles.dropdownList}>
-              <ScrollView 
-                style={styles.dropdownScrollView}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled={true}
+      {/* 검색 결과 리스트 */}
+      {showLocationSearchResults && locationSearchResults.length > 0 && (
+        <View style={styles.locationSearchResultsDropdown}>
+          <ScrollView style={styles.locationSearchResultsList}>
+            {locationSearchResults.map((result, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.locationSearchResultItem}
+                onPress={() => handleLocationSearchResultSelect(result)}
               >
-                {(selectedLocationType === 'hanriver' ? hanRiverParks : riverSides).map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.dropdownItem,
-                      selectedLocation === item.id && styles.dropdownItemSelected
-                    ]}
-                    onPress={() => {
-                      setSelectedLocation(item.id);
-                      setLocation(item.name);
-                      setSelectedLocationData(item);
-                      setShowLocationDropdown(false);
-                    }}
-                  >
-                    {item.popular && (
-                      <View style={styles.popularBadgeSmall}>
-                        <Text style={styles.popularBadgeSmallText}>인기</Text>
-                      </View>
-                    )}
-                    <Text style={styles.dropdownItemText}>{item.name}</Text>
-                    <Text style={styles.dropdownItemDistance}>{item.distance}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
+                <Ionicons name="location" size={20} color={COLORS.PRIMARY} style={styles.locationSearchResultIcon} />
+                <View style={styles.locationSearchResultContent}>
+                  <Text style={styles.locationSearchResultTitle}>
+                    {result.place_name || result.name}
+                  </Text>
+                  <Text style={styles.locationSearchResultSubtitle} numberOfLines={1}>
+                    {result.address_name || result.road_address_name || ''}
+                  </Text>
+                  {result.category_name && (
+                    <Text style={styles.locationSearchResultCategory}>{result.category_name}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       )}
 
-      {/* 3단계: 선택된 장소 정보 및 지도 */}
-      {selectedLocationData && (
-        <View style={styles.selectedLocationSection}>
-                      {selectedLocationType === 'riverside' && (
-              <View style={styles.coursePhotoSection}>
-                <TouchableOpacity
-                  style={styles.coursePhotoButton}
-                  onPress={() => {
-                    if (selectedLocationData) {
-                      setSelectedCoursePhoto(selectedLocationData);
-                      setShowCoursePhotoModal(true);
-                    } else {
-                    }
-                  }}
-                >
-                  <View style={styles.coursePhotoButtonContent}>
-                    <View style={styles.coursePhotoIconContainer}>
-                      <Ionicons name="camera" size={20} color={COLORS.PRIMARY} />
-                    </View>
-                    <View style={styles.coursePhotoTextContainer}>
-                      <Text style={styles.coursePhotoButtonTitle}>코스 사진</Text>
-                      <Text style={styles.coursePhotoButtonSubtitle}>러닝 코스 사진을 확인해보세요</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#666666" />
-                  </View>
-                </TouchableOpacity>
-              </View>
-            )}
-          
+      {/* 검색 결과 없음 */}
+      {showLocationSearchResults && noSearchResults && locationSearchResults.length === 0 && !isLocationSearching && (
+        <View style={styles.noSearchResultsContainer}>
+          <Ionicons name="search-outline" size={24} color={COLORS.SECONDARY} />
+          <Text style={styles.noSearchResultsText}>검색 결과가 없습니다</Text>
+          <Text style={styles.noSearchResultsSubtext}>다른 키워드로 검색해 보세요</Text>
+        </View>
+      )}
+
+      {/* 선택된 장소 정보 및 지도 (항상 표시) */}
+      <View style={styles.selectedLocationSection}>
           {/* 카카오맵 표시 - 상태 변경 격리 */}
           {memoizedInlineMap}
           
@@ -2266,8 +2376,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
               </Text>
             </View>
           )}
-        </View>
-      )}
+      </View>
     </View>
   );
 
@@ -2382,11 +2491,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   );
 
   // 인라인 카카오맵 컴포넌트를 별도로 분리하여 격리
-  const InlineKakaoMapComponent = React.memo(({ selectedLocation, locationType, onCustomMarkerChange, hasCustomMarker, customMarkerCoords, onMapTouchStart, onMapTouchEnd }) => {
+  const InlineKakaoMapComponent = React.memo(({ selectedLocation, locationType = 'custom', onCustomMarkerChange, hasCustomMarker, customMarkerCoords, mapWebViewRef, onCurrentLocationPress, onMapTouchStart, onMapTouchEnd }) => {
     // WebView 재렌더링 방지를 위한 안정적인 key 생성
     const stableKey = React.useMemo(() => {
       if (!selectedLocation) return 'no-location-no-boundary-v24';
-      return `${selectedLocation.id}-${selectedLocation.name}-${locationType}-no-boundary-v24`;
+      return `${selectedLocation.id || 'custom'}-${selectedLocation.name}-${locationType}-no-boundary-v24`;
     }, [selectedLocation?.id, selectedLocation?.name, locationType]);
 
     // 커스텀 마커 상태를 문자열로 변환하여 비교 최적화
@@ -2404,8 +2513,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
       }
       
-      // 마커 색상 결정 (한강공원: 파란색, 강변: 노란색)
-      const markerColor = locationType === 'hanriver' ? '#3AF8FF' : '#FFD700';
+      // 마커 색상 결정 (한강공원: 파란색, 그 외/검색: 노란색)
+      const markerColor = (locationType === 'hanriver') ? '#3AF8FF' : '#FFD700';
       
       return `
         <!DOCTYPE html>
@@ -2786,6 +2895,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           onTouchCancel={onMapTouchEnd}
         >
           <WebView
+            ref={mapWebViewRef}
             key={stableKey}
             source={{ html: createInlineMapHTML() }}
             style={styles.inlineMapWebView}
@@ -2797,14 +2907,21 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             bounces={false}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
-
             onMessage={handleWebViewMessage}
-            // WebView 재렌더링 최적화 설정
             cacheEnabled={true}
             incognito={false}
             thirdPartyCookiesEnabled={false}
             sharedCookiesEnabled={false}
           />
+          {onCurrentLocationPress && (
+            <TouchableOpacity
+              style={styles.currentLocationButton}
+              onPress={onCurrentLocationPress}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="locate" size={22} color={COLORS.PRIMARY} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -2826,7 +2943,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     return shouldNotRerender;
   });
 
-  // 인라인 지도 컴포넌트 메모이제이션
+  // 인라인 지도 컴포넌트 메모이제이션 (iOS와 동일: 검색/지도 기반)
   const memoizedInlineMap = useMemo(() => (
     <React.Fragment>
       <View style={styles.mapGuideSection}>
@@ -2836,17 +2953,19 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         </View>
       </View>
       <InlineKakaoMapComponent 
-        key={`map-${selectedLocationData?.id}-${selectedLocationType}`}
+        key={`map-${selectedLocationData?.id || selectedLocationData?.name || 'custom'}-custom`}
         selectedLocation={selectedLocationData}
-        locationType={selectedLocationType}
+        locationType="custom"
         onCustomMarkerChange={handleCustomMarkerChange}
         hasCustomMarker={hasCustomMarker}
         customMarkerCoords={customMarkerCoords}
+        mapWebViewRef={mapWebViewRef}
+        onCurrentLocationPress={moveToCurrentLocation}
         onMapTouchStart={() => setScrollEnabled(false)}
         onMapTouchEnd={() => setScrollEnabled(true)}
       />
     </React.Fragment>
-  ), [selectedLocationData?.id, selectedLocationType, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange]);
+  ), [selectedLocationData?.id, selectedLocationData?.name, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange, moveToCurrentLocation]);
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
@@ -2892,6 +3011,24 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           }}
         />
         <Text style={styles.inputHint}>다른 사람들이 쉽게 찾을 수 있는 제목을 입력해주세요</Text>
+      </View>
+
+      <View style={[styles.inputGroup, { marginTop: 20 }]}>
+        <Text style={styles.inputLabel}>모임설명</Text>
+        <TextInput
+          style={[styles.textInput, { minHeight: 100, textAlignVertical: 'top' }]}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="모임에 대한 설명을 입력해주세요"
+          placeholderTextColor="#666666"
+          multiline={true}
+          numberOfLines={4}
+          returnKeyType="default"
+          blurOnSubmit={true}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
+        />
+        <Text style={styles.inputHint}>모임의 목적이나 특징을 자유롭게 작성해주세요</Text>
       </View>
     </View>
   );
@@ -4810,10 +4947,115 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333333',
     backgroundColor: COLORS.CARD,
+    position: 'relative',
   },
   inlineMapWebView: {
     flex: 1,
     backgroundColor: 'transparent',
+  },
+  currentLocationButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.SURFACE,
+    borderWidth: 1,
+    borderColor: '#333333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // 장소 검색바 스타일 (iOS와 동일)
+  locationSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  locationSearchIcon: {
+    marginRight: 8,
+  },
+  locationSearchInput: {
+    flex: 1,
+    color: COLORS.TEXT,
+    fontSize: 14,
+  },
+  locationSearchLoading: {
+    marginLeft: 8,
+  },
+  locationSearchClearButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  locationSearchResultsDropdown: {
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    maxHeight: 300,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#333333',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  locationSearchResultsList: {
+    maxHeight: 300,
+  },
+  locationSearchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  locationSearchResultIcon: {
+    marginRight: 12,
+  },
+  locationSearchResultContent: {
+    flex: 1,
+  },
+  locationSearchResultTitle: {
+    color: COLORS.TEXT,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  locationSearchResultSubtitle: {
+    color: COLORS.SECONDARY,
+    fontSize: 12,
+  },
+  locationSearchResultCategory: {
+    color: COLORS.PRIMARY,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  noSearchResultsContainer: {
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  noSearchResultsText: {
+    color: COLORS.TEXT,
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 8,
+  },
+  noSearchResultsSubtext: {
+    color: COLORS.SECONDARY,
+    fontSize: 12,
+    marginTop: 4,
   },
   
   // 상세 위치 입력 스타일

@@ -196,10 +196,10 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  // Samsung Health 권한 요청
+  // Health Connect 권한 요청
   const handleHealthKitAccess = async () => {
     try {
-      const serviceName = 'Samsung Health';
+      const serviceName = 'Health Connect';
       
       if (healthKitStatus.hasPermissions) {
         Alert.alert(

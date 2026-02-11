@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -21,9 +22,10 @@ import AppBar from '../components/AppBar';
 import InsightCard from '../components/InsightCard';
 import RecommendationCard from '../components/RecommendationCard';
 import WeatherCard from '../components/WeatherCard';
-import HanRiverMap from '../components/HanRiverMap';
+import MyDashboard from '../components/MyDashboard';
+import NewCafesList from '../components/NewCafesList';
 import GuideOverlay from '../components/GuideOverlay';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import updateService from '../services/updateService';
 import storageService from '../services/storageService';
 
@@ -57,7 +59,6 @@ const HomeScreen = ({ navigation }) => {
   const { hasCommunityNotification } = communityContext;
   const { guideStates, currentGuide, setCurrentGuide, currentStep, setCurrentStep, startGuide, nextStep, completeGuide, exitGuide, resetGuide } = guideContext;
   const scrollViewRef = useRef(null);
-  const hanRiverMapRef = useRef(null);
   const weatherCardRef = useRef(null);
   
   // 알림 유무만 체크 (빨간색 점 표시용)
@@ -71,33 +72,14 @@ const HomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   
-  // 가이드 관련 상태
+  // 가이드 관련 상태 (한강러닝 섹션 제거로 홈 가이드 비활성화)
   const [guideTargets, setGuideTargets] = useState({});
-  const [locationButtonRef, setLocationButtonRef] = useState(null);
-  const [mapRef, setMapRef] = useState(null);
-  const [locationListRef, setLocationListRef] = useState(null);
-  const [meetingCardsRef, setMeetingCardsRef] = useState(null);
-  const [meetingCardRef, setMeetingCardRef] = useState(null);
-  const [statisticsRef, setStatisticsRef] = useState(null);
   
   // 스크롤 위치 추적
   const [currentScrollOffset, setCurrentScrollOffset] = useState(0);
   
-  // 지도 터치 시 스크롤 비활성화를 위한 상태
-  const [scrollEnabled, setScrollEnabled] = useState(true);
-  
-  // ref 변경 감지하여 4-5단계 가이드 위치 재측정
-  useEffect(() => {
-    if ((currentStep === 3 || currentStep === 4) && currentGuide === 'home') {
-      // 4-5단계 가이드 진행 중일 때만 재측정
-      setTimeout(() => {
-        measureGuideTargetsAfterScroll();
-      }, 100); // ref 연결 후 약간의 지연
-    }
-  }, [statisticsRef, meetingCardsRef, meetingCardRef, currentStep, currentGuide]);
-  
 
-  // 가이드 타겟 위치 설정
+  // 가이드 타겟 위치 설정 (한강러닝 제거로 미사용, 가이드 비활성화 유지용)
   const setGuideTargetPosition = (targetId, x, y, width, height) => {
     setGuideTargets(prev => ({
       ...prev,
@@ -110,118 +92,7 @@ const HomeScreen = ({ navigation }) => {
     }));
   };
 
-
-  // 스크롤 후 가이드 타겟 위치 재측정 함수 (1-3단계와 동일한 방식)
-  const measureGuideTargetsAfterScroll = () => {
-    
-    // 4단계: 통계 영역 (statisticsRef) - 실제 위치 측정
-    if (statisticsRef && typeof statisticsRef.measureInWindow === 'function') {
-      try {
-        statisticsRef.measureInWindow((x, y, width, height) => {
-          try {
-            // 측정값 유효성 검사
-            if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number' || typeof height !== 'number' ||
-                isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height) ||
-                width <= 0 || height <= 0) {
-              // 유효하지 않은 값이면 fallback 사용
-              const fallbackPosition = {
-                x: 6,
-                y: 110,
-                width: screenWidth - 12,
-                height: 150
-              };
-              setGuideTargetPosition('meetingdashboard', fallbackPosition.x, fallbackPosition.y, fallbackPosition.width, fallbackPosition.height);
-              return;
-            }
-            
-            setGuideTargetPosition('meetingdashboard', x, y, width, height);
-          } catch (error) {
-            console.error('통계 영역 위치 측정 콜백 오류:', error);
-            const fallbackPosition = {
-              x: 6,
-              y: 110,
-              width: screenWidth - 12,
-              height: 150
-            };
-            setGuideTargetPosition('meetingdashboard', fallbackPosition.x, fallbackPosition.y, fallbackPosition.width, fallbackPosition.height);
-          }
-        });
-      } catch (error) {
-        console.error('통계 영역 위치 측정 오류:', error);
-        const fallbackPosition = {
-          x: 6,
-          y: 110,
-          width: screenWidth - 12,
-          height: 150
-        };
-        setGuideTargetPosition('meetingdashboard', fallbackPosition.x, fallbackPosition.y, fallbackPosition.width, fallbackPosition.height);
-      }
-    } else {
-      // fallback 위치 (여백 제거와 스크롤 변경 고려)
-      const fallbackPosition = {
-        x: 6, // X 좌표 유지
-        y: 110, // 230에서 110으로 조정 (여백 제거 + 스크롤 변경 고려)
-        width: screenWidth - 12,
-        height: 150
-      };
-      setGuideTargetPosition('meetingdashboard', fallbackPosition.x, fallbackPosition.y, fallbackPosition.width, fallbackPosition.height);
-    }
-    
-    // 5단계: 첫 번째 모임 카드 (meetingCardsRef) - 실제 위치 측정
-    if (meetingCardsRef && typeof meetingCardsRef.measureInWindow === 'function') {
-      try {
-        meetingCardsRef.measureInWindow((x, y, width, height) => {
-          try {
-            // 측정값 유효성 검사
-            if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number' || typeof height !== 'number' ||
-                isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height) ||
-                width <= 0 || height <= 0) {
-              // 유효하지 않은 값이면 fallback 사용
-              const fallbackPosition = {
-                x: 16,
-                y: 280,
-                width: screenWidth - 32,
-                height: 130
-              };
-              setGuideTargetPosition('meetingcardlist', fallbackPosition.x, fallbackPosition.y, fallbackPosition.width, fallbackPosition.height);
-              return;
-            }
-            
-            setGuideTargetPosition('meetingcardlist', x, y, width, height);
-          } catch (error) {
-            console.error('모임 카드 위치 측정 콜백 오류:', error);
-            const fallbackPosition = {
-              x: 16,
-              y: 280,
-              width: screenWidth - 32,
-              height: 130
-            };
-            setGuideTargetPosition('meetingcardlist', fallbackPosition.x, fallbackPosition.y, fallbackPosition.width, fallbackPosition.height);
-          }
-        });
-      } catch (error) {
-        console.error('모임 카드 위치 측정 오류:', error);
-        const fallbackPosition = {
-          x: 16,
-          y: 280,
-          width: screenWidth - 32,
-          height: 130
-        };
-        setGuideTargetPosition('meetingcardlist', fallbackPosition.x, fallbackPosition.y, fallbackPosition.width, fallbackPosition.height);
-      }
-    } else {
-      // fallback 위치 (여백 제거와 스크롤 변경 고려)
-      const fallbackPosition = {
-        x: 16, // X 좌표 유지
-        y: 280, // 400에서 280으로 조정 (여백 제거 + 스크롤 변경 고려)
-        width: screenWidth - 32,
-        height: 130
-      };
-      setGuideTargetPosition('meetingcardlist', fallbackPosition.x, fallbackPosition.y, fallbackPosition.width, fallbackPosition.height);
-    }
-  };
-
-  // Safe Area 기반 위치 보정 함수
+  // Safe Area 기반 위치 보정 함수 (한강 가이드 제거로 미사용, 가이드 재사용 시 필요)
   const applySafeAreaCorrection = (x, y, width, height) => {
     // Status Bar 높이 보정 (개발환경과 프로덕트 환경 차이)
     const statusBarCorrection = insets.top;
@@ -334,239 +205,26 @@ const HomeScreen = ({ navigation }) => {
   
   
   
-  // 가이드 다음 단계
+  // 가이드 다음 단계 (한강러닝 섹션 제거로 홈 가이드 비활성화)
   const handleNextStep = () => {
     if (currentStep < homeGuideSteps.length - 1) {
-      // 3번 가이드(한강공원 선택) 완료 시 가이드 일시정지
-      if (currentStep === 2) { // 3번째 단계 (index 2)
-        setCurrentGuide(null); // 가이드만 숨기고 currentStep은 유지
-        return;
-      }
-      
-      // 4번 가이드(모임 카드) 완료 시 5번 가이드 시작
-      if (currentStep === 3) { // 4번째 단계 (index 3)
-        // 4번 가이드 즉시 숨기기
-        setCurrentGuide(null);
-        
-        // 5단계 가이드용 위치 재측정 (약간의 지연 후)
-        setTimeout(() => {
-          measureGuideTargetsAfterScroll();
-          
-          // 5번 가이드 시작
-          setCurrentStep(4); // 5번째 단계 (index 4)
-          setCurrentGuide('home');
-        }, 500); // 0.5초 후 5단계 시작
-        
-        return;
-      }
-      
       nextStep();
     } else {
       completeGuide('home');
     }
   };
-  
 
+  // 홈탭 가이드 데이터 (한강러닝 섹션 제거로 빈 배열 - 가이드 비표시)
+  const homeGuideSteps = [];
 
-  // 광나루한강공원 클릭 시 4번 가이드 시작
-  const handleHanriverLocationClick = () => {
-    // 3단계 가이드가 완료된 상태에서만 4단계 진행
-    // (currentGuide가 null이고 currentStep이 2인 경우 = 3단계 완료 후 대기 상태)
-    if (currentStep !== 2) {
-      return; // 3단계 가이드가 진행 중이 아니면 무시
-    }
-    
-    // 4단계 가이드 시작 후 화면을 아래로 스크롤
-    setTimeout(() => {
-      if (scrollViewRef.current) {
-        // 여백 제거로 인해 스크롤 위치 조정 (200px → 80px 여백 감소)
-        const targetScrollY = 850; // 통계 영역이 잘 보이도록 아래로 스크롤 (900px로 증가)
-        scrollViewRef.current.scrollTo({ 
-          y: targetScrollY, 
-          animated: true 
-        });
-      }
-    }, 500); // 스크롤 시작
-    
-    // 스크롤 완료 후 UI가 렌더링되고 ref가 연결될 시간을 충분히 확보
-    setTimeout(() => {
-      // 4단계 가이드용 위치 재측정 (스크롤 후 실제 위치 기준)
-      measureGuideTargetsAfterScroll();
-      
-      // 4단계 가이드 시작
-      setCurrentStep(3); // 4번째 단계 (index 3)
-      setCurrentGuide('home');
-    }, 2000); // 2초로 증가하여 충분한 렌더링 시간 확보
-  };
-
-  // 한강 지도 영역으로 자동 스크롤 및 동적 위치 계산 (사용하지 않음 - 자동 스크롤 제거)
-  // const scrollToHanRiverMap = () => {
-  //   if (scrollViewRef.current) {
-  //     // 여백 제거로 인해 WeatherCard가 보이지 않으므로, 가장 아래로 스크롤하여 한강 지도가 상단에 위치하도록 함
-  //     // ScrollView의 contentSize를 활용하여 가장 아래로 스크롤
-  //     
-  //     // 짧은 지연 후 스크롤 (컨텐츠가 완전히 렌더링된 후)
-  //     setTimeout(() => {
-  //       if (scrollViewRef.current) {
-  //         // ScrollView의 contentSize를 가져와서 가장 아래로 스크롤
-  //         scrollViewRef.current.scrollToEnd({ animated: true });
-  //         
-  //         
-  //         // 스크롤 완료 후 실제 스크롤 위치 측정
-  //         setTimeout(() => {
-  //           measureScrollPositionAndCalculateTargets();
-  //         }, 800); // 스크롤 애니메이션 완료 후 측정 (시간 증가)
-  //       }
-  //     }, 300);
-  //   }
-  // };
-
-  // 스크롤 위치 측정 및 타겟 위치 동적 계산
-  const measureScrollPositionAndCalculateTargets = () => {
-    // 현재 스크롤 오프셋을 사용하여 동적으로 타겟 위치 계산
-    calculateDynamicTargetPositions(currentScrollOffset);
-  };
-
-  // 동적 타겟 위치 계산 (단순화된 접근)
-  const calculateDynamicTargetPositions = (scrollOffset) => {
-    try {
-      const screenWidth = Dimensions.get('window').width;
-      const safeAreaTop = insets.top;
-      
-      // 1단계: 위치 버튼 - 실제 위치 측정 후 비교
-      if (locationButtonRef && typeof locationButtonRef.measureInWindow === 'function') {
-        try {
-          locationButtonRef.measureInWindow((x, y, width, height) => {
-            try {
-              // 측정값 유효성 검사
-              if (typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number' &&
-                  !isNaN(x) && !isNaN(y) && !isNaN(width) && !isNaN(height) &&
-                  width > 0 && height > 0) {
-                setGuideTargetPosition('locationButton', x, y, width, height);
-              }
-            } catch (error) {
-              console.error('위치 버튼 측정 콜백 오류:', error);
-            }
-          });
-        } catch (error) {
-          console.error('위치 버튼 측정 오류:', error);
-        }
-      }
-      
-      // 2단계: 한강 지도 - 실제 위치 측정 후 비교
-      if (mapRef && typeof mapRef.measureInWindow === 'function') {
-        try {
-          mapRef.measureInWindow((x, y, width, height) => {
-            try {
-              // 측정값 유효성 검사
-              if (typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number' &&
-                  !isNaN(x) && !isNaN(y) && !isNaN(width) && !isNaN(height) &&
-                  width > 0 && height > 0) {
-                setGuideTargetPosition('hanRiverMap', x, y, width, height);
-              }
-            } catch (error) {
-              console.error('한강 지도 측정 콜백 오류:', error);
-            }
-          });
-        } catch (error) {
-          console.error('한강 지도 측정 오류:', error);
-        }
-      }
-      
-      // 3단계: 한강공원 목록 - 실제 위치 측정 후 비교
-      if (locationListRef && typeof locationListRef.measureInWindow === 'function') {
-        try {
-          locationListRef.measureInWindow((x, y, width, height) => {
-            try {
-              // 측정값 유효성 검사
-              if (typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number' &&
-                  !isNaN(x) && !isNaN(y) && !isNaN(width) && !isNaN(height) &&
-                  width > 0 && height > 0) {
-                setGuideTargetPosition('hanriverLocationList', x, y, width, height);
-              }
-            } catch (error) {
-              console.error('한강공원 목록 측정 콜백 오류:', error);
-            }
-          });
-        } catch (error) {
-          console.error('한강공원 목록 측정 오류:', error);
-        }
-      }
-    } catch (error) {
-      console.error('동적 타겟 위치 계산 오류:', error);
-    }
-  };
-  
-  // 홈탭 가이드 시작 조건: 온보딩 완료 + 가이드 미완료
+  // 홈탭 가이드 시작: 한강러닝 제거로 가이드 미시작 (빈 단계)
   useEffect(() => {
-    // 모든 필수 상태가 로드될 때까지 대기
-    if (!userProfile || !guideStates) {
-      return;
-    }
-
-    // 온보딩 완료 후 홈탭 가이드가 완료되지 않았으면 가이드 시작
+    if (!userProfile || !guideStates) return;
+    if (homeGuideSteps.length === 0) return;
     if (userProfile.onboardingCompleted && !guideStates.homeGuideCompleted) {
-      // 가이드 시작 전에 타겟 위치 계산
-      setTimeout(() => {
-        // 타겟 위치 계산
-        calculateDynamicTargetPositions(0);
-        
-        // 타겟 위치 설정 후 가이드 시작
-        setTimeout(() => {
-          startGuide('home');
-        }, 300);
-      }, 500);
+      setTimeout(() => startGuide('home'), 500);
     }
   }, [userProfile, guideStates]);
-  
-  // 홈탭 가이드 데이터
-  const homeGuideSteps = [
-    {
-      id: 'location',
-      title: '현재 위치 확인',
-      description: '이 버튼을 눌러서 현재 위치를 확인할 수 있어요.\n러닝할 때 정확한 내 위치 정보를 확인하세요.',
-      targetId: 'locationButton',
-      highlightShape: 'circle',
-      showArrow: false,
-      arrowDirection: 'down',
-    },
-    {
-      id: 'map',
-      title: '한강 지도',
-      description: '한강공원과 강변의 코스를 한눈에 볼 수 있어요.\n확대/축소도 가능해요.',
-      targetId: 'hanRiverMap',
-      highlightShape: 'rectangle',
-      showArrow: false,
-      arrowDirection: 'up',
-    },
-    {
-      id: 'hanriverLocation',
-      title: '한강공원 선택',
-      description: '한강공원 목록에서 "광나루한강공원"을\n클릭해보세요. 위치별 모임을 확인할 수 있어요.',
-      targetId: 'hanriverLocationList',
-      highlightShape: 'rectangle',
-      showArrow: false,
-      arrowDirection: 'down',
-    },
-    {
-      id: 'meetingCards',
-      title: '대시보드',
-      description: '각 위치의 작은 모임들을 한눈에 볼 수 있어요.\n참여하고 싶은 모임을 찾아보세요.',
-      targetId: 'meetingdashboard',
-      highlightShape: 'rectangle',
-      showArrow: false,
-      arrowDirection: 'up',
-    },
-    {
-      id: 'meetingDetail',
-      title: '모임 상세',
-      description: '모임 카드를 클릭하면 상세 정보를 확인하고\n참여할 수 있어요.',
-      targetId: 'meetingcardlist',
-      highlightShape: 'rectangle',
-      showArrow: false,
-      arrowDirection: 'down',
-    },
-  ];
   
   // 날씨 데이터 상태
   const [weatherData, setWeatherData] = useState(null);
@@ -609,6 +267,32 @@ const HomeScreen = ({ navigation }) => {
       console.error('커뮤니티 활동 데이터 가져오기 실패:', error);
     }
   };
+
+  // lastHomeAccess 업데이트 함수
+  const updateLastHomeAccess = useCallback(async () => {
+    if (!user || !user.uid) return;
+    
+    try {
+      const db = getFirestore();
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        lastHomeAccess: serverTimestamp()
+      });
+      console.log('✅ lastHomeAccess 업데이트 완료');
+    } catch (error) {
+      console.error('❌ lastHomeAccess 업데이트 실패:', error);
+      // 에러가 발생해도 앱 동작에는 영향 없도록 처리
+    }
+  }, [user]);
+
+  // 홈화면 포커스 시 lastHomeAccess 업데이트
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        updateLastHomeAccess();
+      }
+    }, [user, updateLastHomeAccess])
+  );
 
   // 컴포넌트 마운트 시 데이터 가져오기
   useEffect(() => {
@@ -949,7 +633,7 @@ const HomeScreen = ({ navigation }) => {
         decelerationRate="normal"
         bounces={true}
         alwaysBounceVertical={false}
-        scrollEnabled={scrollEnabled}
+        scrollEnabled={true}
         nestedScrollEnabled={false}
         onScroll={(event) => {
           const offsetY = event.nativeEvent.contentOffset.y;
@@ -985,23 +669,11 @@ const HomeScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* 한강 지도 섹션 */}
-        <View ref={hanRiverMapRef}>
-          <HanRiverMap 
-            navigation={navigation}
-            initialActiveTab="hanriver"
-            onHanriverLocationClick={handleHanriverLocationClick}
-            onLocationButtonRef={setLocationButtonRef}
-            onMapRef={setMapRef}
-            onLocationListRef={setLocationListRef}
-            onMeetingCardsRef={setMeetingCardsRef}
-            onMeetingCardRef={setMeetingCardRef}
-            onStatisticsRef={setStatisticsRef}
-            onMapTouchStart={() => setScrollEnabled(false)}
-            onMapTouchEnd={() => setScrollEnabled(true)}
-          />
-        </View>
+        {/* 마이 대시보드 섹션 */}
+        <MyDashboard navigation={navigation} />
 
+        {/* 신규 입점 카페 섹션 */}
+        <NewCafesList navigation={navigation} />
 
         {/* 하단 여백 */}
         <View style={styles.bottomSpacing} />

@@ -772,6 +772,13 @@ const EventDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
 
+          {/* 모임설명 - 상세위치설명 아래 (iOS와 동일, 지도탭 BottomSheet 등에서 표시) */}
+          {event.description && event.description.trim() && (
+            <View style={styles.descriptionCard}>
+              <Text style={styles.descriptionText}>{event.description}</Text>
+            </View>
+          )}
+
           {/* 인라인 지도 */}
           <View 
             style={styles.inlineMapContainer}
@@ -1351,6 +1358,19 @@ const styles = StyleSheet.create({
   },
   disabledButtonText: {
     color: '#CCCCCC', // 더 밝은 회색으로 변경
+  },
+  descriptionCard: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 10,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  descriptionText: {
+    fontSize: 16,
+    color: COLORS.TEXT,
+    lineHeight: 24,
   },
 });
 

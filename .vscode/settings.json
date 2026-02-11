@@ -12,16 +12,24 @@
   },
   "java.configuration.updateBuildConfiguration": "disabled",
   "java.import.gradle.enabled": false,
-  "java.import.gradle.wrapper.enabled": false,
   "java.import.gradle.offline.enabled": false,
   "java.import.gradle.excludedProjects": [
     "**/backups/**",
-    "**/node_modules/**"
+    "**/node_modules/**",
+    "node_modules",
+    "**/node_modules/**/android/**",
+    "android",
+    "**/android/**"
   ],
   "java.project.resourceFilters": [
     "**/backups/**",
-    "**/node_modules/**"
+    "**/node_modules/**",
+    "node_modules",
+    "**/node_modules/**/android/**",
+    "android",
+    "**/android/**"
   ],
+  "java.project.importOnFirstTimeStartup": "disabled",
   "files.associations": {
     "**/backups/**/*.gradle": "plaintext",
     "**/backups/**/*.java": "plaintext",
@@ -30,6 +38,11 @@
   },
   "java.compile.nullAnalysis.mode": "disabled",
   "gradle.nestedProjects": false,
+  "gradle.autoDetect": "off",
   "problems.showCurrentInStatus": false,
-  "problems.decorations.enabled": false
+  "problems.decorations.enabled": false,
+  "gradle.excludedProjects": [
+    "android",
+    "**/node_modules/**"
+  ]
 }

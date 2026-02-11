@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Ensure Android Gradle (첫 실행 시 Gradle 8.13+ 사용)",
+      "type": "shell",
+      "command": "cd android && ./gradlew --stop 2>/dev/null; ./gradlew --version",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" }
+    }
+  ]
+}

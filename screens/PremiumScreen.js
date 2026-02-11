@@ -485,7 +485,9 @@ const PremiumScreen = ({ navigation }) => {
         <View style={styles.bottomButtonContainer}>
           <TouchableOpacity
             style={styles.bottomButton}
-            onPress={handleOpenMainModal}
+            onPress={() => {
+              Alert.alert('준비중', '구독 서비스를 준비 중입니다. 곧 만나요!');
+            }}
           >
             <Text style={styles.bottomButtonText}>30일간 무료로 사용해보기</Text>
           </TouchableOpacity>

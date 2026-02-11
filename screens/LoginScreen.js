@@ -16,6 +16,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../contexts/NetworkContext';
@@ -26,6 +27,8 @@ import firestoreService from '../services/firestoreService';
 import TermsPrivacyModal from '../components/TermsPrivacyModal';
 
 const LoginScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [localError, setLocalError] = useState(null);
@@ -555,7 +558,7 @@ const LoginScreen = ({ navigation }) => {
         {/* 뒤로가기 버튼 */}
         {showPhoneInput && (
           <TouchableOpacity 
-            style={styles.backButton} 
+            style={[styles.backButton, { top: statusBarPadding + 50 }]} 
             onPress={handleBackButtonClick}
           >
             <Ionicons name="chevron-back" size={24} color="#fff" />
@@ -568,6 +571,7 @@ const LoginScreen = ({ navigation }) => {
             {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }],
+              paddingTop: statusBarPadding + 20,
             }
           ]}
         >
@@ -796,7 +800,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 50,
     left: 20,
     zIndex: 10,
     width: 44,
