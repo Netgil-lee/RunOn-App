@@ -38,23 +38,23 @@ const OPERATING_HOURS_DAY_LABELS = {
   일요일: '일요일',
 };
 
-const OPERATING_HOURS_DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+// 오늘을 기준으로 앞으로 7일의 요일 순서 (0=일, 1=월, ..., 6=토)
+const JS_DAY_TO_KEY = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-// 요일 키 → 요일 인덱스 (0=월요일, 6=일요일, 현재 주 기준 날짜 계산용)
-const OPERATING_HOURS_DAY_INDEX = {
-  monday: 0, tuesday: 1, wednesday: 2, thursday: 3, friday: 4, saturday: 5, sunday: 6,
-  월요일: 0, 화요일: 1, 수요일: 2, 목요일: 3, 금요일: 4, 토요일: 5, 일요일: 6,
-};
+/** 오늘을 기준으로 앞으로 7일의 요일 순서 반환 */
+function getDaysOrderFromToday() {
+  const today = new Date().getDay();
+  const order = [];
+  for (let i = 0; i < 7; i++) {
+    order.push(JS_DAY_TO_KEY[(today + i) % 7]);
+  }
+  return order;
+}
 
-/** 현재 주(월~일)에서 해당 요일의 날짜를 (month)/(date) 형식으로 반환 */
-function getOperatingHoursDateLabel(dayKey) {
-  const index = OPERATING_HOURS_DAY_INDEX[dayKey];
-  if (index == null) return '';
-  const now = new Date();
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  const d = new Date(weekStart);
-  d.setDate(weekStart.getDate() + index);
+/** 오늘 기준 index(0-6)일 후의 날짜를 (month)/(date) 형식으로 반환 */
+function getDateLabelForPosition(index) {
+  const d = new Date();
+  d.setDate(d.getDate() + index);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
@@ -67,7 +67,10 @@ function getOperatingHoursDisplayText(hours) {
     return hours; // 그 외 문자열은 그대로 (예: "휴무")
   }
   if (typeof hours === 'object') {
-    if (hours.closed === true) return '휴무';
+    if (hours.closed === true) {
+      const reason = hours.closedReason?.trim();
+      return reason ? `휴무 (${reason})` : '휴무';
+    }
     const open = hours.open != null ? String(hours.open).trim() : '';
     const close = hours.close != null ? String(hours.close).trim() : '';
     if (!open && !close) return '휴무';
@@ -2310,21 +2313,14 @@ const MapScreen = ({ navigation, route }) => {
                       </View>
                       <View style={styles.cafeDetailSectionContent}>
                         {(() => {
-                          const entries = Object.entries(selectedCafe.operatingHours);
-                          const sorted = entries.sort(([a], [b]) => {
-                            const ia = OPERATING_HOURS_DAY_ORDER.indexOf(a);
-                            const ib = OPERATING_HOURS_DAY_ORDER.indexOf(b);
-                            if (ia !== -1 && ib !== -1) return ia - ib;
-                            if (ia !== -1) return -1;
-                            if (ib !== -1) return 1;
-                            return String(a).localeCompare(String(b));
-                          });
-                          return sorted.map(([day, hours]) => {
-                            const dayLabel = OPERATING_HOURS_DAY_LABELS[day] ?? day;
-                            const dateLabel = getOperatingHoursDateLabel(day);
+                          const dayOrder = getDaysOrderFromToday();
+                          return dayOrder.map((dayKey, index) => {
+                            const hours = selectedCafe.operatingHours[dayKey];
+                            const dayLabel = OPERATING_HOURS_DAY_LABELS[dayKey] ?? dayKey;
+                            const dateLabel = getDateLabelForPosition(index);
                             const timeText = getOperatingHoursDisplayText(hours);
                             return (
-                              <View key={day} style={styles.operatingHoursRow}>
+                              <View key={dayKey} style={styles.operatingHoursRow}>
                                 {dateLabel ? <Text style={styles.operatingHoursDate}>{dateLabel}</Text> : null}
                                 <Text style={styles.operatingHoursDay}>{dayLabel}</Text>
                                 <Text style={styles.operatingHoursTime}>{timeText}</Text>

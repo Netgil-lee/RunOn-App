@@ -2,7 +2,7 @@
   "expo": {
     "name": "RunOn",
     "slug": "runon",
-    "version": "1.1.2",
+    "version": "1.1.3",
     "orientation": "portrait",
     "icon": "./assets/appicon.png",
     "userInterfaceStyle": "light",
@@ -12,10 +12,13 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.runon.app",
-      "buildNumber": "155",
+      "buildNumber": "156",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
+        "NSLocationAlwaysUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 백그라운드에서도 위치 정보를 사용합니다.",
+        "NSMicrophoneUsageDescription": "음성 녹음 기능을 위해 마이크 접근 권한이 필요합니다.",
+        "NSPhotoLibraryAddUsageDescription": "사진을 저장하기 위해 사진 라이브러리 쓰기 권한이 필요합니다.",
         "NSCameraUsageDescription": "프로필 사진 업로드를 위해 카메라 권한이 필요합니다.",
         "NSPhotoLibraryUsageDescription": "프로필 사진 업로드를 위해 사진 라이브러리 접근 권한이 필요합니다.",
         "NSContactsUsageDescription": "친구 추가 기능을 위해 연락처 접근 권한이 필요합니다.",
