@@ -572,6 +572,7 @@ const LoginScreen = ({ navigation }) => {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }],
               paddingTop: statusBarPadding + 20,
+              paddingBottom: !showPhoneInput && Platform.OS === 'android' ? Math.max(insets.bottom, 48) : 0,
             }
           ]}
         >

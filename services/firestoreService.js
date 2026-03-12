@@ -798,6 +798,34 @@ class FirestoreService {
   }
 
   /**
+   * 모든 활성 모임 조회 (지도 표시용 - status !== 'ended')
+   */
+  async getAllActiveEvents() {
+    try {
+      const eventsRef = collection(this.db, 'events');
+      const eventsQuery = query(
+        eventsRef,
+        where('status', '!=', 'ended')
+      );
+      const snapshot = await getDocs(eventsQuery);
+      const events = [];
+      snapshot.forEach((doc) => {
+        const eventData = doc.data();
+        events.push({
+          id: doc.id,
+          ...eventData,
+          createdAt: eventData.createdAt?.toDate?.() || eventData.createdAt,
+          updatedAt: eventData.updatedAt?.toDate?.() || eventData.updatedAt,
+        });
+      });
+      return events;
+    } catch (error) {
+      console.error('활성 모임 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 반경 내 모임 검색 (하위 호환성 포함)
    */
   async getEventsNearbyHybrid(latitude, longitude, radiusInKm = 3) {

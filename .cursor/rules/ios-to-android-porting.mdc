@@ -1,0 +1,52 @@
+---
+description: iOS 프로젝트에서 Android 프로젝트로 코드를 가져오거나, 지도/위치 관련 코드를 수정할 때 적용
+globs:
+  - screens/MapScreen.js
+  - screens/ScheduleScreen.js
+  - services/kakaoPlacesService.js
+  - config/environment.js
+  - components/*Map*.js
+---
+
+# iOS → Android 포팅 시 필수 체크 규칙
+
+> 이 규칙은 프로덕션 Android 빌드에서 실제 확인된 이슈를 기반으로 작성됨 (2026-03-12)
+> 상세 내용: `ANDROID_COMPATIBILITY_CHECKLIST.md` 섹션 12, `LOCATION_MAP_IMPROVEMENT_PLAN.md` 참고
+
+## 지도/위치 관련 필수 체크 항목
+
+### 1. currentLocation → WebView 동기화 useEffect 필수
+- `currentLocation` 상태가 비동기로 업데이트된 후 WebView에 전송하는 `useEffect`가 반드시 있어야 함
+- iOS에서는 타이밍이 맞아 자동 표시되지만, Android에서는 GPS 응답이 WebView 로드보다 늦어 레이스 컨디션 발생
+- `mapLoaded` 핸들러에서 `if (currentLocation)` 체크만으로는 부족함 — 별도 useEffect 필요
+
+### 2. WebView 메시지 리스너 등록 (window + document)
+- Android의 react-native-webview는 postMessage 시 `document`에 이벤트를 dispatch함 (iOS는 `window`)
+- WebView HTML 내에서 반드시 `window.addEventListener('message')` + `document.addEventListener('message')` 둘 다 등록
+
+### 3. Android에서 injectJavaScript 사용 시 타이밍 주의
+- 카카오맵 SDK는 비동기 로드됨 → `window.__runOnMoveToLocation` 등 함수가 아직 정의되지 않았을 수 있음
+- 재시도 로직이 있더라도 SDK 로드 자체가 실패하거나 지연되면 미동작
+- iOS는 `postMessage` 방식이라 자연스럽게 큐잉되지만, Android `injectJavaScript`는 즉시 실행이므로 타이밍에 민감
+
+### 4. Kakao API 키 분리 확인
+- JavaScript 키(웹뷰용): `kakaoMapApiKey`
+- REST API 키(장소 검색용): `kakaoRestApiKey`
+- 두 키는 반드시 서로 다른 값이어야 함
+- `environment.js`의 fallback이 JavaScript 키로 되어있으면 REST API 호출 시 401 에러 발생
+
+### 5. useMemo 빈 deps 주의
+- `useMemo(() => currentLocation ? ... : DEFAULT, [])` 패턴은 마운트 시 1회만 계산
+- `currentLocation`이 나중에 업데이트되어도 반영 안 됨
+- 위치 기반 값이 필요하면 deps에 `currentLocation` 포함 또는 별도 useEffect로 처리
+
+## 일반 Android 호환성 체크
+
+### 6. Platform.OS 분기 확인
+- iOS 전용 코드(HealthKit, HapticFeedback 등)에 `Platform.OS === 'ios'` 가드 있는지 확인
+- Android 전용 처리가 필요한 부분(elevation, StatusBar 등) 확인
+
+### 7. 그림자 스타일
+- `shadowOffset`, `shadowOpacity`, `shadowRadius`는 Android에서 무시됨 (iOS 전용)
+- Android는 `elevation`만 적용
+- rgba 배경에서 elevation 미동작 → 불투명 배경색 사용

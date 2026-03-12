@@ -25,7 +25,11 @@ export const searchPlace = async (query, options = {}) => {
     );
 
     if (!response.ok) {
-      console.error('Kakao Places API 응답 오류:', response.status, response.statusText);
+      if (response.status === 401) {
+        console.warn('Kakao Places API 401: REST API 키를 확인하세요. JavaScript 키가 아닌 REST API 키를 app.json extra.kakaoRestApiKey에 설정해야 합니다. (KAKAO_API_SETUP.md 참고)');
+      } else {
+        console.error('Kakao Places API 응답 오류:', response.status, response.statusText);
+      }
       return []; // 에러 발생 시 빈 배열 반환
     }
 
@@ -34,7 +38,13 @@ export const searchPlace = async (query, options = {}) => {
     // 에러가 발생하지 않고 정상적으로 빈 배열을 반환하는 것이 정상 동작
     return data.documents || []; // 검색 결과 배열 (빈 배열일 수 있음)
   } catch (error) {
-    console.error('장소 검색 실패:', error);
+    // Network request failed: 오프라인, 에뮬레이터 네트워크, DNS 등 (일시적)
+    const isNetworkError = error?.message?.includes('Network request failed') || error?.name === 'TypeError';
+    if (isNetworkError && __DEV__) {
+      console.warn('장소 검색 네트워크 오류 (인터넷 연결 확인):', error?.message);
+    } else if (!isNetworkError) {
+      console.error('장소 검색 실패:', error);
+    }
     return []; // 네트워크 에러 등 실제 에러 발생 시에도 빈 배열 반환
   }
 };

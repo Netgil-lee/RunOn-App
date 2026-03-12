@@ -162,10 +162,25 @@ export const useAuthViewModel = () => {
         return confirmationResult;
         
       } catch (firebaseError) {
+        // 상세 로그: 원인 추적용
         console.error('❌ Firebase Phone Auth 오류:', firebaseError);
-        console.error('❌ Firebase 오류 코드:', firebaseError.code);
-        console.error('❌ Firebase 오류 메시지:', firebaseError.message);
-        
+        console.error('❌ Firebase 오류 코드:', firebaseError?.code);
+        console.error('❌ Firebase 오류 메시지:', firebaseError?.message);
+        try {
+          const errKeys = firebaseError && typeof firebaseError === 'object' ? Object.keys(firebaseError) : [];
+          console.error('❌ [상세] 에러 객체 키 목록:', errKeys.join(', '));
+          if (firebaseError?.customData && typeof firebaseError.customData === 'object') {
+            console.error('❌ [상세] customData:', JSON.stringify(firebaseError.customData, null, 2));
+          }
+          if (firebaseError?.name) console.error('❌ [상세] name:', firebaseError.name);
+          if (firebaseError?.stack) console.error('❌ [상세] stack:', firebaseError.stack);
+          // Firebase JS SDK가 감싼 내부 응답
+          const inner = firebaseError?.response || firebaseError?.customData?._tokenResponse;
+          if (inner) console.error('❌ [상세] response/inner:', typeof inner === 'object' ? JSON.stringify(inner, null, 2) : inner);
+        } catch (logErr) {
+          console.error('❌ [상세] 로그 출력 중 오류:', logErr);
+        }
+
         // Firebase 특정 에러 처리
         if (firebaseError.code === 'auth/invalid-phone-number') {
           throw new Error('올바르지 않은 전화번호 형식입니다.');
@@ -187,9 +202,18 @@ export const useAuthViewModel = () => {
       }
     } catch (error) {
       console.error('❌ Firebase Phone Auth 인증번호 발송 오류:', error);
-      console.error('❌ 에러 코드:', error.code);
-      console.error('❌ 에러 메시지:', error.message);
-      
+      console.error('❌ 에러 코드:', error?.code);
+      console.error('❌ 에러 메시지:', error?.message);
+      try {
+        if (error && typeof error === 'object') {
+          const keys = Object.keys(error);
+          console.error('❌ [외부 catch] 에러 객체 키:', keys.join(', '));
+          if (error.stack) console.error('❌ [외부 catch] stack:', error.stack);
+        }
+      } catch (logErr) {
+        console.error('❌ [외부 catch] 로그 출력 중 오류:', logErr);
+      }
+
       // 네트워크 에러 처리
       if (error.message && error.message.includes('network')) {
         const errorMessage = '네트워크 연결을 확인해주세요.';

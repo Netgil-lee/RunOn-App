@@ -175,7 +175,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
         return { latitude, longitude };
       }
     } catch (error) {
-      console.error('위치 가져오기 실패:', error);
+      // 지도탭(MapScreen)에서만 로그 표시 - WeatherCard는 HomeScreen에서 사용 (로그 생략)
       // 권한이 거부되었거나 위치를 가져올 수 없는 경우 기본 위치 사용
       const defaultLocation = WEATHER_CONFIG.DEFAULT_LOCATION;
       setLocation({

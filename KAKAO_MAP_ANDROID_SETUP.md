@@ -12,7 +12,7 @@ Android에서 카카오맵이 표시되지 않는 문제를 해결하기 위한 
 - ✅ `usesCleartextTraffic="true"` 추가 완료 (WebView를 위한 설정)
 
 ### 1.2 WebView 설정
-- ✅ `components/HanRiverMap.js`에 WebView 속성 추가:
+- ✅ `screens/MapScreen.js` 및 `screens/ScheduleScreen.js` WebView 속성 추가:
   - `allowsInlineMediaPlayback={true}`
   - `mediaPlaybackRequiresUserAction={false}`
   - `mixedContentMode="always"`

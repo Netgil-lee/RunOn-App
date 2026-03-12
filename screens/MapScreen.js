@@ -1,6 +1,6 @@
 // screens/MapScreen.js
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator, Alert, Linking, StatusBar, TouchableOpacity, Text, TextInput, FlatList, ScrollView, Image, Animated, Dimensions } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Alert, Linking, StatusBar, TouchableOpacity, Text, TextInput, FlatList, ScrollView, Image, Animated, Dimensions, Platform } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -111,6 +111,13 @@ const MapScreen = ({ navigation, route }) => {
   const webViewRef = useRef(null);
   const bottomSheetRef = useRef(null);
   const searchInputRef = useRef(null);
+  const mapLoadedRef = useRef(false);
+  const eventsRef = useRef([]);
+  const cafesRef = useRef([]);
+  const locationErrorLoggedRef = useRef(false); // 동일 에러 로그 스팸 방지
+  const locationCheckedThisFocusRef = useRef(false); // 포커스당 1회만 위치 요청
+  eventsRef.current = events;
+  cafesRef.current = cafes;
   const eventDetailScreenRef = useRef(null);
   const [bottomButtonProps, setBottomButtonProps] = useState(null);
   const { user } = useAuth();
@@ -153,9 +160,9 @@ const MapScreen = ({ navigation, route }) => {
   // 토글 버튼 위치 아래까지만 확장되도록 제한
   const screenHeight = Dimensions.get('window').height;
   // 토글 버튼 위치: insets.top + 77
-  // 토글 버튼 높이: paddingVertical: 12 * 2 + fontSize: 16 = 약 40px
+  // 토글 버튼 높이: paddingVertical: 8 * 2 + fontSize: 16 = 약 32px
   // 여백: 12px
-  const toggleBottom = insets.top + 77 + 40 + 12;
+  const toggleBottom = insets.top + 77 + 32 + 12;
   const maxBottomSheetHeight = screenHeight - toggleBottom;
   
   const snapPoints = useMemo(() => {
@@ -531,6 +538,11 @@ const MapScreen = ({ navigation, route }) => {
           
           // 카페 마커 생성 함수
           function createCafeMarkers(cafesData) {
+            // 지도가 없으면 마커 생성하지 않음
+            if (!map) {
+              log('⚠️ 지도가 초기화되지 않음, 카페 마커 생성 스킵', 'warning');
+              return;
+            }
             // 열려있던 인포윈도우 ID 저장 (마커 재생성 후 복원용)
             var previouslyOpenCafeId = openCafeInfoWindowId;
             
@@ -710,7 +722,8 @@ const MapScreen = ({ navigation, route }) => {
           }
           
           // React Native에서 메시지 수신
-          window.addEventListener('message', function(event) {
+          // Android: react-native-webview가 document에 dispatch, iOS: window에 dispatch (GitHub #3776)
+          var handleRnMessage = function(event) {
             try {
               var data = JSON.parse(event.data);
               if (data.type === 'updateCurrentLocation') {
@@ -828,7 +841,9 @@ const MapScreen = ({ navigation, route }) => {
             } catch (parseError) {
               console.error('❌ WebView 메시지 파싱 오류:', parseError, '원본 데이터:', event.data);
             }
-          });
+          };
+          window.addEventListener('message', handleRnMessage);
+          document.addEventListener('message', handleRnMessage);
 
           try {
             log('🗺️ 카카오맵 초기화 시작', 'info');
@@ -1076,10 +1091,15 @@ const MapScreen = ({ navigation, route }) => {
       
       setCurrentLocation(locationData);
       setIsLocationLoading(false);
+      locationErrorLoggedRef.current = false; // 성공 시 다음 실패 시 로그 허용
       
       return locationData;
     } catch (error) {
-      console.error('현재 위치 가져오기 실패:', error);
+      // 동일 에러 반복 로그 방지 (위치 서비스 꺼짐 등 예상 가능한 실패)
+      if (!locationErrorLoggedRef.current) {
+        locationErrorLoggedRef.current = true;
+        console.warn('현재 위치 가져오기 실패:', error?.message || error);
+      }
       setIsLocationLoading(false);
       return null;
     }
@@ -1175,6 +1195,18 @@ const MapScreen = ({ navigation, route }) => {
     initializeLocation();
   }, []);
 
+  // 지도 로드 후 cafes/events가 로드되면 WebView에 전송 (타이밍 이슈 해결)
+  useEffect(() => {
+    if (!mapLoadedRef.current || !webViewRef.current) return;
+    if (events.length > 0) {
+      webViewRef.current.postMessage(JSON.stringify({ type: 'updateEvents', events }));
+    }
+    if (cafes.length > 0) {
+      webViewRef.current.postMessage(JSON.stringify({ type: 'updateCafes', cafes }));
+      webViewRef.current.postMessage(JSON.stringify({ type: 'switchToggle', toggle: activeToggle }));
+    }
+  }, [events, cafes, activeToggle]);
+
   // 로딩 타임아웃 처리 (무한 로딩 방지)
   useEffect(() => {
     if (isLoading) {
@@ -1193,15 +1225,15 @@ const MapScreen = ({ navigation, route }) => {
       // StatusBar 설정 (iOS) - 한 번만 설정
       StatusBar.setBarStyle('dark-content', true);
       
-      // 지도탭에서만 bottombar 구분선 추가
+      // 지도탭에서만 bottombar 구분선 추가 (Android: safe area 반영)
       navigation.setOptions({
         tabBarStyle: {
           backgroundColor: '#1F1F24',
           borderTopWidth: 1,
           borderTopColor: '#333333', // 약간 밝은 구분선 색상
-          height: 85,
-          paddingBottom: 36,
-          paddingTop: 0,
+          height: Platform.OS === 'android' ? 60 + insets.bottom : 85,
+          paddingBottom: Platform.OS === 'android' ? insets.bottom : 36,
+          paddingTop: Platform.OS === 'android' ? 14 : 0,
         },
       });
       
@@ -1210,22 +1242,21 @@ const MapScreen = ({ navigation, route }) => {
         loadAllEvents();
       }, 500);
       
-      // 화면 포커스 시 위치 권한 확인 및 위치 업데이트
-      const checkAndUpdateLocation = async () => {
-        try {
-          // 현재 권한 상태 확인
-          const { status } = await Location.getForegroundPermissionsAsync();
-          
-          if (status === 'granted') {
-            // 권한이 있으면 위치 가져오기 (항상 업데이트)
-            await getCurrentLocation();
+      // 화면 포커스 시 위치 권한 확인 및 위치 업데이트 (포커스당 1회만 - deps 변경 시 재실행 방지)
+      if (!locationCheckedThisFocusRef.current) {
+        locationCheckedThisFocusRef.current = true;
+        const checkAndUpdateLocation = async () => {
+          try {
+            const { status } = await Location.getForegroundPermissionsAsync();
+            if (status === 'granted') {
+              await getCurrentLocation();
+            }
+          } catch (error) {
+            if (__DEV__) console.warn('위치 권한 확인 실패:', error?.message);
           }
-        } catch (error) {
-          console.error('위치 권한 확인 실패:', error);
-        }
-      };
-      
-      checkAndUpdateLocation();
+        };
+        checkAndUpdateLocation();
+      }
       
       // 대시보드에서 카페 카드 클릭으로 진입한 경우 처리
       if (targetCafeId && cafes.length > 0) {
@@ -1261,6 +1292,7 @@ const MapScreen = ({ navigation, route }) => {
       }
       
       return () => {
+        locationCheckedThisFocusRef.current = false; // 다음 포커스 시 재실행 허용
         // 화면을 벗어날 때 원래 설정으로 복원
         StatusBar.setBarStyle('light-content', true);
         // bottombar 구분선 제거 (원래 스타일로 복원)
@@ -1268,13 +1300,13 @@ const MapScreen = ({ navigation, route }) => {
           tabBarStyle: {
             backgroundColor: '#1F1F24',
             borderTopWidth: 0,
-            height: 85,
-            paddingBottom: 36,
-            paddingTop: 0,
+            height: Platform.OS === 'android' ? 60 + insets.bottom : 85,
+            paddingBottom: Platform.OS === 'android' ? insets.bottom : 36,
+            paddingTop: Platform.OS === 'android' ? 14 : 0,
           },
         });
       };
-    }, [navigation, targetCafeId, initialToggle, initialSearchQuery, cafes, handleCafeClick]) // 의존성 추가
+    }, [navigation, targetCafeId, initialToggle, initialSearchQuery, cafes, handleCafeClick, insets.bottom])
   );
 
   // WebView 메시지 핸들러 (HanRiverMap.js의 handleWebViewMessage 기반)
@@ -1289,6 +1321,7 @@ const MapScreen = ({ navigation, route }) => {
     if (data === 'mapLoaded') {
       console.log('✅ mapLoaded 메시지 수신');
       setIsLoading(false);
+      mapLoadedRef.current = true;
       
       // 지도 로드 완료 후 현재 위치 전송
       if (currentLocation && webViewRef.current) {
@@ -1305,30 +1338,29 @@ const MapScreen = ({ navigation, route }) => {
         console.log('🗺️ 지도 로드 완료, 현재 위치 없음');
       }
       
-      // 지도 로드 완료 후 마커 데이터 전송
+      // 지도 로드 완료 후 마커 데이터 전송 (refs 사용하여 최신 데이터 반영)
       if (webViewRef.current) {
         setTimeout(() => {
-          if (events.length > 0) {
-            const eventsMessage = JSON.stringify({
+          const currentEvents = eventsRef.current;
+          const currentCafes = cafesRef.current;
+          if (currentEvents.length > 0) {
+            webViewRef.current?.postMessage(JSON.stringify({
               type: 'updateEvents',
-              events: events
-            });
-            webViewRef.current?.postMessage(eventsMessage);
+              events: currentEvents
+            }));
           }
-          if (cafes.length > 0) {
-            const cafesMessage = JSON.stringify({
+          if (currentCafes.length > 0) {
+            webViewRef.current?.postMessage(JSON.stringify({
               type: 'updateCafes',
-              cafes: cafes
-            });
-            webViewRef.current?.postMessage(cafesMessage);
+              cafes: currentCafes
+            }));
           }
           // 기본 토글 설정
-          const toggleMessage = JSON.stringify({
+          webViewRef.current?.postMessage(JSON.stringify({
             type: 'switchToggle',
             toggle: activeToggle
-          });
-          webViewRef.current?.postMessage(toggleMessage);
-        }, 1000);
+          }));
+        }, 500);
       }
     } else if (data.startsWith('kakaoMapError')) {
       const errorMessage = data.substring(14);
@@ -2104,9 +2136,17 @@ const MapScreen = ({ navigation, route }) => {
         
         {/* 토글 버튼 */}
         {!isSearchMode && (
-          <View style={[styles.toggleContainer, { top: insets.top + 77 }]}>
+          <View style={[
+            styles.toggleContainer,
+            { top: insets.top + 77 },
+            Platform.OS === 'android' && styles.toggleContainerAndroid
+          ]}>
           <TouchableOpacity
-            style={[styles.toggleButton, activeToggle === 'events' && styles.toggleButtonActive]}
+            style={[
+              styles.toggleButton,
+              activeToggle === 'events' && styles.toggleButtonActive,
+              Platform.OS === 'android' && styles.toggleButtonAndroid
+            ]}
             onPress={() => handleToggleChange('events')}
           >
             <Text style={[styles.toggleText, activeToggle === 'events' && styles.toggleTextActive]}>
@@ -2114,7 +2154,11 @@ const MapScreen = ({ navigation, route }) => {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.toggleButton, activeToggle === 'cafes' && styles.toggleButtonActive]}
+            style={[
+              styles.toggleButton,
+              activeToggle === 'cafes' && styles.toggleButtonActive,
+              Platform.OS === 'android' && styles.toggleButtonAndroid
+            ]}
             onPress={() => handleToggleChange('cafes')}
           >
             <Text style={[styles.toggleText, activeToggle === 'cafes' && styles.toggleTextActive]}>
@@ -2492,10 +2536,22 @@ const MapScreen = ({ navigation, route }) => {
   );
 };
 
+// boxShadow: New Architecture에서 iOS/Android 모두 지원 (shadow* props는 Android에서 무시됨)
+const SHADOW_BOX = [
+  {
+    offsetX: 0,
+    offsetY: 3,
+    blurRadius: 10,
+    spreadDistance: 0,
+    color: 'rgba(0,0,0,0.45)',
+  },
+];
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+    overflow: 'visible',
   },
   webview: {
     flex: 1,
@@ -2522,36 +2578,24 @@ const styles = StyleSheet.create({
     padding: 0,
     gap: 8,
     zIndex: 201,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    overflow: 'visible',
   },
+  toggleContainerAndroid: {},
   toggleButton: {
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
-    borderRadius: 20,
+    backgroundColor: '#1F1F24', // 불투명 배경 (Android elevation은 rgba에서 미동작)
+    borderRadius: 18,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    // iOS 그림자
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    // Android 그림자
-    elevation: 8,
+    boxShadow: SHADOW_BOX,
+    elevation: 10,
   },
+  toggleButtonAndroid: {},
   toggleButtonActive: {
     backgroundColor: '#3AF8FF',
-    // iOS 그림자
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    // Android 그림자
-    elevation: 8,
+    boxShadow: SHADOW_BOX,
+    elevation: 10,
   },
   toggleText: {
     color: '#FFFFFF',
@@ -2852,22 +2896,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     zIndex: 200,
+    overflow: 'visible',
   },
   mapSearchContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: '#1F1F24', // 불투명 배경 (Android elevation은 rgba에서 미동작)
     borderRadius: 26,
     paddingHorizontal: 16,
     height: 52,
-    // iOS 그림자
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.7,
-    shadowRadius: 3,
-    // Android 그림자
-    elevation: 8,
+    boxShadow: SHADOW_BOX,
+    elevation: 10,
   },
   mapSearchIcon: {
     marginRight: 10,
@@ -2880,23 +2920,17 @@ const styles = StyleSheet.create({
   currentLocationButton: {
     height: 52,
     borderRadius: 26,
-    // overflow는 width가 0일 때만 필요하므로 조건부로 처리하지 않음
-    // 그림자가 보이도록 overflow 제거
+    overflow: 'visible',
   },
   currentLocationButtonInner: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: '#1F1F24', // 불투명 배경 (Android elevation은 rgba에서 미동작)
     alignItems: 'center',
     justifyContent: 'center',
-    // iOS 그림자
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.7,
-    shadowRadius: 3,
-    // Android 그림자
-    elevation: 8,
+    boxShadow: SHADOW_BOX,
+    elevation: 10,
   },
   currentLocationIcon: {
     width: 23,

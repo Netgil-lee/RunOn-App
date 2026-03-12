@@ -11,11 +11,12 @@ const ENV = {
     firebaseStorageBucket: 'runon-production-app.firebasestorage.app',
     firebaseMessagingSenderId: '936820129286',
     firebaseAppId: '1:936820129286:ios:1edd25b1f1cef603b14d87',
-    
+    firebaseAppIdAndroid: '1:936820129286:android:6ae7f54e3d028ce4b14d87',
+    firebaseAppIdIos: '1:936820129286:ios:1edd25b1f1cef603b14d87',
     // 외부 API
     weatherApiKey: Constants.expoConfig?.extra?.weatherApiKey || 'c1861b48c1786a9ff6a37560f3b8c63c',
     kakaoMapApiKey: '464318d78ffeb1e52a1185498fe1af08', // JavaScript 키 (웹뷰용)
-    kakaoRestApiKey: Constants.expoConfig?.extra?.kakaoRestApiKey || '464318d78ffeb1e52a1185498fe1af08', // REST 키 (장소 검색 등)
+    kakaoRestApiKey: Constants.expoConfig?.extra?.kakaoRestApiKey || '464318d78ffeb1e52a1185498fe1af08', // REST 키 (장소 검색용, KAKAO_API_SETUP.md 참고)
     // 시뮬레이터에서 HealthKit 동작을 모의할지 여부
     simulateHealthKitOnSimulator: true,
   },
@@ -37,7 +38,8 @@ const ENV = {
     firebaseStorageBucket: 'runon-production-app.firebasestorage.app',
     firebaseMessagingSenderId: '936820129286',
     firebaseAppId: '1:936820129286:ios:1edd25b1f1cef603b14d87',
-    
+    firebaseAppIdAndroid: '1:936820129286:android:6ae7f54e3d028ce4b14d87',
+    firebaseAppIdIos: '1:936820129286:ios:1edd25b1f1cef603b14d87',
     // API 키들 - TestFlight에서 확실한 로딩을 위한 다중 fallback
     weatherApiKey: (Constants.expoConfig?.extra?.weatherApiKey) || 
                   (Constants.manifest?.extra?.weatherApiKey) || 

@@ -14,9 +14,9 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "node": "18.18.0",
+      "node": "20.19.4",
       "env": {
-        "NODE_OPTIONS": "--legacy-peer-deps"
+        "npm_config_legacy_peer_deps": "true"
       }
     }
   },

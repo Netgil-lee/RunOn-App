@@ -12,19 +12,16 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
-import { useGuide } from '../contexts/GuideContext';
 import AppBar from '../components/AppBar';
 import InsightCard from '../components/InsightCard';
 import RecommendationCard from '../components/RecommendationCard';
 import WeatherCard from '../components/WeatherCard';
 import MyDashboard from '../components/MyDashboard';
 import NewCafesList from '../components/NewCafesList';
-import GuideOverlay from '../components/GuideOverlay';
 import { getFirestore, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import updateService from '../services/updateService';
 import storageService from '../services/storageService';
@@ -38,18 +35,14 @@ const COLORS = {
 };
 
 const HomeScreen = ({ navigation }) => {
-  // Safe Area insets 가져오기
-  const insets = useSafeAreaInsets();
-  
   // Context 안전장치 추가
   const authContext = useAuth();
   const notificationContext = useNotificationSettings();
   const eventsContext = useEvents();
   const communityContext = useCommunity();
-  const guideContext = useGuide();
   
   // Context가 완전히 초기화되지 않은 경우 조기 반환
-  if (!authContext || !notificationContext || !eventsContext || !communityContext || !guideContext) {
+  if (!authContext || !notificationContext || !eventsContext || !communityContext) {
     return null;
   }
   
@@ -57,7 +50,6 @@ const HomeScreen = ({ navigation }) => {
   const { isTabEnabled, isNotificationTypeEnabled } = notificationContext;
   const { hasMeetingNotification, hasUpdateNotification } = eventsContext;
   const { hasCommunityNotification } = communityContext;
-  const { guideStates, currentGuide, setCurrentGuide, currentStep, setCurrentStep, startGuide, nextStep, completeGuide, exitGuide, resetGuide } = guideContext;
   const scrollViewRef = useRef(null);
   const weatherCardRef = useRef(null);
   
@@ -72,160 +64,10 @@ const HomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   
-  // 가이드 관련 상태 (한강러닝 섹션 제거로 홈 가이드 비활성화)
-  const [guideTargets, setGuideTargets] = useState({});
-  
   // 스크롤 위치 추적
   const [currentScrollOffset, setCurrentScrollOffset] = useState(0);
   
 
-  // 가이드 타겟 위치 설정 (한강러닝 제거로 미사용, 가이드 비활성화 유지용)
-  const setGuideTargetPosition = (targetId, x, y, width, height) => {
-    setGuideTargets(prev => ({
-      ...prev,
-      [targetId]: {
-        x: x + width / 2,
-        y: y + height / 2,
-        width: width,
-        height: height,
-      }
-    }));
-  };
-
-  // Safe Area 기반 위치 보정 함수 (한강 가이드 제거로 미사용, 가이드 재사용 시 필요)
-  const applySafeAreaCorrection = (x, y, width, height) => {
-    // Status Bar 높이 보정 (개발환경과 프로덕트 환경 차이)
-    const statusBarCorrection = insets.top;
-    
-    // 네비게이션 바 높이 보정
-    const navigationBarCorrection = insets.bottom;
-    
-    return {
-      x: x,
-      y: y - statusBarCorrection, // Status Bar 높이만큼 위로 조정
-      width: width,
-      height: height
-    };
-  };
-
-  // 하이브리드 위치 측정 함수 (Safe Area 보정 적용) - 1-3단계용
-  const measureTargetPositionHybrid = (targetRef, targetId, basePosition) => {
-    if (!targetRef) {
-      // ref가 없으면 Safe Area 보정된 기본값 사용
-      const correctedPosition = applySafeAreaCorrection(
-        basePosition.x, 
-        basePosition.y, 
-        basePosition.width, 
-        basePosition.height
-      );
-      setGuideTargetPosition(targetId, correctedPosition.x, correctedPosition.y, correctedPosition.width, correctedPosition.height);
-      return;
-    }
-    
-    // 4-5단계는 별도 함수에서 처리하므로 여기서는 제외
-    if (targetId === 'meetingdashboard' || targetId === 'meetingcardlist') {
-      return;
-    }
-    
-    // 1-3단계는 measureInWindow + Safe Area 보정 적용
-    try {
-      // ref 유효성 검사 강화
-      if (!targetRef || typeof targetRef.measureInWindow !== 'function') {
-        const correctedPosition = applySafeAreaCorrection(
-          basePosition.x, 
-          basePosition.y, 
-          basePosition.width, 
-          basePosition.height
-        );
-        setGuideTargetPosition(targetId, correctedPosition.x, correctedPosition.y, correctedPosition.width, correctedPosition.height);
-        return;
-      }
-      
-      targetRef.measureInWindow((x, y, width, height) => {
-        try {
-          // 측정값 유효성 검사
-          if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number' || typeof height !== 'number' ||
-              isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height) ||
-              width <= 0 || height <= 0) {
-            // 유효하지 않은 값이면 기본값 사용
-            const correctedPosition = applySafeAreaCorrection(
-              basePosition.x, 
-              basePosition.y, 
-              basePosition.width, 
-              basePosition.height
-            );
-            setGuideTargetPosition(targetId, correctedPosition.x, correctedPosition.y, correctedPosition.width, correctedPosition.height);
-            return;
-          }
-          
-          // 측정된 값이 합리적인 범위 내에 있는지 확인
-          const offsetX = x - basePosition.x;
-          const offsetY = y - basePosition.y;
-          
-          let finalPosition;
-          
-          // 오프셋이 너무 크면 (100px 이상) Safe Area 보정된 기본값 사용
-          if (Math.abs(offsetX) > 100 || Math.abs(offsetY) > 100) {
-            finalPosition = applySafeAreaCorrection(
-              basePosition.x, 
-              basePosition.y, 
-              basePosition.width, 
-              basePosition.height
-            );
-          } else {
-            // 합리적인 범위 내면 측정값에 Safe Area 보정 적용
-            finalPosition = applySafeAreaCorrection(x, y, width, height);
-          }
-          
-          setGuideTargetPosition(targetId, finalPosition.x, finalPosition.y, finalPosition.width, finalPosition.height);
-        } catch (error) {
-          console.error('가이드 타겟 위치 측정 콜백 오류:', error);
-          // 에러 발생 시 기본값 사용
-          const correctedPosition = applySafeAreaCorrection(
-            basePosition.x, 
-            basePosition.y, 
-            basePosition.width, 
-            basePosition.height
-          );
-          setGuideTargetPosition(targetId, correctedPosition.x, correctedPosition.y, correctedPosition.width, correctedPosition.height);
-        }
-      });
-    } catch (error) {
-      console.error('가이드 타겟 위치 측정 오류:', error);
-      // 에러 발생 시 기본값 사용
-      const correctedPosition = applySafeAreaCorrection(
-        basePosition.x, 
-        basePosition.y, 
-        basePosition.width, 
-        basePosition.height
-      );
-      setGuideTargetPosition(targetId, correctedPosition.x, correctedPosition.y, correctedPosition.width, correctedPosition.height);
-    }
-  };
-  
-  
-  
-  // 가이드 다음 단계 (한강러닝 섹션 제거로 홈 가이드 비활성화)
-  const handleNextStep = () => {
-    if (currentStep < homeGuideSteps.length - 1) {
-      nextStep();
-    } else {
-      completeGuide('home');
-    }
-  };
-
-  // 홈탭 가이드 데이터 (한강러닝 섹션 제거로 빈 배열 - 가이드 비표시)
-  const homeGuideSteps = [];
-
-  // 홈탭 가이드 시작: 한강러닝 제거로 가이드 미시작 (빈 단계)
-  useEffect(() => {
-    if (!userProfile || !guideStates) return;
-    if (homeGuideSteps.length === 0) return;
-    if (userProfile.onboardingCompleted && !guideStates.homeGuideCompleted) {
-      setTimeout(() => startGuide('home'), 500);
-    }
-  }, [userProfile, guideStates]);
-  
   // 날씨 데이터 상태
   const [weatherData, setWeatherData] = useState(null);
   
@@ -679,32 +521,6 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.bottomSpacing} />
         
       </ScrollView>
-      
-      {/* 가이드 오버레이 */}
-      {(() => {
-        const shouldShowGuide = currentGuide === 'home' && 
-                               homeGuideSteps[currentStep] && 
-                               guideTargets[homeGuideSteps[currentStep].targetId];
-        
-        return shouldShowGuide ? (
-          <GuideOverlay
-            visible={true}
-            title={homeGuideSteps[currentStep].title}
-            description={homeGuideSteps[currentStep].description}
-            targetPosition={guideTargets[homeGuideSteps[currentStep].targetId]}
-            targetSize={{
-              width: guideTargets[homeGuideSteps[currentStep].targetId].width || 100,
-              height: guideTargets[homeGuideSteps[currentStep].targetId].height || 100,
-            }}
-            highlightShape={homeGuideSteps[currentStep].highlightShape}
-            showArrow={homeGuideSteps[currentStep].showArrow}
-            arrowDirection={homeGuideSteps[currentStep].arrowDirection}
-            onNext={handleNextStep}
-            isLastStep={currentStep === homeGuideSteps.length - 1}
-            targetId={homeGuideSteps[currentStep].targetId}
-          />
-        ) : null;
-      })()}
     </View>
   );
 };

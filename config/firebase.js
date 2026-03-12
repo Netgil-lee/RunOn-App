@@ -12,7 +12,7 @@ const firebaseConfig = {
   projectId: ENV.firebaseProjectId,
   storageBucket: ENV.firebaseStorageBucket,
   messagingSenderId: ENV.firebaseMessagingSenderId,
-  appId: ENV.firebaseAppId,
+  appId: Platform.OS === 'android' ? (ENV.firebaseAppIdAndroid || ENV.firebaseAppId) : (ENV.firebaseAppIdIos || ENV.firebaseAppId),
 };
 
 // Firebase 앱 초기화

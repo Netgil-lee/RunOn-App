@@ -1,12 +1,13 @@
 {
   "name": "runon",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start --host lan",
     "android": "expo start --android --host lan",
     "ios": "expo start --ios --host lan",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo/config": "~12.0.7",
@@ -77,6 +78,7 @@
     "metro": "^0.83.3",
     "metro-config": "^0.82.0",
     "metro-resolver": "^0.82.0",
+    "patch-package": "^8.0.1",
     "typescript": "~5.9.2"
   },
   "private": true,
