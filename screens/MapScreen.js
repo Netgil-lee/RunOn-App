@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import BottomSheet, { BottomSheetFooter, BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import MeetingCard from '../components/MeetingCard';
 import EventDetailScreen, { EventDetailBottomButton } from './EventDetailScreen';
@@ -1207,6 +1207,17 @@ const MapScreen = ({ navigation, route }) => {
     }
   }, [events, cafes, activeToggle]);
 
+  // currentLocation 변경 시 WebView에 현재 위치 마커 전송 (GPS 응답이 mapLoaded보다 늦는 레이스 컨디션 해결)
+  useEffect(() => {
+    if (!currentLocation || !mapLoadedRef.current || !webViewRef.current) return;
+    const locationMessage = JSON.stringify({
+      type: 'updateCurrentLocation',
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
+    });
+    webViewRef.current.postMessage(locationMessage);
+  }, [currentLocation]);
+
   // 로딩 타임아웃 처리 (무한 로딩 방지)
   useEffect(() => {
     if (isLoading) {
@@ -2277,10 +2288,11 @@ const MapScreen = ({ navigation, route }) => {
                     
                     return cafeImages.length > 0 ? (
                       <View>
-                        <ScrollView
+                        <GHScrollView
                           horizontal
                           pagingEnabled
                           showsHorizontalScrollIndicator={false}
+                          nestedScrollEnabled={true}
                           style={styles.cafeImageSlider}
                           contentContainerStyle={styles.cafeImageSliderContent}
                           onMomentumScrollEnd={(event) => {
@@ -2298,7 +2310,7 @@ const MapScreen = ({ navigation, route }) => {
                               resizeMode="cover"
                             />
                           ))}
-                        </ScrollView>
+                        </GHScrollView>
                         {/* 페이지 인디케이터 */}
                         {cafeImages.length > 1 && (
                           <View style={styles.cafeImagePagination}>

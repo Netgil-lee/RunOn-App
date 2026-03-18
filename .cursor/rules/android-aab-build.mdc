@@ -1,0 +1,50 @@
+---
+description: Android AAB 빌드, Google Play 배포, 프로덕션 빌드, 버전 업데이트 요청 시 적용
+globs:
+  - android/app/build.gradle
+  - app.json
+  - eas.json
+---
+
+# Android AAB 빌드 필수 규칙
+
+> AAB 빌드 요청 시 반드시 `ANDROID_AAB_BUILD_GUIDE.md`를 먼저 읽고 따를 것.
+
+## 핵심 규칙: 반드시 로컬 빌드
+
+**EAS Build(`eas build`)를 사용하면 안 된다.**
+EAS 서버의 키스토어(SHA1: `9F:28:FE:68:...`)는 Google Play 업로드 키(SHA1: `02:48:73:8E:...`)와 다르다.
+
+```bash
+# ✅ 올바른 방법: 로컬 Gradle 빌드
+cd android && ./gradlew bundleRelease
+
+# ❌ 잘못된 방법: EAS Build (키 불일치로 Google Play 거부됨)
+eas build --platform android --profile production
+```
+
+## 빌드 전 필수 체크
+
+1. **버전 올리기 (두 곳 모두)**:
+   - `app.json` → `version`, `android.versionCode`
+   - `android/app/build.gradle` → `versionName`, `versionCode`
+   - 두 파일의 값이 반드시 일치해야 함
+
+2. **AAB 생성**:
+   ```bash
+   cd android && ./gradlew bundleRelease
+   ```
+
+3. **서명 키 검증** (권장):
+   ```bash
+   keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab | grep "SHA1:"
+   ```
+   결과: `SHA1: 02:48:73:8E:D2:E3:5E:BD:06:69:FB:9C:6E:4D:90:30:4C:F4:13:B8`
+
+4. **AAB 파일 위치**: `android/app/build/outputs/bundle/release/app-release.aab`
+
+## 키스토어 정보
+
+- 파일: `android/app/upload-keystore.jks`
+- 설정: `android/keystore.properties`
+- Google Play 등록 SHA1: `02:48:73:8E:D2:E3:5E:BD:06:69:FB:9C:6E:4D:90:30:4C:F4:13:B8`

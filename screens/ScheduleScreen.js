@@ -1644,6 +1644,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const mapWebViewRef = useRef(null);
   const mapInitialCenterRef = useRef(null); // HTML 초기 중심 (검색 선택 시 고정 → WebView 리로드 방지)
   const skipDropdownReopenRef = useRef(false); // 선택 직후 useEffect 검색 시 드롭다운 재개방 방지
+  const inlineMapLoadedRef = useRef(false); // 인라인 맵 로드 완료 추적 (GPS 동기화용)
   
   // 커스텀 마커 관련 상태
   const [customLocation, setCustomLocation] = useState('');
@@ -1729,6 +1730,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     };
     getCurrentLocation();
   }, [editingEvent, isLocationInitialized]);
+
+  // GPS 위치 획득 후 인라인 맵이 이미 로드되어 있으면 해당 위치로 이동 (레이스 컨디션 해결)
+  useEffect(() => {
+    if (!gpsLocation || !inlineMapLoadedRef.current || !mapWebViewRef.current) return;
+    if (editingEvent) return;
+    moveMapToLocation(gpsLocation.lat, gpsLocation.lng, false);
+  }, [gpsLocation]);
 
   useEffect(() => {
     const keyboardDidShow = Keyboard.addListener('keyboardDidShow', (event) => {
@@ -1883,15 +1891,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
   const moveMapToLocation = useCallback((lat, lng, addMarker = false, locationName = '') => {
     if (!mapWebViewRef.current) return;
-    const nameJson = JSON.stringify(locationName || '');
+    const escapedName = (locationName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
     const payload = { type: 'moveToLocation', lat, lng, addMarker, locationName };
     if (Platform.OS === 'android') {
-      // Android: 카카오맵이 비동기 로드되므로 __runOnMoveToLocation이 준비될 때까지 재시도
-      // (iOS는 postMessage로 전달되어 지도 준비 후 처리되는 경우가 많음)
       mapWebViewRef.current.injectJavaScript(`
         (function() {
-          var lat = ${lat}, lng = ${lng}, addMarker = ${addMarker}, nameJson = ${nameJson};
-          var locationName = (function(){ try { return JSON.parse(nameJson); } catch(e){ return ''; } })();
+          var lat = ${lat}, lng = ${lng}, addMarker = ${addMarker};
+          var locationName = "${escapedName}";
           function run(attempts) {
             if (typeof window.__runOnMoveToLocation === 'function') {
               try { window.__runOnMoveToLocation(lat, lng, addMarker, locationName); } catch(e) {}
@@ -2518,13 +2524,16 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         onMapTouchStart={() => setScrollEnabled(false)}
         onMapTouchEnd={() => setScrollEnabled(true)}
         onMapLoaded={() => {
+          inlineMapLoadedRef.current = true;
           if (hasCustomMarker && customMarkerCoords && mapWebViewRef.current) {
             moveMapToLocation(customMarkerCoords.lat, customMarkerCoords.lng, true);
+          } else if (gpsLocation && mapWebViewRef.current) {
+            moveMapToLocation(gpsLocation.lat, gpsLocation.lng, false);
           }
         }}
       />
     </React.Fragment>
-  ), [selectedLocationData, initialMapCenter, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange, moveToCurrentLocation, moveMapToLocation]);
+  ), [selectedLocationData, initialMapCenter, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange, moveToCurrentLocation, moveMapToLocation, gpsLocation]);
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>

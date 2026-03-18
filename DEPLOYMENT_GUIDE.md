@@ -178,19 +178,24 @@ eas submit --platform android --profile production
 ## 🚀 배포 명령어
 
 ### 프로덕션 빌드
+
+#### Android (AAB) — ⚠️ 반드시 로컬 빌드
+> 상세 가이드: `ANDROID_AAB_BUILD_GUIDE.md` 참고
+> EAS Build는 키스토어 불일치로 Google Play 업로드 거부됨. 반드시 로컬 빌드 사용.
+
 ```bash
-# 1. 의존성 설치
-npm install
+# 1. 버전 올리기 (app.json + android/app/build.gradle 두 곳 모두)
+# 2. 로컬 AAB 빌드
+cd android && ./gradlew bundleRelease
+# 3. 서명 검증
+keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab | grep "SHA1:"
+# 4. Google Play Console에 app-release.aab 업로드
+```
 
-# 2. 환경 변수 설정 확인
-echo $EXPO_PUBLIC_FIREBASE_API_KEY
-
-# 3. 프로덕션 빌드
-eas build --platform all --profile production
-
-# 4. 앱 스토어 제출
+#### iOS — EAS Build 사용
+```bash
+eas build --platform ios --profile production
 eas submit --platform ios
-eas submit --platform android
 ```
 
 ### 빌드 상태 확인

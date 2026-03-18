@@ -1,10 +1,15 @@
 # Dependencies
 node_modules/
 **/node_modules/
+
 # Build artifacts
 android/app/build/
+android/app/.cxx/
+android/app/com/
 android/build/
+android/.gradle/
 ios/build/
+ios/Pods/
 *.apk
 *.aab
 *.ipa
@@ -30,7 +35,7 @@ yarn-error.log*
 backups/
 **/backups/
 
-# Documentation
+# Documentation (빌드에 불필요)
 *.md
 !README.md
 
@@ -42,3 +47,14 @@ __tests__/
 *.tmp
 *.temp
 
+# Java heap dumps (Gradle 빌드 부산물)
+*.hprof
+
+# Git
+.git/
+
+# Expo cache
+.expo/
+
+# Functions (Cloud Functions - 앱 빌드에 불필요)
+functions/node_modules/
