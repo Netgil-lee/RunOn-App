@@ -1451,7 +1451,7 @@ const InlineKakaoMapComponent = React.memo(({ selectedLocation, initialMapCenter
         </head>
         <body><div id="map"></div>
             <script>
-                var map; var customMarker = null; var customInfoWindow = null; var currentMapCenter = null; var currentMapLevel = 4;
+                var map; var customMarker = null; var customInfoWindow = null; var currentLocationMarker = null; var currentMapCenter = null; var currentMapLevel = 4;
                 function waitForKakaoSDK() { if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') { setTimeout(waitForKakaoSDK, 100); return; } initializeMap(); }
                 function initializeMap() {
                     try {
@@ -1462,6 +1462,14 @@ const InlineKakaoMapComponent = React.memo(({ selectedLocation, initialMapCenter
                         map = new kakao.maps.Map(mapContainer, mapOption);
                         map.setMapTypeId(kakao.maps.MapTypeId.ROADMAP);
                         currentMapCenter = map.getCenter(); currentMapLevel = map.getLevel();
+                        function createCurrentLocationMarker(lat, lng) {
+                            if (currentLocationMarker) currentLocationMarker.setMap(null);
+                            var currentPosition = new kakao.maps.LatLng(lat, lng);
+                            var currentLocationSvg = '<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><circle cx="25" cy="25" r="25" fill="#2294FF" fill-opacity="0.4"/><circle cx="25" cy="25" r="10" fill="#ffffff"/><circle cx="25" cy="25" r="6" fill="#2294FF"/></svg>';
+                            var currentLocationImageSrc = 'data:image/svg+xml;base64,' + btoa(currentLocationSvg);
+                            var currentLocationImage = new kakao.maps.MarkerImage(currentLocationImageSrc, new kakao.maps.Size(50, 50), { offset: new kakao.maps.Point(25, 50) });
+                            currentLocationMarker = new kakao.maps.Marker({ position: currentPosition, image: currentLocationImage, map: map, zIndex: 1000 });
+                        }
                         var markerPosition = new kakao.maps.LatLng(${center.lat}, ${center.lng});
                         var svgString = '<svg width="24" height="30" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="${markerColor}"/><path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="none" stroke="#ffffff" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="#ffffff"/><circle cx="12" cy="12" r="3" fill="${markerColor}"/></svg>';
                         var markerImageSrc = 'data:image/svg+xml;base64,' + btoa(svgString);
@@ -1503,7 +1511,20 @@ const InlineKakaoMapComponent = React.memo(({ selectedLocation, initialMapCenter
                                 setTimeout(function() { try { if (map) map.relayout(); } catch (e) {} }, 150);
                             }
                         };
-                        var handleRnMessage = function(event) { try { var data = JSON.parse(event.data); if (data.type === 'moveToLocation' && data.lat != null && data.lng != null) window.__runOnMoveToLocation(data.lat, data.lng, data.addMarker, data.locationName || ''); } catch (e) {} };
+                        var handleRnMessage = function(event) {
+                            try {
+                                var data = JSON.parse(event.data);
+                                if (data.type === 'moveToLocation' && data.lat != null && data.lng != null) window.__runOnMoveToLocation(data.lat, data.lng, data.addMarker, data.locationName || '');
+                                else if (data.type === 'updateCurrentLocation' && data.latitude != null && data.longitude != null) createCurrentLocationMarker(data.latitude, data.longitude);
+                                else if (data.type === 'moveToCurrentLocation' && data.latitude != null && data.longitude != null) {
+                                    if (map) {
+                                        var pos = new kakao.maps.LatLng(data.latitude, data.longitude);
+                                        map.setLevel(5);
+                                        setTimeout(function() { map.setCenter(pos); }, 100);
+                                    }
+                                }
+                            } catch (e) {}
+                        };
                         window.addEventListener('message', handleRnMessage); document.addEventListener('message', handleRnMessage);
                         if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('inlineMapLoaded');
                     } catch (error) { console.error('Inline map error:', error); if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('inlineMapError: ' + error.message); }
@@ -1889,34 +1910,26 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     }
   };
 
-  const moveMapToLocation = useCallback((lat, lng, addMarker = false, locationName = '') => {
+  // Android에서는 postMessage가 WebView 페이지로 전달되지 않으므로 injectJavaScript 사용 (iOS도 동일 방식으로 통일)
+  const sendMessageToInlineMap = useCallback((payload) => {
     if (!mapWebViewRef.current) return;
-    const escapedName = (locationName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
-    const payload = { type: 'moveToLocation', lat, lng, addMarker, locationName };
-    if (Platform.OS === 'android') {
-      mapWebViewRef.current.injectJavaScript(`
-        (function() {
-          var lat = ${lat}, lng = ${lng}, addMarker = ${addMarker};
-          var locationName = "${escapedName}";
-          function run(attempts) {
-            if (typeof window.__runOnMoveToLocation === 'function') {
-              try { window.__runOnMoveToLocation(lat, lng, addMarker, locationName); } catch(e) {}
-              return;
-            }
-            if (attempts < 50) setTimeout(function() { run(attempts + 1); }, 100);
-          }
-          run(0);
-          true;
-        })();
-      `);
-    } else {
-      mapWebViewRef.current.postMessage(JSON.stringify(payload));
-    }
+    const payloadStr = JSON.stringify(payload);
+    const script = `(function(){ var p = ${JSON.stringify(payloadStr)}; try { var e = new MessageEvent('message', { data: p }); window.dispatchEvent(e); document.dispatchEvent(e); } catch(err) {} })(); true;`;
+    mapWebViewRef.current.injectJavaScript(script);
   }, []);
 
+  const moveMapToLocation = useCallback((lat, lng, addMarker = false, locationName = '') => {
+    if (!mapWebViewRef.current) return;
+    sendMessageToInlineMap({ type: 'moveToLocation', lat, lng, addMarker, locationName });
+  }, [sendMessageToInlineMap]);
+
   const moveToCurrentLocation = useCallback(async () => {
+    const sendCurrentLocationToMap = (latitude, longitude) => {
+      sendMessageToInlineMap({ type: 'updateCurrentLocation', latitude, longitude });
+      sendMessageToInlineMap({ type: 'moveToCurrentLocation', latitude, longitude });
+    };
     if (gpsLocation) {
-      moveMapToLocation(gpsLocation.lat, gpsLocation.lng, false);
+      sendCurrentLocationToMap(gpsLocation.lat, gpsLocation.lng);
     } else {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -1928,7 +1941,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           if (location?.coords) {
             const coords = { lat: location.coords.latitude, lng: location.coords.longitude };
             setGpsLocation(coords);
-            moveMapToLocation(coords.lat, coords.lng, false);
+            sendCurrentLocationToMap(coords.lat, coords.lng);
           }
         }
       } catch (error) {
@@ -1936,7 +1949,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         Alert.alert('위치 오류', '현재 위치를 가져올 수 없습니다.');
       }
     }
-  }, [gpsLocation, moveMapToLocation]);
+  }, [gpsLocation, sendMessageToInlineMap]);
 
   const handleLocationSearchResultSelect = (result) => {
     const locationName = result.place_name || result.name;
