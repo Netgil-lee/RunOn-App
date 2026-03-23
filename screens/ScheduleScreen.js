@@ -1521,6 +1521,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   // GPS 현재 위치 저장 (현재 위치 버튼용)
   const [gpsLocation, setGpsLocation] = useState(null);
   const mapWebViewRef = useRef(null);
+  const isInlineMapLoadedRef = useRef(false);
+  const pendingMapMoveRef = useRef(null);
   
   const scrollViewRef = useRef(null);
   const titleInputRef = useRef(null);
@@ -1650,28 +1652,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     
     const keyboardDidHide = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardVisible(false);
-      // 키보드가 사라지면 적당한 위치로 스크롤 (상세 위치 입력칸이 있는 경우)
-      if (scrollViewRef.current) {
-        setTimeout(() => {
-          if (currentStep === 2 && hasCustomMarker) {
-            // 2단계에서 상세 위치 입력칸이 있는 경우, 더 큰 지도와 입력칸이 보이는 위치로
-            if (scrollViewRef.current) {
-              scrollViewRef.current.scrollTo({
-                y: 350,
-                animated: true,
-              });
-            }
-          } else {
-            // 그 외의 경우 맨 위로
-            if (scrollViewRef.current) {
-              scrollViewRef.current.scrollTo({
-                y: 0,
-                animated: true,
-              });
-            }
-          }
-        }, 100);
-      }
     });
 
     return () => {
@@ -1796,15 +1776,19 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
   // 지도 이동 함수 (WebView에 postMessage로 좌표 전달)
   const moveMapToLocation = useCallback((lat, lng, addMarker = false) => {
-    if (mapWebViewRef.current) {
-      const message = JSON.stringify({
-        type: 'moveToLocation',
-        lat: lat,
-        lng: lng,
-        addMarker: addMarker
-      });
-      mapWebViewRef.current.postMessage(message);
+    const movePayload = {
+      type: 'moveToLocation',
+      lat: lat,
+      lng: lng,
+      addMarker: addMarker
+    };
+
+    if (!mapWebViewRef.current || !isInlineMapLoadedRef.current) {
+      pendingMapMoveRef.current = movePayload;
+      return;
     }
+
+    mapWebViewRef.current.postMessage(JSON.stringify(movePayload));
   }, []);
 
   // 현재 GPS 위치로 이동
@@ -1851,6 +1835,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       lng: locationLng,
       address: result.address_name || result.road_address_name || '',
     };
+    // 새 검색 결과로 WebView가 재로딩되므로 로딩 완료 신호 전까지 이동 명령을 큐에 보관
+    isInlineMapLoadedRef.current = false;
     setSelectedLocationData(newSelectedLocationData);
     setSelectedLocation('custom'); // 커스텀 위치로 설정
     setLocationSearchQuery(locationName);
@@ -1863,26 +1849,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     setHasCustomMarker(false);
     setCustomLocation(''); // 상세 위치 설명도 초기화
     
-    // WebView가 준비될 때까지 기다린 후 지도 이동 (노란 마커만 표시)
-    // selectedLocationData가 설정된 후 지도가 렌더링되도록 약간의 지연 추가
-    setTimeout(() => {
-      if (mapWebViewRef.current) {
-        moveMapToLocation(locationLat, locationLng, true); // addMarker: true = 노란 마커 표시
-      } else {
-        // WebView가 아직 준비되지 않았으면 다시 시도
-        const retryInterval = setInterval(() => {
-          if (mapWebViewRef.current) {
-            moveMapToLocation(locationLat, locationLng, true);
-            clearInterval(retryInterval);
-          }
-        }, 100);
-        
-        // 최대 2초 후 타임아웃
-        setTimeout(() => {
-          clearInterval(retryInterval);
-        }, 2000);
-      }
-    }, 100);
+    // 이동 명령은 WebView 로딩 완료(inlineMapLoaded) 시점에 자동 실행됨
+    moveMapToLocation(locationLat, locationLng, true); // addMarker: true = 노란 마커 표시
   };
 
   // Debounce를 통한 자동 검색
@@ -2451,18 +2419,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   }, [showLocationDropdown]);
 
   // 인라인 카카오맵 컴포넌트를 별도로 분리하여 격리
-  const InlineKakaoMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, hasCustomMarker, customMarkerCoords, mapWebViewRef, onCurrentLocationPress }) => {
+  const InlineKakaoMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, initialCustomMarkerCoords, mapWebViewRef, onCurrentLocationPress }) => {
     // WebView 재렌더링 방지를 위한 안정적인 key 생성
     const stableKey = React.useMemo(() => {
       if (!selectedLocation) return 'no-location-no-boundary-v24';
       return `${selectedLocation.id || 'custom'}-${selectedLocation.name}-no-boundary-v24`;
     }, [selectedLocation?.id, selectedLocation?.name]);
 
-    // 커스텀 마커 상태를 문자열로 변환하여 비교 최적화
-    const customMarkerState = React.useMemo(() => {
-      return JSON.stringify({ hasCustomMarker, customMarkerCoords });
-    }, [hasCustomMarker, customMarkerCoords]);
-    
     if (!selectedLocation) return null;
 
     // 선택된 장소의 카카오맵 HTML 생성
@@ -2480,9 +2443,9 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       const locationName = selectedLocation?.name || '';
       const locationLat = selectedLocation?.lat || 37.5665;
       const locationLng = selectedLocation?.lng || 126.9780;
-      const customMarkerLat = customMarkerCoords?.lat || null;
-      const customMarkerLng = customMarkerCoords?.lng || null;
-      const hasCustomMarkerValue = customMarkerCoords ? true : false;
+      const customMarkerLat = initialCustomMarkerCoords?.lat || null;
+      const customMarkerLng = initialCustomMarkerCoords?.lng || null;
+      const hasCustomMarkerValue = initialCustomMarkerCoords ? true : false;
       // 현재 위치는 selectedLocationData에 저장되어 있음 (GPS 위치 또는 기본 위치)
       const currentLocationLat = selectedLocation?.lat || 37.5665;
       const currentLocationLng = selectedLocation?.lng || 126.9780;
@@ -2941,14 +2904,18 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         </body>
         </html>
       `;
-    }, [selectedLocation, customMarkerCoords]);
+    }, [selectedLocation, initialCustomMarkerCoords]);
 
     // 메시지 처리 함수를 useCallback으로 최적화
     const handleWebViewMessage = React.useCallback((event) => {
               const { data } = event.nativeEvent;
               
               if (data === 'inlineMapLoaded') {
-        // 지도 로딩 완료
+        isInlineMapLoadedRef.current = true;
+        if (pendingMapMoveRef.current && mapWebViewRef.current) {
+          mapWebViewRef.current.postMessage(JSON.stringify(pendingMapMoveRef.current));
+          pendingMapMoveRef.current = null;
+        }
               } else if (data.startsWith('inlineMapError')) {
         console.error('인라인 지도 로딩 실패:', data);
               } else if (data.startsWith('customMarkerAdded:')) {
@@ -3018,11 +2985,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     const locationChanged = prevProps.selectedLocation?.id !== nextProps.selectedLocation?.id ||
                            prevProps.selectedLocation?.name !== nextProps.selectedLocation?.name;
     
-    const customMarkerChanged = prevProps.hasCustomMarker !== nextProps.hasCustomMarker ||
-                               JSON.stringify(prevProps.customMarkerCoords) !== JSON.stringify(nextProps.customMarkerCoords);
-    
-    // 지도 관련 props가 변경되지 않았으면 재렌더링하지 않음
-    const shouldNotRerender = !locationChanged && !customMarkerChanged;
+    // 커스텀 마커 변경은 WebView 내부에서 처리하므로 지도 재생성 조건에서 제외
+    const shouldNotRerender = !locationChanged;
     
 
     
@@ -3045,14 +3009,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           key={`map-${selectedLocationData.id || selectedLocationData.name || 'custom'}-${selectedLocationData.lat}-${selectedLocationData.lng}`}
           selectedLocation={selectedLocationData}
           onCustomMarkerChange={handleCustomMarkerChange}
-          hasCustomMarker={hasCustomMarker}
-          customMarkerCoords={customMarkerCoords}
+          initialCustomMarkerCoords={customMarkerCoords}
           mapWebViewRef={mapWebViewRef}
           onCurrentLocationPress={moveToCurrentLocation}
         />
       </React.Fragment>
     );
-  }, [selectedLocationData, hasCustomMarker, customMarkerCoords, handleCustomMarkerChange, moveToCurrentLocation]);
+  }, [selectedLocationData, handleCustomMarkerChange, moveToCurrentLocation]);
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
