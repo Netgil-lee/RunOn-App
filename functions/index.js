@@ -1582,3 +1582,250 @@ exports.onPostCommentAdded = functions.firestore
     }
   });
 
+// ============================================
+// Garmin Connect Activity API - Ping 수신
+// ============================================
+
+const SUMMARY_TYPES = ['activities', 'activityDetails', 'activityFiles', 'manuallyUpdatedActivities', 'moveIQActivities'];
+
+/**
+ * Garmin Ping 수신 엔드포인트
+ * PDF 요구: 수신 후 즉시 HTTP 200 반환, 그 다음 비동기로 callbackURL 호출
+ */
+exports.garminPing = functions
+  .runWith({ timeoutSeconds: 120, memory: '256MB' })
+  .https.onRequest(async (req, res) => {
+    // 1. 즉시 HTTP 200 응답 (30초 이내 필수 - PDF Section 4.1)
+    res.status(200).send('OK');
+
+    // 2. 비동기 처리 (res.send() 후 실행)
+    if (req.method !== 'POST' || !req.body) {
+      console.log('⚠️ [garminPing] POST가 아니거나 body 없음');
+      return;
+    }
+
+    const body = req.body;
+    console.log('📥 [garminPing] 수신:', Object.keys(body));
+
+    for (const summaryType of SUMMARY_TYPES) {
+      const items = body[summaryType];
+      if (!Array.isArray(items) || items.length === 0) continue;
+
+      for (const item of items) {
+        const garminUserId = item.userId || item.userAccessToken;
+        const callbackURL = item.callbackURL;
+
+        if (callbackURL) {
+          // Ping 형식: callbackURL 호출 후 데이터 Pull
+          processGarminCallback(garminUserId, callbackURL, summaryType).catch((err) => {
+            console.error(`❌ [garminPing] ${summaryType} callback 처리 실패:`, err);
+          });
+        } else if (item.summaryId || item.activityId) {
+          // Push 형식: 데이터가 본문에 직접 포함됨 (Data Generator 등)
+          saveGarminActivityToFirestore(garminUserId, item, summaryType).catch((err) => {
+            console.error(`❌ [garminPing] ${summaryType} Push 저장 실패:`, err);
+          });
+        } else {
+          console.log(`⚠️ [garminPing] ${summaryType} - callbackURL 및 activity 데이터 없음 (deregistration?)`);
+        }
+      }
+    }
+  });
+
+/**
+ * Push 형식: 본문에 포함된 활동 데이터를 Firestore에 저장
+ */
+async function saveGarminActivityToFirestore(garminUserId, activity, summaryType) {
+  const summaryId = activity.summaryId || activity.activityId || activity.id;
+  if (!summaryId) return;
+
+  const db = admin.firestore();
+  const docId = `${garminUserId}_${summaryId}`;
+  const docData = {
+    garminUserId,
+    runonUserId: null,
+    summaryId: String(summaryId),
+    activityType: activity.activityType || 'UNKNOWN',
+    startTimeInSeconds: activity.startTimeInSeconds || 0,
+    durationInSeconds: activity.durationInSeconds || 0,
+    distanceInMeters: activity.distanceInMeters || 0,
+    averagePaceInMinutesPerKilometer: activity.averagePaceInMinutesPerKilometer || 0,
+    activeKilocalories: activity.activeKilocalories || 0,
+    deviceName: activity.deviceName || 'unknown',
+    summaryType,
+    rawData: activity,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await db.collection('garminActivities').doc(docId).set(docData, { merge: true });
+  console.log(`✅ [garminPing] ${summaryType} Push 저장 완료: ${summaryId} (garminUserId: ${garminUserId})`);
+}
+
+/**
+ * Garmin callbackURL 호출 후 Firestore에 저장
+ */
+async function processGarminCallback(garminUserId, callbackURL, summaryType) {
+  try {
+    console.log(`🔗 [garminPing] ${summaryType} callback 호출:`, callbackURL.substring(0, 80) + '...');
+
+    const response = await fetch(callbackURL);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const activities = Array.isArray(data) ? data : (data.data || data.activities || []);
+
+    if (!Array.isArray(activities)) {
+      console.log(`⚠️ [garminPing] ${summaryType} - 예상치 못한 응답 구조`);
+      return;
+    }
+
+    const db = admin.firestore();
+    let savedCount = 0;
+
+    for (const activity of activities) {
+      const summaryId = activity.summaryId || activity.activityId || activity.id;
+      if (!summaryId) continue;
+
+      const docId = `${garminUserId}_${summaryId}`;
+      const docData = {
+        garminUserId,
+        runonUserId: null,
+        summaryId: String(summaryId),
+        activityType: activity.activityType || 'UNKNOWN',
+        startTimeInSeconds: activity.startTimeInSeconds || 0,
+        durationInSeconds: activity.durationInSeconds || 0,
+        distanceInMeters: activity.distanceInMeters || 0,
+        averagePaceInMinutesPerKilometer: activity.averagePaceInMinutesPerKilometer || 0,
+        activeKilocalories: activity.activeKilocalories || 0,
+        deviceName: activity.deviceName || 'unknown',
+        summaryType,
+        rawData: activity,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await db.collection('garminActivities').doc(docId).set(docData, { merge: true });
+      savedCount++;
+    }
+
+    console.log(`✅ [garminPing] ${summaryType} 저장 완료: ${savedCount}건 (garminUserId: ${garminUserId})`);
+  } catch (error) {
+    console.error(`❌ [garminPing] processGarminCallback 실패:`, error);
+    throw error;
+  }
+}
+
+// ============================================
+// Garmin Connect - 앱용 활동 조회 API
+// ============================================
+
+/**
+ * 앱에서 Garmin 활동 데이터 조회
+ * GET /garminGetActivities?garminUserId=xxx&startTime=xxx&endTime=xxx
+ * - garminUserId: Garmin User ID (Eval 테스트용, OAuth 연동 전)
+ * - startTime, endTime: Unix timestamp (초, UTC)
+ */
+exports.garminGetActivities = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const garminUserId = req.query.garminUserId;
+    const startTime = parseInt(req.query.startTime, 10);
+    const endTime = parseInt(req.query.endTime, 10);
+
+    if (!garminUserId) {
+      res.status(400).json({ error: 'garminUserId가 필요합니다.' });
+      return;
+    }
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
+      res.status(400).json({ error: 'startTime, endTime (Unix 초)이 필요합니다.' });
+      return;
+    }
+    if (endTime - startTime > 24 * 60 * 60) {
+      res.status(400).json({ error: '조회 범위는 24시간 이내여야 합니다.' });
+      return;
+    }
+
+    const db = admin.firestore();
+    const snapshot = await db.collection('garminActivities')
+      .where('garminUserId', '==', garminUserId)
+      .where('startTimeInSeconds', '>=', startTime)
+      .where('startTimeInSeconds', '<=', endTime)
+      .get();
+
+    const activities = snapshot.docs.map((doc) => doc.data());
+    console.log(`✅ [garminGetActivities] 조회 완료: ${activities.length}건 (garminUserId: ${garminUserId})`);
+
+    res.status(200).json({ activities });
+  } catch (error) {
+    console.error('❌ [garminGetActivities] 실패:', error);
+    res.status(500).json({ error: '활동 조회 실패', message: error.message });
+  }
+});
+
+// ============================================
+// Garmin Connect - User Deregistration / User Permission (프로덕션 요건)
+// ============================================
+// OAuth2 PKCE 문서: Garmin이 사용자 연동 해제/권한 변경 시 우리 서버로 POST
+// Endpoint Configuration에 URL 등록 필요
+
+/**
+ * User Deregistration: 사용자가 Garmin Connect에서 연동 해제 시 Garmin이 호출
+ * POST 수신 → 즉시 200 → users에서 garminUserId 제거
+ */
+exports.garminUserDeregistration = functions.https.onRequest(async (req, res) => {
+  res.status(200).send('OK');
+
+  if (req.method !== 'POST' || !req.body) return;
+
+  try {
+    const userId = req.body.userId || req.body.userAccessToken;
+    if (!userId) {
+      console.log('⚠️ [garminUserDeregistration] userId 없음:', Object.keys(req.body));
+      return;
+    }
+
+    const db = admin.firestore();
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('garminUserId', '==', userId).get();
+
+    for (const doc of snapshot.docs) {
+      await doc.ref.update({ garminUserId: admin.firestore.FieldValue.delete() });
+      console.log(`✅ [garminUserDeregistration] 연동 해제: ${doc.id} (garminUserId: ${userId})`);
+    }
+  } catch (err) {
+    console.error('❌ [garminUserDeregistration] 실패:', err);
+  }
+});
+
+/**
+ * User Permission: 사용자가 Garmin Connect에서 권한 변경 시 Garmin이 호출
+ * POST 수신 → 즉시 200 → 로그 및 필요 시 처리
+ */
+exports.garminUserPermission = functions.https.onRequest(async (req, res) => {
+  res.status(200).send('OK');
+
+  if (req.method !== 'POST' || !req.body) return;
+
+  try {
+    const userId = req.body.userId || req.body.userAccessToken;
+    console.log('📥 [garminUserPermission] 수신:', userId, JSON.stringify(req.body).substring(0, 200));
+    // 권한 변경 시 추가 처리 필요 시 여기에 로직 추가
+  } catch (err) {
+    console.error('❌ [garminUserPermission] 실패:', err);
+  }
+});
+

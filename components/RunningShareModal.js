@@ -28,6 +28,7 @@ import * as MediaLibrary from 'expo-media-library';
 import RunningShareCard from './RunningShareCard';
 import { getEnglishLocation } from '../utils/locationMapper';
 import appleFitnessService from '../services/appleFitnessService';
+import garminConnectService from '../services/garminConnectService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -44,6 +45,7 @@ const RunningShareModal = ({
   const [actualWorkoutData, setActualWorkoutData] = useState(null);
   const [customPlace, setCustomPlace] = useState('');
   const [hasEnteredPlace, setHasEnteredPlace] = useState(false);
+  const [dataSource, setDataSource] = useState('apple'); // 'apple' | 'garmin'
   const shareCardRef = useRef(null);
   const placeInputRef = useRef(null);
   
@@ -145,26 +147,32 @@ const RunningShareModal = ({
     if (visible && eventData && hasEnteredPlace) {
       fetchActualWorkoutData();
     }
-  }, [visible, eventData, hasEnteredPlace]);
+  }, [visible, eventData, hasEnteredPlace, dataSource]);
 
   const fetchActualWorkoutData = async () => {
     try {
       setIsLoadingWorkout(true);
-      console.log('🔍 [RunningShareModal] 실제 운동기록 데이터 조회 시작');
+      console.log('🔍 [RunningShareModal] 실제 운동기록 데이터 조회 시작', { dataSource });
       console.log('🔍 [RunningShareModal] eventData:', JSON.stringify(eventData, null, 2));
-      
-      // HealthKit 서비스 상태 확인
-      const isAvailable = appleFitnessService.isServiceAvailable();
-      console.log('🔍 [RunningShareModal] HealthKit 서비스 사용 가능:', isAvailable);
-      
-      if (!isAvailable) {
-        console.warn('⚠️ [RunningShareModal] HealthKit 서비스가 사용 불가능합니다. 초기화 시도...');
-        const initialized = await appleFitnessService.initialize();
-        console.log('🔍 [RunningShareModal] HealthKit 초기화 결과:', initialized);
+
+      let workoutData = null;
+
+      if (dataSource === 'garmin' && garminConnectService.isServiceAvailable()) {
+        console.log('🔍 [RunningShareModal] Garmin Connect로 조회');
+        workoutData = await garminConnectService.findMatchingWorkout(eventData);
+      } else {
+        const isAvailable = appleFitnessService.isServiceAvailable();
+        console.log('🔍 [RunningShareModal] HealthKit 서비스 사용 가능:', isAvailable);
+
+        if (!isAvailable) {
+          console.warn('⚠️ [RunningShareModal] HealthKit 서비스가 사용 불가능합니다. 초기화 시도...');
+          const initialized = await appleFitnessService.initialize();
+          console.log('🔍 [RunningShareModal] HealthKit 초기화 결과:', initialized);
+        }
+
+        workoutData = await appleFitnessService.findMatchingWorkout(eventData);
       }
-      
-      console.log('🔍 [RunningShareModal] findMatchingWorkout 호출 시작');
-      const workoutData = await appleFitnessService.findMatchingWorkout(eventData);
+
       console.log('🔍 [RunningShareModal] findMatchingWorkout 결과:', workoutData ? '성공' : '실패');
       
       if (workoutData) {
@@ -338,6 +346,29 @@ const RunningShareModal = ({
               {!hasEnteredPlace ? (
                 /* Place 입력 화면 */
                 <View style={styles.inputContainer}>
+                  {garminConnectService.isServiceAvailable() && (
+                    <View style={styles.dataSourceRow}>
+                      <Text style={styles.inputLabel}>데이터 소스</Text>
+                      <View style={styles.dataSourceButtons}>
+                        <TouchableOpacity
+                          style={[styles.dataSourceButton, dataSource === 'apple' && styles.dataSourceButtonActive]}
+                          onPress={() => setDataSource('apple')}
+                        >
+                          <Text style={[styles.dataSourceButtonText, dataSource === 'apple' && styles.dataSourceButtonTextActive]}>
+                            Apple Fitness
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.dataSourceButton, dataSource === 'garmin' && styles.dataSourceButtonActive]}
+                          onPress={() => setDataSource('garmin')}
+                        >
+                          <Text style={[styles.dataSourceButtonText, dataSource === 'garmin' && styles.dataSourceButtonTextActive]}>
+                            Garmin Connect
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
                   <Text style={styles.inputLabel}>place를 입력해주세요</Text>
                   <TextInput
                     ref={placeInputRef}
@@ -557,6 +588,34 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-Regular',
     borderWidth: 1,
     borderColor: '#444444',
+  },
+  dataSourceRow: {
+    marginBottom: 16,
+  },
+  dataSourceButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  dataSourceButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#333333',
+    alignItems: 'center',
+  },
+  dataSourceButtonActive: {
+    backgroundColor: '#3AF8FF',
+  },
+  dataSourceButtonText: {
+    fontSize: 14,
+    color: '#999999',
+    fontFamily: 'Pretendard-Regular',
+  },
+  dataSourceButtonTextActive: {
+    color: '#000000',
+    fontFamily: 'Pretendard-SemiBold',
   },
 });
 

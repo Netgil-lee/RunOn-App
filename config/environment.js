@@ -6,6 +6,9 @@ const ENV = {
   dev: {
     // Firebase - 실제 Firebase 프로젝트에서 가져온 설정으로 교체하세요
     firebaseApiKey: Constants.expoConfig?.extra?.firebaseApiKey || 'AIzaSyDq24FyKrDTtomyNMcC3gZB7eqpr0OGZCg',
+    // Garmin Connect Eval 테스트 (Data Generator 데이터 조회)
+    garminApiBaseUrl: 'https://us-central1-runon-garmin-eval.cloudfunctions.net',
+    garminEvalUserId: Constants.expoConfig?.extra?.garminEvalUserId || null, // Garmin Developer Portal User Authorization에서 발급받은 User ID 입력
     firebaseAuthDomain: 'runon-production-app.firebaseapp.com',
     firebaseProjectId: 'runon-production-app',
     firebaseStorageBucket: 'runon-production-app.firebasestorage.app',

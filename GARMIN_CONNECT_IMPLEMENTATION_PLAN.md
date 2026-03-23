@@ -6,6 +6,53 @@
 
 ---
 
+## 📋 진행 상황 (업데이트됨)
+
+| 단계 | 작업 | 상태 | 완료일 |
+|------|------|------|--------|
+| 0 | Firebase 프로젝트 runon-garmin-eval 생성 | ✅ 완료 | - |
+| 0 | .firebaserc alias 설정 (garmin-eval) | ✅ 완료 | - |
+| 0 | Firestore, Cloud Functions 활성화 | ✅ 완료 | - |
+| 1 | Cloud Functions `garminPing` 구현 | ✅ 완료 | - |
+| 1 | runon-garmin-eval에 배포 | ✅ 완료 | - |
+| 2 | Endpoint Configuration에 URL 등록 | ✅ 완료 | - |
+| 3 | API Configuration에서 Activity API 활성화 | ✅ 완료 | - |
+| 4 | 사용자 연동(OAuth2) 및 User ID 발급 | ✅ 완료 | - |
+| 5 | Data Generator로 시뮬레이션 테스트 | ✅ 완료 | - |
+| 1 | garminPing Push 형식 처리 추가 | ✅ 완료 | 2026-02-23 |
+| 1 | garminGetActivities Cloud Function 구현 | ✅ 완료 | 2026-02-23 |
+| 1 | garminConnectService.js 생성 | ✅ 완료 | 2026-02-23 |
+| 1 | RunningShareModal Garmin 데이터 소스 선택 | ✅ 완료 | 2026-02-23 |
+
+**현재**: Eval 테스트 완료 ✅ → 프로덕션 심사 준비 단계
+
+**Evaluation (테스트) – runon-garmin-eval**  
+| 함수 | URL |
+|------|-----|
+| garminPing | `https://us-central1-runon-garmin-eval.cloudfunctions.net/garminPing` |
+| garminGetActivities | `https://us-central1-runon-garmin-eval.cloudfunctions.net/garminGetActivities` |
+| garminUserDeregistration | `https://us-central1-runon-garmin-eval.cloudfunctions.net/garminUserDeregistration` |
+| garminUserPermission | `https://us-central1-runon-garmin-eval.cloudfunctions.net/garminUserPermission` |
+
+**Production (실제 서비스) – runon-production-app**  
+| 함수 | URL |
+|------|-----|
+| garminPing | `https://us-central1-runon-production-app.cloudfunctions.net/garminPing` |
+| garminGetActivities | `https://us-central1-runon-production-app.cloudfunctions.net/garminGetActivities` |
+| garminUserDeregistration | `https://us-central1-runon-production-app.cloudfunctions.net/garminUserDeregistration` |
+| garminUserPermission | `https://us-central1-runon-production-app.cloudfunctions.net/garminUserPermission` |
+
+> **구분**: runon-garmin-eval = 테스트 전용 (Data Generator, Partner Verification). runon-production-app = 프로덕션 (실제 앱 사용자, Firestore users/events).
+
+**Eval 앱 테스트 절차**:
+1. Garmin Developer Portal → User Authorization으로 User ID 발급
+2. Data Generator로 시뮬레이션 데이터 생성 (Firestore `garminActivities`에 저장 확인)
+3. `app.json` → `extra.garminEvalUserId`에 해당 User ID 문자열 입력
+4. 앱 실행 → 모임 선택 → 공유 → "Garmin Connect" 선택 → place 입력
+5. Data Generator 활동의 `startTimeInSeconds`와 모임 날짜/시간이 ±30분 이내여야 매칭됨
+
+---
+
 ## ⚠️ 중요: Activity API 아키텍처 (PDF Section 3)
 
 **Activity API는 Server-to-Server 통신만 지원합니다.**
@@ -155,14 +202,15 @@ Garmin Developer Portal에서 앱을 처음 생성하면 받는 Consumer Key는 
 | **데이터 저장** | Firestore 등에 사용자별 활동 데이터 저장 |
 | **앱용 API** | 앱이 `findMatchingWorkout`에 해당하는 데이터 조회 |
 
-#### 3.0.2 엔드포인트 URL 예시
+#### 3.0.2 엔드포인트 URL (Evaluation vs Production)
 
-```
-https://us-central1-runon-production-app.cloudfunctions.net/garminPing
-```
+| 구분 | Firebase 프로젝트 | 용도 |
+|------|-------------------|------|
+| **Evaluation** | runon-garmin-eval | 테스트, Data Generator, Partner Verification |
+| **Production** | runon-production-app | 실제 서비스 (앱 사용자, users/events Firestore) |
 
-- Firebase 프로젝트 ID에 맞게 `runon-production-app` 수정
-- Garmin Endpoint Configuration Tool에서 위 URL 등록
+- **프로덕션** Garmin Endpoint Configuration: `https://us-central1-runon-production-app.cloudfunctions.net/garminPing` 등
+- **평가** Garmin Endpoint Configuration: `https://us-central1-runon-garmin-eval.cloudfunctions.net/garminPing` 등
 - Summary 타입별로 activities, activityDetails 등 활성화
 
 #### 3.0.3 기존 프로덕션 앱에 API 추가 시 (PDF 6.2.7)
@@ -301,6 +349,22 @@ exports.garminPing = functions.https.onRequest(async (req, res) => {
 - Garmin 선택 시 `garminConnectService.findMatchingWorkout()` 호출
 - 미연동 시 "Garmin Connect 연동하기" 유도
 
+### Phase 4: Android 확장 (추후 진행)
+
+**동일한 프로덕션 Garmin 연동을 iOS·Android 모두 사용 가능합니다.**
+
+| 구분 | 설명 |
+|------|------|
+| **백엔드** | garminPing, garminGetActivities는 플랫폼 무관 (HTTP API) |
+| **Consumer Key** | 프로덕션 승인 시 1개 발급 → iOS·Android 동일 키 사용 |
+| **데이터 흐름** | Garmin → 우리 서버 → 앱 (iOS/Android 동일) |
+
+**Android 프로젝트 포팅 작업** (`/Users/lee_mac/RunOn-App (Production_android)`):
+- [ ] `garminConnectService.js` 포팅 (iOS 기준 레퍼런스)
+- [ ] 프로덕션 `garminApiBaseUrl` 설정
+- [ ] OAuth 연동 후 `runonUserId` 기반 조회 (garminUserId는 백엔드 매핑)
+- [ ] RunningShareModal(또는 동일 UI) Garmin 데이터 소스 선택 추가
+
 ---
 
 ## 4. 필요한 것 체크리스트
@@ -309,14 +373,19 @@ exports.garminPing = functions.https.onRequest(async (req, res) => {
 
 - [x] Garmin Connect Developer Program 접근 권한 신청
 - [x] Consumer Key, Consumer Secret 발급
-- [ ] Endpoint Configuration Tool에서 Ping/Push URL 등록
-- [ ] API Configuration에서 Activity (및 필요 시 Activity Details) 활성화
-- [ ] 사용자 연동(OAuth/UAT) 플로우 문서 확인 (PDF는 UAT 퇴출 언급)
+- [x] Endpoint Configuration Tool에서 Ping/Push URL 등록
+- [x] API Configuration에서 Activity (및 필요 시 Activity Details) 활성화
+- [x] 사용자 연동(OAuth2 User Authorization) 및 User ID 발급
 
 ### 4.2 백엔드
 
-- [ ] 공개 HTTPS URL (Cloud Functions 또는 별도 서버)
-- [ ] Ping 또는 Push 수신 핸들러 구현
+- [x] Evaluation용 Firebase 프로젝트 생성 (runon-garmin-eval)
+- [x] .firebaserc alias 설정 (`firebase use garmin-eval`)
+- [x] Firestore, Cloud Functions 활성화 (runon-garmin-eval)
+- [x] `garminPing` 함수 구현 (functions/index.js)
+- [x] runon-garmin-eval에 배포
+- [x] 공개 HTTPS URL 확보: `https://us-central1-runon-garmin-eval.cloudfunctions.net/garminPing`
+- [x] Ping 수신 핸들러 구현
 - [ ] 30초 이내 HTTP 200 응답 보장
 - [ ] Firestore (또는 DB) 스키마 설계: `users/{uid}/garminActivities`
 - [ ] 앱용 활동 조회 API 구현
@@ -492,14 +561,14 @@ GET /garminGetActivities?runonUserId=xxx&startTime=xxx&endTime=xxx
 
 ### 8.5 구현 단계 (Cloud Functions)
 
-| 단계 | 작업 | 산출물 |
-|------|------|--------|
-| 1 | `garminPing` 함수 추가 (즉시 200 + callbackURL 호출 스켈레톤) | Ping 수신 가능 |
-| 2 | callbackURL 응답 → Firestore 저장 로직 | `garminActivities` 컬렉션 |
-| 3 | `activities` 외 summary 타입 처리 (activityDetails 등) | 확장성 |
-| 4 | `garminGetActivities` 함수 추가 | 앱용 조회 API |
-| 5 | Firestore 인덱스 생성 (firestore.indexes.json) | 쿼리 성능 |
-| 6 | 배포 및 URL 확인 | Endpoint Configuration 등록용 |
+| 단계 | 작업 | 산출물 | 상태 |
+|------|------|--------|------|
+| 1 | `garminPing` 함수 추가 (즉시 200 + callbackURL 호출) | Ping 수신 가능 | ✅ |
+| 2 | callbackURL 응답 → Firestore 저장 로직 | `garminActivities` 컬렉션 | ✅ |
+| 3 | `activities` 외 summary 타입 처리 (activityDetails 등) | 확장성 | ✅ |
+| 4 | `garminGetActivities` 함수 추가 | 앱용 조회 API | ⏳ |
+| 5 | Firestore 인덱스 생성 (firestore.indexes.json) | 쿼리 성능 | ✅ |
+| 6 | 배포 및 URL 확인 | Endpoint Configuration 등록용 | ✅ |
 
 ### 8.6 의존성
 
@@ -517,12 +586,177 @@ exports.garminPing = functions
 - Ping 응답은 즉시 반환하므로 120초는 callback 처리용
 - Activity Details(100MB) 수신 시 512MB 검토
 
+### 8.8 Evaluation 배포 절차
+
+```bash
+firebase use garmin-eval                    # Evaluation 프로젝트로 전환
+firebase deploy --only functions:garminPing # garminPing만 배포
+firebase use default                        # 작업 후 프로덕션으로 복귀
+```
+
+### 8.9 배포 권한 해결 (Artifact Registry)
+
+**runon-garmin-eval** 신규 프로젝트에서 첫 배포 시 다음 오류가 발생할 수 있음:
+
+```
+Unable to retrieve the repository metadata for projects/runon-garmin-eval/locations/us-central1/repositories/gcf-artifacts.
+Ensure that the Cloud Functions service account has 'artifactregistry.repositories.list' and 'artifactregistry.repositories.get' permissions.
+```
+
+**해결 방법** (Google Cloud Console):
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → **runon-garmin-eval** 프로젝트 선택
+2. **IAM 및 관리자** → **IAM** 이동
+3. **Cloud Functions 서비스 에이전트** (`runon-garmin-eval@appspot.gserviceaccount.com` 또는 `PROJECT_NUMBER-compute@developer.gserviceaccount.com`) 찾기
+4. **연필(편집)** 클릭 → **다른 역할 추가** → `Artifact Registry 읽기` (`roles/artifactregistry.reader`) 추가 → 저장
+
+또는 **Artifact Registry API**가 비활성화된 경우:
+
+- **API 및 서비스** → **라이브러리** → "Artifact Registry API" 검색 → **사용** 클릭
+
 ---
 
-## 9. 참고 문서 및 연락처
+## 9. 프로덕션 심사 준비 체크리스트
 
-- **Activity_API-1.2.4.pdf** (첨부 문서) – 본 검토의 기준
-- [GARMIN_CONNECT_DEVELOPER_RESPONSE.md](./GARMIN_CONNECT_DEVELOPER_RESPONSE.md) – 개발자 프로그램 활용 계획 (답변용)
+> Eval 테스트 완료 후, Garmin 프로덕션 키 발급을 위한 단계
+
+### 9.1 프로덕션 키 요건 (PDF Section 9) – 필수
+
+| 요건 | 상태 | 비고 |
+|------|------|------|
+| 최소 2명 Garmin Connect 사용자 인증 | ⬜ | OAuth2 User Authorization으로 2명 이상 연동 |
+| User Deregistration 엔드포인트 | ⬜ | 사용자 연동 해제 시 Garmin에 알림 |
+| User Permission 엔드포인트 | ⬜ | 권한 변경 시 처리 (문서 확인) |
+| PING 또는 PUSH 처리 | ✅ | garminPing에서 둘 다 처리 |
+| 수신 시 30초 이내 HTTP 200 | ✅ | 즉시 200 반환 |
+| 최소 페이로드 10MB | ⬜ | Activity Details 100MB 시 memory 설정 |
+| UX 및 브랜드 가이드라인 | ⬜ | Garmin 가이드라인 확인 |
+
+### 9.2 프로덕션 신청 경로
+
+**방법 1: Garmin Developer Portal 폼 (권장)**  
+- Connect Developer → Production 신청 폼에서 직접 제출
+- 필수 입력: 연락처, 회사명, 개인정보처리방침 URL, 데이터 사용 목적, 제3자 판매 여부 등
+
+**방법 2: connect-support@developer.garmin.com 문의**  
+- 기존 프로덕션 앱 API 추가 절차, User Deregistration 스펙 등 상세 문의 시
+
+### 9.3 프로덕션 전환 작업 순서
+
+| 순서 | 작업 | 담당 |
+|------|------|------|
+| **1** | **Production 신청 폼 작성 및 제출** | 사용자 |
+| | - Product: Connect Developer - Production 선택 | |
+| | - 데이터 판매: No (RunOn은 사용자 공유 이미지 생성용) | |
+| | - 개인정보처리방침 URL, 데이터 사용 목적 명시 | |
+| **2** | 프로덕션 Firebase(runon-production-app)에 Garmin 함수 배포 | 개발 |
+| | - garminPing, garminGetActivities, garminUserDeregistration, garminUserPermission | |
+| | - Firestore garminActivities 컬렉션 및 인덱스 생성 | |
+| | - Garmin Endpoint Configuration을 프로덕션 URL로 등록 | |
+| **3** | runonUserId ↔ garminUserId 매핑 구현 | 개발 |
+| | - OAuth 연동 완료 시 users/{uid}에 garminUserId 저장 | |
+| | - garminGetActivities: runonUserId로 조회 (garminUserId 대신) | |
+| **4** | User Deregistration / User Permission 엔드포인트 구현 | 개발 |
+| | - Garmin 답변에 따른 스펙 확인 후 구현 | |
+| **5** | OAuth 연동 UI (설정 화면 "Garmin Connect 연동") | 개발 |
+| **6** | Partner Verification 도구로 요건 검증 | 사용자 |
+| **7** | 프로덕션 키 승인 및 심사 | Garmin |
+| **8** | Android 프로젝트 포팅 (Phase 4) | 개발 |
+
+**참고**: 프로덕션 Consumer Key 1개로 iOS·Android 모두 사용 가능. 백엔드는 공유.
+
+### 9.4 Production 신청 폼 작성 가이드 (RunOn 기준)
+
+| 필드 | RunOn 권장 입력 |
+|------|-----------------|
+| **Do you plan to sell activity data?** | **No** (공유 이미지 생성용, 제3자 판매 없음) |
+| **Full Legal Company Name** | 회사 법인명 |
+| **Privacy policy URL** | RunOn 앱 개인정보처리방침 URL |
+| **Data usage details** | "Activity data is used solely for generating running share images within the app. Users' data is not sold to third parties." |
+| **Specific purposes** | "Display user's running activity (distance, pace, duration, calories, route) on shareable image cards for social sharing, similar to Apple Fitness integration." |
+
+### 9.5 Garmin 프로덕션 승인 요건 (개발팀 답변 기준)
+
+> Garmin 개발자팀 답변을 바탕으로 한 체크리스트
+
+#### 1. Technical Review (기술 검증)
+
+| 요건 | 상태 | 작업 |
+|------|------|------|
+| Partner Verification Tool 사용 | ⬜ | Evaluation Key로 도구 실행 |
+| 사용 중인 API 명시 | ⬜ | Activity API (activities, activityDetails) 명시 |
+| 최소 2명 Garmin Connect 사용자 인증 | ⬜ | OAuth2로 2명 이상 연동 |
+| User Deregistration 엔드포인트 | ✅ | garminUserDeregistration 구현 완료, 배포 및 URL 등록 필요 |
+| User Permission 엔드포인트 | ✅ | garminUserPermission 구현 완료, 배포 및 URL 등록 필요 |
+| PING 또는 PUSH 처리 | ✅ | garminPing에서 처리 중 |
+| 수신 시 30초 이내 HTTP 200 | ✅ | 즉시 200 반환 |
+| 최소 페이로드 10MB (Activity 100MB) | ⬜ | Activity Details 시 memory 설정 검토 |
+| Training/Courses API | - | RunOn은 Activity API만 사용, 해당 없을 수 있음 |
+
+#### 2. Team Members and Account Setup
+
+| 요건 | 작업 |
+|------|------|
+| API Blog 이메일 구독 | developerportal.garmin.com에서 가입 |
+| 인증된 사용자 계정 추가 | Start Guide Section 4 참고 |
+| 제한 사항 | 회사 도메인 이메일 사용, gmail/outlook 등 프리메일 금지 |
+| 제한 사항 | support@, info@, contact@ 등 일반 이메일 금지 |
+| 제3자 통합 시 | NDA 사본 첨부 |
+
+#### 3. UX and Brand Compliance Review
+
+| 요건 | 작업 |
+|------|------|
+| Garmin 데이터 노출 위치 | 앱 내 모든 사용처 제출 |
+| Garmin 상표·로고·브랜드 요소 | 사용처 전체 제출 |
+| Garmin 제품·이미지 | 사용처 전체 제출 |
+| 필수 attribution 문구 | API Brand Guidelines 준수 |
+| UX 플로우 | Garmin이 정확히 표현되는지 전체 흐름 제출 |
+
+**참고**: developerportal.garmin.com → "GCDP Branding Assets v2" → "API BRAND GUIDELINES" (Activities p.2, Health p.4)
+
+**상세 작업 가이드**: [GARMIN_PRODUCTION_STEPS.md](./GARMIN_PRODUCTION_STEPS.md) 참고
+
+**배포 시점**: runon-production-app 배포는 **1순위**(User Deregistration/Permission) 단계에서 진행. Endpoint Configuration에 프로덕션 URL 등록 전에 필수.
+
+### 9.6 Garmin 문의 메일 (폼 외 추가 문의 시)
+
+```
+Subject: Adding Activity API to Existing Production App - RunOn
+
+Hello Garmin Connect Developer Program Support,
+
+We are the developers of RunOn, a running community app that is already 
+in production (App Store). We would like to add the Garmin Connect 
+Activity API to our existing production app.
+
+According to the Activity API documentation (Section 6.2.7), we understand 
+that adding APIs to an existing production app requires contacting your 
+team. Could you please advise on:
+
+1. The process and requirements for adding the Activity API to our 
+   existing production application
+2. User Deregistration and User Permission endpoint specifications
+3. Evaluation to Production key transition process
+4. Whether we need to create a new app/project in the Developer Portal 
+   or can use our existing consumer key
+
+Our app details:
+- App name: RunOn (러논)
+- Platform: iOS (React Native/Expo)
+- Use case: Display user's running activity data for share image generation 
+  (similar to Apple Fitness integration we already have)
+- Consumer Key: [발급받은 Consumer Key]
+- Eval testing: Completed (Data Generator, garminPing, garminGetActivities)
+
+Thank you for your assistance.
+```
+
+---
+
+## 10. 참고 문서 및 연락처
+
+- **Activity_API-1.2.4.pdf** – 본 검토의 기준
 - [Garmin Connect Activity API](https://developer.garmin.com/gc-developer-program/activity-api/)
 - [Endpoint Configuration](https://apis.garmin.com/tools/endpoints)
 - **Garmin Support**: connect-support@developer.garmin.com (기존 프로덕션 앱 API 추가, 프로덕션 키 문의)

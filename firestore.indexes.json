@@ -35,6 +35,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "garminActivities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "garminUserId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startTimeInSeconds",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
