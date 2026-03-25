@@ -1257,8 +1257,9 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                   // 참여 마감된 경우 버튼 비활성화
                   !isCreatedByMe && !isJoinedState && (() => {
                     const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-                    const maxParticipants = event.maxParticipants || 6;
-                    const isFull = currentParticipants >= maxParticipants;
+                    const maxParticipants = Number(event.maxParticipants);
+                    const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+                    const isFull = hasParticipantLimit && currentParticipants >= maxParticipants;
                     
                     // 디버깅 로그 추가
                     console.log('🔍 EventDetailScreen - 참여자 수 계산 (UI):', {
@@ -1279,15 +1280,17 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                 // 참여 마감된 경우 버튼 비활성화
                 disabled={!isCreatedByMe && !isJoinedState && (() => {
                   const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-                  const maxParticipants = event.maxParticipants || 6;
-                  return currentParticipants >= maxParticipants;
+                  const maxParticipants = Number(event.maxParticipants);
+                  const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+                  return hasParticipantLimit && currentParticipants >= maxParticipants;
                 })()}
               >
                 {/* 참여 마감 시에는 아이콘을 표시하지 않음 */}
                 {(() => {
                   const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-                  const maxParticipants = event.maxParticipants || 6;
-                  const isFull = currentParticipants >= maxParticipants;
+                  const maxParticipants = Number(event.maxParticipants);
+                  const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+                  const isFull = hasParticipantLimit && currentParticipants >= maxParticipants;
                   
                   // 참여 마감된 경우 아이콘을 표시하지 않음
                   if (!isCreatedByMe && !isJoinedState && isFull) {
@@ -1309,14 +1312,16 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                   // 참여 마감된 경우 텍스트 스타일 변경
                   !isCreatedByMe && !isJoinedState && (() => {
                     const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-                    const maxParticipants = event.maxParticipants || 6;
-                    return currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
+                    const maxParticipants = Number(event.maxParticipants);
+                    const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+                    return hasParticipantLimit && currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
                   })()
                 ]}>
                   {isCreatedByMe ? '종료하기' : (isJoinedState ? '나가기' : (() => {
                     const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-                    const maxParticipants = event.maxParticipants || 6;
-                    return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
+                    const maxParticipants = Number(event.maxParticipants);
+                    const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+                    return hasParticipantLimit && currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
                   })())}
                 </Text>
               </TouchableOpacity>
@@ -1773,22 +1778,25 @@ export const EventDetailBottomButton = ({
             isCreatedByMe ? componentStyles.endButton : (isJoinedState ? componentStyles.leaveButton : componentStyles.joinButton),
             !isCreatedByMe && !isJoinedState && (() => {
               const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-              const maxParticipants = event.maxParticipants || 6;
-              const isFull = currentParticipants >= maxParticipants;
+              const maxParticipants = Number(event.maxParticipants);
+              const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+              const isFull = hasParticipantLimit && currentParticipants >= maxParticipants;
               return isFull ? componentStyles.disabledButton : {};
             })()
           ]} 
           onPress={onJoinPress}
           disabled={!isCreatedByMe && !isJoinedState && (() => {
             const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-            const maxParticipants = event.maxParticipants || 6;
-            return currentParticipants >= maxParticipants;
+            const maxParticipants = Number(event.maxParticipants);
+            const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+            return hasParticipantLimit && currentParticipants >= maxParticipants;
           })()}
         >
           {(() => {
             const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-            const maxParticipants = event.maxParticipants || 6;
-            const isFull = currentParticipants >= maxParticipants;
+            const maxParticipants = Number(event.maxParticipants);
+            const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+            const isFull = hasParticipantLimit && currentParticipants >= maxParticipants;
             
             if (!isCreatedByMe && !isJoinedState && isFull) {
               return null;
@@ -1807,14 +1815,16 @@ export const EventDetailBottomButton = ({
             isCreatedByMe ? componentStyles.endButtonText : (isJoinedState ? componentStyles.leaveButtonText : componentStyles.joinButtonText),
             !isCreatedByMe && !isJoinedState && (() => {
               const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-              const maxParticipants = event.maxParticipants || 6;
-              return currentParticipants >= maxParticipants ? componentStyles.disabledButtonText : {};
+              const maxParticipants = Number(event.maxParticipants);
+              const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+              return hasParticipantLimit && currentParticipants >= maxParticipants ? componentStyles.disabledButtonText : {};
             })()
           ]}>
             {isCreatedByMe ? '종료하기' : (isJoinedState ? '나가기' : (() => {
               const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-              const maxParticipants = event.maxParticipants || 6;
-              return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
+              const maxParticipants = Number(event.maxParticipants);
+              const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+              return hasParticipantLimit && currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
             })())}
           </Text>
         </TouchableOpacity>

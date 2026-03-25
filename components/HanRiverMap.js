@@ -80,6 +80,9 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
         event.location.includes('난지')
       );
 
+      const parsedMaxParticipants = Number(event.maxParticipants);
+      const hasParticipantLimit = Number.isFinite(parsedMaxParticipants) && parsedMaxParticipants > 0;
+
       const meetingData = {
         id: event.id,
         location: event.location,
@@ -90,7 +93,7 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
         time: event.time,
         participants: event.participants || [], // 참여자 배열 그대로 유지
         participantCount: Array.isArray(event.participants) ? event.participants.length : (event.participants || 1), // 참여자 수는 별도 필드
-        maxParticipants: event.maxParticipants || 6,
+        maxParticipants: hasParticipantLimit ? parsedMaxParticipants : null,
         distance: event.distance,
         pace: event.pace,
         difficulty: event.difficulty,
@@ -98,7 +101,7 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
         organizer: event.organizer || '나',
         organizerImage: event.organizerImage || null,
         organizerLevel: '중급자 • 2년차', // 기본값
-        canJoin: (Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)) < (event.maxParticipants || 6),
+        canJoin: !hasParticipantLimit || (Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)) < parsedMaxParticipants,
         status: (() => {
           // EventContext의 endedEvents와 비교하여 종료된 모임인지 확인
           const isEnded = allEvents.some(endedEvent => 
@@ -111,9 +114,11 @@ const HanRiverMap = ({ navigation, onGuideTargetLayout, initialActiveTab = 'hanr
           
           // 참여자 수에 따른 상태 결정
           const currentParticipants = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
-          const maxParticipants = event.maxParticipants || 6;
-          
-          return currentParticipants >= maxParticipants ? 'full' : 'recruiting';
+          if (!hasParticipantLimit) {
+            return 'recruiting';
+          }
+
+          return currentParticipants >= parsedMaxParticipants ? 'full' : 'recruiting';
         })(),
         customMarkerCoords: event.customMarkerCoords,
         customLocation: event.customLocation,

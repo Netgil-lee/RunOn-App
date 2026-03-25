@@ -359,7 +359,8 @@ class FirestoreService {
       
       const eventData = eventDoc.data();
       const currentParticipants = Array.isArray(eventData.participants) ? eventData.participants.length : 0;
-      const maxParticipants = eventData.maxParticipants || 6; // 기본값 6명
+      const maxParticipants = Number(eventData.maxParticipants);
+      const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
       
       // 디버깅 로그 추가
       console.log('🔍 FirestoreService - 참여자 수 계산 (백엔드):', {
@@ -370,11 +371,11 @@ class FirestoreService {
         isArray: Array.isArray(eventData.participants),
         currentParticipants,
         maxParticipants,
-        canJoin: currentParticipants < maxParticipants
+        canJoin: !hasParticipantLimit || currentParticipants < maxParticipants
       });
       
       // 2. 참여 가능 인원수 체크
-      if (currentParticipants >= maxParticipants) {
+      if (hasParticipantLimit && currentParticipants >= maxParticipants) {
         throw new Error('참여 가능 인원수가 마감되었습니다.');
       }
       
@@ -1183,7 +1184,126 @@ class FirestoreService {
   }
 
   /**
-   * 모임/카페 검색 (제목, 상호명, 태그)
+   * 신규 입점 러닝푸드 조회 (최근 1개월)
+   * @param {number} maxCount - 최대 개수, 기본값 10
+   * @returns {Promise<Array>} 러닝푸드 배열
+   */
+  async getNewFoods(maxCount = 10) {
+    try {
+      console.log('🔍 getNewFoods 시작');
+
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+      const foodsRef = collection(this.db, 'foods');
+      const q = query(
+        foodsRef,
+        where('createdAt', '>=', oneMonthAgo),
+        orderBy('createdAt', 'desc'),
+        limit(maxCount)
+      );
+
+      const snapshot = await getDocs(q);
+      const foods = [];
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        foods.push({
+          id: doc.id,
+          name: data.name || '알 수 없는 러닝푸드',
+          location: data.address || data.location || '위치 정보 없음',
+          representativeImage: data.representativeImage || data.images?.[0] || null,
+          createdAt: data.createdAt,
+        });
+      });
+
+      console.log('✅ 신규 러닝푸드 조회 완료:', foods.length, '개');
+      return foods;
+    } catch (error) {
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ 신규 러닝푸드 조회 권한 오류 (러닝푸드가 없거나 권한 없음)');
+        return [];
+      }
+      console.error('❌ 신규 러닝푸드 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 모든 러닝푸드 조회 (반경 제한 없음)
+   * @returns {Promise<Array>} 러닝푸드 배열
+   */
+  async getAllFoods() {
+    try {
+      console.log('🔍 [getAllFoods] 모든 러닝푸드 조회 시작');
+
+      const foodsRef = collection(this.db, 'foods');
+      const snapshot = await getDocs(foodsRef);
+      const foods = [];
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        foods.push({ id: doc.id, ...data });
+      });
+
+      console.log('✅ [getAllFoods] 모든 러닝푸드 조회 완료:', foods.length, '개');
+      return foods;
+    } catch (error) {
+      console.error('❌ [getAllFoods] 러닝푸드 조회 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
+
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ [getAllFoods] 러닝푸드 조회 권한 오류:', error.message);
+        return [];
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 러닝푸드 ID로 개별 조회 (최신 데이터)
+   * @param {string} foodId - 러닝푸드 ID
+   * @returns {Promise<Object|null>} 러닝푸드 데이터
+   */
+  async getFoodById(foodId) {
+    try {
+      console.log('🔍 [getFoodById] 러닝푸드 조회 시작:', foodId);
+
+      const foodRef = doc(this.db, 'foods', foodId);
+      const foodDoc = await getDoc(foodRef);
+
+      if (!foodDoc.exists()) {
+        console.warn('⚠️ [getFoodById] 러닝푸드를 찾을 수 없음:', foodId);
+        return null;
+      }
+
+      const foodData = {
+        id: foodDoc.id,
+        ...foodDoc.data()
+      };
+
+      console.log('✅ [getFoodById] 러닝푸드 조회 완료:', foodData.name);
+      return foodData;
+    } catch (error) {
+      console.error('❌ [getFoodById] 러닝푸드 조회 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        foodId
+      });
+
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ [getFoodById] 러닝푸드 조회 권한 오류:', error.message);
+        return null;
+      }
+      return null;
+    }
+  }
+
+  /**
+   * 모임/카페/러닝푸드 검색 (제목, 상호명, 태그)
    * @param {string} searchQuery - 검색어
    * @returns {Promise<Array>} 검색 결과 배열 (최대 5개)
    */
@@ -1236,15 +1356,32 @@ class FirestoreService {
         }
       });
 
+      // 3. 러닝푸드 검색 (상호명)
+      const foodsRef = collection(this.db, 'foods');
+      const foodsSnapshot = await getDocs(foodsRef);
+
+      foodsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        const nameMatch = data.name?.toLowerCase().includes(queryLower);
+
+        if (nameMatch) {
+          results.push({
+            type: 'food',
+            id: doc.id,
+            ...data
+          });
+        }
+      });
+
       // 최대 5개 결과 반환
       return results.slice(0, 5);
     } catch (error) {
       // 권한 오류 또는 기타 오류 시 빈 배열 반환 (검색이 계속 진행되도록)
       if (error.code === 'permission-denied') {
-        console.warn('⚠️ 모임/카페 검색 권한 오류:', error.message);
+        console.warn('⚠️ 모임/카페/러닝푸드 검색 권한 오류:', error.message);
         return [];
       }
-      console.error('모임/카페 검색 실패:', error);
+      console.error('모임/카페/러닝푸드 검색 실패:', error);
       // 다른 오류도 빈 배열 반환하여 검색이 계속 진행되도록 함
       return [];
     }

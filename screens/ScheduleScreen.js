@@ -1523,6 +1523,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const mapWebViewRef = useRef(null);
   const isInlineMapLoadedRef = useRef(false);
   const pendingMapMoveRef = useRef(null);
+  const hasUserSelectedLocationRef = useRef(false);
   
   const scrollViewRef = useRef(null);
   const titleInputRef = useRef(null);
@@ -1574,6 +1575,12 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             });
 
             if (location && location.coords) {
+              // 검색 결과 선택이 이미 완료되었다면 자동 GPS 반영을 건너뜀
+              if (hasUserSelectedLocationRef.current) {
+                setIsLocationInitialized(true);
+                return;
+              }
+
               const coords = {
                 lat: location.coords.latitude,
                 lng: location.coords.longitude,
@@ -1602,6 +1609,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       }
 
       // 권한 거부, 네트워크 문제, 또는 에러 발생 시 기본 위치(서울시청) 사용
+      if (hasUserSelectedLocationRef.current) {
+        setIsLocationInitialized(true);
+        return;
+      }
+
       setSelectedLocationData({
         name: '서울시청',
         lat: 37.5665,
@@ -1826,6 +1838,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     const locationName = result.place_name || result.name;
     const locationLat = parseFloat(result.y || result.lat);
     const locationLng = parseFloat(result.x || result.lng);
+
+    // 사용자가 검색 결과를 직접 선택한 이후에는
+    // 비동기 현재위치 초기화가 선택 좌표를 덮어쓰지 않도록 플래그 설정
+    hasUserSelectedLocationRef.current = true;
+    setIsLocationInitialized(true);
     
     // 선택된 장소 정보 저장
     setLocation(locationName);
@@ -1874,7 +1891,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       case 1: return eventType && title.trim();
       case 2: return hasCustomMarker && customLocation.trim() && dateString && timeString;
       case 3: return distance && minPace && maxPace && difficulty;
-      case 4: return maxParticipants && parseInt(maxParticipants) >= 1 && parseInt(maxParticipants) <= 5; // 호스트 제외 최대 5명
+      case 4: return maxParticipants && parseInt(maxParticipants, 10) >= 2; // 최소 2명(호스트 포함)부터 설정
       default: return false;
     }
   };
@@ -1924,7 +1941,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       } else if (currentStep === 4) {
         Alert.alert(
           '⚠️ 입력 필요',
-          '최대 참여 인원을 입력해주세요. (1-5명)',
+          '최대 참여 인원을 입력해주세요. (최소 2명)',
           [{ text: '확인', style: 'default' }]
         );
       }
@@ -2777,11 +2794,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                             }
                         }
                         
-                        // 로딩 완료 신호
-                        if (window.ReactNativeWebView) {
-                            window.ReactNativeWebView.postMessage('inlineMapLoaded');
-                        }
-                        
                         // React Native에서 보낸 메시지 처리 (지도 이동)
                         document.addEventListener('message', function(event) {
                             try {
@@ -2889,6 +2901,12 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                                 // JSON 파싱 실패 시 무시
                             }
                         });
+                        
+                        // 메시지 리스너 등록이 끝난 뒤 로딩 완료 신호 전송
+                        // (실기기에서는 신호가 너무 빨리 오면 moveToLocation 메시지가 유실될 수 있음)
+                        if (window.ReactNativeWebView) {
+                            window.ReactNativeWebView.postMessage('inlineMapLoaded');
+                        }
                         
                     } catch (error) {
                         console.error('Inline map error:', error);
@@ -3315,20 +3333,18 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           style={styles.textInput}
           value={maxParticipants}
           onChangeText={(text) => {
-            // 숫자만 입력 허용하고 5 이하로 제한
+            // 숫자만 입력 허용
             const numericValue = text.replace(/[^0-9]/g, '');
-            if (numericValue === '' || (parseInt(numericValue) >= 1 && parseInt(numericValue) <= 5)) {
-              setMaxParticipants(numericValue);
-            }
+            setMaxParticipants(numericValue);
           }}
-          placeholder="예: 3 (최대 5명)"
+          placeholder="예: 10"
           placeholderTextColor="#666666"
           keyboardType="numeric"
           returnKeyType="done"
           blurOnSubmit={true}
         />
         <Text style={[styles.inputHint, { fontSize: 15 }]}>
-          참여할 수 있는 최대 인원수를 설정해주세요.{'\n'}최대 5명까지 설정할 수 있습니다. (호스트 포함 6명)
+          참여 가능한 최대 인원수를 직접 설정해주세요.{'\n'}최소 2명부터 입력할 수 있습니다. (호스트 포함)
         </Text>
       </View>
 

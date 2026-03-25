@@ -659,7 +659,8 @@ export const EventProvider = ({ children }) => {
 
       // 2. 로컬에서 참여 가능 여부 사전 체크
       const currentParticipants = Array.isArray(targetEvent.participants) ? targetEvent.participants.length : 1;
-      const maxParticipants = targetEvent.maxParticipants || 6;
+      const maxParticipants = Number(targetEvent.maxParticipants);
+      const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
       
       // 디버깅 로그 추가
       console.log('🔍 EventContext - 참여자 수 계산 (로컬):', {
@@ -674,10 +675,10 @@ export const EventProvider = ({ children }) => {
         },
         currentParticipants,
         maxParticipants,
-        canJoin: currentParticipants < maxParticipants
+        canJoin: !hasParticipantLimit || currentParticipants < maxParticipants
       });
       
-      if (currentParticipants >= maxParticipants) {
+      if (hasParticipantLimit && currentParticipants >= maxParticipants) {
         throw new Error('참여 가능 인원수가 마감되었습니다.');
       }
 
