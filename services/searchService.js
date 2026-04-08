@@ -6,7 +6,7 @@ import firestoreService from './firestoreService';
  * Firestore 우선 검색 방식: Firestore 검색 먼저 실행, 결과가 없으면 Kakao Places API 검색
  * @param {string} query - 검색어
  * @returns {Promise<Object>} 검색 결과 객체
- * @property {Array} firestoreResults - Firestore 검색 결과 (모임/카페)
+ * @property {Array} firestoreResults - Firestore 검색 결과 (모임/카페/러닝푸드)
  * @property {Array} kakaoResults - Kakao Places API 검색 결과 (장소)
  * @property {string} source - 검색 소스 ('firestore' | 'kakao' | 'none')
  */

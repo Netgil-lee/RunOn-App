@@ -144,6 +144,13 @@ const calculateAge = (birthDate) => {
   }
 };
 
+const normalizeInstagramId = (value = '') => {
+  return value
+    .trim()
+    .replace(/^@+/, '')
+    .replace(/\s+/g, '');
+};
+
 
 
 
@@ -172,6 +179,9 @@ const ProfileScreen = ({ navigation }) => {
   const [profileImagePressed, setProfileImagePressed] = useState(false);
   const [activeTab, setActiveTab] = useState('runningProfile'); // 'runningProfile' 또는 'community'
   const [mannerDistance, setMannerDistance] = useState(null);
+  const [socialModalVisible, setSocialModalVisible] = useState(false);
+  const [socialAccountInput, setSocialAccountInput] = useState('');
+  const [isSavingSocialAccount, setIsSavingSocialAccount] = useState(false);
 
   // 실제 알림 데이터 (NotificationScreen과 동일)
   const [notifications] = useState({
@@ -368,6 +378,7 @@ const ProfileScreen = ({ navigation }) => {
             bio: onboardingProfile?.bio || profileData.bio || '자기소개를 입력해주세요.',
             gender: onboardingProfile?.gender || profileData.gender || '',
             birthDate: onboardingProfile?.birthDate || profileData.birthDate || '',
+            instagramId: onboardingProfile?.instagramId || profileData.instagramId || '',
             profileImage: onboardingProfile?.profileImage || profileData.profileImage,
             // 러닝 프로필 데이터 매핑
             runningProfile: {
@@ -548,6 +559,36 @@ const ProfileScreen = ({ navigation }) => {
         { text: '카메라로 촬영', onPress: () => takePhotoWithCamera() },
       ]
     );
+  };
+
+  const handleOpenSocialModal = () => {
+    setSocialAccountInput(profile?.instagramId || '');
+    setSocialModalVisible(true);
+  };
+
+  const handleSaveSocialAccount = async () => {
+    if (!user) return;
+
+    try {
+      setIsSavingSocialAccount(true);
+      const normalizedInstagramId = normalizeInstagramId(socialAccountInput);
+
+      await updateUserProfile({
+        instagramId: normalizedInstagramId
+      });
+
+      setProfile(prev => ({
+        ...prev,
+        instagramId: normalizedInstagramId
+      }));
+
+      setSocialModalVisible(false);
+    } catch (error) {
+      console.error('인스타그램 계정 저장 실패:', error);
+      Alert.alert('오류', '소셜 계정 저장 중 오류가 발생했습니다.');
+    } finally {
+      setIsSavingSocialAccount(false);
+    }
   };
 
   // 갤러리에서 이미지 선택
@@ -769,6 +810,7 @@ const ProfileScreen = ({ navigation }) => {
   //   profileAge: profile?.age,
   //   profileGender: profile?.gender
   // });
+  const currentInstagramId = normalizeInstagramId(profile?.instagramId || '');
   
   if (loading && !profile) {
     // console.log('⏳ ProfileScreen: 로딩 중...');
@@ -825,6 +867,25 @@ const ProfileScreen = ({ navigation }) => {
                   <Ionicons name="camera" size={16} color="#fff" />
                 </View>
               </TouchableOpacity>
+              <View style={styles.socialAccountSlot}>
+                {currentInstagramId ? (
+                  <TouchableOpacity onPress={handleOpenSocialModal} activeOpacity={0.8}>
+                    <View style={styles.socialHandleContainer}>
+                      <Ionicons name="logo-instagram" size={12} color={COLORS.TEXT} style={styles.socialHandleIcon} />
+                      <Text style={styles.socialHandleText}>{currentInstagramId}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.socialAddButton}
+                    onPress={handleOpenSocialModal}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="logo-instagram" size={13} color={COLORS.PRIMARY} style={styles.socialAddIcon} />
+                    <Text style={styles.socialAddButtonText}>소셜계정 +</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <TouchableOpacity
                 style={[styles.profileEditBtnMini, editBtnPressed && styles.profileEditBtnMiniActive]}
                 onPress={handleEdit}
@@ -1107,6 +1168,49 @@ const ProfileScreen = ({ navigation }) => {
 
 
 
+        {/* 소셜 계정 입력 모달 */}
+        <Modal visible={socialModalVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBackdrop} />
+            <View style={styles.socialModalContent}>
+              <Text style={styles.socialModalTitle}>인스타 계정 입력</Text>
+
+              <View style={styles.socialInputRow}>
+                <Ionicons name="logo-instagram" size={16} color={COLORS.TEXT_SECONDARY} style={styles.socialInputPrefixIcon} />
+                <TextInput
+                  style={styles.socialInput}
+                  placeholder="instagram_id"
+                  placeholderTextColor={COLORS.TEXT_SECONDARY}
+                  value={socialAccountInput}
+                  onChangeText={setSocialAccountInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={30}
+                />
+              </View>
+
+              <View style={styles.modalBottomNavigator}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setSocialModalVisible(false)}
+                  disabled={isSavingSocialAccount}
+                >
+                  <Text style={styles.modalCancelButtonText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalSaveButton}
+                  onPress={handleSaveSocialAccount}
+                  disabled={isSavingSocialAccount}
+                >
+                  <Text style={styles.modalSaveButtonText}>
+                    {isSavingSocialAccount ? '저장 중...' : '저장'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         {/* 프로필 수정 모달 */}
         <Modal visible={editModalVisible} animationType="none" transparent>
           <View style={styles.modalOverlay}>
@@ -1382,6 +1486,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    flexWrap: 'wrap',
   },
   profileName: {
     fontSize: 24,
@@ -1404,6 +1509,38 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     fontFamily: 'Pretendard-Bold',
+  },
+  socialAddButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  socialAddIcon: {
+    marginRight: 4,
+  },
+  socialAddButtonText: {
+    color: COLORS.PRIMARY,
+    fontSize: 12,
+    fontFamily: 'Pretendard-Medium',
+  },
+  socialHandleText: {
+    color: COLORS.TEXT,
+    fontSize: 12,
+    fontFamily: 'Pretendard-Regular',
+  },
+  socialAccountSlot: {
+    marginTop: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 18,
+  },
+  socialHandleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  socialHandleIcon: {
+    marginRight: 4,
   },
   levelSubtitleWhite: {
     fontSize: 17,
@@ -1444,7 +1581,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 3,
-    marginTop: 17,
+    marginTop: 10,
     backgroundColor: 'transparent',
     alignSelf: 'flex-start',
   },
@@ -1655,6 +1792,41 @@ const styles = StyleSheet.create({
     height: '80%',
     alignSelf: 'center',
     overflow: 'hidden',
+  },
+  socialModalContent: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 16,
+    padding: 20,
+    width: '90%',
+    alignSelf: 'center',
+  },
+  socialModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.TEXT,
+    fontFamily: 'Pretendard-Bold',
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  socialInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.BACKGROUND,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.SURFACE,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  socialInputPrefixIcon: {
+    marginRight: 8,
+  },
+  socialInput: {
+    flex: 1,
+    color: COLORS.TEXT,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontFamily: 'Pretendard-Regular',
   },
   modalHeader: {
     flexDirection: 'row',

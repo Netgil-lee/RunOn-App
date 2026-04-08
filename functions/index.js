@@ -1829,3 +1829,226 @@ exports.garminUserPermission = functions.https.onRequest(async (req, res) => {
   }
 });
 
+/**
+ * 모임 카드형 공유 이미지 엔드포인트 (SVG)
+ */
+exports.eventShareImage = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  const eventId = (req.query.eventId || '').toString().trim();
+  if (!eventId) {
+    res.status(400).send('eventId is required');
+    return;
+  }
+
+  const escapeSvg = (value = '') =>
+    String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const truncate = (value = '', max = 28) => {
+    const str = String(value || '');
+    return str.length > max ? `${str.slice(0, max - 1)}…` : str;
+  };
+
+  try {
+    const eventDoc = await admin.firestore().collection('events').doc(eventId).get();
+    if (!eventDoc.exists) {
+      res.status(404).send('Event not found');
+      return;
+    }
+
+    const event = eventDoc.data() || {};
+    const title = truncate(event.title || 'RunOn 러닝 모임', 30);
+    const location = truncate(event.location || '장소 미정', 16);
+    const dateTime = truncate(`${event.date || ''} ${event.time || ''}`.trim() || '일정 미정', 24);
+    const distance = truncate(event.distance ? `${event.distance}km` : '거리 미정', 10);
+    const pace = truncate(event.pace || '페이스 미정', 14);
+    const difficulty = truncate(event.difficulty || '초급', 6);
+    const rawTags = String(event.hashtags || '')
+      .split(/\s+/)
+      .filter((tag) => tag.startsWith('#'))
+      .slice(0, 3);
+    const tags = rawTags.length > 0 ? rawTags : ['#런온', '#러닝모임', '#함께달려요'];
+
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" style="background:#0E0F12">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0E0F12" />
+      <stop offset="100%" stop-color="#12131A" />
+    </linearGradient>
+    <clipPath id="paceClip">
+      <rect x="620" y="280" width="488" height="100" rx="0" ry="0" />
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="1200" height="630" fill="#0E0F12"/>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#bg)"/>
+  <rect x="34" y="34" width="1132" height="562" rx="28" fill="url(#bg)" stroke="#1E2028" stroke-width="2"/>
+
+  <text x="84" y="130" fill="#FFFFFF" font-size="62" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(title)}</text>
+
+  <rect x="920" y="74" width="140" height="64" rx="30" fill="none" stroke="#C4C679" stroke-width="3"/>
+  <text x="990" y="116" text-anchor="middle" fill="#C4C679" font-size="34" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(difficulty)}</text>
+
+  <circle cx="88" cy="207" r="10" fill="#3AF8FF"/>
+  <text x="116" y="217" fill="#D3D3D3" font-size="42" font-family="Arial, sans-serif">${escapeSvg(location)}</text>
+
+  <circle cx="615" cy="207" r="10" fill="#3AF8FF"/>
+  <text x="643" y="217" fill="#D3D3D3" font-size="40" font-family="Arial, sans-serif">${escapeSvg(dateTime)}</text>
+
+  <rect x="84" y="258" width="1032" height="126" rx="22" fill="#1F2230"/>
+  <text x="290" y="336" fill="#FFFFFF" font-size="58" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(distance)}</text>
+  <rect x="598" y="280" width="2" height="82" fill="#3A3D4A"/>
+  <text x="864" y="336" text-anchor="middle" clip-path="url(#paceClip)" fill="#FFFFFF" font-size="58" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(pace)}</text>
+
+  <rect x="84" y="430" width="190" height="70" rx="35" fill="#123B45"/>
+  <text x="179" y="475" text-anchor="middle" fill="#3AF8FF" font-size="38" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(tags[0] || '#런온')}</text>
+  <rect x="294" y="430" width="260" height="70" rx="35" fill="#123B45"/>
+  <text x="424" y="475" text-anchor="middle" fill="#3AF8FF" font-size="38" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(tags[1] || '#러닝모임')}</text>
+  <rect x="574" y="430" width="210" height="70" rx="35" fill="#123B45"/>
+  <text x="679" y="475" text-anchor="middle" fill="#3AF8FF" font-size="38" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(tags[2] || '#함께달려요')}</text>
+
+  <text x="84" y="568" fill="#5B6072" font-size="28" font-family="Arial, sans-serif">RunOn</text>
+</svg>`.trim();
+
+    res.set('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.status(200).send(svg);
+  } catch (error) {
+    console.error('❌ eventShareImage 처리 실패:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+/**
+ * 모임 공유 링크 엔드포인트
+ * - 웹 링크 미리보기(OG 메타) 제공
+ * - 앱 설치 사용자는 커스텀 스킴으로 자동 이동
+ */
+exports.eventShare = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'GET') {
+    res.status(405).send('Method Not Allowed');
+    return;
+  }
+
+  const escapeHtml = (value = '') =>
+    String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const eventId = (req.query.eventId || '').toString().trim();
+  const version = (req.query.v || '2').toString().trim();
+  if (!eventId) {
+    res.status(400).send('eventId is required');
+    return;
+  }
+
+  try {
+    const eventDoc = await admin.firestore().collection('events').doc(eventId).get();
+    if (!eventDoc.exists) {
+      res.status(404).send('Event not found');
+      return;
+    }
+
+    const event = eventDoc.data() || {};
+    const title = event.title || 'RunOn 러닝 모임';
+    const location = event.location || '장소 미정';
+    const date = event.date || '';
+    const time = event.time || '';
+    const description = `${location}${date || time ? ` · ${date} ${time}` : ''}`.trim();
+
+    const projectId = admin.app().options.projectId || 'runon-production-app';
+    const shareUrl = `https://us-central1-${projectId}.cloudfunctions.net/eventShare?eventId=${encodeURIComponent(eventId)}&v=${encodeURIComponent(version)}`;
+    const ogImage = `https://us-central1-${projectId}.cloudfunctions.net/eventShareImage?eventId=${encodeURIComponent(eventId)}&v=${encodeURIComponent(version)}`;
+    const deepLinkUrl = `com.runon.app://event/${encodeURIComponent(eventId)}`;
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.status(200).send(`<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="${escapeHtml(title)}" />
+  <meta property="og:description" content="${escapeHtml(description)}" />
+  <meta property="og:image" content="${escapeHtml(ogImage)}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:url" content="${escapeHtml(shareUrl)}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="${escapeHtml(ogImage)}" />
+  <style>
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0a0a0a; color:#fff; }
+    .wrap { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:16px; padding:24px; text-align:center; }
+    .title { font-size:22px; font-weight:700; }
+    .desc { color:#b3b3b3; font-size:14px; }
+    .btn { display:inline-block; padding:12px 16px; border-radius:10px; text-decoration:none; font-weight:600; }
+    .open { background:#3AF8FF; color:#000; }
+    .install { background:#1f1f24; color:#fff; border:1px solid #333; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">${escapeHtml(title)}</div>
+    <div class="desc">${escapeHtml(description)}</div>
+    <a class="btn open" id="openAppBtn" href="${escapeHtml(deepLinkUrl)}">러논 앱에서 열기</a>
+    <a class="btn install hidden" id="installBtn" href="https://apps.apple.com/" target="_blank" rel="noreferrer">앱 설치하기</a>
+    <div class="desc hidden" id="installHint">앱이 설치되어 있지 않다면 설치 후 다시 열어주세요.</div>
+  </div>
+  <script>
+    (function() {
+      var deepLink = ${JSON.stringify(deepLinkUrl)};
+      var installBtn = document.getElementById('installBtn');
+      var installHint = document.getElementById('installHint');
+      var opened = false;
+
+      var timeout = setTimeout(function() {
+        if (!opened) {
+          installBtn.classList.remove('hidden');
+          installHint.classList.remove('hidden');
+        }
+      }, 1800);
+
+      window.addEventListener('pagehide', function() {
+        opened = true;
+        clearTimeout(timeout);
+      });
+
+      // 사용자 클릭 없이도 앱 실행 시도
+      window.location.href = deepLink;
+    })();
+  </script>
+</body>
+</html>`);
+  } catch (error) {
+    console.error('❌ eventShare 처리 실패:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+

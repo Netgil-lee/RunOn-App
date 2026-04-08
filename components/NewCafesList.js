@@ -35,16 +35,22 @@ const COLORS = {
 
 const NewCafesList = ({ navigation }) => {
   const [newCafes, setNewCafes] = useState([]);
+  const [newFoods, setNewFoods] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [activeType, setActiveType] = useState('cafes'); // 'cafes' | 'foods'
   const flatListRef = useRef(null);
 
   // 신규 입점 카페 조회 (최근 1개월)
   const loadNewCafes = useCallback(async () => {
     try {
       setIsLoading(true);
-      const cafes = await firestoreService.getNewCafes(10);
+      const [cafes, foods] = await Promise.all([
+        firestoreService.getNewCafes(10),
+        firestoreService.getNewFoods(10)
+      ]);
       setNewCafes(cafes);
+      setNewFoods(foods);
     } catch (error) {
       console.error('❌ [NewCafesList] 신규 카페 조회 실패:', error);
     } finally {
@@ -59,13 +65,23 @@ const NewCafesList = ({ navigation }) => {
     }, [loadNewCafes])
   );
 
-  // 카페 클릭 핸들러
-  const handleCafePress = (cafe) => {
+  // 카드 클릭 핸들러 (카페/푸드)
+  const handlePlacePress = (item) => {
+    if (activeType === 'cafes') {
+      navigation.navigate('MapTab', {
+        targetCafeId: item.id,
+        activeToggle: 'cafes'
+      });
+      return;
+    }
+
     navigation.navigate('MapTab', {
-      targetCafeId: cafe.id,
-      activeToggle: 'cafes'
+      targetFoodId: item.id,
+      activeToggle: 'foods'
     });
   };
+
+  const currentItems = activeType === 'cafes' ? newCafes : newFoods;
 
   // 입점일 포맷팅
   const formatDate = (timestamp) => {
@@ -83,11 +99,11 @@ const NewCafesList = ({ navigation }) => {
 
   // 페이지 인디케이터 렌더링
   const renderPagination = () => {
-    if (newCafes.length <= 1) return null;
+    if (currentItems.length <= 1) return null;
     
     return (
       <View style={styles.paginationContainer}>
-        {newCafes.map((_, index) => (
+        {currentItems.map((_, index) => (
           <View
             key={index}
             style={[
@@ -100,11 +116,11 @@ const NewCafesList = ({ navigation }) => {
     );
   };
 
-  // 카페 카드 렌더링
+  // 카드 렌더링
   const renderCafeCard = ({ item, index }) => (
     <TouchableOpacity
       style={styles.cafeCard}
-      onPress={() => handleCafePress(item)}
+      onPress={() => handlePlacePress(item)}
       activeOpacity={0.8}
     >
       {item.representativeImage ? (
@@ -115,7 +131,7 @@ const NewCafesList = ({ navigation }) => {
         />
       ) : (
         <View style={styles.cafeImagePlaceholder}>
-          <Ionicons name="cafe-outline" size={48} color={COLORS.SECONDARY} />
+          <Ionicons name={activeType === 'cafes' ? 'cafe-outline' : 'restaurant-outline'} size={48} color={COLORS.SECONDARY} />
         </View>
       )}
       
@@ -132,7 +148,9 @@ const NewCafesList = ({ navigation }) => {
         </Text>
         <View style={styles.dateContainer}>
           <Ionicons name="calendar-outline" size={12} color={COLORS.PRIMARY} />
-          <Text style={styles.cafeDate}>{formatDate(item.createdAt)}</Text>
+          <Text style={styles.cafeDate}>
+            {activeType === 'cafes' ? formatDate(item.createdAt) : `신규 등록 · ${formatDate(item.createdAt)}`}
+          </Text>
         </View>
       </View>
       
@@ -160,7 +178,7 @@ const NewCafesList = ({ navigation }) => {
       <View style={styles.container}>
         <View style={styles.header}>
           <Ionicons name="sparkles" size={18} color={COLORS.PRIMARY} />
-          <Text style={styles.sectionTitle}>신규 입점 카페</Text>
+          <Text style={styles.sectionTitle}>신규 입점</Text>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={COLORS.PRIMARY} />
@@ -170,16 +188,40 @@ const NewCafesList = ({ navigation }) => {
   }
 
   // 데이터 없음
-  if (newCafes.length === 0) {
+  if (currentItems.length === 0) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
           <Ionicons name="sparkles" size={18} color={COLORS.PRIMARY} />
-          <Text style={styles.sectionTitle}>신규 입점 카페</Text>
+          <Text style={styles.sectionTitle}>신규 입점</Text>
+        </View>
+        <View style={styles.typeTabs}>
+          <TouchableOpacity
+            style={[styles.typeTab, activeType === 'cafes' && styles.typeTabActive]}
+            onPress={() => {
+              setActiveType('cafes');
+              setCurrentIndex(0);
+            }}
+          >
+            <Text style={[styles.typeTabText, activeType === 'cafes' && styles.typeTabTextActive]}>러닝카페</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.typeTab, activeType === 'foods' && styles.typeTabActive]}
+            onPress={() => {
+              setActiveType('foods');
+              setCurrentIndex(0);
+            }}
+          >
+            <Text style={[styles.typeTabText, activeType === 'foods' && styles.typeTabTextActive]}>러닝푸드</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.emptyContainer}>
-          <Ionicons name="cafe-outline" size={32} color={COLORS.SECONDARY} />
-          <Text style={styles.emptyText}>최근 1개월 내 신규 입점 카페가 없습니다</Text>
+          <Ionicons name={activeType === 'cafes' ? 'cafe-outline' : 'restaurant-outline'} size={32} color={COLORS.SECONDARY} />
+          <Text style={styles.emptyText}>
+            {activeType === 'cafes'
+              ? '최근 1개월 내 신규 입점 카페가 없습니다'
+              : '최근 1개월 내 신규 입점 러닝푸드가 없습니다'}
+          </Text>
         </View>
       </View>
     );
@@ -190,14 +232,36 @@ const NewCafesList = ({ navigation }) => {
       {/* 헤더 */}
       <View style={styles.header}>
         <Ionicons name="sparkles" size={18} color={COLORS.PRIMARY} />
-        <Text style={styles.sectionTitle}>신규 입점 카페</Text>
+        <Text style={styles.sectionTitle}>신규 입점</Text>
         <Text style={styles.subtitle}>최근 1개월</Text>
+      </View>
+      <View style={styles.typeTabs}>
+        <TouchableOpacity
+          style={[styles.typeTab, activeType === 'cafes' && styles.typeTabActive]}
+          onPress={() => {
+            setActiveType('cafes');
+            setCurrentIndex(0);
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+          }}
+        >
+          <Text style={[styles.typeTabText, activeType === 'cafes' && styles.typeTabTextActive]}>러닝카페</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.typeTab, activeType === 'foods' && styles.typeTabActive]}
+          onPress={() => {
+            setActiveType('foods');
+            setCurrentIndex(0);
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+          }}
+        >
+          <Text style={[styles.typeTabText, activeType === 'foods' && styles.typeTabTextActive]}>러닝푸드</Text>
+        </TouchableOpacity>
       </View>
       
       {/* 캐러셀 */}
       <FlatList
         ref={flatListRef}
-        data={newCafes}
+        data={currentItems}
         renderItem={renderCafeCard}
         keyExtractor={(item) => item.id}
         horizontal
@@ -231,6 +295,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 12,
     gap: 6,
+  },
+  typeTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  typeTab: {
+    flex: 1,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#333333',
+    backgroundColor: '#1F1F24',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeTabActive: {
+    borderColor: COLORS.PRIMARY,
+    backgroundColor: 'rgba(58, 248, 255, 0.15)',
+  },
+  typeTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.SECONDARY,
+  },
+  typeTabTextActive: {
+    color: COLORS.PRIMARY,
   },
   sectionTitle: {
     fontSize: 18,

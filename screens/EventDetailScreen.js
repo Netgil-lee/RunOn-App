@@ -487,6 +487,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                 id: participantId, // 실제 사용자 ID 사용
                 name: isHost ? hostName : (userProfile?.profile?.nickname || userProfile?.displayName),
                 profileImage: profileImage,
+                instagramId: userProfile?.profile?.instagramId || userProfile?.instagramId || '',
                 isHost: isHost,
                 level: userProfile?.profile?.level || '초급',
                 mannerScore: userProfile?.profile?.mannerScore || 5.0,
@@ -505,6 +506,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                 id: participantId, // 실제 사용자 ID 사용
                 name: null,
                 profileImage: null,
+                instagramId: '',
                 isHost: event.organizerId === participantId,
                 level: '초급',
                 mannerScore: 5.0,

@@ -12,6 +12,7 @@ import {
   Platform,
   Keyboard,
   SafeAreaView,
+  Share,
   Image,
   Dimensions,
   ActivityIndicator,
@@ -919,6 +920,8 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
   const [isButtonPressed, setIsButtonPressed] = useState(false);
   const [isEvaluationCompleted, setIsEvaluationCompleted] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const actionModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const actionSheetTranslateY = useRef(new Animated.Value(300)).current;
   
   // ref 상태들
   const [meetingCardRef, setMeetingCardRef] = useState(null);
@@ -936,6 +939,47 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
       onMeetingCardMenuRef(meetingCardMenuRef);
     }
   }, [meetingCardMenuRef, onMeetingCardMenuRef]);
+
+  useEffect(() => {
+    if (showActionModal) {
+      actionModalBackdropOpacity.setValue(0);
+      actionSheetTranslateY.setValue(300);
+
+      Animated.parallel([
+        Animated.timing(actionModalBackdropOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(actionSheetTranslateY, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showActionModal, actionModalBackdropOpacity, actionSheetTranslateY]);
+
+  const closeActionModal = useCallback((afterClose) => {
+    Animated.parallel([
+      Animated.timing(actionModalBackdropOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(actionSheetTranslateY, {
+        toValue: 300,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowActionModal(false);
+      if (typeof afterClose === 'function') {
+        afterClose();
+      }
+    });
+  }, [actionModalBackdropOpacity, actionSheetTranslateY]);
 
   // 평가 완료 여부 확인 함수
   const checkEvaluationStatus = async () => {
@@ -1165,17 +1209,19 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
   };
 
   const handleEditAction = () => {
-    setShowActionModal(false);
-    onEdit();
+    closeActionModal(() => {
+      onEdit();
+    });
   };
 
   const handleDeleteAction = () => {
-    setShowActionModal(false);
-    onDelete();
+    closeActionModal(() => {
+      onDelete();
+    });
   };
 
   const handleLeaveEvent = () => {
-    setShowActionModal(false);
+    closeActionModal();
     Alert.alert(
       '모임 나가기',
       '이 모임에서 나가시겠습니까?',
@@ -1191,6 +1237,33 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
       ]
     );
   };
+
+  const handleShareMeetingLink = useCallback(async () => {
+    try {
+      if (!event?.id) {
+        Alert.alert('오류', '모임 링크를 생성할 수 없습니다.');
+        return;
+      }
+
+      const projectId = ENV.firebaseProjectId || 'runon-production-app';
+      const cacheVersion = Date.now();
+      const meetingLink = `https://us-central1-${projectId}.cloudfunctions.net/eventShare?eventId=${encodeURIComponent(event.id)}&v=${cacheVersion}`;
+      const ClipboardModule = await import('expo-clipboard');
+      await ClipboardModule.setStringAsync(meetingLink);
+      Alert.alert('안내', '모임공유링크가 복사되었습니다');
+    } catch (error) {
+      console.error('모임 공유 링크 복사 실패:', error);
+      try {
+        const projectId = ENV.firebaseProjectId || 'runon-production-app';
+        const cacheVersion = Date.now();
+        const meetingLink = `https://us-central1-${projectId}.cloudfunctions.net/eventShare?eventId=${encodeURIComponent(event.id)}&v=${cacheVersion}`;
+        await Share.share({ message: meetingLink });
+      } catch (shareError) {
+        console.error('모임 공유 시트 실행 실패:', shareError);
+        Alert.alert('오류', '모임 공유 링크 복사에 실패했습니다.');
+      }
+    }
+  }, [event?.id]);
 
   const handleCardPress = () => {
     // 버튼이 눌린 상태가 아닐 때만 카드 클릭 이벤트 실행
@@ -1345,12 +1418,17 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
             )
           ) : (
             // 일반 모임일 때는 참여자 정보 표시
-            (event.participants || event.maxParticipants) && (
-              <Text style={styles.participantInfo}>
-                참여자 {Array.isArray(event.participants) ? event.participants.length : (event.participants || 0)}
-                {event.maxParticipants ? `/${event.maxParticipants}` : ' (제한 없음)'}
-              </Text>
-            )
+            <View style={styles.rightInfoRow}>
+              <TouchableOpacity style={styles.shareMeetingLinkButton} onPress={handleShareMeetingLink}>
+                <Text style={styles.shareMeetingLinkButtonText}>모임공유</Text>
+              </TouchableOpacity>
+              {(event.participants || event.maxParticipants) && (
+                <Text style={styles.participantInfo}>
+                  참여자 {Array.isArray(event.participants) ? event.participants.length : (event.participants || 0)}
+                  {event.maxParticipants ? `/${event.maxParticipants}` : ' (제한 없음)'}
+                </Text>
+              )}
+            </View>
           )}
         </View>
       </View>
@@ -1359,15 +1437,26 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
       <Modal
         visible={showActionModal}
         transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowActionModal(false)}
+        animationType="none"
+        onRequestClose={closeActionModal}
       >
         <TouchableOpacity 
-          style={styles.modalOverlay} 
+          style={styles.actionModalOverlay}
           activeOpacity={1} 
-          onPress={() => setShowActionModal(false)}
+          onPress={closeActionModal}
         >
-          <View style={styles.bottomModalContainer}>
+          <Animated.View
+            style={[
+              styles.actionModalBackdrop,
+              { opacity: actionModalBackdropOpacity }
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.bottomModalContainer,
+              { transform: [{ translateY: actionSheetTranslateY }] }
+            ]}
+          >
             <View style={styles.bottomModal}>
               <TouchableOpacity 
                 style={styles.bottomMenuItem} 
@@ -1384,12 +1473,12 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
               <View style={styles.bottomModalSeparator} />
               <TouchableOpacity 
                 style={styles.bottomMenuItem} 
-                onPress={() => setShowActionModal(false)}
+                onPress={closeActionModal}
               >
                 <Text style={styles.bottomMenuItemText}>닫기</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </TouchableOpacity>
       </Modal>
 
@@ -3679,6 +3768,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
+  rightInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  shareMeetingLinkButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: '#263238',
+  },
+  shareMeetingLinkButtonText: {
+    fontSize: 13,
+    color: COLORS.PRIMARY,
+    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
+  },
   evaluationButton: {
     backgroundColor: COLORS.PRIMARY,
     paddingHorizontal: 12,
@@ -5271,6 +5377,18 @@ const styles = StyleSheet.create({
   },
 
   // 액션 모달 스타일
+  actionModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  actionModalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

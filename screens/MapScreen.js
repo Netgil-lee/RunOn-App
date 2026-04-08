@@ -16,7 +16,8 @@ import { unifiedSearch } from '../services/searchService';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import evaluationService from '../services/evaluationService';
-import { recordCafeVisit } from '../services/userActivityService';
+import { recordCafeVisit, recordFoodVisit } from '../services/userActivityService';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
 // 현재 위치 마커는 SVG로 직접 생성 (이미지 파일 사용 안 함)
 
@@ -89,22 +90,26 @@ const MapScreen = ({ navigation, route }) => {
   const nav = useNavigation();
   
   // route params에서 대시보드에서 전달된 데이터 받기
-  const { targetCafeId, activeToggle: initialToggle, searchQuery: initialSearchQuery } = route?.params || {};
+  const { targetEventId, targetCafeId, targetFoodId, activeToggle: initialToggle, searchQuery: initialSearchQuery } = route?.params || {};
   const [isLoading, setIsLoading] = useState(true);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationPermission, setLocationPermission] = useState(false);
   const [isLocationLoading, setIsLocationLoading] = useState(false);
-  const [activeToggle, setActiveToggle] = useState('events'); // 'events' | 'cafes'
+  const [activeToggle, setActiveToggle] = useState('events'); // 'events' | 'cafes' | 'foods'
   const [events, setEvents] = useState([]);
   const [cafes, setCafes] = useState([]);
+  const [foods, setFoods] = useState([]);
   const [clusterData, setClusterData] = useState(null); // 클러스터 클릭 시 데이터
   const [selectedEvent, setSelectedEvent] = useState(null); // 선택된 모임 (상세 화면 표시용)
   const [selectedCafe, setSelectedCafe] = useState(null); // 선택된 카페 (상세 화면 표시용)
+  const [selectedFood, setSelectedFood] = useState(null); // 선택된 러닝푸드 (상세 화면 표시용)
   const [cafeImageIndex, setCafeImageIndex] = useState(0); // 카페 이미지 캐러셀 현재 인덱스
   const [showAllEvents, setShowAllEvents] = useState(false); // 전체 모임 목록 표시 여부
   const [showAllCafes, setShowAllCafes] = useState(false); // 전체 카페 목록 표시 여부
+  const [showAllFoods, setShowAllFoods] = useState(false); // 전체 러닝푸드 목록 표시 여부
   const [searchQuery, setSearchQuery] = useState(''); // 검색어
   const [cafeSearchQuery, setCafeSearchQuery] = useState(''); // 카페 검색어
+  const [foodSearchQuery, setFoodSearchQuery] = useState(''); // 러닝푸드 검색어
   const [mapSearchQuery, setMapSearchQuery] = useState(''); // 지도 탭 검색어
   const [searchResults, setSearchResults] = useState([]); // 검색 결과
   const [isSearching, setIsSearching] = useState(false); // 검색 중 상태
@@ -118,6 +123,7 @@ const MapScreen = ({ navigation, route }) => {
   const [bottomButtonProps, setBottomButtonProps] = useState(null);
   const { user } = useAuth();
   const { endEvent, joinEvent, leaveEvent, chatRooms } = useEvents();
+  const firestore = getFirestore();
   
   // footerComponent를 위한 render 함수
   const renderFooter = useCallback((props) => {
@@ -218,6 +224,25 @@ const MapScreen = ({ navigation, route }) => {
     });
   }, [cafes, clusterData, cafeSearchQuery]);
 
+  // 필터링된 러닝푸드 목록 (검색어 기반)
+  const filteredFoods = useMemo(() => {
+    if (!foodSearchQuery.trim()) {
+      return clusterData
+        ? clusterData.filter(item => item.type === 'food').map(item => item.data)
+        : foods;
+    }
+
+    const query = foodSearchQuery.toLowerCase();
+    const allFoods = clusterData
+      ? clusterData.filter(item => item.type === 'food').map(item => item.data)
+      : foods;
+
+    return allFoods.filter(food => {
+      const nameMatch = food.name?.toLowerCase().includes(query);
+      return nameMatch;
+    });
+  }, [foods, clusterData, foodSearchQuery]);
+
   // Runon 색상 시스템
   const COLORS = {
     PRIMARY: '#3AF8FF',
@@ -307,17 +332,21 @@ const MapScreen = ({ navigation, route }) => {
           var currentLocationMarker = null;
           var eventMarkers = [];
           var cafeMarkers = [];
+          var foodMarkers = [];
           var eventInfoWindows = []; // 모임 마커 정보창 배열
           var cafeInfoWindows = []; // 카페 마커 정보창 배열
-          var currentToggle = 'events'; // 'events' | 'cafes'
+          var foodInfoWindows = []; // 러닝푸드 마커 정보창 배열
+          var currentToggle = 'events'; // 'events' | 'cafes' | 'foods'
           var clusterer = null; // MarkerClusterer 인스턴스
           var currentEventsData = []; // 현재 표시된 모임 데이터
           var currentCafesData = []; // 현재 표시된 카페 데이터
+          var currentFoodsData = []; // 현재 표시된 러닝푸드 데이터
           var searchPlaceMarker = null; // 검색한 장소 마커
           var isProgrammaticMove = false; // 프로그래밍 방식 지도 이동 중 플래그
           var currentMapLevel = 9; // 현재 지도 레벨
           var openEventInfoWindowId = null; // 현재 열려있는 모임 인포윈도우의 이벤트 ID
           var openCafeInfoWindowId = null; // 현재 열려있는 카페 인포윈도우의 카페 ID
+          var openFoodInfoWindowId = null; // 현재 열려있는 러닝푸드 인포윈도우의 ID
           
           function log(message, type = 'info') {
             if (window.ReactNativeWebView) {
@@ -334,6 +363,8 @@ const MapScreen = ({ navigation, route }) => {
               activeMarkers = eventMarkers;
             } else if (currentToggle === 'cafes') {
               activeMarkers = cafeMarkers;
+            } else if (currentToggle === 'foods') {
+              activeMarkers = foodMarkers;
             }
             
             // 클러스터에 마커 업데이트
@@ -356,8 +387,12 @@ const MapScreen = ({ navigation, route }) => {
             cafeInfoWindows.forEach(function(iw) {
               iw.close();
             });
+            foodInfoWindows.forEach(function(iw) {
+              iw.close();
+            });
             openEventInfoWindowId = null;
             openCafeInfoWindowId = null;
+            openFoodInfoWindowId = null;
             
             if (toggle === 'events') {
               // 모임 마커 표시, 카페 마커 숨김
@@ -373,6 +408,20 @@ const MapScreen = ({ navigation, route }) => {
                 marker.setMap(map);
               });
               eventMarkers.forEach(function(marker) {
+                marker.setMap(null);
+              });
+              foodMarkers.forEach(function(marker) {
+                marker.setMap(null);
+              });
+            } else if (toggle === 'foods') {
+              // 러닝푸드 마커 표시, 모임/카페 마커 숨김
+              foodMarkers.forEach(function(marker) {
+                marker.setMap(map);
+              });
+              eventMarkers.forEach(function(marker) {
+                marker.setMap(null);
+              });
+              cafeMarkers.forEach(function(marker) {
                 marker.setMap(null);
               });
             }
@@ -676,6 +725,137 @@ const MapScreen = ({ navigation, route }) => {
             
             log('✅ 카페 마커 생성 완료: ' + cafeMarkers.length + '개', 'success');
           }
+
+          // 러닝푸드 마커 생성 함수
+          function createFoodMarkers(foodsData) {
+            var previouslyOpenFoodId = openFoodInfoWindowId;
+
+            foodMarkers.forEach(function(marker) {
+              marker.setMap(null);
+            });
+            foodInfoWindows.forEach(function(infoWindow) {
+              infoWindow.close();
+            });
+            foodMarkers = [];
+            foodInfoWindows = [];
+            currentFoodsData = foodsData || [];
+
+            if (!foodsData || foodsData.length === 0) {
+              log('📍 러닝푸드 데이터 없음', 'info');
+              updateClusterer();
+              return;
+            }
+
+            foodsData.forEach(function(food) {
+              try {
+                var lat, lng;
+                if (food.coordinates) {
+                  lat = food.coordinates.latitude || food.coordinates._lat;
+                  lng = food.coordinates.longitude || food.coordinates._long;
+                } else {
+                  return;
+                }
+
+                var markerPosition = new kakao.maps.LatLng(lat, lng);
+                var markerSize = currentMapLevel >= 5 ? { width: 24, height: 30, offsetX: 12, offsetY: 30 } : { width: 32, height: 40, offsetX: 16, offsetY: 40 };
+
+                // 요청사항: 러닝푸드 마커색은 러닝카페와 동일
+                var foodSvg = '<svg width="' + markerSize.width + '" height="' + markerSize.height + '" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
+                  '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#FF0073"/>' +
+                  '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
+                  '<circle cx="12" cy="12" r="3" fill="#FF0073"/>' +
+                  '</svg>';
+
+                var foodImageSrc = 'data:image/svg+xml;base64,' + btoa(foodSvg);
+                var foodImageSize = new kakao.maps.Size(markerSize.width, markerSize.height);
+                var foodImageOffset = new kakao.maps.Point(markerSize.offsetX, markerSize.offsetY);
+
+                var foodImage = new kakao.maps.MarkerImage(
+                  foodImageSrc,
+                  foodImageSize,
+                  { offset: foodImageOffset }
+                );
+
+                var marker = new kakao.maps.Marker({
+                  position: markerPosition,
+                  image: foodImage,
+                  map: currentToggle === 'foods' ? map : null,
+                  zIndex: 100
+                });
+
+                var foodName = food.name || '러닝푸드';
+                var benefitText = food.runningCertificationBenefit || '';
+                var infoWindowContent = '<div class="info-window">' +
+                  '<div style="font-weight: 600; margin-bottom: 4px; white-space: nowrap;">' + foodName + '</div>' +
+                  (benefitText ? '<div style="font-size: 11px; color: #3AF8FF; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + benefitText + '</div>' : '') +
+                  '</div>';
+                var infoWindow = new kakao.maps.InfoWindow({
+                  content: infoWindowContent,
+                  removable: false,
+                  yAnchor: 0.1
+                });
+
+                foodMarkers.push(marker);
+                foodInfoWindows.push(infoWindow);
+
+                (function(currentFood, currentMarker, currentInfoWindow, currentIndex) {
+                  kakao.maps.event.addListener(currentMarker, 'click', function(mouseEvent) {
+                    if (mouseEvent) {
+                      if (mouseEvent.stopPropagation) {
+                        mouseEvent.stopPropagation();
+                      }
+                      if (mouseEvent.preventDefault) {
+                        mouseEvent.preventDefault();
+                      }
+                    }
+
+                    foodInfoWindows.forEach(function(iw, i) {
+                      if (i !== currentIndex) {
+                        iw.close();
+                      }
+                    });
+
+                    if (!currentInfoWindow.getMap()) {
+                      currentInfoWindow.open(map, currentMarker);
+                    }
+                    openFoodInfoWindowId = currentFood.id;
+
+                    window.isMarkerClick = true;
+                    setTimeout(function() {
+                      window.isMarkerClick = false;
+                    }, 100);
+
+                    if (window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'foodMarkerClick',
+                        foodId: currentFood.id,
+                        food: currentFood
+                      }));
+                    }
+                    log('📍 러닝푸드 마커 클릭: ' + (currentFood.name || currentFood.id), 'info');
+                  });
+                })(food, marker, infoWindow, foodMarkers.length - 1);
+              } catch (error) {
+                log('❌ 러닝푸드 마커 생성 실패: ' + error.message, 'error');
+              }
+            });
+
+            updateClusterer();
+
+            if (previouslyOpenFoodId) {
+              setTimeout(function() {
+                foodsData.forEach(function(food, index) {
+                  if (food.id === previouslyOpenFoodId && foodMarkers[index] && foodInfoWindows[index]) {
+                    foodInfoWindows[index].open(map, foodMarkers[index]);
+                    openFoodInfoWindowId = previouslyOpenFoodId;
+                    log('📍 인포윈도우 복원: ' + (food.name || food.id), 'info');
+                  }
+                });
+              }, 100);
+            }
+
+            log('✅ 러닝푸드 마커 생성 완료: ' + foodMarkers.length + '개', 'success');
+          }
           
           // 현재 위치 마커 생성 함수 (SVG만 사용)
           function createCurrentLocationMarker(lat, lng) {
@@ -733,6 +913,8 @@ const MapScreen = ({ navigation, route }) => {
                 createEventMarkers(data.events);
               } else if (data.type === 'updateCafes') {
                 createCafeMarkers(data.cafes);
+              } else if (data.type === 'updateFoods') {
+                createFoodMarkers(data.foods);
               } else if (data.type === 'switchToggle') {
                 showMarkersForToggle(data.toggle);
                 // 지도 초기화가 요청된 경우
@@ -761,6 +943,9 @@ const MapScreen = ({ navigation, route }) => {
                   if (currentCafesData.length > 0) {
                     createCafeMarkers(currentCafesData);
                   }
+                  if (currentFoodsData.length > 0) {
+                    createFoodMarkers(currentFoodsData);
+                  }
                   log('📍 지도 레벨 변경: ' + data.level, 'info');
                 }
               } else if (data.type === 'moveToMarkerAndZoom') {
@@ -778,6 +963,9 @@ const MapScreen = ({ navigation, route }) => {
                   }
                   if (currentCafesData.length > 0) {
                     createCafeMarkers(currentCafesData);
+                  }
+                  if (currentFoodsData.length > 0) {
+                    createFoodMarkers(currentFoodsData);
                   }
                   log('📍 마커 위치로 이동 및 확대: ' + data.latitude + ', ' + data.longitude + ' (레벨: ' + targetLevel + ')', 'info');
                 }
@@ -941,6 +1129,15 @@ const MapScreen = ({ navigation, route }) => {
                         data: currentCafesData[cafeIndex]
                       });
                     }
+
+                    // 마커가 foodMarkers에 속하는지 확인
+                    var foodIndex = foodMarkers.indexOf(marker);
+                    if (foodIndex !== -1 && currentFoodsData[foodIndex]) {
+                      clusterData.push({
+                        type: 'food',
+                        data: currentFoodsData[foodIndex]
+                      });
+                    }
                   });
                   
                   if (window.ReactNativeWebView && clusterData.length > 0) {
@@ -1003,6 +1200,9 @@ const MapScreen = ({ navigation, route }) => {
                     }
                     if (currentCafesData.length > 0) {
                       createCafeMarkers(currentCafesData);
+                    }
+                    if (currentFoodsData.length > 0) {
+                      createFoodMarkers(currentFoodsData);
                     }
                     log('📍 지도 레벨 변경 감지: ' + newLevel, 'info');
                   }
@@ -1165,13 +1365,34 @@ const MapScreen = ({ navigation, route }) => {
     }
   };
 
+  // 러닝푸드 데이터 로드 (반경 제한 없음 - 모든 러닝푸드 조회)
+  const loadFoods = async () => {
+    try {
+      console.log('📍 러닝푸드 데이터 로드 시작 (모든 러닝푸드 조회)');
+      const allFoods = await firestoreService.getAllFoods();
+      console.log('✅ 러닝푸드 데이터 로드 완료:', allFoods.length, '개');
+      setFoods(allFoods);
+
+      if (webViewRef.current) {
+        const message = JSON.stringify({
+          type: 'updateFoods',
+          foods: allFoods
+        });
+        webViewRef.current?.postMessage(message);
+      }
+    } catch (error) {
+      console.error('❌ 러닝푸드 데이터 로드 실패:', error);
+    }
+  };
+
   // 초기 위치 설정 및 데이터 로드
   useEffect(() => {
     const initializeLocation = async () => {
       // 모든 모임 로드 (반경 제한 없음)
       await Promise.all([
         loadAllEvents(),
-        loadCafes(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude) // 카페는 기본 위치 기준
+        loadCafes(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude), // 카페는 기본 위치 기준
+        loadFoods()
       ]);
     };
     
@@ -1244,9 +1465,21 @@ const MapScreen = ({ navigation, route }) => {
           navigation.setParams({ targetCafeId: undefined, activeToggle: undefined });
         }
       }
+
+      // 대시보드에서 러닝푸드 카드 클릭으로 진입한 경우 처리
+      if (targetFoodId && foods.length > 0) {
+        const targetFood = foods.find(food => food.id === targetFoodId);
+        if (targetFood) {
+          setActiveToggle('foods');
+          setTimeout(() => {
+            handleFoodClick(targetFood);
+          }, 300);
+          navigation.setParams({ targetFoodId: undefined, activeToggle: undefined });
+        }
+      }
       
       // 대시보드에서 토글 변경 요청이 있는 경우
-      if (initialToggle && !targetCafeId) {
+      if (initialToggle && !targetCafeId && !targetFoodId) {
         setActiveToggle(initialToggle);
         navigation.setParams({ activeToggle: undefined });
       }
@@ -1277,7 +1510,7 @@ const MapScreen = ({ navigation, route }) => {
           },
         });
       };
-    }, [navigation, targetCafeId, initialToggle, initialSearchQuery, cafes, handleCafeClick]) // 의존성 추가
+    }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, cafes, foods, handleCafeClick, handleFoodClick]) // 의존성 추가
   );
 
   // WebView 메시지 핸들러 (HanRiverMap.js의 handleWebViewMessage 기반)
@@ -1325,6 +1558,13 @@ const MapScreen = ({ navigation, route }) => {
             });
             webViewRef.current?.postMessage(cafesMessage);
           }
+          if (foods.length > 0) {
+            const foodsMessage = JSON.stringify({
+              type: 'updateFoods',
+              foods: foods
+            });
+            webViewRef.current?.postMessage(foodsMessage);
+          }
           // 기본 토글 설정
           const toggleMessage = JSON.stringify({
             type: 'switchToggle',
@@ -1357,6 +1597,15 @@ const MapScreen = ({ navigation, route }) => {
           const { cafe } = parsedData;
           if (cafe) {
             handleCafeClick(cafe);
+          }
+          return; // 마커 클릭 시 지도 클릭 이벤트 무시
+        }
+
+        // 러닝푸드 마커 클릭 이벤트 처리
+        if (parsedData.type === 'foodMarkerClick') {
+          const { food } = parsedData;
+          if (food) {
+            handleFoodClick(food);
           }
           return; // 마커 클릭 시 지도 클릭 이벤트 무시
         }
@@ -1403,6 +1652,9 @@ const MapScreen = ({ navigation, route }) => {
         } else if (result.searchType === 'cafe') {
           // 카페 선택 시
           handleCafeClick(result);
+        } else if (result.searchType === 'food') {
+          // 러닝푸드 선택 시
+          handleFoodClick(result);
         } else if (result.searchType === 'place') {
           // 장소 선택 시 - 지도 이동 및 마커 표시
           if (webViewRef.current && result.x && result.y) {
@@ -1451,8 +1703,10 @@ const MapScreen = ({ navigation, route }) => {
     setActiveToggle(toggle);
     setShowAllEvents(false); // 전체 보기 모드 해제
     setShowAllCafes(false); // 전체 보기 모드 해제
+    setShowAllFoods(false); // 전체 보기 모드 해제
     setSelectedEvent(null); // 선택된 모임 초기화
     setSelectedCafe(null); // 선택된 카페 초기화
+    setSelectedFood(null); // 선택된 러닝푸드 초기화
     setClusterData(null); // 클러스터 데이터 초기화
     
     // Bottom Sheet 축소
@@ -1489,6 +1743,7 @@ const MapScreen = ({ navigation, route }) => {
     if (index === 0 || index === 1) {
       setShowAllEvents(false);
       setShowAllCafes(false);
+      setShowAllFoods(false);
     }
   }, []);
   
@@ -1519,14 +1774,18 @@ const MapScreen = ({ navigation, route }) => {
     }
     setSelectedEvent(null); // 상세 화면 닫기
     setSelectedCafe(null); // 카페 상세 화면 닫기
+    setSelectedFood(null); // 러닝푸드 상세 화면 닫기
     setClusterData(null); // 클러스터 데이터 초기화
     setShowAllEvents(false); // 전체 보기 모드 해제
     setShowAllCafes(false); // 전체 보기 모드 해제
+    setShowAllFoods(false); // 전체 보기 모드 해제
   }, []);
   
   // 모임 클릭 핸들러
   const handleEventClick = useCallback((event) => {
     setSelectedEvent(event);
+    setSelectedCafe(null);
+    setSelectedFood(null);
     setShowAllEvents(false); // 전체 보기 모드 해제 (상세 화면으로 전환)
     
     // Bottom Sheet 전체 확장 (60%)
@@ -1556,6 +1815,84 @@ const MapScreen = ({ navigation, route }) => {
       }
     }
   }, []);
+
+  const fetchEventById = useCallback(async (eventId) => {
+    try {
+      const eventRef = doc(firestore, 'events', eventId);
+      const eventSnap = await getDoc(eventRef);
+      if (!eventSnap.exists()) return null;
+
+      const eventData = eventSnap.data();
+      if (eventData.status === 'ended') return null;
+
+      return {
+        id: eventSnap.id,
+        ...eventData,
+        createdAt: eventData.createdAt?.toDate?.() || eventData.createdAt,
+        updatedAt: eventData.updatedAt?.toDate?.() || eventData.updatedAt,
+      };
+    } catch (error) {
+      console.error('딥링크 대상 모임 조회 실패:', error);
+      return null;
+    }
+  }, [firestore]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const focusDeepLinkedEvent = async () => {
+      if (!targetEventId || isLoading) return;
+
+      let targetEvent = events.find(item => item.id === targetEventId);
+
+      // 반경 필터로 목록에 없는 모임은 Firestore에서 직접 조회해 주입
+      if (!targetEvent) {
+        const fetchedEvent = await fetchEventById(targetEventId);
+        if (cancelled || !fetchedEvent) return;
+
+        targetEvent = fetchedEvent;
+
+        const mergedEvents = (() => {
+          const exists = events.some(item => item.id === fetchedEvent.id);
+          return exists ? events : [...events, fetchedEvent];
+        })();
+
+        setEvents(mergedEvents);
+
+        if (webViewRef.current) {
+          const updateMessage = JSON.stringify({
+            type: 'updateEvents',
+            events: mergedEvents
+          });
+          webViewRef.current?.postMessage(updateMessage);
+        }
+      }
+
+      if (cancelled || !targetEvent) return;
+
+      setActiveToggle('events');
+      if (webViewRef.current) {
+        const toggleMessage = JSON.stringify({
+          type: 'switchToggle',
+          toggle: 'events'
+        });
+        webViewRef.current?.postMessage(toggleMessage);
+      }
+
+      setTimeout(() => {
+        if (!cancelled) {
+          handleEventClick(targetEvent);
+          navigation.setParams({ targetEventId: undefined, activeToggle: undefined });
+        }
+      }, 450);
+    };
+
+    focusDeepLinkedEvent();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [targetEventId, events, isLoading, fetchEventById, handleEventClick, navigation]);
   
   // 모임 상세 화면 닫기
   const handleCloseEventDetail = useCallback(() => {
@@ -1581,11 +1918,21 @@ const MapScreen = ({ navigation, route }) => {
       bottomSheetRef.current.snapToIndex(2); // 전체 확장 (90%)
     }
   }, []);
+
+  // 더보기 버튼 클릭 핸들러 (러닝푸드)
+  const handleShowAllFoods = useCallback(() => {
+    setShowAllFoods(true);
+    if (bottomSheetRef.current) {
+      bottomSheetRef.current.snapToIndex(2); // 전체 확장 (90%)
+    }
+  }, []);
   
   // 카페 클릭 핸들러
   const handleCafeClick = useCallback(async (cafe) => {
     // 먼저 기존 데이터로 표시 (로딩 느림 방지)
     setSelectedCafe(cafe);
+    setSelectedEvent(null);
+    setSelectedFood(null);
     setCafeImageIndex(0); // 이미지 인덱스 초기화
     setShowAllCafes(false); // 전체 보기 모드 해제 (상세 화면으로 전환)
     
@@ -1654,6 +2001,71 @@ const MapScreen = ({ navigation, route }) => {
     setShowAllCafes(false); // 전체 보기 모드 해제
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(0); // 부분 확장으로 복귀
+    }
+  }, []);
+
+  // 러닝푸드 클릭 핸들러
+  const handleFoodClick = useCallback(async (food) => {
+    setSelectedFood(food);
+    setSelectedEvent(null);
+    setSelectedCafe(null);
+    setCafeImageIndex(0);
+    setShowAllFoods(false);
+
+    if (bottomSheetRef.current) {
+      bottomSheetRef.current.snapToIndex(1);
+    }
+
+    if (food?.id) {
+      try {
+        const latestFood = await firestoreService.getFoodById(food.id);
+        if (latestFood) {
+          setSelectedFood(latestFood);
+          setFoods(prevFoods => prevFoods.map(f => (f.id === latestFood.id ? latestFood : f)));
+        }
+      } catch (error) {
+        console.warn('⚠️ 최신 러닝푸드 데이터 조회 실패:', error);
+      }
+    }
+
+    if (user?.uid && food?.id) {
+      recordFoodVisit(user.uid, {
+        foodId: food.id,
+        foodName: food.name,
+        representativeImage: food.representativeImage || food.images?.[0] || null
+      }).catch(error => {
+        console.warn('⚠️ 러닝푸드 방문 기록 저장 실패:', error);
+      });
+    }
+
+    if (webViewRef.current && food) {
+      let lat, lng;
+      if (food.coordinates) {
+        lat = food.coordinates.latitude || food.coordinates._lat;
+        lng = food.coordinates.longitude || food.coordinates._long;
+      } else if (food.latitude && food.longitude) {
+        lat = food.latitude;
+        lng = food.longitude;
+      }
+
+      if (lat && lng) {
+        const message = JSON.stringify({
+          type: 'moveToMarkerAndZoom',
+          latitude: lat,
+          longitude: lng,
+          level: 4
+        });
+        webViewRef.current?.postMessage(message);
+      }
+    }
+  }, [user]);
+
+  // 러닝푸드 상세 화면 닫기
+  const handleCloseFoodDetail = useCallback(() => {
+    setSelectedFood(null);
+    setShowAllFoods(false);
+    if (bottomSheetRef.current) {
+      bottomSheetRef.current.snapToIndex(0);
     }
   }, []);
   
@@ -1759,7 +2171,7 @@ const MapScreen = ({ navigation, route }) => {
         results.firestoreResults.forEach(item => {
           allResults.push({
             ...item,
-            searchType: item.type, // 'event' or 'cafe'
+            searchType: item.type, // 'event' | 'cafe' | 'food'
             source: 'firestore'
           });
         });
@@ -1903,7 +2315,7 @@ const MapScreen = ({ navigation, route }) => {
             )}
             <TextInput
               style={styles.mapSearchInput}
-              placeholder="모임, 카페, 장소 검색..."
+              placeholder="모임, 카페, 푸드, 장소 검색..."
               placeholderTextColor={COLORS.SECONDARY}
               value={mapSearchQuery}
               onChangeText={handleMapSearchInput}
@@ -1992,7 +2404,7 @@ const MapScreen = ({ navigation, route }) => {
                 <TextInput
                   ref={searchInputRef}
                   style={styles.searchModeInput}
-                  placeholder="모임, 카페, 장소 검색..."
+                  placeholder="모임, 카페, 푸드, 장소 검색..."
                   placeholderTextColor={COLORS.SECONDARY}
                   value={mapSearchQuery}
                   onChangeText={handleMapSearchInput}
@@ -2032,6 +2444,7 @@ const MapScreen = ({ navigation, route }) => {
                       name={
                         result.searchType === 'event' ? 'people' :
                         result.searchType === 'cafe' ? 'cafe' :
+                        result.searchType === 'food' ? 'restaurant' :
                         'location'
                       }
                       size={20}
@@ -2042,11 +2455,13 @@ const MapScreen = ({ navigation, route }) => {
                       <Text style={styles.searchModeResultTitle}>
                         {result.searchType === 'event' ? result.title :
                          result.searchType === 'cafe' ? result.name :
+                         result.searchType === 'food' ? result.name :
                          result.name || result.place_name}
                       </Text>
                       <Text style={styles.searchModeResultSubtitle} numberOfLines={1}>
                         {result.searchType === 'event' ? result.location :
                          result.searchType === 'cafe' ? result.address :
+                         result.searchType === 'food' ? result.address :
                          result.address || result.address_name || result.road_address_name}
                       </Text>
                       {result.searchType === 'place' && result.category && (
@@ -2078,6 +2493,7 @@ const MapScreen = ({ navigation, route }) => {
                     name={
                       result.searchType === 'event' ? 'people' :
                       result.searchType === 'cafe' ? 'cafe' :
+                      result.searchType === 'food' ? 'restaurant' :
                       'location'
                     }
                     size={20}
@@ -2088,11 +2504,13 @@ const MapScreen = ({ navigation, route }) => {
                     <Text style={styles.searchResultTitle}>
                       {result.searchType === 'event' ? result.title :
                        result.searchType === 'cafe' ? result.name :
+                       result.searchType === 'food' ? result.name :
                        result.name || result.place_name}
                     </Text>
                     <Text style={styles.searchResultSubtitle} numberOfLines={1}>
                       {result.searchType === 'event' ? result.location :
                        result.searchType === 'cafe' ? result.address :
+                       result.searchType === 'food' ? result.address :
                        result.address || result.address_name || result.road_address_name}
                     </Text>
                     {result.searchType === 'place' && result.category && (
@@ -2122,6 +2540,14 @@ const MapScreen = ({ navigation, route }) => {
           >
             <Text style={[styles.toggleText, activeToggle === 'cafes' && styles.toggleTextActive]}>
               러닝카페
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleButton, activeToggle === 'foods' && styles.toggleButtonActive]}
+            onPress={() => handleToggleChange('foods')}
+          >
+            <Text style={[styles.toggleText, activeToggle === 'foods' && styles.toggleTextActive]}>
+              러닝푸드
             </Text>
           </TouchableOpacity>
           </View>
@@ -2332,6 +2758,136 @@ const MapScreen = ({ navigation, route }) => {
                     </View>
                   )}
               </View>
+            ) : activeToggle === 'foods' && selectedFood ? (
+              // 러닝푸드 상세 화면
+              <View style={styles.cafeDetailContainer}>
+                  <View style={styles.cafeDetailHeader}>
+                    <Text style={styles.cafeDetailName}>{selectedFood.name || '러닝푸드'}</Text>
+                    <TouchableOpacity
+                      onPress={handleCloseFoodDetail}
+                      style={styles.cafeDetailCloseButton}
+                    >
+                      <Ionicons name="close" size={24} color={COLORS.SECONDARY} />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  {selectedFood.description && (
+                    <Text style={styles.cafeDetailDescription}>{selectedFood.description}</Text>
+                  )}
+                  
+                  {(() => {
+                    const foodImages = [];
+                    if (selectedFood.representativeImage) {
+                      foodImages.push(selectedFood.representativeImage);
+                    }
+                    if (selectedFood.defaultImage) {
+                      foodImages.push(selectedFood.defaultImage);
+                    }
+                    if (selectedFood.runningCertImage) {
+                      foodImages.push(selectedFood.runningCertImage);
+                    }
+                    if (selectedFood.images && Array.isArray(selectedFood.images)) {
+                      selectedFood.images.forEach(img => {
+                        if (img && !foodImages.includes(img)) {
+                          foodImages.push(img);
+                        }
+                      });
+                    }
+                    
+                    return foodImages.length > 0 ? (
+                      <View>
+                        <ScrollView
+                          horizontal
+                          pagingEnabled
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.cafeImageSlider}
+                          contentContainerStyle={styles.cafeImageSliderContent}
+                          onMomentumScrollEnd={(event) => {
+                            const contentOffsetX = event.nativeEvent.contentOffset.x;
+                            const imageWidth = Dimensions.get('window').width - 32;
+                            const currentIndex = Math.round(contentOffsetX / imageWidth);
+                            setCafeImageIndex(currentIndex);
+                          }}
+                        >
+                          {foodImages.map((imageUri, index) => (
+                            <Image
+                              key={index}
+                              source={{ uri: imageUri }}
+                              style={styles.cafeDetailImage}
+                              resizeMode="cover"
+                            />
+                          ))}
+                        </ScrollView>
+                        {foodImages.length > 1 && (
+                          <View style={styles.cafeImagePagination}>
+                            {foodImages.map((_, index) => (
+                              <View
+                                key={index}
+                                style={[
+                                  styles.cafeImagePaginationDot,
+                                  index === cafeImageIndex && styles.cafeImagePaginationDotActive
+                                ]}
+                              />
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    ) : null;
+                  })()}
+                  
+                  {selectedFood.runningCertificationBenefit && (
+                    <View style={styles.cafeDetailSection}>
+                      <View style={styles.cafeDetailSectionTitleRow}>
+                        <Ionicons name="gift-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Text style={styles.cafeDetailSectionTitle}>러닝인증 혜택</Text>
+                      </View>
+                      <View style={[styles.cafeDetailSectionContent, styles.cafeBenefit]}>
+                        <Text style={styles.cafeDetailBenefitText}>
+                          {selectedFood.runningCertificationBenefit}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {selectedFood.address && (
+                    <View style={styles.cafeDetailSection}>
+                      <View style={styles.cafeDetailAddressRow}>
+                        <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 0, marginRight: 8 }]}>
+                          <Ionicons name="location-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                          <Text style={[styles.cafeDetailSectionTitle, { marginBottom: 0 }]}>주소</Text>
+                        </View>
+                        <Text style={styles.cafeDetailText}>{selectedFood.address}</Text>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {selectedFood.operatingHours && (
+                    <View style={styles.cafeDetailSection}>
+                      <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 8 }]}>
+                        <Ionicons name="time-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Text style={styles.cafeDetailSectionTitle}>운영시간</Text>
+                      </View>
+                      <View style={styles.cafeDetailSectionContent}>
+                        {(() => {
+                          const dayOrder = getDaysOrderFromToday();
+                          return dayOrder.map((dayKey, index) => {
+                            const hours = selectedFood.operatingHours[dayKey];
+                            const dayLabel = OPERATING_HOURS_DAY_LABELS[dayKey] ?? dayKey;
+                            const dateLabel = getDateLabelForPosition(index);
+                            const timeText = getOperatingHoursDisplayText(hours);
+                            return (
+                              <View key={dayKey} style={styles.operatingHoursRow}>
+                                {dateLabel ? <Text style={styles.operatingHoursDate}>{dateLabel}</Text> : null}
+                                <Text style={styles.operatingHoursDay}>{dayLabel}</Text>
+                                <Text style={styles.operatingHoursTime}>{timeText}</Text>
+                              </View>
+                            );
+                          });
+                        })()}
+                      </View>
+                    </View>
+                  )}
+              </View>
             ) : (
               // 모임/카페 목록 화면 (같은 BottomSheetScrollView 안에서 스크롤)
               <>
@@ -2373,6 +2929,28 @@ const MapScreen = ({ navigation, route }) => {
                       {cafeSearchQuery.length > 0 && (
                         <TouchableOpacity
                           onPress={() => setCafeSearchQuery('')}
+                          style={styles.clearButton}
+                        >
+                          <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                  {activeToggle === 'foods' && (
+                    <View style={styles.bottomSheetSearchContainer}>
+                      <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+                      <TextInput
+                        style={styles.bottomSheetSearchInput}
+                        placeholder="러닝푸드 상호명으로 검색..."
+                        placeholderTextColor={COLORS.SECONDARY}
+                        value={foodSearchQuery}
+                        onChangeText={setFoodSearchQuery}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      {foodSearchQuery.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => setFoodSearchQuery('')}
                           style={styles.clearButton}
                         >
                           <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
@@ -2473,6 +3051,64 @@ const MapScreen = ({ navigation, route }) => {
                               {cafeSearchQuery.trim() 
                                 ? '검색 결과가 없습니다'
                                 : '주변에 러닝카페가 없습니다'}
+                            </Text>
+                          </View>
+                        )}
+                  </View>
+                )}
+                {activeToggle === 'foods' && (
+                  <View style={styles.listContent}>
+                        {filteredFoods.length > 0 ? (
+                          <>
+                            {(showAllFoods ? filteredFoods : filteredFoods.slice(0, 5)).map((food, index) => (
+                              <TouchableOpacity
+                                key={food.id || index}
+                                onPress={() => handleFoodClick(food)}
+                                style={styles.cafeCardContainer}
+                              >
+                                <View style={styles.cafeCard}>
+                                  {food.images && food.images.length > 0 && (
+                                    <Image
+                                      source={{ uri: food.images[0] }}
+                                      style={styles.cafeImage}
+                                      resizeMode="cover"
+                                    />
+                                  )}
+                                  <View style={styles.cafeCardContent}>
+                                    <Text style={styles.cafeName}>{food.name || '러닝푸드'}</Text>
+                                    {food.description && (
+                                      <Text style={styles.cafeDescription} numberOfLines={2}>
+                                        {food.description}
+                                      </Text>
+                                    )}
+                                    {food.runningCertificationBenefit && (
+                                      <View style={styles.cafeBenefit}>
+                                        <Ionicons name="gift" size={14} color={COLORS.PRIMARY} />
+                                        <Text style={styles.cafeBenefitText}>
+                                          {food.runningCertificationBenefit}
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                            {!showAllFoods && filteredFoods.length > 5 && (
+                              <TouchableOpacity
+                                onPress={handleShowAllFoods}
+                                style={styles.showMoreButton}
+                              >
+                                <Text style={styles.showMoreButtonText}>더보기</Text>
+                                <Ionicons name="chevron-down" size={20} color={COLORS.PRIMARY} />
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        ) : (
+                          <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>
+                              {foodSearchQuery.trim()
+                                ? '검색 결과가 없습니다'
+                                : '주변에 러닝푸드가 없습니다'}
                             </Text>
                           </View>
                         )}
