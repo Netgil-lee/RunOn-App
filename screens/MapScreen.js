@@ -1,6 +1,6 @@
 // screens/MapScreen.js
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator, Alert, Linking, StatusBar, TouchableOpacity, Text, TextInput, FlatList, ScrollView, Image, Animated, Dimensions } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Alert, Linking, StatusBar, TouchableOpacity, Text, TextInput, FlatList, ScrollView, Image, Animated, Dimensions, Modal } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -85,6 +85,15 @@ function getOperatingHoursDisplayText(hours) {
   return '휴무';
 }
 
+function getInstagramUrl(entity) {
+  if (!entity) return '';
+  const raw = entity.instagramLink || entity.instagramUrl || entity.instagramURL || '';
+  const trimmed = String(raw).trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 const MapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const nav = useNavigation();
@@ -104,6 +113,10 @@ const MapScreen = ({ navigation, route }) => {
   const [selectedCafe, setSelectedCafe] = useState(null); // 선택된 카페 (상세 화면 표시용)
   const [selectedFood, setSelectedFood] = useState(null); // 선택된 러닝푸드 (상세 화면 표시용)
   const [cafeImageIndex, setCafeImageIndex] = useState(0); // 카페 이미지 캐러셀 현재 인덱스
+  const [isImageViewerVisible, setIsImageViewerVisible] = useState(false); // 이미지 원본 오버레이 표시 여부
+  const [imageViewerImages, setImageViewerImages] = useState([]); // 오버레이에서 표시할 이미지 목록
+  const [imageViewerInitialIndex, setImageViewerInitialIndex] = useState(0); // 오버레이 초기 인덱스
+  const [imageViewerCurrentIndex, setImageViewerCurrentIndex] = useState(0); // 오버레이 현재 인덱스
   const [showAllEvents, setShowAllEvents] = useState(false); // 전체 모임 목록 표시 여부
   const [showAllCafes, setShowAllCafes] = useState(false); // 전체 카페 목록 표시 여부
   const [showAllFoods, setShowAllFoods] = useState(false); // 전체 러닝푸드 목록 표시 여부
@@ -1903,6 +1916,22 @@ const MapScreen = ({ navigation, route }) => {
     }
   }, []);
 
+  // 이미지 원본 오버레이 열기
+  const handleOpenImageViewer = useCallback((images, index = 0) => {
+    if (!Array.isArray(images) || images.length === 0) return;
+
+    const safeIndex = Math.max(0, Math.min(index, images.length - 1));
+    setImageViewerImages(images);
+    setImageViewerInitialIndex(safeIndex);
+    setImageViewerCurrentIndex(safeIndex);
+    setIsImageViewerVisible(true);
+  }, []);
+
+  // 이미지 원본 오버레이 닫기
+  const handleCloseImageViewer = useCallback(() => {
+    setIsImageViewerVisible(false);
+  }, []);
+
   // 더보기 버튼 클릭 핸들러 (모임)
   const handleShowAllEvents = useCallback(() => {
     setShowAllEvents(true);
@@ -1999,6 +2028,7 @@ const MapScreen = ({ navigation, route }) => {
   const handleCloseCafeDetail = useCallback(() => {
     setSelectedCafe(null);
     setShowAllCafes(false); // 전체 보기 모드 해제
+    setIsImageViewerVisible(false);
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(0); // 부분 확장으로 복귀
     }
@@ -2064,6 +2094,7 @@ const MapScreen = ({ navigation, route }) => {
   const handleCloseFoodDetail = useCallback(() => {
     setSelectedFood(null);
     setShowAllFoods(false);
+    setIsImageViewerVisible(false);
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(0);
     }
@@ -2624,7 +2655,22 @@ const MapScreen = ({ navigation, route }) => {
               // 카페 상세 화면
               <View style={styles.cafeDetailContainer}>
                   <View style={styles.cafeDetailHeader}>
-                    <Text style={styles.cafeDetailName}>{selectedCafe.name || '카페'}</Text>
+                    <View style={styles.cafeDetailHeaderLeft}>
+                      <Text style={styles.cafeDetailName}>{selectedCafe.name || '카페'}</Text>
+                      {(() => {
+                        const instagramUrl = getInstagramUrl(selectedCafe);
+                        if (!instagramUrl) return null;
+                        return (
+                          <TouchableOpacity
+                            onPress={() => Linking.openURL(instagramUrl)}
+                            style={styles.cafeDetailInstagramButton}
+                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                          >
+                            <Ionicons name="logo-instagram" size={22} color="#FF4FA3" />
+                          </TouchableOpacity>
+                        );
+                      })()}
+                    </View>
                     <TouchableOpacity
                       onPress={handleCloseCafeDetail}
                       style={styles.cafeDetailCloseButton}
@@ -2676,12 +2722,18 @@ const MapScreen = ({ navigation, route }) => {
                           }}
                         >
                           {cafeImages.map((imageUri, index) => (
-                            <Image
+                            <TouchableOpacity
                               key={index}
-                              source={{ uri: imageUri }}
-                              style={styles.cafeDetailImage}
-                              resizeMode="cover"
-                            />
+                              activeOpacity={0.95}
+                              onPress={() => handleOpenImageViewer(cafeImages, index)}
+                              style={styles.cafeDetailImageTouchable}
+                            >
+                              <Image
+                                source={{ uri: imageUri }}
+                                style={styles.cafeDetailImage}
+                                resizeMode="cover"
+                              />
+                            </TouchableOpacity>
                           ))}
                         </ScrollView>
                         {/* 페이지 인디케이터 */}
@@ -2729,7 +2781,7 @@ const MapScreen = ({ navigation, route }) => {
                       </View>
                     </View>
                   )}
-                  
+
                   {/* 운영시간 */}
                   {selectedCafe.operatingHours && (
                     <View style={styles.cafeDetailSection}>
@@ -2762,7 +2814,22 @@ const MapScreen = ({ navigation, route }) => {
               // 러닝푸드 상세 화면
               <View style={styles.cafeDetailContainer}>
                   <View style={styles.cafeDetailHeader}>
-                    <Text style={styles.cafeDetailName}>{selectedFood.name || '러닝푸드'}</Text>
+                    <View style={styles.cafeDetailHeaderLeft}>
+                      <Text style={styles.cafeDetailName}>{selectedFood.name || '러닝푸드'}</Text>
+                      {(() => {
+                        const instagramUrl = getInstagramUrl(selectedFood);
+                        if (!instagramUrl) return null;
+                        return (
+                          <TouchableOpacity
+                            onPress={() => Linking.openURL(instagramUrl)}
+                            style={styles.cafeDetailInstagramButton}
+                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                          >
+                            <Ionicons name="logo-instagram" size={22} color="#FF4FA3" />
+                          </TouchableOpacity>
+                        );
+                      })()}
+                    </View>
                     <TouchableOpacity
                       onPress={handleCloseFoodDetail}
                       style={styles.cafeDetailCloseButton}
@@ -2810,12 +2877,18 @@ const MapScreen = ({ navigation, route }) => {
                           }}
                         >
                           {foodImages.map((imageUri, index) => (
-                            <Image
+                            <TouchableOpacity
                               key={index}
-                              source={{ uri: imageUri }}
-                              style={styles.cafeDetailImage}
-                              resizeMode="cover"
-                            />
+                              activeOpacity={0.95}
+                              onPress={() => handleOpenImageViewer(foodImages, index)}
+                              style={styles.cafeDetailImageTouchable}
+                            >
+                              <Image
+                                source={{ uri: imageUri }}
+                                style={styles.cafeDetailImage}
+                                resizeMode="cover"
+                              />
+                            </TouchableOpacity>
                           ))}
                         </ScrollView>
                         {foodImages.length > 1 && (
@@ -2860,7 +2933,7 @@ const MapScreen = ({ navigation, route }) => {
                       </View>
                     </View>
                   )}
-                  
+
                   {selectedFood.operatingHours && (
                     <View style={styles.cafeDetailSection}>
                       <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 8 }]}>
@@ -3119,6 +3192,63 @@ const MapScreen = ({ navigation, route }) => {
           </BottomSheetScrollView>
           </BottomSheet>
         )}
+
+        <Modal
+          visible={isImageViewerVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={handleCloseImageViewer}
+        >
+          <View style={styles.imageViewerOverlay}>
+            <TouchableOpacity
+              onPress={handleCloseImageViewer}
+              style={styles.imageViewerCloseButton}
+              accessibilityRole="button"
+              accessibilityLabel="이미지 전체보기 닫기"
+            >
+              <Ionicons name="close" size={30} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <FlatList
+              data={imageViewerImages}
+              key={`image-viewer-${imageViewerInitialIndex}-${imageViewerImages.length}`}
+              horizontal
+              pagingEnabled
+              initialScrollIndex={imageViewerInitialIndex}
+              getItemLayout={(_, index) => ({
+                length: Dimensions.get('window').width,
+                offset: Dimensions.get('window').width * index,
+                index,
+              })}
+              onScrollToIndexFailed={() => {}}
+              onMomentumScrollEnd={(event) => {
+                const contentOffsetX = event.nativeEvent.contentOffset.x;
+                const imageWidth = Dimensions.get('window').width;
+                const currentIndex = Math.round(contentOffsetX / imageWidth);
+                setImageViewerCurrentIndex(currentIndex);
+              }}
+              keyExtractor={(_, index) => `image-viewer-item-${index}`}
+              renderItem={({ item }) => (
+                <View style={styles.imageViewerSlide}>
+                  <Image
+                    source={{ uri: item }}
+                    style={styles.imageViewerImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+              showsHorizontalScrollIndicator={false}
+            />
+
+            {imageViewerImages.length > 1 && (
+              <View style={styles.imageViewerCounter}>
+                <Text style={styles.imageViewerCounterText}>
+                  {`${imageViewerCurrentIndex + 1} / ${imageViewerImages.length}`}
+                </Text>
+              </View>
+            )}
+          </View>
+        </Modal>
       </View>
     </GestureHandlerRootView>
   );
@@ -3376,11 +3506,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
+  cafeDetailHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
   cafeDetailName: {
     color: '#FFFFFF',
     fontSize: 26,
     fontWeight: '700',
-    flex: 1,
+    flexShrink: 1,
+  },
+  cafeDetailInstagramButton: {
+    marginLeft: 8,
+    padding: 2,
   },
   cafeDetailCloseButton: {
     padding: 4,
@@ -3397,6 +3537,10 @@ const styles = StyleSheet.create({
     height: Dimensions.get('window').width - 32,
     borderRadius: 12,
     backgroundColor: '#333333',
+  },
+  cafeDetailImageTouchable: {
+    width: Dimensions.get('window').width - 32,
+    height: Dimensions.get('window').width - 32,
   },
   cafeImagePagination: {
     flexDirection: 'row',
@@ -3682,6 +3826,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
+  },
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerCloseButton: {
+    position: 'absolute',
+    top: 54,
+    right: 20,
+    zIndex: 1,
+    padding: 8,
+  },
+  imageViewerSlide: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  imageViewerImage: {
+    width: Dimensions.get('window').width - 24,
+    height: Dimensions.get('window').height - 120,
+  },
+  imageViewerCounter: {
+    position: 'absolute',
+    bottom: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  imageViewerCounterText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
 
