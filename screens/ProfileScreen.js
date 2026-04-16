@@ -811,6 +811,11 @@ const ProfileScreen = ({ navigation }) => {
   //   profileGender: profile?.gender
   // });
   const currentInstagramId = normalizeInstagramId(profile?.instagramId || '');
+  const profileImageUri = [
+    user?.photoURL,
+    profile?.profileImage,
+    profile?.profile?.profileImage
+  ].find((url) => typeof url === 'string' && url.startsWith('http')) || null;
   
   if (loading && !profile) {
     // console.log('⏳ ProfileScreen: 로딩 중...');
@@ -855,8 +860,8 @@ const ProfileScreen = ({ navigation }) => {
                 onPressOut={() => setProfileImagePressed(false)}
                 activeOpacity={0.8}
               >
-                {(user?.photoURL || profile?.profileImage) ? (
-                  <Image source={{ uri: user.photoURL || profile?.profileImage }} style={styles.profileImage} />
+                {profileImageUri ? (
+                  <Image source={{ uri: profileImageUri }} style={styles.profileImage} />
                 ) : (
                   <View style={styles.profileImagePlaceholder}>
                     <Ionicons name="person" size={40} color="#fff" />

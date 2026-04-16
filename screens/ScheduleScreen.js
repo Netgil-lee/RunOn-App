@@ -302,17 +302,15 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               const isHost = runningMannerEvent.organizerId === participantId;
               const hostName = runningMannerEvent.organizer || '알 수 없음';
               
-              // 프로필 이미지 우선순위: photoURL > Firebase Storage URL > 기본 이미지
-              const profileImage = userProfile?.photoURL || 
-                                 (userProfile?.profileImage && 
-                                  !userProfile.profileImage.startsWith('file://') && 
-                                  userProfile.profileImage.startsWith('http') ? 
-                                  userProfile.profileImage : null) ||
-                                 (userProfile?.profile?.profileImage && 
-                                  !userProfile.profile.profileImage.startsWith('file://') && 
-                                  userProfile.profile.profileImage.startsWith('http') ? 
-                                  userProfile.profile.profileImage : null) ||
-                                 null;
+              // file:// 로컬 경로는 타 사용자 기기에서 열 수 없어 제외
+              const imageCandidates = [
+                userProfile?.photoURL,
+                userProfile?.profileImage,
+                userProfile?.profile?.profileImage
+              ];
+              const profileImage = imageCandidates.find(
+                (url) => typeof url === 'string' && url.startsWith('http')
+              ) || null;
               
               return {
                 id: participantId, // 실제 사용자 ID 사용
@@ -1063,17 +1061,15 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
               const isHost = event.organizerId === participantId;
               const hostName = event.organizer || '알 수 없음';
               
-              // 프로필 이미지 우선순위: photoURL > Firebase Storage URL > 기본 이미지
-              const profileImage = userProfile?.photoURL || 
-                                 (userProfile?.profileImage && 
-                                  !userProfile.profileImage.startsWith('file://') && 
-                                  userProfile.profileImage.startsWith('http') ? 
-                                  userProfile.profileImage : null) ||
-                                 (userProfile?.profile?.profileImage && 
-                                  !userProfile.profile.profileImage.startsWith('file://') && 
-                                  userProfile.profile.profileImage.startsWith('http') ? 
-                                  userProfile.profile.profileImage : null) ||
-                                 null;
+              // file:// 로컬 경로는 타 사용자 기기에서 열 수 없어 제외
+              const imageCandidates = [
+                userProfile?.photoURL,
+                userProfile?.profileImage,
+                userProfile?.profile?.profileImage
+              ];
+              const profileImage = imageCandidates.find(
+                (url) => typeof url === 'string' && url.startsWith('http')
+              ) || null;
               
               return {
                 id: participantId, // 실제 사용자 ID 사용
@@ -1621,6 +1617,26 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [customLocationInputLayout, setCustomLocationInputLayout] = useState(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
+  const restrictedDescriptionPatterns = [
+    {
+      type: '운동 지도 행태',
+      regex: /(운동\s*지도\s*행태|운동지도행태|개인\s*레슨|레슨\s*제공|pt\s*제공|트레이닝\s*지도|코칭\s*제공)/i,
+    },
+    {
+      type: '금전 요구',
+      regex: /(금전\s*요구|현금\s*요구|돈\s*요구|입금\s*요청|송금\s*요청|계좌\s*이체|수강료|레슨비|유료\s*지도|별도\s*비용)/i,
+    },
+  ];
+
+  const getRestrictedDescriptionType = (text) => {
+    if (!text || !text.trim()) {
+      return null;
+    }
+
+    const matchedPattern = restrictedDescriptionPatterns.find(({ regex }) => regex.test(text));
+    return matchedPattern?.type || null;
+  };
+
   // 사용자 프로필 정보 가져오기
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -1986,6 +2002,18 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   };
 
   const handleNext = () => {
+    if (currentStep === 1) {
+      const restrictedType = getRestrictedDescriptionType(description);
+      if (restrictedType) {
+        Alert.alert(
+          '⚠️ 경고',
+          `모임설명에 ${restrictedType} 관련 내용이 포함되어 있습니다.\n해당 내용은 작성할 수 없습니다.`,
+          [{ text: '확인', style: 'default' }]
+        );
+        return;
+      }
+    }
+
     // 2단계에서 지도 클릭 및 상세 위치 설명 필수 체크
     if (currentStep === 2) {
       if (!hasCustomMarker) {
@@ -2062,7 +2090,16 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
     // 사용자 프로필에서 닉네임과 이미지 가져오기
     const organizerName = currentUserProfileData?.profile?.nickname || user?.displayName || userProfile?.profile?.nickname || user?.email?.split('@')[0] || '나';
-    let organizerImage = currentUserProfileData?.profileImage || user?.photoURL || userProfile?.profileImage || userProfile?.profile?.profileImage || null;
+    const organizerImageCandidates = [
+      currentUserProfileData?.profileImage,
+      currentUserProfileData?.profile?.profileImage,
+      user?.photoURL,
+      userProfile?.profileImage,
+      userProfile?.profile?.profileImage
+    ];
+    let organizerImage = organizerImageCandidates.find(
+      (url) => typeof url === 'string' && (url.startsWith('http') || url.startsWith('file://'))
+    ) || null;
     
     // 이미지가 로컬 파일 경로인 경우 Firebase Storage에 업로드
     if (organizerImage && organizerImage.startsWith('file://')) {
@@ -2089,6 +2126,15 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     // 최종 값 설정
     const finalOrganizerName = organizerName;
     const finalOrganizerImage = organizerImage;
+
+    // 모임 카드와 프로필 화면의 이미지 소스 불일치를 막기 위해 사용자 프로필에도 동기화
+    if (typeof finalOrganizerImage === 'string' && finalOrganizerImage.startsWith('http')) {
+      try {
+        await updateUserProfile({ profileImage: finalOrganizerImage });
+      } catch (profileSyncError) {
+        console.warn('⚠️ organizerImage 프로필 동기화 실패:', profileSyncError?.message || profileSyncError);
+      }
+    }
     
     
     // location 필드 검증 및 설정

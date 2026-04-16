@@ -469,18 +469,15 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
               const isHost = event.organizerId === participantId;
               const hostName = event.organizer || '알 수 없음';
               
-              // 프로필 이미지 우선순위: photoURL > Firebase Storage URL > 기본 이미지
-              // file:// 경로는 제외 (로컬 파일이므로 다른 사용자에게는 표시되지 않음)
-              const profileImage = userProfile?.photoURL || 
-                                 (userProfile?.profileImage && 
-                                  !userProfile.profileImage.startsWith('file://') && 
-                                  userProfile.profileImage.startsWith('http') ? 
-                                  userProfile.profileImage : null) ||
-                                 (userProfile?.profile?.profileImage && 
-                                  !userProfile.profile.profileImage.startsWith('file://') && 
-                                  userProfile.profile.profileImage.startsWith('http') ? 
-                                  userProfile.profile.profileImage : null) ||
-                                 null;
+              // file:// 로컬 경로는 타 사용자 기기에서 열 수 없어 제외
+              const imageCandidates = [
+                userProfile?.photoURL,
+                userProfile?.profileImage,
+                userProfile?.profile?.profileImage
+              ];
+              const profileImage = imageCandidates.find(
+                (url) => typeof url === 'string' && url.startsWith('http')
+              ) || null;
               
               
               return {

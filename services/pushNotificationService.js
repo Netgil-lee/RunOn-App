@@ -20,6 +20,8 @@ class PushNotificationService {
     this.isInitialized = false;
     this.notificationListener = null;
     this.responseListener = null;
+    this.navigationHandler = null;
+    this.initialResponseHandled = false;
   }
 
   // 푸시 알림 초기화
@@ -171,10 +173,45 @@ class PushNotificationService {
   // 알림 클릭 처리
   handleNotificationResponse(response) {
     const { data } = response.notification.request.content;
-    
-    if (data?.type && data?.navigationTarget) {
-      console.log('🎯 알림 클릭으로 화면 이동:', data.navigationTarget);
-      // 네비게이션 로직 추가 가능
+
+    if (!data) {
+      return;
+    }
+
+    if (data?.type || data?.navigationTarget || data?.chatRoomId) {
+      console.log('🎯 알림 클릭 데이터:', data);
+    }
+
+    if (typeof this.navigationHandler === 'function') {
+      try {
+        this.navigationHandler(data);
+      } catch (error) {
+        console.error('❌ 알림 클릭 네비게이션 처리 실패:', error);
+      }
+    }
+  }
+
+  // 앱 전역 네비게이션 핸들러 등록
+  setNavigationHandler(handler) {
+    this.navigationHandler = handler;
+  }
+
+  // 앱이 알림 탭으로 실행된 경우 초기 응답 처리
+  async handleInitialNotificationResponse() {
+    try {
+      if (this.initialResponseHandled) {
+        return;
+      }
+
+      const response = await Notifications.getLastNotificationResponseAsync();
+      if (!response) {
+        return;
+      }
+
+      this.initialResponseHandled = true;
+      this.handleNotificationResponse(response);
+    } catch (error) {
+      console.error('❌ 초기 알림 응답 처리 실패:', error);
     }
   }
 

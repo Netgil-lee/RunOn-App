@@ -29,6 +29,11 @@ class FirestoreService {
     this.auth = getAuth();
   }
 
+  // 로컬(file://) 경로는 다른 사용자 디바이스에서 열 수 없어 제외
+  isRemoteImageUrl(url) {
+    return typeof url === 'string' && url.startsWith('http');
+  }
+
   // 사용자 프로필 관련
   async createUserProfile(userId, profileData) {
     try {
@@ -157,15 +162,14 @@ class FirestoreService {
       if (userSnap.exists()) {
         const userData = userSnap.data();
         
-        // 프로필 이미지 URL 통합 처리
-        let profileImage = null;
-        if (userData.profileImage) {
-          profileImage = userData.profileImage;
-        } else if (userData.profile?.profileImage) {
-          profileImage = userData.profile.profileImage;
-        } else if (userData.photoURL) {
-          profileImage = userData.photoURL;
-        }
+        // 프로필 이미지 URL 통합 처리 (원격 URL만 허용)
+        const profileImageCandidates = [
+          userData.profileImage,
+          userData.profile?.profileImage,
+          userData.photoURL
+        ];
+        const profileImage = profileImageCandidates.find((url) => this.isRemoteImageUrl(url)) || null;
+        const photoURL = this.isRemoteImageUrl(userData.photoURL) ? userData.photoURL : null;
         
         // 기본 프로필 이미지는 서비스 레이어에서 강제하지 않음
         // UI 컴포넌트에서 아이콘 또는 로컬 기본 이미지를 처리하도록 null 유지
@@ -174,6 +178,7 @@ class FirestoreService {
         // Firestore Timestamp 객체를 안전하게 처리
         return {
           ...userData,
+          photoURL,
           profileImage: profileImage, // 통합된 프로필 이미지로 덮어쓰기
           createdAt: userData.createdAt?.toDate?.() || userData.createdAt,
           onboardingCompletedAt: userData.onboardingCompletedAt?.toDate?.() || userData.onboardingCompletedAt,
@@ -304,11 +309,8 @@ class FirestoreService {
   async getAllActiveEvents() {
     try {
       const eventsRef = collection(this.db, 'events');
-      // status가 'ended'가 아닌 모든 이벤트 조회 (status가 없는 경우도 포함)
-      const eventsQuery = query(
-        eventsRef,
-        where('status', '!=', 'ended')
-      );
+      // status 필드가 없는 구버전 문서도 포함하기 위해 전체 조회 후 클라이언트 필터링
+      const eventsQuery = query(eventsRef);
       
       const querySnapshot = await getDocs(eventsQuery);
       const events = [];
@@ -321,6 +323,11 @@ class FirestoreService {
           updatedAt: eventData.updatedAt?.toDate?.() || eventData.updatedAt,
         };
         
+        // 종료된 모임은 제외 (status가 없는 경우는 active로 간주)
+        if (processedEvent.status === 'ended') {
+          return;
+        }
+
         // 디버깅: location 필드 확인
         if (!processedEvent.location) {
           console.warn('⚠️ location 필드가 없는 이벤트:', doc.id, processedEvent);
@@ -951,12 +958,9 @@ class FirestoreService {
       });
 
       // 2. 일반 Firestore 쿼리 (기존 모임 - customMarkerCoords만 있는 모임)
-      // 종료된 모임은 제외 (status != 'ended')
+      // status 필드가 없는 구버전 문서도 포함하기 위해 전체 조회 후 필터링
       const eventsRef = collection(this.db, 'events');
-      const eventsQuery = query(
-        eventsRef,
-        where('status', '!=', 'ended')
-      );
+      const eventsQuery = query(eventsRef);
       const allEventsSnapshot = await getDocs(eventsQuery);
 
       console.log('🔍 종료되지 않은 Firestore 모임 수:', allEventsSnapshot.size, '개');
@@ -964,6 +968,10 @@ class FirestoreService {
       // 기존 모임 중 반경 내 모임 추가
       allEventsSnapshot.forEach((doc) => {
         const eventData = doc.data();
+        if (eventData.status === 'ended') {
+          return;
+        }
+
         const hasCoordinates = !!eventData.coordinates;
         const hasCustomMarkerCoords = !!eventData.customMarkerCoords;
         

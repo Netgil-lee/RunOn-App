@@ -5,9 +5,12 @@ import * as Network from 'expo-network';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 import * as Font from 'expo-font';
+import { doc, getDoc } from 'firebase/firestore';
 
 import AppNavigator from './navigation/AppNavigator';
 import firebaseService from './config/firebase';
+import { firestore } from './config/firebase';
+import pushNotificationService from './services/pushNotificationService';
 import { AuthProvider } from './contexts/AuthContext';
 import { NetworkProvider } from './contexts/NetworkContext';
 import { EventProvider } from './contexts/EventContext';
@@ -93,6 +96,55 @@ export default function App() {
   useEffect(() => {
     tryNavigateToDeepLinkedEvent();
   }, [tryNavigateToDeepLinkedEvent]);
+
+  useEffect(() => {
+    pushNotificationService.setNavigationHandler(async (data) => {
+      const navigation = navigationRef.current;
+      if (!navigation?.isReady?.() || !data) {
+        return;
+      }
+
+      const type = data.type;
+
+      if ((type === 'new_message' || type === 'message') && data.chatRoomId) {
+        try {
+          const chatRoomRef = doc(firestore, 'chatRooms', String(data.chatRoomId));
+          const chatRoomSnap = await getDoc(chatRoomRef);
+          const chatRoom = chatRoomSnap.exists()
+            ? { id: chatRoomSnap.id, ...chatRoomSnap.data() }
+            : { id: String(data.chatRoomId), title: '채팅방' };
+
+          navigation.navigate('Chat', {
+            chatRoom,
+            returnToCommunity: true,
+            fromPushNotification: true,
+          });
+          return;
+        } catch (error) {
+          console.warn('채팅방 조회 실패, 최소 정보로 이동 시도:', error);
+          navigation.navigate('Chat', {
+            chatRoom: { id: String(data.chatRoomId), title: '채팅방' },
+            returnToCommunity: true,
+            fromPushNotification: true,
+          });
+          return;
+        }
+      }
+
+      if ((type === 'new_participant' || type === 'meeting_reminder') && (data.eventId || data.meetingId)) {
+        navigation.navigate('EventDetail', { eventId: data.eventId || data.meetingId });
+        return;
+      }
+
+      if (type === 'meeting_cancelled') {
+        navigation.navigate('Main', { screen: 'HomeTab' });
+      }
+    });
+
+    return () => {
+      pushNotificationService.setNavigationHandler(null);
+    };
+  }, []);
 
   const initializeAppLogic = async () => {
     try {
@@ -205,7 +257,10 @@ export default function App() {
       />
       <NavigationContainer
         ref={navigationRef}
-        onReady={tryNavigateToDeepLinkedEvent}
+        onReady={() => {
+          tryNavigateToDeepLinkedEvent();
+          pushNotificationService.handleInitialNotificationResponse();
+        }}
         onStateChange={tryNavigateToDeepLinkedEvent}
       >
         <NetworkProvider>
