@@ -37,6 +37,7 @@ const RunningShareModal = ({
   onClose, 
   workoutData, 
   eventData,
+  presetWorkoutData = null,
   onShareComplete 
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -144,10 +145,10 @@ const RunningShareModal = ({
 
   // 실제 운동기록 데이터 가져오기 (place 입력 후에만 실행)
   useEffect(() => {
-    if (visible && eventData && hasEnteredPlace) {
+    if (visible && eventData && hasEnteredPlace && !presetWorkoutData) {
       fetchActualWorkoutData();
     }
-  }, [visible, eventData, hasEnteredPlace, dataSource]);
+  }, [visible, eventData, hasEnteredPlace, dataSource, presetWorkoutData]);
 
   const fetchActualWorkoutData = async () => {
     try {
@@ -214,6 +215,9 @@ const RunningShareModal = ({
     if (!customPlace.trim()) {
       Alert.alert('입력 필요', 'Place를 입력해주세요.');
       return;
+    }
+    if (presetWorkoutData) {
+      setActualWorkoutData(presetWorkoutData);
     }
     setHasEnteredPlace(true);
   };
@@ -346,7 +350,7 @@ const RunningShareModal = ({
               {!hasEnteredPlace ? (
                 /* Place 입력 화면 */
                 <View style={styles.inputContainer}>
-                  {garminConnectService.isServiceAvailable() && (
+                  {!presetWorkoutData && garminConnectService.isServiceAvailable() && (
                     <View style={styles.dataSourceRow}>
                       <Text style={styles.inputLabel}>데이터 소스</Text>
                       <View style={styles.dataSourceButtons}>

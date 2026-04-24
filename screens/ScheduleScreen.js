@@ -30,11 +30,13 @@ import GuideOverlay from '../components/GuideOverlay';
 import firestoreService from '../services/firestoreService';
 import evaluationService from '../services/evaluationService';
 import RunningShareModal from '../components/RunningShareModal';
+import appleFitnessService from '../services/appleFitnessService';
 import ENV from '../config/environment';
 import storageService from '../services/storageService';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { searchPlace } from '../services/kakaoPlacesService';
 import * as Location from 'expo-location';
+import * as Clipboard from 'expo-clipboard';
 import { recordMeetingLocation } from '../services/userActivityService';
 
 const firestore = getFirestore();
@@ -86,6 +88,8 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
     React.useCallback(() => {
       // 새 모임 만들기 생성 플로우 중이 아닐 때만 메인 화면으로 리셋
       if (!showCreateFlow) {
+        // 요구사항: 화면 재진입 시 항상 "같이 달리기"로 시작
+        setMainMode('group');
         setShowMyCreated(false);
         setShowMyJoined(false);
         setShowEndedEvents(false);
@@ -116,6 +120,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
   }, [showEndedEventsFromRoute, showMyCreatedFromRoute, showMyJoinedFromRoute, navigation]);
 
   const [showCreateFlow, setShowCreateFlow] = useState(false);
+  const [mainMode, setMainMode] = useState('group'); // 'group' | 'feed'
   const [showMyCreated, setShowMyCreated] = useState(false);
   
   // 내가 만든 모임 화면 진입 감지
@@ -137,6 +142,13 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
   // 러닝매너 작성 모달창 상태
   const [showRunningMannerModal, setShowRunningMannerModal] = useState(false);
   const [runningMannerEvent, setRunningMannerEvent] = useState(null);
+
+  // 러닝 피드 상태
+  const [feedWorkouts, setFeedWorkouts] = useState([]);
+  const [isFeedLoading, setIsFeedLoading] = useState(false);
+  const [feedErrorCode, setFeedErrorCode] = useState('');
+  const [showFeedShareModal, setShowFeedShareModal] = useState(false);
+  const [selectedFeedWorkout, setSelectedFeedWorkout] = useState(null);
   
   // 가이드 타겟 refs
   const [createMeetingCardRef, setCreateMeetingCardRef] = useState(null);
@@ -177,6 +189,55 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
     setEditingEvent(null);
     setShowCreateFlow(true);
   };
+
+  const formatDateToEventDate = (date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatDateToEventTime = (date) => {
+    const hour = date.getHours();
+    const minute = `${date.getMinutes()}`.padStart(2, '0');
+    const period = hour >= 12 ? '오후' : '오전';
+    const hour12 = hour % 12 || 12;
+    return `${period} ${hour12}:${minute}`;
+  };
+
+  const handleFeedSharePress = (workout) => {
+    setSelectedFeedWorkout(workout);
+    setShowFeedShareModal(true);
+  };
+
+  const handleFeedShareClose = () => {
+    setShowFeedShareModal(false);
+    setSelectedFeedWorkout(null);
+  };
+
+  const loadRunningFeed = useCallback(async () => {
+    if (mainMode !== 'feed' || showCreateFlow || showMyCreated || showMyJoined || showEndedEvents) {
+      return;
+    }
+
+    setIsFeedLoading(true);
+    setFeedErrorCode('');
+
+    try {
+      const workouts = await appleFitnessService.getRecentRunningWorkouts(14);
+      setFeedWorkouts(workouts);
+    } catch (error) {
+      const code = error?.code || 'UNKNOWN';
+      setFeedErrorCode(code);
+      setFeedWorkouts([]);
+    } finally {
+      setIsFeedLoading(false);
+    }
+  }, [mainMode, showCreateFlow, showMyCreated, showMyJoined, showEndedEvents]);
+
+  useEffect(() => {
+    loadRunningFeed();
+  }, [loadRunningFeed]);
 
   // 러닝매너 작성 모달창 표시 함수
   const showRunningMannerNotification = (event) => {
@@ -727,115 +788,229 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* 모드 토글 (모임탭 최상단) */}
+        <View style={styles.modeToggleWrap}>
+          <View style={styles.modeToggleContainer}>
+            <TouchableOpacity
+              style={[styles.modeToggleButton, mainMode === 'group' && styles.modeToggleButtonActive]}
+              onPress={() => setMainMode('group')}
+            >
+              <Text style={[styles.modeToggleButtonText, mainMode === 'group' && styles.modeToggleButtonTextActive]}>
+                같이 달리기
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeToggleButton, mainMode === 'feed' && styles.modeToggleButtonActive]}
+              onPress={() => setMainMode('feed')}
+            >
+              <Text style={[styles.modeToggleButtonText, mainMode === 'feed' && styles.modeToggleButtonTextActive]}>
+                러닝 피드
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* 헤더 섹션 */}
         <View style={styles.headerSection}>
-          <Text style={styles.title}>모임</Text>
-          <Text style={styles.subtitle}>러닝 모임을 만들고 관리해보세요</Text>
+          <Text style={styles.title}>{mainMode === 'group' ? '모임' : '러닝 피드'}</Text>
+          <Text style={styles.subtitle}>
+            {mainMode === 'group'
+              ? '러닝 모임을 만들고 관리해보세요'
+              : 'Apple Fitness 러닝 기록을 확인하고 공유 이미지를 저장해보세요'}
+          </Text>
         </View>
 
-        {/* 새 모임 만들기 */}
-        <TouchableOpacity 
-          id="createMeetingCard"
-          ref={setCreateMeetingCardRef}
-          style={styles.mainOptionCard} 
-          onPress={handleCreateEvent}
-        >
-          <View style={styles.optionIconContainer}>
-            <Ionicons name="add-circle" size={48} color={COLORS.PRIMARY} />
-          </View>
-          <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>새 모임 만들기</Text>
-            <Text style={styles.optionSubtitle}>
-              새로운 러닝 모임을 생성하고 다른 사람들과 함께 달려보세요
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#666666" />
-        </TouchableOpacity>
+        {mainMode === 'group' ? (
+          <>
+            {/* 새 모임 만들기 */}
+            <TouchableOpacity
+              id="createMeetingCard"
+              ref={setCreateMeetingCardRef}
+              style={styles.mainOptionCard}
+              onPress={handleCreateEvent}
+            >
+              <View style={styles.optionIconContainer}>
+                <Ionicons name="add-circle" size={48} color={COLORS.PRIMARY} />
+              </View>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>새 모임 만들기</Text>
+                <Text style={styles.optionSubtitle}>
+                  새로운 러닝 모임을 생성하고 다른 사람들과 함께 달려보세요
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#666666" />
+            </TouchableOpacity>
 
-        {/* 내가 참여한 모임 */}
-        <TouchableOpacity style={styles.mainOptionCard} onPress={handleViewMyJoined}>
-          {hasMeetingNotification && (
-            <View style={styles.cardTopNotificationBadge} />
-          )}
-          <View style={styles.optionIconContainer}>
-            <Ionicons name="people" size={48} color="#ffffff" />
-          </View>
-          <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>내가 참여한 모임</Text>
-            <Text style={styles.optionSubtitle}>
-              참여 신청한 러닝 모임들을 확인하고 관리하세요
-            </Text>
-            <View style={styles.optionBadge}>
-              <Text style={styles.optionBadgeText}>{userJoinedEvents.filter(event => event.status !== 'ended').length}개</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#666666" />
-        </TouchableOpacity>
+            {/* 내가 참여한 모임 */}
+            <TouchableOpacity style={styles.mainOptionCard} onPress={handleViewMyJoined}>
+              {hasMeetingNotification && (
+                <View style={styles.cardTopNotificationBadge} />
+              )}
+              <View style={styles.optionIconContainer}>
+                <Ionicons name="people" size={48} color="#ffffff" />
+              </View>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>내가 참여한 모임</Text>
+                <Text style={styles.optionSubtitle}>
+                  참여 신청한 러닝 모임들을 확인하고 관리하세요
+                </Text>
+                <View style={styles.optionBadge}>
+                  <Text style={styles.optionBadgeText}>{userJoinedEvents.filter(event => event.status !== 'ended').length}개</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#666666" />
+            </TouchableOpacity>
 
-        {/* 내가 만든 모임 */}
-        <TouchableOpacity 
-          id="myCreatedMeetingsSection"
-          ref={setMyCreatedMeetingsSectionRef}
-          style={styles.mainOptionCard} 
-          onPress={handleViewMyCreated}
-        >
-          <View style={styles.optionIconContainer}>
-            <Ionicons name="create" size={48} color="#ffffff" />
-          </View>
-          <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>내가 만든 모임</Text>
-            <Text style={styles.optionSubtitle}>
-              내가 만든 러닝 모임들을 관리하고 참여자를 확인하세요
-            </Text>
-            <View style={styles.optionBadge}>
-              <Text style={styles.optionBadgeText}>{userCreatedEvents.filter(event => event.status !== 'ended').length}개</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#666666" />
-        </TouchableOpacity>
+            {/* 내가 만든 모임 */}
+            <TouchableOpacity
+              id="myCreatedMeetingsSection"
+              ref={setMyCreatedMeetingsSectionRef}
+              style={styles.mainOptionCard}
+              onPress={handleViewMyCreated}
+            >
+              <View style={styles.optionIconContainer}>
+                <Ionicons name="create" size={48} color="#ffffff" />
+              </View>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>내가 만든 모임</Text>
+                <Text style={styles.optionSubtitle}>
+                  내가 만든 러닝 모임들을 관리하고 참여자를 확인하세요
+                </Text>
+                <View style={styles.optionBadge}>
+                  <Text style={styles.optionBadgeText}>{userCreatedEvents.filter(event => event.status !== 'ended').length}개</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#666666" />
+            </TouchableOpacity>
 
-        {/* 종료된 모임 */}
-        <TouchableOpacity style={styles.mainOptionCard} onPress={handleViewEndedEvents}>
-          {hasRatingNotificationForEndedEventsOption() && (
-            <View style={styles.cardTopNotificationBadge} />
-          )}
-          <View style={styles.optionIconContainer}>
-            <Ionicons name="checkmark-circle" size={48} color="#FFEA00" />
-          </View>
-          <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>종료된 모임</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              <Text style={styles.optionSubtitle}>종료된 모임을 확인하고 </Text>
-              <Text style={[styles.optionSubtitle, { color: COLORS.PRIMARY }]}>러닝매너</Text>
-              <Text style={styles.optionSubtitle}>를 작성하세요</Text>
-            </View>
-            <View style={styles.optionBadge}>
-              <Text style={styles.optionBadgeText}>{endedEvents.filter(event => 
-                event.organizerId === user?.uid || 
-                (event.participants && event.participants.includes(user?.uid))
-              ).length}개</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#666666" />
-        </TouchableOpacity>
-        
+            {/* 종료된 모임 */}
+            <TouchableOpacity style={styles.mainOptionCard} onPress={handleViewEndedEvents}>
+              {hasRatingNotificationForEndedEventsOption() && (
+                <View style={styles.cardTopNotificationBadge} />
+              )}
+              <View style={styles.optionIconContainer}>
+                <Ionicons name="checkmark-circle" size={48} color="#FFEA00" />
+              </View>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>종료된 모임</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  <Text style={styles.optionSubtitle}>종료된 모임을 확인하고 </Text>
+                  <Text style={[styles.optionSubtitle, { color: COLORS.PRIMARY }]}>러닝매너</Text>
+                  <Text style={styles.optionSubtitle}>를 작성하세요</Text>
+                </View>
+                <View style={styles.optionBadge}>
+                  <Text style={styles.optionBadgeText}>{endedEvents.filter(event =>
+                    event.organizerId === user?.uid ||
+                    (event.participants && event.participants.includes(user?.uid))
+                  ).length}개</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#666666" />
+            </TouchableOpacity>
 
-        {/* 추가 정보 섹션 */}
-        <View style={styles.infoSection}>
-          <Text style={styles.infoTitle}>💡 모임 관리 팁</Text>
-          <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
-            <Text style={styles.infoText}>모임 생성 시 상세한 정보를 입력하면 더 많은 참여자를 모을 수 있어요</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
-            <Text style={styles.infoText}>참여한 모임은 시작 24시간 전까지 취소할 수 있어요</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
-            <Text style={styles.infoText}>날씨나 상황 변경 시 참여자들에게 미리 알려주세요</Text>
-          </View>
-        </View>
+            {/* 추가 정보 섹션 */}
+            <View style={styles.infoSection}>
+              <Text style={styles.infoTitle}>💡 모임 관리 팁</Text>
+              <View style={styles.infoItem}>
+                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Text style={styles.infoText}>모임 생성 시 상세한 정보를 입력하면 더 많은 참여자를 모을 수 있어요</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Text style={styles.infoText}>참여한 모임은 시작 24시간 전까지 취소할 수 있어요</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Text style={styles.infoText}>날씨나 상황 변경 시 참여자들에게 미리 알려주세요</Text>
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            {isFeedLoading ? (
+              <View style={styles.runningFeedPlaceholderCard}>
+                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                <Text style={styles.runningFeedPlaceholderTitle}>러닝 기록을 불러오는 중</Text>
+              </View>
+            ) : feedErrorCode ? (
+              <View style={styles.runningFeedPlaceholderCard}>
+                <Ionicons name="warning-outline" size={34} color="#FFCC00" />
+                <Text style={styles.runningFeedPlaceholderTitle}>러닝 기록을 불러오지 못했어요</Text>
+                <Text style={styles.runningFeedPlaceholderText}>
+                  {feedErrorCode === 'NO_PERMISSION'
+                    ? 'Apple Fitness 권한을 확인해주세요.'
+                    : '잠시 후 다시 시도해주세요.'}
+                </Text>
+                <TouchableOpacity style={styles.runningFeedRetryButton} onPress={loadRunningFeed}>
+                  <Text style={styles.runningFeedRetryButtonText}>다시 시도</Text>
+                </TouchableOpacity>
+              </View>
+            ) : feedWorkouts.length === 0 ? (
+              <View style={styles.runningFeedPlaceholderCard}>
+                <Ionicons name="fitness-outline" size={34} color={COLORS.PRIMARY} />
+                <Text style={styles.runningFeedPlaceholderTitle}>최근 14일 러닝 기록이 없어요</Text>
+                <Text style={styles.runningFeedPlaceholderText}>
+                  Apple Fitness에서 러닝을 기록하면 여기에 자동으로 표시됩니다.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.runningFeedList}>
+                {feedWorkouts.map((workout) => {
+                  const startedAt = workout.startTime ? new Date(workout.startTime) : null;
+                  const dateLabel = startedAt
+                    ? startedAt.toLocaleDateString('ko-KR', {
+                        month: 'long',
+                        day: 'numeric',
+                        weekday: 'short',
+                      })
+                    : '날짜 정보 없음';
+                  const timeLabel = startedAt
+                    ? startedAt.toLocaleTimeString('ko-KR', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                      })
+                    : '-';
+
+                  return (
+                    <View key={workout.id} style={styles.runningFeedItemCard}>
+                      <View style={styles.runningFeedItemHeader}>
+                        <Text style={styles.runningFeedItemDate}>{dateLabel}</Text>
+                        <Text style={styles.runningFeedItemTime}>{timeLabel}</Text>
+                      </View>
+
+                      <View style={styles.runningFeedStatRow}>
+                        <View style={styles.runningFeedStatItem}>
+                          <Text style={styles.runningFeedStatLabel}>Distance</Text>
+                          <Text style={styles.runningFeedStatValue}>{workout.distance}</Text>
+                        </View>
+                        <View style={styles.runningFeedStatItem}>
+                          <Text style={styles.runningFeedStatLabel}>Pace</Text>
+                          <Text style={styles.runningFeedStatValue}>{workout.pace}</Text>
+                        </View>
+                        <View style={styles.runningFeedStatItem}>
+                          <Text style={styles.runningFeedStatLabel}>Time</Text>
+                          <Text style={styles.runningFeedStatValue}>{workout.duration}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.runningFeedFooter}>
+                        <Text style={styles.runningFeedCalories}>{workout.calories} kcal</Text>
+                        <TouchableOpacity
+                          style={styles.runningFeedShareButton}
+                          onPress={() => handleFeedSharePress(workout)}
+                        >
+                          <Ionicons name="image-outline" size={16} color="#000000" />
+                          <Text style={styles.runningFeedShareButtonText}>이미지 생성</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
 
 
       </ScrollView>
@@ -906,6 +1081,34 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
           </View>
         </View>
       </Modal>
+
+      {/* 러닝 피드 공유 모달 */}
+      <RunningShareModal
+        visible={showFeedShareModal}
+        onClose={handleFeedShareClose}
+        workoutData={{
+          distance: selectedFeedWorkout?.distance || '0m',
+          pace: selectedFeedWorkout?.pace || '0:00/km',
+          duration: selectedFeedWorkout?.duration || '0s',
+          calories: selectedFeedWorkout?.calories || 0,
+          routeCoordinates: selectedFeedWorkout?.routeCoordinates || [],
+        }}
+        presetWorkoutData={selectedFeedWorkout ? {
+          distance: selectedFeedWorkout.distance,
+          pace: selectedFeedWorkout.pace,
+          duration: selectedFeedWorkout.duration,
+          calories: selectedFeedWorkout.calories,
+          routeCoordinates: selectedFeedWorkout.routeCoordinates || [],
+        } : null}
+        eventData={selectedFeedWorkout?.startTime ? {
+          title: '러닝 피드',
+          location: '한강',
+          date: formatDateToEventDate(new Date(selectedFeedWorkout.startTime)),
+          time: formatDateToEventTime(new Date(selectedFeedWorkout.startTime)),
+          organizer: user?.displayName || '나',
+        } : null}
+        onShareComplete={handleFeedShareClose}
+      />
     </SafeAreaView>
   );
 };
@@ -1244,12 +1447,23 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, isCreatedByMe = false,
       const projectId = ENV.firebaseProjectId || 'runon-production-app';
       const cacheVersion = Date.now();
       const meetingLink = `https://us-central1-${projectId}.cloudfunctions.net/eventShare?eventId=${encodeURIComponent(event.id)}&v=${cacheVersion}`;
-      const ClipboardModule = await import('expo-clipboard');
-      await ClipboardModule.setStringAsync(meetingLink);
+      const setStringAsync =
+        Clipboard?.setStringAsync ||
+        Clipboard?.setString;
+
+      if (typeof setStringAsync !== 'function') {
+        throw new Error('Clipboard module unavailable');
+      }
+
+      await setStringAsync(meetingLink);
       Alert.alert('안내', '모임공유링크가 복사되었습니다');
     } catch (error) {
       console.error('모임 공유 링크 복사 실패:', error);
       try {
+        if (!event?.id) {
+          Alert.alert('오류', '모임 링크를 생성할 수 없습니다.');
+          return;
+        }
         const projectId = ENV.firebaseProjectId || 'runon-production-app';
         const cacheVersion = Date.now();
         const meetingLink = `https://us-central1-${projectId}.cloudfunctions.net/eventShare?eventId=${encodeURIComponent(event.id)}&v=${cacheVersion}`;
@@ -5293,10 +5507,40 @@ const styles = StyleSheet.create({
     color: COLORS.PRIMARY,
   },
 
+  // 모임/러닝 피드 토글
+  modeToggleWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  modeToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#1F1F24',
+    borderRadius: 12,
+    padding: 4,
+  },
+  modeToggleButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    paddingVertical: 10,
+  },
+  modeToggleButtonActive: {
+    backgroundColor: COLORS.PRIMARY,
+  },
+  modeToggleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#A0A0A0',
+  },
+  modeToggleButtonTextActive: {
+    color: '#000000',
+  },
+
   // 헤더 섹션 스타일
   headerSection: {
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: 16,
   },
   title: {
@@ -5364,6 +5608,109 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginLeft: 8,
     flex: 1,
+  },
+  runningFeedPlaceholderCard: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2B2B2F',
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  runningFeedPlaceholderTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.TEXT,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  runningFeedPlaceholderText: {
+    fontSize: 14,
+    color: '#B5B5B8',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  runningFeedRetryButton: {
+    marginTop: 14,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  runningFeedRetryButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  runningFeedList: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  runningFeedItemCard: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2B2B2F',
+    padding: 14,
+  },
+  runningFeedItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  runningFeedItemDate: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.TEXT,
+  },
+  runningFeedItemTime: {
+    fontSize: 13,
+    color: '#A7A7AA',
+  },
+  runningFeedStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  runningFeedStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  runningFeedStatLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
+  runningFeedStatValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.TEXT,
+  },
+  runningFeedFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  runningFeedCalories: {
+    fontSize: 13,
+    color: '#B5B5B8',
+  },
+  runningFeedShareButton: {
+    backgroundColor: COLORS.PRIMARY,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  runningFeedShareButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#000000',
   },
 
 

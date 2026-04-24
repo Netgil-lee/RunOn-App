@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { 
   getCourseName, 
   getSeasonTitle, 
@@ -217,10 +218,9 @@ const ParticipantScreen = ({ route, navigation }) => {
     if (!normalizedInstagramId) return;
 
     try {
-      const ClipboardModule = await import('expo-clipboard');
       const setStringAsync =
-        ClipboardModule?.setStringAsync ||
-        ClipboardModule?.default?.setStringAsync;
+        Clipboard?.setStringAsync ||
+        Clipboard?.setString;
 
       if (typeof setStringAsync !== 'function') {
         throw new Error('Clipboard module unavailable');

@@ -532,6 +532,141 @@ class AppleFitnessService {
     };
   }
 
+  /**
+   * 최근 러닝 기록 목록 조회 (러닝 피드용)
+   * @param {number} days - 조회 기간(일)
+   * @returns {Promise<Array>} 최신순 러닝 기록 배열
+   */
+  async getRecentRunningWorkouts(days = 14) {
+    try {
+      const periodDays = Number.isFinite(days) && days > 0 ? days : 14;
+
+      if (__DEV__ && env.simulateHealthKitOnSimulator) {
+        const now = new Date();
+        return [{
+          id: `dummy-${now.getTime()}`,
+          startTime: now.toISOString(),
+          sourceName: 'Simulator',
+          distance: this.formatDistance(5000),
+          duration: this.formatDuration(1800),
+          pace: '6:00/km',
+          calories: 300,
+          routeCoordinates: [
+            { latitude: 37.5665, longitude: 126.9780 },
+            { latitude: 37.5666, longitude: 126.9781 },
+            { latitude: 37.5667, longitude: 126.9782 },
+          ],
+        }];
+      }
+
+      if (!this.isServiceAvailable()) {
+        const initialized = await this.initialize();
+        if (!initialized) {
+          const initError = new Error('HealthKit을 초기화할 수 없습니다.');
+          initError.code = 'NOT_AVAILABLE';
+          throw initError;
+        }
+      }
+
+      const AppleHealthKit = await loadHealthKitModule();
+      if (!AppleHealthKit || typeof AppleHealthKit.getSamples !== 'function') {
+        const moduleError = new Error('HealthKit 모듈을 사용할 수 없습니다.');
+        moduleError.code = 'NOT_AVAILABLE';
+        throw moduleError;
+      }
+
+      const now = new Date();
+      const startDate = new Date(now.getTime() - (periodDays * 24 * 60 * 60 * 1000));
+      const workouts = await new Promise((resolve, reject) => {
+        AppleHealthKit.getSamples(
+          {
+            startDate: startDate.toISOString(),
+            endDate: now.toISOString(),
+            type: 'Workout',
+          },
+          (error, results) => {
+            if (error) {
+              const queryError = new Error(error?.message || '워크아웃 목록 조회 실패');
+              const message = (error?.message || '').toLowerCase();
+              queryError.code = message.includes('authoriz') || message.includes('permission')
+                ? 'NO_PERMISSION'
+                : 'UNKNOWN';
+              reject(queryError);
+              return;
+            }
+            resolve(results || []);
+          }
+        );
+      });
+
+      const parseDateValue = (value) => {
+        if (!value) return null;
+        if (value instanceof Date) return value;
+        if (typeof value === 'number' || typeof value === 'string') {
+          const parsed = new Date(value);
+          return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+        if (typeof value?.getTime === 'function') {
+          const parsed = new Date(value);
+          return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+        return null;
+      };
+
+      const runningWorkouts = (workouts || []).filter((workout) => {
+        const activityName = workout?.activityName;
+        const activityId = workout?.activityId;
+        return activityName === 'Running'
+          || activityName === AppleHealthKit?.Constants?.Activities?.Running
+          || activityId === 1;
+      });
+
+      const mapped = runningWorkouts.map((workout) => {
+        const startTime = parseDateValue(workout.start) || parseDateValue(workout.startDate);
+        const endTime = parseDateValue(workout.end) || parseDateValue(workout.endDate);
+
+        const distanceMiles = Number(workout.distance || 0);
+        const distanceMeters = distanceMiles * 1609.34;
+
+        let durationSeconds = Number(workout.duration || 0);
+        if ((!durationSeconds || durationSeconds <= 0) && startTime && endTime) {
+          durationSeconds = Math.max(0, Math.floor((endTime.getTime() - startTime.getTime()) / 1000));
+        }
+
+        let pace = '0:00/km';
+        if (durationSeconds > 0 && distanceMeters > 0) {
+          const paceSecondsPerKm = (durationSeconds / distanceMeters) * 1000;
+          const paceMinutes = Math.floor(paceSecondsPerKm / 60);
+          const paceSeconds = Math.floor(paceSecondsPerKm % 60);
+          pace = `${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}/km`;
+        } else if (workout.averagePace) {
+          pace = this.formatPace(workout.averagePace);
+        }
+
+        const calories = workout.calories || workout.totalEnergyBurned || workout.energyBurned || 0;
+        const id = workout.id || workout.uuid || workout.workoutId || workout.identifier
+          || `${workout.start || workout.startDate || Math.random()}`;
+
+        return {
+          id,
+          startTime: startTime ? startTime.toISOString() : null,
+          sourceName: workout.sourceName || workout.source || '알 수 없음',
+          distance: this.formatDistance(distanceMeters),
+          duration: this.formatDuration(durationSeconds),
+          pace,
+          calories: Math.round(calories),
+          routeCoordinates: [],
+        };
+      }).filter((item) => !!item.startTime);
+
+      mapped.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+      return mapped;
+    } catch (error) {
+      console.error('❌ [AppleFitnessService] 최근 러닝 기록 조회 실패:', error);
+      throw error;
+    }
+  }
+
   // 이벤트와 매칭되는 운동기록 찾기
   async findMatchingWorkout(event) {
     try {

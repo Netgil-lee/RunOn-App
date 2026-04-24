@@ -2172,7 +2172,6 @@ exports.eventShareImage = functions.https.onRequest(async (req, res) => {
     const dateTime = truncate(`${event.date || ''} ${event.time || ''}`.trim() || '일정 미정', 24);
     const distance = truncate(event.distance ? `${event.distance}km` : '거리 미정', 10);
     const pace = truncate(event.pace || '페이스 미정', 14);
-    const difficulty = truncate(event.difficulty || '초급', 6);
     const rawTags = String(event.hashtags || '')
       .split(/\s+/)
       .filter((tag) => tag.startsWith('#'))
@@ -2195,9 +2194,6 @@ exports.eventShareImage = functions.https.onRequest(async (req, res) => {
   <rect x="34" y="34" width="1132" height="562" rx="28" fill="url(#bg)" stroke="#1E2028" stroke-width="2"/>
 
   <text x="84" y="130" fill="#FFFFFF" font-size="62" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(title)}</text>
-
-  <rect x="920" y="74" width="140" height="64" rx="30" fill="none" stroke="#C4C679" stroke-width="3"/>
-  <text x="990" y="116" text-anchor="middle" fill="#C4C679" font-size="34" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(difficulty)}</text>
 
   <circle cx="88" cy="207" r="10" fill="#3AF8FF"/>
   <text x="116" y="217" fill="#D3D3D3" font-size="42" font-family="Arial, sans-serif">${escapeSvg(location)}</text>
