@@ -945,12 +945,44 @@ async function getUserInfo(userId) {
 /**
  * Expo Push API를 통해 알림 전송
  */
-async function sendExpoPushNotification(expoPushToken, title, body, data = {}) {
+async function getUnreadBadgeCount(userId) {
   try {
+    if (!userId) {
+      return 0;
+    }
+
+    const [communitySnapshot, meetingSnapshot] = await Promise.all([
+      admin.firestore().collection('notifications')
+        .where('userId', '==', userId)
+        .where('isRead', '==', false)
+        .get(),
+      admin.firestore().collection('meetingNotifications')
+        .where('targetUserId', '==', userId)
+        .where('isRead', '==', false)
+        .get(),
+    ]);
+
+    return communitySnapshot.size + meetingSnapshot.size;
+  } catch (error) {
+    console.error(`❌ 배지 카운트 조회 실패: ${userId}`, error);
+    return 0;
+  }
+}
+
+async function sendExpoPushNotification(expoPushToken, title, body, data = {}, options = {}) {
+  try {
+    const { recipientId = null, includeCurrentNotification = false } = options;
+
     // 토큰 유효성 검사
     if (!Expo.isExpoPushToken(expoPushToken)) {
       console.error('❌ 유효하지 않은 Expo Push Token:', expoPushToken);
       return { success: false, error: 'Invalid token' };
+    }
+
+    let badgeCount = null;
+    if (recipientId) {
+      const unreadCount = await getUnreadBadgeCount(recipientId);
+      badgeCount = includeCurrentNotification ? unreadCount + 1 : unreadCount;
     }
 
     // 알림 메시지 생성
@@ -963,6 +995,10 @@ async function sendExpoPushNotification(expoPushToken, title, body, data = {}) {
       priority: 'high',
       channelId: 'runon-notifications'
     }];
+
+    if (badgeCount != null) {
+      messages[0].badge = Math.max(0, badgeCount);
+    }
 
     // 알림 전송
     const chunks = expo.chunkPushNotifications(messages);
@@ -996,6 +1032,248 @@ async function sendExpoPushNotification(expoPushToken, title, body, data = {}) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * 모임 시작 시각(Date) 파싱
+ */
+function parseEventStartDateTime(eventData) {
+  const rawDate = eventData?.date;
+  const rawTime = eventData?.time;
+
+  if (!rawDate || !rawTime) {
+    return null;
+  }
+
+  let baseDate = null;
+
+  if (rawDate instanceof Date) {
+    baseDate = new Date(rawDate);
+  } else if (rawDate && typeof rawDate.toDate === 'function') {
+    baseDate = rawDate.toDate();
+  } else if (typeof rawDate === 'string') {
+    const dateText = rawDate.trim();
+
+    const isoMatch = dateText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+      const year = Number(isoMatch[1]);
+      const month = Number(isoMatch[2]) - 1;
+      const day = Number(isoMatch[3]);
+      baseDate = new Date(year, month, day);
+    } else {
+      const koreanMatch = dateText.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+      if (koreanMatch) {
+        const year = Number(koreanMatch[1]);
+        const month = Number(koreanMatch[2]) - 1;
+        const day = Number(koreanMatch[3]);
+        baseDate = new Date(year, month, day);
+      } else {
+        const parsed = new Date(dateText);
+        if (!Number.isNaN(parsed.getTime())) {
+          baseDate = parsed;
+        }
+      }
+    }
+  }
+
+  if (!baseDate || Number.isNaN(baseDate.getTime())) {
+    return null;
+  }
+
+  let hours = null;
+  let minutes = null;
+
+  if (typeof rawTime === 'string') {
+    const timeText = rawTime.trim();
+    const koreanTimeMatch = timeText.match(/(오전|오후)\s*(\d{1,2}):(\d{2})/);
+
+    if (koreanTimeMatch) {
+      const isPm = koreanTimeMatch[1] === '오후';
+      hours = Number(koreanTimeMatch[2]);
+      minutes = Number(koreanTimeMatch[3]);
+
+      if (isPm && hours !== 12) {
+        hours += 12;
+      }
+      if (!isPm && hours === 12) {
+        hours = 0;
+      }
+    } else {
+      const plainTimeMatch = timeText.match(/^(\d{1,2}):(\d{2})$/);
+      if (plainTimeMatch) {
+        hours = Number(plainTimeMatch[1]);
+        minutes = Number(plainTimeMatch[2]);
+      }
+    }
+  } else if (typeof rawTime === 'number') {
+    hours = rawTime;
+    minutes = 0;
+  }
+
+  if (hours == null || minutes == null || Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return null;
+  }
+
+  const eventStart = new Date(baseDate);
+  eventStart.setHours(hours, minutes, 0, 0);
+
+  if (Number.isNaN(eventStart.getTime())) {
+    return null;
+  }
+
+  return eventStart;
+}
+
+// ============================================
+// 모임 24시간 전 리마인더 알림 스케줄러
+// ============================================
+
+/**
+ * 모임 시작 24시간 전에 참여자에게 리마인더 푸시 알림 전송
+ */
+exports.sendMeetingReminder24h = functions.pubsub
+  .schedule('*/5 * * * *') // 5분마다 실행
+  .timeZone('Asia/Seoul')
+  .onRun(async () => {
+    console.log('🕐 모임 24시간 전 리마인더 스케줄러 실행 시작');
+
+    try {
+      const now = new Date();
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const TOLERANCE_MS = 10 * 60 * 1000; // 스케줄 오차 보정 (±10분)
+      const windowStart = new Date(now.getTime() + DAY_MS - TOLERANCE_MS);
+      const windowEnd = new Date(now.getTime() + DAY_MS + TOLERANCE_MS);
+
+      const eventsSnapshot = await admin.firestore().collection('events').get();
+      console.log(`📋 전체 모임 조회 완료: ${eventsSnapshot.size}개`);
+
+      const results = [];
+
+      for (const eventDoc of eventsSnapshot.docs) {
+        const eventId = eventDoc.id;
+        const eventData = eventDoc.data();
+
+        try {
+          if (eventData.status === 'ended') {
+            continue;
+          }
+
+          if (eventData.reminder24hSentAt) {
+            continue;
+          }
+
+          const eventStart = parseEventStartDateTime(eventData);
+          if (!eventStart) {
+            continue;
+          }
+
+          if (eventStart < windowStart || eventStart > windowEnd) {
+            continue;
+          }
+
+          const participants = Array.isArray(eventData.participants) ? eventData.participants : [];
+          const organizerId = eventData.organizerId;
+          // 주최자도 리마인더를 받도록 수신자에 포함 (중복 제거)
+          const recipientSet = new Set(participants.filter(Boolean));
+          if (organizerId) {
+            recipientSet.add(organizerId);
+          }
+          const recipients = Array.from(recipientSet);
+
+          if (recipients.length === 0) {
+            await eventDoc.ref.update({
+              reminder24hSentAt: admin.firestore.FieldValue.serverTimestamp(),
+              reminder24hTargetStartAt: admin.firestore.Timestamp.fromDate(eventStart),
+            });
+            console.log(`ℹ️ 리마인더 수신 대상 없음: ${eventId}`);
+            continue;
+          }
+
+          const eventTitle = eventData.title || '모임';
+          const eventTime = eventData.time || '';
+          const eventLocation = eventData.location || '지정 장소';
+          const notificationTitle = `내일 ${eventTitle}`;
+          const notificationBody = `${eventTime} ${eventLocation}에서 시작됩니다. 미리 준비해주세요!`;
+
+          let successCount = 0;
+          const recipientResults = [];
+
+          for (const recipientId of recipients) {
+            try {
+              const recipientInfo = await getUserInfo(recipientId);
+              if (!recipientInfo || !recipientInfo.expoPushToken) {
+                recipientResults.push({ recipientId, success: false, reason: 'missing_token' });
+                continue;
+              }
+
+              const settings = await getUserNotificationSettings(recipientId);
+              if (!isNotificationTypeEnabled(settings, 'reminder')) {
+                recipientResults.push({ recipientId, success: false, reason: 'notification_off' });
+                continue;
+              }
+
+              const pushResult = await sendExpoPushNotification(
+                recipientInfo.expoPushToken,
+                notificationTitle,
+                notificationBody,
+                {
+                  type: 'meeting_reminder',
+                  meetingId: eventId,
+                  eventId: eventId,
+                  navigationTarget: 'EventDetail',
+                },
+                {
+                  recipientId,
+                  includeCurrentNotification: true,
+                }
+              );
+
+              if (pushResult.success) {
+                successCount += 1;
+                recipientResults.push({ recipientId, success: true });
+              } else {
+                recipientResults.push({
+                  recipientId,
+                  success: false,
+                  reason: pushResult.error || 'push_failed',
+                });
+              }
+            } catch (error) {
+              recipientResults.push({ recipientId, success: false, reason: error.message });
+            }
+          }
+
+          if (successCount > 0) {
+            await eventDoc.ref.update({
+              reminder24hSentAt: admin.firestore.FieldValue.serverTimestamp(),
+              reminder24hTargetStartAt: admin.firestore.Timestamp.fromDate(eventStart),
+            });
+            console.log(`✅ 모임 리마인더 전송 완료: ${eventId} (${successCount}/${recipients.length})`);
+          } else {
+            console.warn(`⚠️ 모임 리마인더 전송 실패/보류: ${eventId} (성공 0건)`);
+          }
+
+          results.push({
+            eventId,
+            recipients: recipients.length,
+            successCount,
+            details: recipientResults,
+          });
+        } catch (error) {
+          console.error(`❌ 모임 리마인더 처리 실패: ${eventId}`, error);
+          results.push({ eventId, success: false, error: error.message });
+        }
+      }
+
+      console.log('✅ 모임 24시간 전 리마인더 스케줄러 실행 완료', {
+        totalProcessed: results.length,
+      });
+
+      return { success: true, results };
+    } catch (error) {
+      console.error('❌ 모임 24시간 전 리마인더 스케줄러 실패:', error);
+      return null;
+    }
+  });
 
 // ============================================
 // 채팅 메시지 알림 함수
@@ -1112,6 +1390,10 @@ exports.onChatMessageCreated = functions.firestore
               type: 'new_message',
               chatRoomId: chatRoomId,
               navigationTarget: 'Chat'
+            },
+            {
+              recipientId,
+              includeCurrentNotification: false,
             }
           );
 
@@ -1201,6 +1483,10 @@ exports.onEventDeleted = functions.firestore
               type: 'meeting_cancelled',
               meetingId: eventId,
               navigationTarget: 'Home'
+            },
+            {
+              recipientId,
+              includeCurrentNotification: true,
             }
           );
 
@@ -1298,6 +1584,10 @@ exports.onEventParticipantAdded = functions.firestore
               eventId: eventId,
               participantId: participantId,
               navigationTarget: 'EventDetail'
+            },
+            {
+              recipientId: organizerId,
+              includeCurrentNotification: true,
             }
           );
 
@@ -1424,6 +1714,10 @@ exports.onPostLikeAdded = functions.firestore
               postId: postId,
               likerId: likerId,
               navigationTarget: 'PostDetail'
+            },
+            {
+              recipientId: authorId,
+              includeCurrentNotification: false,
             }
           );
 
@@ -1556,6 +1850,10 @@ exports.onPostCommentAdded = functions.firestore
               commentId: comment.id,
               commenterId: comment.authorId,
               navigationTarget: 'PostDetail'
+            },
+            {
+              recipientId: authorId,
+              includeCurrentNotification: false,
             }
           );
 

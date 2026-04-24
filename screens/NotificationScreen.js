@@ -17,6 +17,7 @@ import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import weatherAlertService from '../services/weatherAlertService';
 import updateService from '../services/updateService';
+import pushNotificationService from '../services/pushNotificationService';
 import Animated, { 
   useSharedValue, 
   withTiming,
@@ -206,6 +207,20 @@ const NotificationScreen = () => {
       return total + getUnreadCount(tabType);
     }, 0) + getUnreadCount('meeting');
   };
+
+  // 앱 아이콘 배지 카운트를 현재 미읽음 알림 수와 동기화
+  useEffect(() => {
+    const syncBadgeCount = async () => {
+      try {
+        const unreadCount = getTotalUnreadCount();
+        await pushNotificationService.setBadgeCount(unreadCount);
+      } catch (error) {
+        console.error('❌ 배지 카운트 동기화 실패:', error);
+      }
+    };
+
+    syncBadgeCount();
+  }, [meetingNotifications, communityNotifications, notifications, updateNotification, updateReadStatus, settings]);
 
   // 슬라이딩 언더라인 애니메이션 스타일
   const slidingUnderlineStyle = useAnimatedStyle(() => {
@@ -415,7 +430,7 @@ const NotificationScreen = () => {
         });
         break;
       case 'reminder':
-        Alert.alert('모임 알림', '모임 시작 1시간 전입니다. 준비하세요!');
+        Alert.alert('모임 알림', '모임 시작 하루 전입니다. 미리 준비하세요!');
         break;
       case 'cancel':
         console.log('❌ 모임 삭제 알림 클릭 - 읽음 처리만');

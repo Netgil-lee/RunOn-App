@@ -168,6 +168,11 @@ class PushNotificationService {
     if (data?.type) {
       this.handleCustomNotification(data);
     }
+
+    // 포그라운드 수신 시 배지 카운트를 1 증가시켜 아이콘 상태를 유지
+    this.incrementBadgeCount().catch((error) => {
+      console.error('❌ 배지 카운트 증가 실패:', error);
+    });
   }
 
   // 알림 클릭 처리
@@ -480,6 +485,19 @@ class PushNotificationService {
       console.log('📱 앱 배지 설정:', count);
     } catch (error) {
       console.error('❌ 앱 배지 설정 실패:', error);
+    }
+  }
+
+  // 앱 배지 +1
+  async incrementBadgeCount() {
+    try {
+      const currentCount = await Notifications.getBadgeCountAsync();
+      const nextCount = Math.max(0, Number(currentCount || 0) + 1);
+      await Notifications.setBadgeCountAsync(nextCount);
+      return nextCount;
+    } catch (error) {
+      console.error('❌ 배지 카운트 증가 실패:', error);
+      return null;
     }
   }
 

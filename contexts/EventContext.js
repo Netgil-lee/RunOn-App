@@ -478,7 +478,7 @@ export const EventProvider = ({ children }) => {
         switch (type) {
           case 'reminder':
             notification.title = `${event.title}`;
-            notification.message = `오늘 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
+            notification.message = `내일 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
             break;
           case 'cancel':
             notification.title = `${event.title} 취소`;
@@ -520,7 +520,7 @@ export const EventProvider = ({ children }) => {
         switch (type) {
           case 'reminder':
             localNotification.title = `${event.title}`;
-            localNotification.message = `오늘 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
+            localNotification.message = `내일 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
             localNotification.icon = 'time';
             break;
           case 'cancel':
@@ -542,9 +542,9 @@ export const EventProvider = ({ children }) => {
     }
   };
 
-  // 모임 시작 1시간 전 reminder 알림 스케줄링
+  // 모임 시작 24시간 전 reminder 알림 스케줄링 (현재 미사용)
   const scheduleReminderNotification = (event) => {
-    // 모임 날짜와 시간을 파싱하여 1시간 전 시간 계산
+    // 모임 날짜와 시간을 파싱하여 24시간 전 시간 계산
     try {
       let eventDate;
       let eventTime;
@@ -586,8 +586,8 @@ export const EventProvider = ({ children }) => {
       }
       
       if (eventTime) {
-        // 1시간 전 시간 계산
-        const reminderTime = new Date(eventTime.getTime() - 60 * 60 * 1000);
+        // 24시간 전 시간 계산
+        const reminderTime = new Date(eventTime.getTime() - 24 * 60 * 60 * 1000);
         const now = new Date();
         
         // 현재 시간보다 미래인 경우에만 스케줄링
