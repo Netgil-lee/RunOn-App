@@ -1034,6 +1034,54 @@ async function sendExpoPushNotification(expoPushToken, title, body, data = {}, o
 }
 
 /**
+ * 배지 재동기화용 무음 푸시 전송
+ * - title/body/sound 없이 badge만 갱신
+ */
+async function sendBadgeSyncPush(expoPushToken, recipientId) {
+  try {
+    if (!expoPushToken || !recipientId) {
+      return { success: false, error: 'missing_params' };
+    }
+
+    if (!Expo.isExpoPushToken(expoPushToken)) {
+      console.error('❌ 유효하지 않은 Expo Push Token(배지 동기화):', expoPushToken);
+      return { success: false, error: 'Invalid token' };
+    }
+
+    const badgeCount = await getUnreadBadgeCount(recipientId);
+    const messages = [{
+      to: expoPushToken,
+      badge: Math.max(0, badgeCount),
+      data: {
+        type: 'badge_sync',
+      },
+      contentAvailable: true,
+      priority: 'high',
+    }];
+
+    const chunks = expo.chunkPushNotifications(messages);
+    const tickets = [];
+
+    for (const chunk of chunks) {
+      const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+      tickets.push(...ticketChunk);
+    }
+
+    for (const ticket of tickets) {
+      if (ticket.status === 'error') {
+        console.error('❌ 배지 동기화 푸시 전송 에러:', ticket.message);
+        return { success: false, error: ticket.message };
+      }
+    }
+
+    return { success: true, badge: Math.max(0, badgeCount) };
+  } catch (error) {
+    console.error('❌ 배지 동기화 푸시 전송 실패:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * 모임 시작 시각(Date) 파싱
  */
 function parseEventStartDateTime(eventData) {
@@ -1367,6 +1415,7 @@ exports.onChatMessageCreated = functions.firestore
               title: notificationTitle,
               message: `${senderInfo.nickname}: ${messagePreview}`,
               chatId: chatRoomId,
+              eventId: chatRoom.eventId || null,
               senderId: senderId,
               timestamp: admin.firestore.FieldValue.serverTimestamp(),
               isRead: false,
@@ -1425,6 +1474,128 @@ exports.onChatMessageCreated = functions.firestore
 // ============================================
 
 /**
+ * 모임(삭제/종료) 시 채팅방/메시지/채팅알림 정리
+ * - removeChatRooms=true면 채팅 메시지와 채팅방 문서까지 삭제
+ */
+async function cleanupEventChatArtifacts(eventId, options = {}) {
+  const { removeChatRooms = true } = options;
+  const db = admin.firestore();
+  const affectedUserIds = new Set();
+  const chatRoomIds = new Set();
+
+  // 1) eventId가 기록된 채팅 알림 정리 (신규 데이터)
+  try {
+    const eventNotificationsSnapshot = await db
+      .collection('notifications')
+      .where('type', '==', 'message')
+      .where('eventId', '==', eventId)
+      .get();
+
+    for (const notificationDoc of eventNotificationsSnapshot.docs) {
+      const notificationData = notificationDoc.data();
+      if (notificationData?.userId) {
+        affectedUserIds.add(notificationData.userId);
+      }
+      if (notificationData?.chatId) {
+        chatRoomIds.add(notificationData.chatId);
+      }
+      await notificationDoc.ref.delete();
+    }
+
+    if (!eventNotificationsSnapshot.empty) {
+      console.log(`✅ eventId 기반 채팅 알림 정리 완료: ${eventId} (${eventNotificationsSnapshot.size}개)`);
+    }
+  } catch (error) {
+    console.error(`❌ eventId 기반 채팅 알림 정리 실패: ${eventId}`, error);
+  }
+
+  // 2) 모임 채팅방 조회 및 (옵션) 채팅 메시지/채팅방 삭제
+  try {
+    const chatRoomsSnapshot = await db
+      .collection('chatRooms')
+      .where('eventId', '==', eventId)
+      .get();
+
+    for (const chatRoomDoc of chatRoomsSnapshot.docs) {
+      const chatRoomId = chatRoomDoc.id;
+      chatRoomIds.add(chatRoomId);
+
+      const chatRoomData = chatRoomDoc.data();
+      const participants = Array.isArray(chatRoomData?.participants) ? chatRoomData.participants : [];
+      participants.forEach((participantId) => affectedUserIds.add(participantId));
+
+      if (removeChatRooms) {
+        const messagesSnapshot = await db
+          .collection('chatRooms')
+          .doc(chatRoomId)
+          .collection('messages')
+          .get();
+
+        for (const messageDoc of messagesSnapshot.docs) {
+          await messageDoc.ref.delete();
+        }
+        await chatRoomDoc.ref.delete();
+      }
+    }
+
+    if (!chatRoomsSnapshot.empty) {
+      console.log(
+        `✅ 모임 채팅방 정리 완료: ${eventId} (${chatRoomsSnapshot.size}개, removeChatRooms=${removeChatRooms})`
+      );
+    }
+  } catch (error) {
+    console.error(`❌ 모임 채팅방 정리 실패: ${eventId}`, error);
+  }
+
+  // 3) chatId 기반 채팅 알림 정리 (기존 데이터 하위호환)
+  try {
+    for (const chatRoomId of chatRoomIds) {
+      const legacyNotificationsSnapshot = await db
+        .collection('notifications')
+        .where('type', '==', 'message')
+        .where('chatId', '==', chatRoomId)
+        .get();
+
+      for (const notificationDoc of legacyNotificationsSnapshot.docs) {
+        const notificationData = notificationDoc.data();
+        if (notificationData?.userId) {
+          affectedUserIds.add(notificationData.userId);
+        }
+        await notificationDoc.ref.delete();
+      }
+
+      if (!legacyNotificationsSnapshot.empty) {
+        console.log(`✅ chatId 기반 채팅 알림 정리 완료: ${chatRoomId} (${legacyNotificationsSnapshot.size}개)`);
+      }
+    }
+  } catch (error) {
+    console.error(`❌ chatId 기반 채팅 알림 정리 실패: ${eventId}`, error);
+  }
+
+  return Array.from(affectedUserIds);
+}
+
+async function syncBadgeForUsers(userIds, logLabel) {
+  try {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return;
+    }
+
+    for (const targetUserId of userIds) {
+      const targetUserInfo = await getUserInfo(targetUserId);
+      if (!targetUserInfo || !targetUserInfo.expoPushToken) {
+        continue;
+      }
+      await sendBadgeSyncPush(targetUserInfo.expoPushToken, targetUserId);
+    }
+
+    console.log(`✅ 배지 재동기화 완료(${logLabel}): ${userIds.length}명`);
+  } catch (error) {
+    console.error(`❌ 배지 재동기화 실패(${logLabel}):`, error);
+  }
+}
+
+/**
  * 모임 삭제 시 참여자에게 알림 전송
  */
 exports.onEventDeleted = functions.firestore
@@ -1442,15 +1613,16 @@ exports.onEventDeleted = functions.firestore
       // 주최자 제외한 참여자 확인
       const recipients = participants.filter(participantId => participantId !== organizerId);
 
-      if (recipients.length === 0) {
-        console.log('⚠️ 알림을 받을 참여자가 없음');
-        return null;
-      }
-
       const eventTitle = eventData.title || '모임';
 
-      // 각 참여자에게 알림 전송
+      // 1) 삭제된 모임의 채팅 데이터/알림 정리
+      const affectedUserIds = await cleanupEventChatArtifacts(eventId, { removeChatRooms: true });
+
+      // 2) 각 참여자에게 모임 취소 알림 전송
       const results = [];
+      if (recipients.length === 0) {
+        console.log('⚠️ 알림을 받을 참여자가 없음');
+      }
       for (const recipientId of recipients) {
         try {
           // 수신자 정보 가져오기
@@ -1486,7 +1658,7 @@ exports.onEventDeleted = functions.firestore
             },
             {
               recipientId,
-              includeCurrentNotification: true,
+              includeCurrentNotification: false,
             }
           );
 
@@ -1503,12 +1675,44 @@ exports.onEventDeleted = functions.firestore
         }
       }
 
+      // 3) 채팅 알림 정리 영향 사용자 배지 재동기화
+      await syncBadgeForUsers(affectedUserIds, `event_deleted:${eventId}`);
+
       const successCount = results.filter(r => r.success).length;
       console.log(`✅ 모임 취소 알림 전송 완료: ${successCount}/${recipients.length}명`);
 
       return { success: true, results };
     } catch (error) {
       console.error('❌ 모임 취소 알림 전송 실패:', error);
+      return null;
+    }
+  });
+
+/**
+ * 모임 종료 시 채팅 데이터/알림 정리 + 배지 동기화
+ */
+exports.onEventEndedCleanup = functions.firestore
+  .document('events/{eventId}')
+  .onUpdate(async (change, context) => {
+    const { eventId } = context.params;
+    const beforeData = change.before.data() || {};
+    const afterData = change.after.data() || {};
+
+    // ended 전환 시점에만 실행
+    if (beforeData.status === 'ended' || afterData.status !== 'ended') {
+      return null;
+    }
+
+    console.log('🧹 모임 종료 채팅 정리 시작:', eventId);
+
+    try {
+      const affectedUserIds = await cleanupEventChatArtifacts(eventId, { removeChatRooms: true });
+      await syncBadgeForUsers(affectedUserIds, `event_ended:${eventId}`);
+
+      console.log(`✅ 모임 종료 채팅 정리 완료: ${eventId}`);
+      return { success: true, eventId, affectedUsers: affectedUserIds.length };
+    } catch (error) {
+      console.error(`❌ 모임 종료 채팅 정리 실패: ${eventId}`, error);
       return null;
     }
   });

@@ -129,6 +129,11 @@ const MapScreen = ({ navigation, route }) => {
   const [showSearchResults, setShowSearchResults] = useState(false); // 검색 결과 표시 여부
   const [isSearchMode, setIsSearchMode] = useState(false); // 검색 전용 화면 모드
   const [pendingSearchResult, setPendingSearchResult] = useState(null); // 검색 모드 종료 후 처리할 검색 결과
+  const [showRunningStartSheet, setShowRunningStartSheet] = useState(false);
+  const [isPreparingRunningStart, setIsPreparingRunningStart] = useState(false);
+  const [runningStartPermissionGranted, setRunningStartPermissionGranted] = useState(false);
+  const [runningStartPermissionLabel, setRunningStartPermissionLabel] = useState('확인 필요');
+  const [runningStartGpsLabel, setRunningStartGpsLabel] = useState('확인 필요');
   const webViewRef = useRef(null);
   const bottomSheetRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -1299,6 +1304,59 @@ const MapScreen = ({ navigation, route }) => {
       setIsLocationLoading(false);
       return null;
     }
+  };
+
+  const handleOpenRunningStartSheet = async () => {
+    try {
+      setIsPreparingRunningStart(true);
+      setShowRunningStartSheet(true);
+      setRunningStartPermissionLabel('확인 중...');
+      setRunningStartGpsLabel('확인 중...');
+
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted && permission.canAskAgain) {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
+
+      const granted = permission.granted;
+      setRunningStartPermissionGranted(granted);
+      setRunningStartPermissionLabel(granted ? '허용됨' : '미허용');
+
+      if (!granted) {
+        setRunningStartGpsLabel('권한 필요');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const accuracy = Number(location?.coords?.accuracy || 999);
+      setRunningStartGpsLabel(accuracy <= 30 ? '양호' : '약함');
+    } catch (error) {
+      console.error('❌ 러닝 시작 전 상태 확인 실패:', error);
+      setRunningStartPermissionGranted(false);
+      setRunningStartPermissionLabel('확인 필요');
+      setRunningStartGpsLabel('확인 실패');
+    } finally {
+      setIsPreparingRunningStart(false);
+    }
+  };
+
+  const handleRunningStart = () => {
+    if (!runningStartPermissionGranted) {
+      Alert.alert(
+        '위치 권한 필요',
+        '러닝 기록을 시작하려면 위치 권한 허용이 필요합니다.',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '설정으로 이동', onPress: () => Linking.openSettings() },
+        ]
+      );
+      return;
+    }
+
+    setShowRunningStartSheet(false);
+    navigation.navigate('RunningTracker');
   };
 
   // 모든 모임 데이터 로드 (반경 제한 없음)
@@ -2583,6 +2641,13 @@ const MapScreen = ({ navigation, route }) => {
           </TouchableOpacity>
           </View>
         )}
+
+        {!isSearchMode && (
+          <TouchableOpacity style={styles.runningStartFab} onPress={handleOpenRunningStartSheet}>
+            <Ionicons name="play" size={18} color="#000000" />
+            <Text style={styles.runningStartFabText}>러닝 시작</Text>
+          </TouchableOpacity>
+        )}
         
         {!isSearchMode && (
           <WebView
@@ -3194,6 +3259,40 @@ const MapScreen = ({ navigation, route }) => {
         )}
 
         <Modal
+          visible={showRunningStartSheet}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowRunningStartSheet(false)}
+        >
+          <View style={styles.runningStartSheetOverlay}>
+            <View style={styles.runningStartSheet}>
+              <Text style={styles.runningStartSheetTitle}>시작 전 확인</Text>
+
+              <View style={styles.runningStartStatusRow}>
+                <Text style={styles.runningStartStatusLabel}>위치 권한</Text>
+                <Text style={styles.runningStartStatusValue}>{runningStartPermissionLabel}</Text>
+              </View>
+              <View style={styles.runningStartStatusRow}>
+                <Text style={styles.runningStartStatusLabel}>GPS 상태</Text>
+                <Text style={styles.runningStartStatusValue}>{runningStartGpsLabel}</Text>
+              </View>
+              <Text style={styles.runningStartNoticeText}>일시정지는 수동 버튼으로만 동작합니다.</Text>
+
+              {isPreparingRunningStart && <ActivityIndicator size="small" color={COLORS.PRIMARY} style={{ marginBottom: 10 }} />}
+
+              <View style={styles.runningStartActionRow}>
+                <TouchableOpacity style={styles.runningStartCancelButton} onPress={() => setShowRunningStartSheet(false)}>
+                  <Text style={styles.runningStartCancelButtonText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.runningStartConfirmButton} onPress={handleRunningStart}>
+                  <Text style={styles.runningStartConfirmButtonText}>러닝 시작</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
           visible={isImageViewerVisible}
           transparent
           animationType="fade"
@@ -3324,6 +3423,101 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 16,
     fontWeight: '500',
+  },
+  runningStartFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 110,
+    zIndex: 220,
+    backgroundColor: '#3AF8FF',
+    borderRadius: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 7,
+  },
+  runningStartFabText: {
+    color: '#000000',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  runningStartSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  runningStartSheet: {
+    backgroundColor: '#1F1F24',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 30,
+  },
+  runningStartSheetTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 14,
+  },
+  runningStartStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  runningStartStatusLabel: {
+    color: '#B5B5B8',
+    fontSize: 14,
+  },
+  runningStartStatusValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  runningStartNoticeText: {
+    marginTop: 6,
+    marginBottom: 14,
+    color: '#8E8E93',
+    fontSize: 13,
+  },
+  runningStartActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  runningStartCancelButton: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#3A3A40',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#2A2A2E',
+  },
+  runningStartCancelButtonText: {
+    color: '#E5E5E7',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  runningStartConfirmButton: {
+    flex: 1,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#3AF8FF',
+  },
+  runningStartConfirmButtonText: {
+    color: '#000000',
+    fontSize: 14,
+    fontWeight: '700',
   },
   bottomSheetBackground: {
     backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (COLORS.SURFACE)

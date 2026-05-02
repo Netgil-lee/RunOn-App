@@ -42,7 +42,7 @@ const NotificationScreen = () => {
   const navigation = useNavigation();
   const { isTabEnabled, isNotificationTypeEnabled, settings } = useNotificationSettings();
   const { meetingNotifications, setMeetingNotifications, chatRooms, addChatMessage, setUpdateNotification: setEventUpdateNotification, clearUpdateNotification, checkUpdateNotificationStatus, checkMeetingNotifications } = useEvents();
-  const { notifications: communityNotifications, markNotificationAsRead, getPostById, createLikeNotification, createCommentNotification, createChatNotification, handleChatTabClick, handleBoardTabClick } = useCommunity();
+  const { notifications: communityNotifications, markNotificationAsRead, deleteNotification, getPostById, createLikeNotification, createCommentNotification, createChatNotification, handleChatTabClick, handleBoardTabClick } = useCommunity();
   
   // 탭 상태
   const [activeTab, setActiveTab] = useState('general');
@@ -459,6 +459,28 @@ const NotificationScreen = () => {
     }
   };
 
+  const handleNotificationLongPress = (notification) => {
+    if (activeTab !== 'chat') return;
+
+    Alert.alert(
+      '알림 삭제',
+      '이 알림을 삭제하시겠어요?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            const deleted = await deleteNotification(notification.id);
+            if (!deleted) {
+              Alert.alert('오류', '알림 삭제에 실패했습니다.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // 알림 아이템 컴포넌트
   const NotificationItem = ({ notification }) => {
     // 시간 표시 함수
@@ -496,6 +518,8 @@ const NotificationScreen = () => {
           notification.isRead ? styles.readNotification : styles.unreadNotification
         ]}
         onPress={() => handleNotificationPress(notification)}
+        onLongPress={() => handleNotificationLongPress(notification)}
+        delayLongPress={300}
       >
         <View style={styles.notificationHeader}>
           <View style={styles.notificationIconContainer}>

@@ -26,6 +26,8 @@ import PostCreateScreen from '../screens/PostCreateScreen';
 import PostDetailScreen from '../screens/PostDetailScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import SearchScreen from '../screens/SearchScreen';
+import RunningTrackerScreen from '../screens/RunningTrackerScreen';
+import RunningResultScreen from '../screens/RunningResultScreen';
 
 import AppIntroScreen from '../screens/AppIntroScreen';
 import AppGuideScreen from '../screens/AppGuideScreen';
@@ -206,6 +208,8 @@ const AppNavigator = ({ isDemoMode = false }) => {
         <Stack.Screen name="PostDetail" component={PostDetailScreen} />
         <Stack.Screen name="Notification" component={NotificationScreen} />
         <Stack.Screen name="Search" component={SearchScreen} />
+        <Stack.Screen name="RunningTracker" component={RunningTrackerScreen} />
+        <Stack.Screen name="RunningResult" component={RunningResultScreen} />
         <Stack.Screen name="BlacklistManagement" component={BlacklistManagementScreen} />
         <Stack.Screen name="Premium" component={PremiumScreen} />
       </Stack.Navigator>

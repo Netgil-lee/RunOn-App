@@ -5,15 +5,22 @@ import Svg, { Polyline } from 'react-native-svg';
 const { width: screenWidth } = Dimensions.get('window');
 
 const RouteMap = ({ coordinates, width = 200, height = 100 }) => {
-  if (!coordinates || coordinates.length < 2) {
+  const normalizedCoordinates = (coordinates || [])
+    .map((coord) => ({
+      latitude: Number(coord?.latitude ?? coord?.lat),
+      longitude: Number(coord?.longitude ?? coord?.lng ?? coord?.lon),
+    }))
+    .filter((coord) => Number.isFinite(coord.latitude) && Number.isFinite(coord.longitude));
+
+  if (normalizedCoordinates.length < 2) {
     return null;
   }
 
   // 좌표를 SVG 좌표계로 변환
-  const minLat = Math.min(...coordinates.map(coord => coord.latitude));
-  const maxLat = Math.max(...coordinates.map(coord => coord.latitude));
-  const minLng = Math.min(...coordinates.map(coord => coord.longitude));
-  const maxLng = Math.max(...coordinates.map(coord => coord.longitude));
+  const minLat = Math.min(...normalizedCoordinates.map(coord => coord.latitude));
+  const maxLat = Math.max(...normalizedCoordinates.map(coord => coord.latitude));
+  const minLng = Math.min(...normalizedCoordinates.map(coord => coord.longitude));
+  const maxLng = Math.max(...normalizedCoordinates.map(coord => coord.longitude));
 
   const latRange = maxLat - minLat;
   const lngRange = maxLng - minLng;
@@ -27,7 +34,7 @@ const RouteMap = ({ coordinates, width = 200, height = 100 }) => {
   const scaleX = svgWidth / Math.max(lngRange, 0.001); // 0으로 나누기 방지
   const scaleY = svgHeight / Math.max(latRange, 0.001);
 
-  const svgCoordinates = coordinates.map(coord => {
+  const svgCoordinates = normalizedCoordinates.map(coord => {
     const x = margin + ((coord.longitude - minLng) * scaleX);
     const y = margin + ((maxLat - coord.latitude) * scaleY);
     return `${x},${y}`;

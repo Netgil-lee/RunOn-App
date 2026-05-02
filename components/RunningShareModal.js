@@ -32,11 +32,33 @@ import garminConnectService from '../services/garminConnectService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+const detectWorkoutSourceType = (...candidates) => {
+  for (const candidate of candidates) {
+    const text = `${candidate || ''}`.trim().toLowerCase();
+    if (!text) continue;
+    if (text.includes('runon')) return 'runon';
+    if (text.includes('apple')) return 'apple';
+    if (text.includes('fitness')) return 'apple';
+    if (text.includes('health')) return 'apple';
+    if (text.includes('garmin')) return 'garmin';
+  }
+  return 'unknown';
+};
+
+const normalizeWorkoutData = (data) => ({
+  distance: data?.distance || '0m',
+  pace: data?.pace || '0:00/km',
+  duration: data?.duration || '0s',
+  calories: data?.calories || 0,
+  routeCoordinates: Array.isArray(data?.routeCoordinates) ? data.routeCoordinates : [],
+});
+
 const RunningShareModal = ({ 
   visible, 
   onClose, 
   workoutData, 
   eventData,
+  workoutSource = null,
   presetWorkoutData = null,
   onShareComplete 
 }) => {
@@ -49,6 +71,15 @@ const RunningShareModal = ({
   const [dataSource, setDataSource] = useState('apple'); // 'apple' | 'garmin'
   const shareCardRef = useRef(null);
   const placeInputRef = useRef(null);
+  const localWorkoutData = normalizeWorkoutData(presetWorkoutData || workoutData);
+  const detectedSource = detectWorkoutSourceType(
+    workoutSource,
+    presetWorkoutData?.sourceLabel,
+    presetWorkoutData?.sourceName,
+    workoutData?.sourceLabel,
+    workoutData?.sourceName
+  );
+  const shouldUseRunOnLocalData = detectedSource === 'runon';
   
   // 모달 오버레이 페이드 애니메이션
   const modalBackdropOpacity = useRef(new Animated.Value(0)).current;
@@ -145,10 +176,12 @@ const RunningShareModal = ({
 
   // 실제 운동기록 데이터 가져오기 (place 입력 후에만 실행)
   useEffect(() => {
-    if (visible && eventData && hasEnteredPlace && !presetWorkoutData) {
+    if (!visible || !hasEnteredPlace) return;
+    if (shouldUseRunOnLocalData) return;
+    if (eventData) {
       fetchActualWorkoutData();
     }
-  }, [visible, eventData, hasEnteredPlace, dataSource, presetWorkoutData]);
+  }, [visible, eventData, hasEnteredPlace, dataSource, shouldUseRunOnLocalData]);
 
   const fetchActualWorkoutData = async () => {
     try {
@@ -216,8 +249,8 @@ const RunningShareModal = ({
       Alert.alert('입력 필요', 'Place를 입력해주세요.');
       return;
     }
-    if (presetWorkoutData) {
-      setActualWorkoutData(presetWorkoutData);
+    if (shouldUseRunOnLocalData || presetWorkoutData) {
+      setActualWorkoutData(localWorkoutData);
     }
     setHasEnteredPlace(true);
   };
@@ -263,13 +296,25 @@ const RunningShareModal = ({
       const uri = await captureRef(shareCardRef, {
         format: 'png',
         quality: 1.0,
-        result: 'tmpfile'
+        result: 'tmpfile',
+        // iOS에서 SVG(경로 라인) 캡처 안정성 개선
+        useRenderInContext: Platform.OS === 'ios',
         // backgroundColor 제거 - 투명 배경으로 저장
       });
 
-      // 갤러리에 저장
+      // 갤러리에 저장 (앨범 생성 실패와 저장 실패를 분리)
       const asset = await MediaLibrary.createAssetAsync(uri);
-      await MediaLibrary.createAlbumAsync('RunOn', asset, false);
+      try {
+        const existingAlbum = await MediaLibrary.getAlbumAsync('RunOn');
+        if (existingAlbum) {
+          await MediaLibrary.addAssetsToAlbumAsync([asset], existingAlbum, false);
+        } else {
+          await MediaLibrary.createAlbumAsync('RunOn', asset, false);
+        }
+      } catch (albumError) {
+        // 앨범 처리 실패 시에도 asset 자체는 저장됐을 수 있으므로 성공 흐름 유지
+        console.warn('⚠️ RunOn 앨범 처리 실패(기본 사진첩 저장은 성공):', albumError);
+      }
 
       Alert.alert(
         '저장 완료',

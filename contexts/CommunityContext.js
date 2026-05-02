@@ -776,9 +776,19 @@ export const CommunityProvider = ({ children }) => {
     return notifications.filter(notification => !notification.isRead).length;
   };
 
-  // 알림 삭제
-  const deleteNotification = (notificationId) => {
-    setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
+  // 알림 삭제 (Firestore + 로컬 상태 동기화)
+  const deleteNotification = async (notificationId) => {
+    if (!notificationId) return false;
+
+    try {
+      const notificationRef = doc(db, 'notifications', notificationId);
+      await deleteDoc(notificationRef);
+      setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
+      return true;
+    } catch (error) {
+      console.error('❌ 알림 삭제 실패:', error);
+      return false;
+    }
   };
 
   // postId로 게시글 찾기 (로컬에서 찾지 못하면 Firestore에서 직접 가져오기)
