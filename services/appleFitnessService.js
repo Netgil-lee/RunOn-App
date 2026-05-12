@@ -801,20 +801,38 @@ class AppleFitnessService {
 
       if (__DEV__ && env.simulateHealthKitOnSimulator) {
         const now = new Date();
-        return [{
-          id: `dummy-${now.getTime()}`,
-          startTime: now.toISOString(),
-          sourceName: 'Simulator',
-          distance: this.formatDistance(5000),
-          duration: this.formatDuration(1800),
-          pace: '6:00/km',
-          calories: 300,
-          routeCoordinates: [
-            { latitude: 37.5665, longitude: 126.9780 },
-            { latitude: 37.5666, longitude: 126.9781 },
-            { latitude: 37.5667, longitude: 126.9782 },
-          ],
-        }];
+        return [
+          {
+            id: `dummy-kakao-force-${now.getTime()}`,
+            startTime: now.toISOString(),
+            sourceName: 'KakaoMap Force Test',
+            distance: this.formatDistance(5200),
+            duration: this.formatDuration(1820),
+            pace: '5:50/km',
+            calories: 315,
+            forceKakaoMiniMap: true,
+            routeCoordinates: [
+              { latitude: 37.48614, longitude: 127.12112 },
+              { latitude: 37.48655, longitude: 127.12166 },
+              { latitude: 37.48712, longitude: 127.12211 },
+              { latitude: 37.48763, longitude: 127.12245 },
+            ],
+          },
+          {
+            id: `dummy-${now.getTime()}`,
+            startTime: new Date(now.getTime() - 60 * 1000).toISOString(),
+            sourceName: 'Simulator',
+            distance: this.formatDistance(5000),
+            duration: this.formatDuration(1800),
+            pace: '6:00/km',
+            calories: 300,
+            routeCoordinates: [
+              { latitude: 37.5665, longitude: 126.9780 },
+              { latitude: 37.5666, longitude: 126.9781 },
+              { latitude: 37.5667, longitude: 126.9782 },
+            ],
+          },
+        ];
       }
 
       if (!this.isServiceAvailable()) {

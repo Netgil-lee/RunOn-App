@@ -3,7 +3,7 @@
     "name": "RunOn",
     "slug": "runon",
     "scheme": "runon",
-    "version": "1.1.13",
+    "version": "1.1.24",
     "orientation": "portrait",
     "icon": "./assets/appicon.png",
     "userInterfaceStyle": "light",
@@ -13,7 +13,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.runon.app",
-      "buildNumber": "166",
+      "buildNumber": "177",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "이 앱은 근처 러닝 코스와 모임을 찾기 위해 위치 정보를 사용합니다.",
@@ -27,7 +27,8 @@
         "NSHealthUpdateUsageDescription": "러닝 기록을 HealthKit에 저장하기 위해 건강 데이터 쓰기 권한이 필요합니다.",
         "NSUserNotificationsUsageDescription": "모임 알림, 메시지 알림, 날씨 경고 등 중요한 정보를 받기 위해 알림 권한이 필요합니다.",
         "UIBackgroundModes": [
-          "remote-notification"
+          "remote-notification",
+          "location"
         ]
       }
     },
@@ -74,7 +75,13 @@
     },
     "plugins": [
       "expo-font",
-      "expo-location",
+      [
+        "expo-location",
+        {
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
       "expo-image-picker",
       "expo-notifications",
       "expo-web-browser"

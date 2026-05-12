@@ -49,7 +49,8 @@ const RunningShareCard = forwardRef(({
           <RouteMap 
             coordinates={routeCoordinates} 
             width={170} 
-            height={100} 
+            height={100}
+            provider="svg"
           />
         )}
       </View>

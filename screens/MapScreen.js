@@ -108,6 +108,12 @@ const MapScreen = ({ navigation, route }) => {
   const [events, setEvents] = useState([]);
   const [cafes, setCafes] = useState([]);
   const [foods, setFoods] = useState([]);
+  // useFocusEffect 내부에서 최신 값을 읽기 위한 refs
+  // (cafes/foods를 의존성에 넣으면 setCafes/setFoods 호출 시마다 effect가 재실행되어 지도가 현재위치로 튀는 버그 발생)
+  const cafesRef = useRef([]);
+  const foodsRef = useRef([]);
+  const handleCafeClickRef = useRef(null);
+  const handleFoodClickRef = useRef(null);
   const [clusterData, setClusterData] = useState(null); // 클러스터 클릭 시 데이터
   const [selectedEvent, setSelectedEvent] = useState(null); // 선택된 모임 (상세 화면 표시용)
   const [selectedCafe, setSelectedCafe] = useState(null); // 선택된 카페 (상세 화면 표시용)
@@ -129,12 +135,36 @@ const MapScreen = ({ navigation, route }) => {
   const [showSearchResults, setShowSearchResults] = useState(false); // 검색 결과 표시 여부
   const [isSearchMode, setIsSearchMode] = useState(false); // 검색 전용 화면 모드
   const [pendingSearchResult, setPendingSearchResult] = useState(null); // 검색 모드 종료 후 처리할 검색 결과
-  const [showRunningStartSheet, setShowRunningStartSheet] = useState(false);
-  const [isPreparingRunningStart, setIsPreparingRunningStart] = useState(false);
-  const [runningStartPermissionGranted, setRunningStartPermissionGranted] = useState(false);
-  const [runningStartPermissionLabel, setRunningStartPermissionLabel] = useState('확인 필요');
-  const [runningStartGpsLabel, setRunningStartGpsLabel] = useState('확인 필요');
   const webViewRef = useRef(null);
+  const locationWatchSubRef = useRef(null);
+  const mapLoadCompleteRef = useRef(false);
+  /** 탭 포커스마다 최초 1회만 내 위치로 지도 패닝 */
+  const didInitialCenterOnFocusRef = useRef(false);
+  const currentLocationForMapRef = useRef(null);
+
+  const syncUserDotToWebView = useCallback((lat, lng, tryInitialPan) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    currentLocationForMapRef.current = { latitude: lat, longitude: lng };
+    if (!webViewRef.current) return;
+    webViewRef.current.postMessage(
+      JSON.stringify({
+        type: 'updateCurrentLocation',
+        latitude: lat,
+        longitude: lng,
+      })
+    );
+    if (tryInitialPan && !didInitialCenterOnFocusRef.current && mapLoadCompleteRef.current) {
+      didInitialCenterOnFocusRef.current = true;
+      webViewRef.current.postMessage(
+        JSON.stringify({
+          type: 'moveToCurrentLocation',
+          latitude: lat,
+          longitude: lng,
+        })
+      );
+    }
+  }, []);
+
   const bottomSheetRef = useRef(null);
   const searchInputRef = useRef(null);
   const eventDetailScreenRef = useRef(null);
@@ -915,6 +945,10 @@ const MapScreen = ({ navigation, route }) => {
             try {
               var data = JSON.parse(event.data);
               if (data.type === 'updateCurrentLocation') {
+                if (!map) {
+                  log('⚠️ 지도 미준비로 현재 위치 마커 업데이트 스킵', 'info');
+                  return;
+                }
                 createCurrentLocationMarker(data.latitude, data.longitude);
               } else if (data.type === 'moveToCurrentLocation') {
                 if (map) {
@@ -1297,7 +1331,8 @@ const MapScreen = ({ navigation, route }) => {
       
       setCurrentLocation(locationData);
       setIsLocationLoading(false);
-      
+      syncUserDotToWebView(locationData.latitude, locationData.longitude, false);
+
       return locationData;
     } catch (error) {
       console.error('현재 위치 가져오기 실패:', error);
@@ -1306,56 +1341,7 @@ const MapScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleOpenRunningStartSheet = async () => {
-    try {
-      setIsPreparingRunningStart(true);
-      setShowRunningStartSheet(true);
-      setRunningStartPermissionLabel('확인 중...');
-      setRunningStartGpsLabel('확인 중...');
-
-      let permission = await Location.getForegroundPermissionsAsync();
-      if (!permission.granted && permission.canAskAgain) {
-        permission = await Location.requestForegroundPermissionsAsync();
-      }
-
-      const granted = permission.granted;
-      setRunningStartPermissionGranted(granted);
-      setRunningStartPermissionLabel(granted ? '허용됨' : '미허용');
-
-      if (!granted) {
-        setRunningStartGpsLabel('권한 필요');
-        return;
-      }
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const accuracy = Number(location?.coords?.accuracy || 999);
-      setRunningStartGpsLabel(accuracy <= 30 ? '양호' : '약함');
-    } catch (error) {
-      console.error('❌ 러닝 시작 전 상태 확인 실패:', error);
-      setRunningStartPermissionGranted(false);
-      setRunningStartPermissionLabel('확인 필요');
-      setRunningStartGpsLabel('확인 실패');
-    } finally {
-      setIsPreparingRunningStart(false);
-    }
-  };
-
   const handleRunningStart = () => {
-    if (!runningStartPermissionGranted) {
-      Alert.alert(
-        '위치 권한 필요',
-        '러닝 기록을 시작하려면 위치 권한 허용이 필요합니다.',
-        [
-          { text: '취소', style: 'cancel' },
-          { text: '설정으로 이동', onPress: () => Linking.openSettings() },
-        ]
-      );
-      return;
-    }
-
-    setShowRunningStartSheet(false);
     navigation.navigate('RunningTracker');
   };
 
@@ -1482,9 +1468,15 @@ const MapScreen = ({ navigation, route }) => {
     }
   }, [isLoading]);
 
+  // cafes/foods state → ref 최신화 (useFocusEffect 의존성에서 제외하기 위해 ref로 전달)
+  useEffect(() => { cafesRef.current = cafes; }, [cafes]);
+  useEffect(() => { foodsRef.current = foods; }, [foods]);
+
   // 화면 포커스 시 StatusBar 설정 및 위치 업데이트, 모임 데이터 새로고침
   useFocusEffect(
     React.useCallback(() => {
+      didInitialCenterOnFocusRef.current = false;
+
       // StatusBar 설정 (iOS) - 한 번만 설정
       StatusBar.setBarStyle('dark-content', true);
       
@@ -1512,8 +1504,24 @@ const MapScreen = ({ navigation, route }) => {
           const { status } = await Location.getForegroundPermissionsAsync();
           
           if (status === 'granted') {
-            // 권한이 있으면 위치 가져오기 (항상 업데이트)
+            // 권한이 있으면 즉시 1회 갱신 (지도·마커 빠르게 표시)
             await getCurrentLocation();
+
+            locationWatchSubRef.current?.remove();
+            const sub = await Location.watchPositionAsync(
+              {
+                accuracy: Location.Accuracy.Balanced,
+                timeInterval: 1500,
+                distanceInterval: 5,
+              },
+              (watchLoc) => {
+                const lat = watchLoc.coords.latitude;
+                const lng = watchLoc.coords.longitude;
+                setCurrentLocation({ latitude: lat, longitude: lng });
+                syncUserDotToWebView(lat, lng, true);
+              }
+            );
+            locationWatchSubRef.current = sub;
           }
         } catch (error) {
           console.error('위치 권한 확인 실패:', error);
@@ -1523,14 +1531,14 @@ const MapScreen = ({ navigation, route }) => {
       checkAndUpdateLocation();
       
       // 대시보드에서 카페 카드 클릭으로 진입한 경우 처리
-      if (targetCafeId && cafes.length > 0) {
-        const targetCafe = cafes.find(cafe => cafe.id === targetCafeId);
+      if (targetCafeId && cafesRef.current.length > 0) {
+        const targetCafe = cafesRef.current.find(cafe => cafe.id === targetCafeId);
         if (targetCafe) {
           // 토글을 카페로 변경
           setActiveToggle('cafes');
           // 해당 카페 선택 (상세 화면 표시 및 지도 이동)
           setTimeout(() => {
-            handleCafeClick(targetCafe);
+            handleCafeClickRef.current?.(targetCafe);
           }, 300);
           // params 초기화 (재진입 시 중복 실행 방지)
           navigation.setParams({ targetCafeId: undefined, activeToggle: undefined });
@@ -1538,12 +1546,12 @@ const MapScreen = ({ navigation, route }) => {
       }
 
       // 대시보드에서 러닝푸드 카드 클릭으로 진입한 경우 처리
-      if (targetFoodId && foods.length > 0) {
-        const targetFood = foods.find(food => food.id === targetFoodId);
+      if (targetFoodId && foodsRef.current.length > 0) {
+        const targetFood = foodsRef.current.find(food => food.id === targetFoodId);
         if (targetFood) {
           setActiveToggle('foods');
           setTimeout(() => {
-            handleFoodClick(targetFood);
+            handleFoodClickRef.current?.(targetFood);
           }, 300);
           navigation.setParams({ targetFoodId: undefined, activeToggle: undefined });
         }
@@ -1568,6 +1576,9 @@ const MapScreen = ({ navigation, route }) => {
       }
       
       return () => {
+        locationWatchSubRef.current?.remove();
+        locationWatchSubRef.current = null;
+
         // 화면을 벗어날 때 원래 설정으로 복원
         StatusBar.setBarStyle('light-content', true);
         // bottombar 구분선 제거 (원래 스타일로 복원)
@@ -1581,7 +1592,7 @@ const MapScreen = ({ navigation, route }) => {
           },
         });
       };
-    }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, cafes, foods, handleCafeClick, handleFoodClick]) // 의존성 추가
+    }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, syncUserDotToWebView])
   );
 
   // WebView 메시지 핸들러 (HanRiverMap.js의 handleWebViewMessage 기반)
@@ -1595,21 +1606,18 @@ const MapScreen = ({ navigation, route }) => {
     
     if (data === 'mapLoaded') {
       console.log('✅ mapLoaded 메시지 수신');
+      mapLoadCompleteRef.current = true;
       setIsLoading(false);
-      
-      // 지도 로드 완료 후 현재 위치 전송
-      if (currentLocation && webViewRef.current) {
+
+      // 지도 로드 직후 캐시된 좌표로 마커·(필요 시) 최초 패닝 (위치가 먼저 온 경우 대비)
+      const loc = currentLocationForMapRef.current;
+      if (loc && webViewRef.current) {
         setTimeout(() => {
-          const locationMessage = JSON.stringify({
-            type: 'updateCurrentLocation',
-            latitude: currentLocation.latitude,
-            longitude: currentLocation.longitude
-          });
-          webViewRef.current?.postMessage(locationMessage);
-          console.log('🗺️ 지도 로드 후 현재 위치 전송:', locationMessage);
-        }, 500);
+          syncUserDotToWebView(loc.latitude, loc.longitude, true);
+          console.log('🗺️ 지도 로드 후 현재 위치 동기화:', loc);
+        }, 400);
       } else {
-        console.log('🗺️ 지도 로드 완료, 현재 위치 없음');
+        console.log('🗺️ 지도 로드 완료, 아직 좌표 없음 — 위치 수신 후 동기화');
       }
       
       // 지도 로드 완료 후 마커 데이터 전송
@@ -2081,7 +2089,12 @@ const MapScreen = ({ navigation, route }) => {
       }
     }
   }, [user]);
-  
+
+  // handleCafeClick / handleFoodClick ref 최신화
+  // useFocusEffect 의존성에서 제외하기 위해 ref로 접근
+  useEffect(() => { handleCafeClickRef.current = handleCafeClick; }, [handleCafeClick]);
+  useEffect(() => { handleFoodClickRef.current = handleFoodClick; }, [handleFoodClick]);
+
   // 카페 상세 화면 닫기
   const handleCloseCafeDetail = useCallback(() => {
     setSelectedCafe(null);
@@ -2454,16 +2467,13 @@ const MapScreen = ({ navigation, route }) => {
                 // 먼저 최신 위치를 가져옴
                 const location = await getCurrentLocation();
                 if (location && webViewRef.current) {
-                  // currentLocation state 업데이트 (최신 위치로)
-                  setCurrentLocation(location);
-                  
-                  // 지도를 현재 위치로 이동
-                  const message = JSON.stringify({
-                    type: 'moveToCurrentLocation',
-                    latitude: location.latitude,
-                    longitude: location.longitude
-                  });
-                  webViewRef.current?.postMessage(message);
+                  webViewRef.current.postMessage(
+                    JSON.stringify({
+                      type: 'moveToCurrentLocation',
+                      latitude: location.latitude,
+                      longitude: location.longitude,
+                    })
+                  );
                   
                   // 현재 위치 기준 3km 내 모임만 필터링
                   await filterEventsByLocation(location.latitude, location.longitude);
@@ -2643,7 +2653,7 @@ const MapScreen = ({ navigation, route }) => {
         )}
 
         {!isSearchMode && (
-          <TouchableOpacity style={styles.runningStartFab} onPress={handleOpenRunningStartSheet}>
+          <TouchableOpacity style={styles.runningStartFab} onPress={handleRunningStart}>
             <Ionicons name="play" size={18} color="#000000" />
             <Text style={styles.runningStartFabText}>러닝 시작</Text>
           </TouchableOpacity>
@@ -3259,40 +3269,6 @@ const MapScreen = ({ navigation, route }) => {
         )}
 
         <Modal
-          visible={showRunningStartSheet}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowRunningStartSheet(false)}
-        >
-          <View style={styles.runningStartSheetOverlay}>
-            <View style={styles.runningStartSheet}>
-              <Text style={styles.runningStartSheetTitle}>시작 전 확인</Text>
-
-              <View style={styles.runningStartStatusRow}>
-                <Text style={styles.runningStartStatusLabel}>위치 권한</Text>
-                <Text style={styles.runningStartStatusValue}>{runningStartPermissionLabel}</Text>
-              </View>
-              <View style={styles.runningStartStatusRow}>
-                <Text style={styles.runningStartStatusLabel}>GPS 상태</Text>
-                <Text style={styles.runningStartStatusValue}>{runningStartGpsLabel}</Text>
-              </View>
-              <Text style={styles.runningStartNoticeText}>일시정지는 수동 버튼으로만 동작합니다.</Text>
-
-              {isPreparingRunningStart && <ActivityIndicator size="small" color={COLORS.PRIMARY} style={{ marginBottom: 10 }} />}
-
-              <View style={styles.runningStartActionRow}>
-                <TouchableOpacity style={styles.runningStartCancelButton} onPress={() => setShowRunningStartSheet(false)}>
-                  <Text style={styles.runningStartCancelButtonText}>취소</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.runningStartConfirmButton} onPress={handleRunningStart}>
-                  <Text style={styles.runningStartConfirmButtonText}>러닝 시작</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        <Modal
           visible={isImageViewerVisible}
           transparent
           animationType="fade"
@@ -3443,78 +3419,6 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
   runningStartFabText: {
-    color: '#000000',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  runningStartSheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    justifyContent: 'flex-end',
-  },
-  runningStartSheet: {
-    backgroundColor: '#1F1F24',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 30,
-  },
-  runningStartSheetTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 14,
-  },
-  runningStartStatusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  runningStartStatusLabel: {
-    color: '#B5B5B8',
-    fontSize: 14,
-  },
-  runningStartStatusValue: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  runningStartNoticeText: {
-    marginTop: 6,
-    marginBottom: 14,
-    color: '#8E8E93',
-    fontSize: 13,
-  },
-  runningStartActionRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  runningStartCancelButton: {
-    flex: 1,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#3A3A40',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    backgroundColor: '#2A2A2E',
-  },
-  runningStartCancelButtonText: {
-    color: '#E5E5E7',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  runningStartConfirmButton: {
-    flex: 1,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    backgroundColor: '#3AF8FF',
-  },
-  runningStartConfirmButtonText: {
     color: '#000000',
     fontSize: 14,
     fontWeight: '700',

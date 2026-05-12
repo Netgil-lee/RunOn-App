@@ -1067,28 +1067,37 @@ export const EventProvider = ({ children }) => {
     try {
       console.log('🔍 deleteEvent 호출됨 - eventId:', eventId);
       
-      // 삭제할 모임 찾기
-      const eventToDelete = userCreatedEvents.find(event => event.id === eventId);
+      // 삭제할 모임 찾기 (진행 중: userCreatedEvents / 종료됨: endedEvents)
+      const fromCreated = userCreatedEvents.find((event) => event.id === eventId);
+      const fromEnded = endedEvents.find((event) => event.id === eventId);
+      const eventToDelete = fromCreated || fromEnded;
       
       if (eventToDelete) {
-        // 내가 만든 모임을 삭제하는 경우, 참여자들에게 cancel 알림 생성
-        addMeetingNotification('cancel', eventToDelete, true);
-        
-        // Firebase에서 실제 이벤트 삭제
+        // 진행 중 내가 만든 모임 삭제 시에만 취소 알림
+        if (fromCreated) {
+          addMeetingNotification('cancel', eventToDelete, true);
+        }
+
         await firestoreService.deleteEvent(eventId);
         console.log('✅ Firebase에서 이벤트 삭제 완료');
-        
-        // Firebase에서 연결된 채팅방도 삭제
+
         await firestoreService.deleteChatRoom(eventId);
         console.log('✅ Firebase에서 채팅방 삭제 완료');
+
+        try {
+          await storageService.deleteEventFiles(eventId);
+        } catch (storageError) {
+          console.warn('⚠️ 모임 파일 삭제 실패(무시):', storageError?.message || storageError);
+        }
       }
 
       // 로컬 상태 업데이트
-      setUserCreatedEvents(prev => prev.filter(event => event.id !== eventId));
-      setAllEvents(prev => prev.filter(event => event.id !== eventId));
+      setUserCreatedEvents((prev) => prev.filter((event) => event.id !== eventId));
+      setEndedEvents((prev) => prev.filter((event) => event.id !== eventId));
+      setAllEvents((prev) => prev.filter((event) => event.id !== eventId));
       
       // 연결된 채팅방도 삭제
-      setChatRooms(prev => prev.filter(chatRoom => chatRoom.eventId !== eventId));
+      setChatRooms((prev) => prev.filter((chatRoom) => chatRoom.eventId !== eventId));
       
       console.log('✅ 로컬 상태 업데이트 완료');
     } catch (error) {

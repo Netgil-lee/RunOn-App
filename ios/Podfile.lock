@@ -1,6 +1,9 @@
 PODS:
   - EXApplication (7.0.7):
     - ExpoModulesCore
+  - EXAV (16.0.8):
+    - ExpoModulesCore
+    - ReactCommon/turbomodule/core
   - EXConstants (18.0.10):
     - ExpoModulesCore
   - EXFirebaseCore (6.0.0):
@@ -267,6 +270,9 @@ PODS:
     - ExpoModulesCore
   - ExpoWebBrowser (15.0.8):
     - ExpoModulesCore
+  - EXTaskManager (14.0.9):
+    - ExpoModulesCore
+    - UMAppLoader
   - EXUpdatesInterface (2.0.0):
     - ExpoModulesCore
   - FBLazyVector (0.81.5)
@@ -2492,10 +2498,12 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - UMAppLoader (6.0.8)
   - Yoga (0.0.0)
 
 DEPENDENCIES:
   - EXApplication (from `../node_modules/expo-application/ios`)
+  - EXAV (from `../node_modules/expo-av/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - EXFirebaseCore (from `../node_modules/expo-firebase-core/ios`)
   - EXImageLoader (from `../node_modules/expo-image-loader/ios`)
@@ -2524,6 +2532,7 @@ DEPENDENCIES:
   - ExpoNetwork (from `../node_modules/expo-network/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
+  - EXTaskManager (from `../node_modules/expo-task-manager/ios`)
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
@@ -2607,6 +2616,7 @@ DEPENDENCIES:
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNSVG (from `../node_modules/react-native-svg`)
   - RNWorklets (from `../node_modules/react-native-worklets`)
+  - UMAppLoader (from `../node_modules/unimodules-app-loader/ios`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
@@ -2627,6 +2637,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   EXApplication:
     :path: "../node_modules/expo-application/ios"
+  EXAV:
+    :path: "../node_modules/expo-av/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   EXFirebaseCore:
@@ -2683,6 +2695,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-splash-screen/ios"
   ExpoWebBrowser:
     :path: "../node_modules/expo-web-browser/ios"
+  EXTaskManager:
+    :path: "../node_modules/expo-task-manager/ios"
   EXUpdatesInterface:
     :path: "../node_modules/expo-updates-interface/ios"
   FBLazyVector:
@@ -2848,11 +2862,14 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-svg"
   RNWorklets:
     :path: "../node_modules/react-native-worklets"
+  UMAppLoader:
+    :path: "../node_modules/unimodules-app-loader/ios"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
   EXApplication: a9d1c46d473d36f61302a9a81db2379441f3f094
+  EXAV: c2de1057f4d9b0bcbdd908c6f2dcff48ece36f2b
   EXConstants: e6e50cdfcb4524f40121d1fdcff24e97b7dcd2fd
   EXFirebaseCore: d0d88cb904e893af07f809ab08c0892489bc6956
   EXImageLoader: e501c001bc40b8326605e82e6e80363c80fe06b5
@@ -2881,6 +2898,7 @@ SPEC CHECKSUMS:
   ExpoNetwork: 97073786edfe405aba5d0987a544617ed0671ad1
   ExpoSplashScreen: 9d2ff8fa08f2c00336a83f93bebffed3a8312519
   ExpoWebBrowser: 51218ce6ef35ea769e33409aac87fea3df4b919d
+  EXTaskManager: cdd7aa16ffc6b4b68e065ffb3795f26ad4fa6695
   EXUpdatesInterface: 1436757deb0d574b84bba063bd024c315e0ec08b
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
   Firebase: 800f16f07af493d98d017446a315c27af0552f41
@@ -2975,6 +2993,7 @@ SPEC CHECKSUMS:
   RNScreens: e91463674394a1969b4688eb5db419d7045fce2d
   RNSVG: 88b3b3e9e675fa4a2e14405c4c7f886ea8c82e06
   RNWorklets: 28ee7370ca8da356fcc914e3e68b97e9752196d2
+  UMAppLoader: 145337733539f9af9b3dd97eeaa7f3bd97cacb23
   Yoga: 65431d43277b661ebc7289c6c5d82f64ce42cfe0
 
 PODFILE CHECKSUM: 96cbd954da79e9169b229f53eed9ad4184372a98
