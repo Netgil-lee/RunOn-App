@@ -11,10 +11,13 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   Platform,
+  StatusBar,
   Animated,
   Easing,
   Image,
   Dimensions,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -65,6 +68,17 @@ const LoginScreen = ({ navigation }) => {
   const slideAnim = useRef(new Animated.Value(30)).current;
   const phoneInputAnim = useRef(new Animated.Value(0)).current;
   const errorTimeoutRef = useRef(null);
+
+  // 인증 화면에서는 상태바를 불투명으로 유지해 reCAPTCHA 상단 침범 방지
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    StatusBar.setTranslucent(false);
+    StatusBar.setBackgroundColor('#000000');
+    return () => {
+      StatusBar.setTranslucent(true);
+      StatusBar.setBackgroundColor('transparent');
+    };
+  }, []);
 
   // 진입 애니메이션
   useEffect(() => {
@@ -565,20 +579,26 @@ const LoginScreen = ({ navigation }) => {
           </TouchableOpacity>
         )}
 
-        <Animated.View 
-          style={[
-            styles.content,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-              paddingTop: statusBarPadding + 20,
-              paddingBottom: !showPhoneInput && Platform.OS === 'android' ? Math.max(insets.bottom, 48) : 0,
-            }
-          ]}
+        <KeyboardAvoidingView
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? statusBarPadding + 20 : 0}
         >
-          {!showPhoneInput ? (
-            // 첫 화면: 로고와 버튼들
-            <>
+          <Animated.View 
+            style={[
+              styles.content,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+                paddingTop: statusBarPadding + 20,
+                paddingBottom: !showPhoneInput && Platform.OS === 'android' ? Math.max(insets.bottom, 48) : 0,
+                justifyContent: showPhoneInput ? 'flex-start' : 'center',
+              }
+            ]}
+          >
+            {!showPhoneInput ? (
+              // 첫 화면: 로고와 버튼들
+              <>
               {/* 중앙 영역 */}
               <View style={styles.centerContainer}>
                 {/* 로고 이미지 */}
@@ -605,11 +625,15 @@ const LoginScreen = ({ navigation }) => {
               >
                 <Text style={styles.loginButtonText}>로그인</Text>
               </TouchableOpacity>
-            </>
-          ) : (
-            // 두 번째 화면: 휴대폰번호 입력
-            <>
-              <Text style={styles.title}>{isSignupMode ? '회원가입' : '로그인'}</Text>
+              </>
+            ) : (
+              // 두 번째 화면: 휴대폰번호 입력
+              <ScrollView
+                contentContainerStyle={styles.phoneInputScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={styles.title}>{isSignupMode ? '회원가입' : '로그인'}</Text>
               
               {/* 제목과 라벨 사이 여백 */}
               <View style={{ height: 40 }} />
@@ -739,26 +763,27 @@ const LoginScreen = ({ navigation }) => {
               </Animated.View>
 
               {/* 로그인/회원가입 버튼 */}
-              <TouchableOpacity
-                style={[
-                  isSignupMode ? styles.signupButton : styles.loginButton,
-                  isLoading && styles.disabledButton,
-                  isSignupMode && (!agreeToTerms || !agreeToPrivacy) && styles.disabledButton
-                ]}
-                onPress={isSignupMode ? handleSignupProcess : handleLogin}
-                disabled={isLoading || (isSignupMode && (!agreeToTerms || !agreeToPrivacy))}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color={isSignupMode ? "#000" : "#3AF8FF"} />
-                ) : (
-                  <Text style={isSignupMode ? styles.signupButtonText : styles.loginButtonText}>
-                    {isSignupMode ? '회원가입' : '로그인'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
-        </Animated.View>
+                <TouchableOpacity
+                  style={[
+                    isSignupMode ? styles.signupButton : styles.loginButton,
+                    isLoading && styles.disabledButton,
+                    isSignupMode && (!agreeToTerms || !agreeToPrivacy) && styles.disabledButton
+                  ]}
+                  onPress={isSignupMode ? handleSignupProcess : handleLogin}
+                  disabled={isLoading || (isSignupMode && (!agreeToTerms || !agreeToPrivacy))}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={isSignupMode ? "#000" : "#3AF8FF"} />
+                  ) : (
+                    <Text style={isSignupMode ? styles.signupButtonText : styles.loginButtonText}>
+                      {isSignupMode ? '회원가입' : '로그인'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </Animated.View>
+        </KeyboardAvoidingView>
         
         {/* 모달 */}
         <TermsPrivacyModal
@@ -811,8 +836,16 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
-    justifyContent: 'center',
     zIndex: 1, // 배경 위에 표시되도록
+  },
+  keyboardContainer: {
+    flex: 1,
+    zIndex: 1,
+  },
+  phoneInputScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingBottom: 32,
   },
 
   centerContainer: {

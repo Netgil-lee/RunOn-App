@@ -3,18 +3,17 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
   Platform,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import { useAuth } from '../contexts/AuthContext'; // AuthContext 추가
 import * as Notifications from 'expo-notifications';
-import fitnessService from '../services/fitnessService';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getAppleFitnessService } from '../services/getAppleFitnessService';
 
 // Runon 디자인 시스템
 const COLORS = {
@@ -74,23 +73,24 @@ const AppIntroScreen = ({ navigation }) => {
     }
   };
 
-  // 건강데이터 상태 확인 (플랫폼별 자동 분기)
+  // HealthKit 상태 확인
   const checkHealthKitStatus = async () => {
     try {
       setHealthKitStatus(prev => ({ ...prev, isChecking: true }));
       
-      // Fitness 서비스 모듈 안전성 체크
-      if (!fitnessService || typeof fitnessService.checkPermissions !== 'function') {
-        console.warn('⚠️ Fitness 서비스가 사용할 수 없습니다.');
+      const appleFitnessService = getAppleFitnessService();
+      // HealthKit 모듈 안전성 체크
+      if (!appleFitnessService || typeof appleFitnessService.checkPermissions !== 'function') {
+        console.warn('⚠️ HealthKit 서비스가 사용할 수 없습니다.');
         setHealthKitStatus({
           isChecking: false,
           hasPermissions: false,
-          error: 'Fitness 서비스 사용 불가'
+          error: 'HealthKit 서비스 사용 불가'
         });
         return;
       }
       
-      const status = await fitnessService.checkPermissions();
+      const status = await appleFitnessService.checkPermissions();
       setHealthKitStatus({
         isChecking: false,
         hasPermissions: status.hasPermissions,
@@ -107,50 +107,52 @@ const AppIntroScreen = ({ navigation }) => {
     }
   };
 
-  // Health Connect 권한 요청
+  // HealthKit 권한 요청
   const handleHealthKitAccess = async () => {
     try {
-      const serviceName = 'Health Connect';
-      
       if (healthKitStatus.hasPermissions) {
         Alert.alert(
-          `${serviceName} 접근`,
-          `이미 ${serviceName} 권한이 허용되어 있습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.`,
+          '건강데이터 접근',
+          '이미 HealthKit 권한이 허용되어 있습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
           [{ text: '확인' }]
         );
         return;
       }
 
       Alert.alert(
-        `${serviceName} 접근`,
-        `${serviceName}에서 러닝 데이터를 가져오기 위해 건강 데이터 접근 권한이 필요합니다.\n\n허용하시겠습니까?`,
+        '건강데이터 접근',
+        'HealthKit에서 러닝 데이터를 가져오기 위해 건강 데이터 접근 권한이 필요합니다.\n\n허용하시겠습니까?',
         [
           { text: '나중에', style: 'cancel' },
           {
             text: '허용',
             onPress: async () => {
               try {
-                const granted = await fitnessService.requestPermissions();
+                const appleFitnessService = getAppleFitnessService();
+                if (!appleFitnessService) {
+                  Alert.alert('오류', 'HealthKit을 이 기기에서 사용할 수 없습니다.', [{ text: '확인' }]);
+                  return;
+                }
+                const granted = await appleFitnessService.requestPermissions();
                 if (granted) {
                   Alert.alert(
                     '권한 허용됨',
-                    `${serviceName} 권한이 허용되었습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.`,
+                    'HealthKit 권한이 허용되었습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
                     [{ text: '확인' }]
                   );
                   await checkHealthKitStatus();
                 } else {
-                  const errorMessage = '설정 > 앱 > RunOn > 권한에서 수동으로 허용해주세요.';
                   Alert.alert(
                     '권한 거부됨',
-                    `${serviceName} 권한 허용에 실패했습니다.\n\n${errorMessage}`,
+                    'HealthKit 권한 허용에 실패했습니다.\n\n설정 > 개인정보 보호 및 보안 > 건강에서 수동으로 허용해주세요.',
                     [{ text: '확인' }]
                   );
                 }
               } catch (error) {
-                console.error(`❌ ${serviceName} 권한 요청 실패:`, error);
+                console.error('❌ HealthKit 권한 요청 실패:', error);
                 Alert.alert(
                   '권한 요청 실패',
-                  `${serviceName} 권한 요청 중 오류가 발생했습니다.`,
+                  'HealthKit 권한 요청 중 오류가 발생했습니다.',
                   [{ text: '확인' }]
                 );
               }
@@ -159,11 +161,10 @@ const AppIntroScreen = ({ navigation }) => {
         ]
       );
     } catch (error) {
-      const serviceName = 'Health Connect';
-      console.error(`❌ ${serviceName} 접근 처리 실패:`, error);
+      console.error('❌ HealthKit 접근 처리 실패:', error);
       Alert.alert(
         '오류 발생',
-        `${serviceName} 접근 처리 중 오류가 발생했습니다.`,
+        'HealthKit 접근 처리 중 오류가 발생했습니다.',
         [{ text: '확인' }]
       );
     }
@@ -449,7 +450,7 @@ const AppIntroScreen = ({ navigation }) => {
 
       {/* 건강데이터 권한 섹션 */}
       <View style={styles.healthSection}>
-        <Text style={styles.sectionTitle}>Health Connect 접근</Text>
+        <Text style={styles.sectionTitle}>건강데이터 접근</Text>
         <TouchableOpacity 
           style={styles.healthItem}
           onPress={handleHealthKitAccess}
@@ -459,15 +460,13 @@ const AppIntroScreen = ({ navigation }) => {
               <Ionicons name="heart-outline" size={20} color="#97DCDE" />
             </View>
             <View style={styles.healthContent}>
-              <Text style={styles.healthTitle}>
-                Health Connect 접근
-              </Text>
+              <Text style={styles.healthTitle}>건강데이터 접근</Text>
               <Text style={styles.healthDescription}>
                 {healthKitStatus.isChecking 
                   ? "상태 확인 중..." 
                   : healthKitStatus.hasPermissions 
-                    ? "Health Connect 권한 허용됨"
-                    : "Health Connect와 러닝 데이터 동기화 및 권한 관리"
+                    ? "HealthKit 권한 허용됨" 
+                    : "러닝 데이터 동기화 및 권한 관리"
                 }
               </Text>
             </View>

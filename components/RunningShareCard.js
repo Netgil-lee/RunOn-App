@@ -16,7 +16,7 @@ const RunningShareCard = forwardRef(({
   // duration: "34s" 또는 "54m 19s" 또는 "3h 21m"
 
   return (
-    <View ref={ref} style={styles.container}>
+    <View ref={ref} style={styles.container} collapsable={false}>
       {/* 상단: 위치 정보 */}
       <View style={styles.locationSection}>
         <Text style={styles.spotLabel}>Place</Text>
@@ -49,7 +49,8 @@ const RunningShareCard = forwardRef(({
           <RouteMap 
             coordinates={routeCoordinates} 
             width={170} 
-            height={100} 
+            height={100}
+            provider="svg"
           />
         )}
       </View>

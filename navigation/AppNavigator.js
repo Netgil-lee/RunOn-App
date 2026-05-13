@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Platform } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
@@ -27,11 +27,14 @@ import PostCreateScreen from '../screens/PostCreateScreen';
 import PostDetailScreen from '../screens/PostDetailScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import SearchScreen from '../screens/SearchScreen';
+import RunningTrackerScreen from '../screens/RunningTrackerScreen';
+import RunningResultScreen from '../screens/RunningResultScreen';
 
 import AppIntroScreen from '../screens/AppIntroScreen';
 import AppGuideScreen from '../screens/AppGuideScreen';
 import BlacklistManagementScreen from '../screens/BlacklistManagementScreen';
 import PremiumScreen from '../screens/PremiumScreen';
+import { getTabBarInsetsStyle } from '../constants/tabBarInsets';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -45,9 +48,9 @@ const COLORS = {
 
 // 로그인된 사용자를 위한 BottomTab 네비게이션
 const MainTabNavigator = () => {
+  const insets = useSafeAreaInsets();
   const { hasMeetingNotification, hasUpdateNotification } = useEvents();
   const { hasCommunityNotification } = useCommunity();
-  const insets = useSafeAreaInsets();
 
 
 
@@ -99,22 +102,11 @@ const MainTabNavigator = () => {
         ),
         tabBarActiveTintColor: COLORS.PRIMARY,
         tabBarInactiveTintColor: '#cccccc',
-        tabBarStyle: {
-          backgroundColor: COLORS.SURFACE,
-          borderTopWidth: 0,
-          height: 60 + (Platform.OS === 'android' ? insets.bottom : 0),
-          paddingBottom: Platform.OS === 'android' ? insets.bottom : 0,
-          paddingTop: 14,
-        },
-        tabBarItemStyle: {
-          paddingVertical: 0,
-          marginTop: -16,
-        },
+        tabBarStyle: getTabBarInsetsStyle(insets),
         tabBarLabelStyle: {
           fontSize: 13,
           fontWeight: '500',
-          marginTop: -8,
-          marginBottom: 6,
+          marginTop: -2,
         },
       })}
     >
@@ -213,6 +205,8 @@ const AppNavigator = ({ isDemoMode = false }) => {
         <Stack.Screen name="PostDetail" component={PostDetailScreen} />
         <Stack.Screen name="Notification" component={NotificationScreen} />
         <Stack.Screen name="Search" component={SearchScreen} />
+        <Stack.Screen name="RunningTracker" component={RunningTrackerScreen} />
+        <Stack.Screen name="RunningResult" component={RunningResultScreen} />
         <Stack.Screen name="BlacklistManagement" component={BlacklistManagementScreen} />
         <Stack.Screen name="Premium" component={PremiumScreen} />
       </Stack.Navigator>

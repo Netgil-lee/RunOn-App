@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -14,16 +13,16 @@ import {
   Modal,
   Alert,
   Keyboard,
+  Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCommunity } from '../contexts/CommunityContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatRelativeTime } from '../utils/timestampUtils';
 import reportService from '../services/reportService';
 import contentFilterService from '../services/contentFilterService';
 import blacklistService from '../services/blacklistService';
-import firestoreService from '../services/firestoreService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -43,8 +42,6 @@ const COLORS = {
 const PostDetailScreen = ({ route, navigation }) => {
   const { post } = route.params;
   const { user } = useAuth();
-  const insets = useSafeAreaInsets();
-  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   const { toggleLike, addComment, updateComment, deleteComment, updatePost, deletePost } = useCommunity();
   
   // 안전한 데이터 처리 - post가 없거나 잘못된 경우 처리
@@ -61,6 +58,13 @@ const PostDetailScreen = ({ route, navigation }) => {
   const [editCommentText, setEditCommentText] = useState('');
   const [showPostReportModal, setShowPostReportModal] = useState(false);
   const [showCommentReportModal, setShowCommentReportModal] = useState(false);
+  
+  // 모달 오버레이 페이드 애니메이션
+  const menuModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const commentMenuModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const commentEditModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const postReportModalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const commentReportModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   const [selectedReportReason, setSelectedReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
   const [shouldBlockPostAuthor, setShouldBlockPostAuthor] = useState(false);
@@ -84,10 +88,133 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   // 작성자 프로필 정보 상태
   const [authorProfile, setAuthorProfile] = useState(null);
+  
+  // 차단된 사용자 목록 상태
+  const [blacklist, setBlacklist] = useState([]);
 
   // 디버깅 로그 (필요시에만 활성화)
   // console.log('🔍 PostDetailScreen - 받은 post 데이터:', post);
   // console.log('🔍 PostDetailScreen - 안전 처리된 post:', safePost);
+
+  // 차단된 사용자 목록 가져오기
+  useEffect(() => {
+    if (!user) {
+      setBlacklist([]);
+      return;
+    }
+
+    const fetchBlacklist = async () => {
+      try {
+        const blacklistData = await blacklistService.getBlacklist(user.uid);
+        setBlacklist(blacklistData);
+      } catch (error) {
+        console.error('차단 목록 조회 실패:', error);
+        setBlacklist([]);
+      }
+    };
+
+    fetchBlacklist();
+  }, [user]);
+
+  // 모달 애니메이션 효과
+  useEffect(() => {
+    if (showMenuModal) {
+      Animated.timing(menuModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(menuModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showMenuModal, menuModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (showCommentMenuModal) {
+      Animated.timing(commentMenuModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(commentMenuModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showCommentMenuModal, commentMenuModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (showCommentEditModal) {
+      Animated.timing(commentEditModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(commentEditModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showCommentEditModal, commentEditModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (showPostReportModal) {
+      Animated.timing(postReportModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(postReportModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showPostReportModal, postReportModalBackdropOpacity]);
+
+  useEffect(() => {
+    if (showCommentReportModal) {
+      Animated.timing(commentReportModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(commentReportModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showCommentReportModal, commentReportModalBackdropOpacity]);
+
+  // 차단된 사용자의 게시글이면 뒤로 가기
+  useEffect(() => {
+    if (!user || !currentPost.authorId || blacklist.length === 0) return;
+
+    const blockedUserIds = blacklist.map(blocked => blocked.blockedUserId);
+    if (blockedUserIds.includes(currentPost.authorId)) {
+      Alert.alert(
+        '차단된 사용자',
+        '차단한 사용자의 게시글은 볼 수 없습니다.',
+        [
+          {
+            text: '확인',
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
+    }
+  }, [currentPost.authorId, blacklist, user, navigation]);
 
   // 작성자 프로필 정보 가져오기
   useEffect(() => {
@@ -463,6 +590,58 @@ const PostDetailScreen = ({ route, navigation }) => {
     setShouldBlockPostAuthor(false);
   };
 
+  // 댓글 작성자 프로필로 이동
+  const handleCommentAuthorPress = async (comment) => {
+    if (!comment.authorId || comment.authorId === user?.uid) {
+      return; // 익명이거나 본인 댓글인 경우 처리하지 않음
+    }
+
+    try {
+      // Firestore에서 사용자 프로필 정보 가져오기
+      const firestoreService = require('../services/firestoreService').default;
+      const userProfile = await firestoreService.getUserProfile(comment.authorId);
+      
+      if (userProfile) {
+        const participant = {
+          id: comment.authorId,
+          name: comment.author || userProfile.displayName || '사용자',
+          profileImage: userProfile.photoURL || userProfile.profileImage || null,
+          level: userProfile.level || 'beginner',
+          joinDate: userProfile.createdAt || new Date(),
+          age: userProfile.age || null,
+          gender: userProfile.gender || null,
+          bio: userProfile.bio || null,
+          runningProfile: userProfile.runningProfile || null,
+        };
+        
+        navigation.navigate('Participant', { participant });
+      } else {
+        // 프로필 정보가 없는 경우 기본 정보로 이동
+        const participant = {
+          id: comment.authorId,
+          name: comment.author || '사용자',
+          profileImage: null,
+          level: 'beginner',
+          joinDate: new Date(),
+        };
+        
+        navigation.navigate('Participant', { participant });
+      }
+    } catch (error) {
+      console.error('댓글 작성자 프로필 가져오기 실패:', error);
+      // 에러가 발생해도 기본 정보로 프로필 화면으로 이동
+      const participant = {
+        id: comment.authorId,
+        name: comment.author || '사용자',
+        profileImage: null,
+        level: 'beginner',
+        joinDate: new Date(),
+      };
+      
+      navigation.navigate('Participant', { participant });
+    }
+  };
+
   // 댓글 신고 모달 열기
   const handleCommentReport = (comment) => {
     setSelectedComment(comment);
@@ -480,6 +659,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     }
 
     try {
+      // 신고 제출
       const result = await reportService.reportPost(
         currentPost.id,
         currentPost.authorId,
@@ -494,6 +674,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             setIsBlocking(true);
             
             // Firestore에서 작성자 프로필 정보 가져오기
+            const firestoreService = require('../services/firestoreService').default;
             const authorProfile = await firestoreService.getUserProfile(currentPost.authorId);
             
             const authorName = authorProfile?.displayName || currentPost.author || '사용자';
@@ -546,6 +727,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     }
 
     try {
+      // 신고 제출
       const result = await reportService.reportComment(
         selectedComment.id,
         currentPost.id,
@@ -560,17 +742,18 @@ const PostDetailScreen = ({ route, navigation }) => {
           try {
             setIsBlocking(true);
             
-            // Firestore에서 작성자 프로필 정보 가져오기
-            const authorProfile = await firestoreService.getUserProfile(selectedComment.authorId);
+            // Firestore에서 댓글 작성자 프로필 정보 가져오기
+            const firestoreService = require('../services/firestoreService').default;
+            const commentAuthorProfile = await firestoreService.getUserProfile(selectedComment.authorId);
             
-            const authorName = authorProfile?.displayName || selectedComment.author || '사용자';
-            const authorProfileImage = authorProfile?.photoURL || authorProfile?.profileImage || null;
+            const commentAuthorName = commentAuthorProfile?.displayName || selectedComment.author || '사용자';
+            const commentAuthorProfileImage = commentAuthorProfile?.photoURL || commentAuthorProfile?.profileImage || null;
             
             await blacklistService.blockUser(
               user.uid,
               selectedComment.authorId,
-              authorName,
-              authorProfileImage
+              commentAuthorName,
+              commentAuthorProfileImage
             );
             
             Alert.alert(
@@ -609,20 +792,20 @@ const PostDetailScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
-      <View style={[styles.header, { paddingTop: statusBarPadding }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
-          </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>게시글</Text>
-          {!isAuthor ? (
-            <TouchableOpacity style={styles.shareButton} onPress={handlePostReport}>
-              <Ionicons name="alert-circle-outline" size={24} color={COLORS.TEXT} />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.headerSpacer} />
-          )}
         </View>
+        {!isAuthor ? (
+          <TouchableOpacity style={styles.shareButton} onPress={handlePostReport}>
+            <Ionicons name="alert-circle-outline" size={24} color={COLORS.TEXT} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.shareButton} />
+        )}
       </View>
 
       <KeyboardAvoidingView 
@@ -744,11 +927,23 @@ const PostDetailScreen = ({ route, navigation }) => {
 
           {/* 댓글 섹션 */}
           <View style={styles.commentsSection}>
-            <Text style={styles.commentsTitle}>댓글 {Array.isArray(currentPost.comments) ? currentPost.comments.length : 0}개</Text>
-            
-            {currentPost.comments && Array.isArray(currentPost.comments) && currentPost.comments.length > 0 ? (
-              <View style={styles.commentsList}>
-                {currentPost.comments.map((comment) => (
+            {(() => {
+              // 차단된 사용자의 댓글 필터링
+              const blockedUserIds = blacklist.map(blocked => blocked.blockedUserId);
+              const filteredComments = (currentPost.comments || []).filter(comment => {
+                if (comment.authorId && blockedUserIds.includes(comment.authorId)) {
+                  return false; // 차단된 사용자의 댓글 제거
+                }
+                return true;
+              });
+              
+              return (
+                <>
+                  <Text style={styles.commentsTitle}>댓글 {filteredComments.length}개</Text>
+                  
+                  {filteredComments.length > 0 ? (
+                    <View style={styles.commentsList}>
+                      {filteredComments.map((comment) => (
                   <TouchableOpacity
                     key={comment.id}
                     style={styles.commentItem}
@@ -757,7 +952,16 @@ const PostDetailScreen = ({ route, navigation }) => {
                   >
                     <View style={styles.commentHeader}>
                       <View style={styles.commentAuthorSection}>
-                        <Text style={styles.commentAuthor}>{comment.author}</Text>
+                        {comment.authorId && comment.authorId !== user?.uid ? (
+                          <TouchableOpacity
+                            onPress={() => handleCommentAuthorPress(comment)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.commentAuthor}>{comment.author}</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.commentAuthor}>{comment.author}</Text>
+                        )}
                         <Text style={styles.commentDate}>
                           {formatDate(comment.createdAt)}
                         </Text>
@@ -771,17 +975,20 @@ const PostDetailScreen = ({ route, navigation }) => {
                         </TouchableOpacity>
                       )}
                     </View>
-                    <Text style={styles.commentText}>{comment.text}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.emptyComments}>
-                <Ionicons name="chatbubble-outline" size={48} color={COLORS.TEXT_SECONDARY} />
-                <Text style={styles.emptyCommentsText}>아직 댓글이 없습니다</Text>
-                <Text style={styles.emptyCommentsSubtext}>첫 번째 댓글을 남겨보세요!</Text>
-              </View>
-            )}
+                        <Text style={styles.commentText}>{comment.text}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    </View>
+                  ) : (
+                    <View style={styles.emptyComments}>
+                      <Ionicons name="chatbubble-outline" size={48} color={COLORS.TEXT_SECONDARY} />
+                      <Text style={styles.emptyCommentsText}>아직 댓글이 없습니다</Text>
+                      <Text style={styles.emptyCommentsSubtext}>첫 번째 댓글을 남겨보세요!</Text>
+                    </View>
+                  )}
+                </>
+              );
+            })()}
           </View>
 
           {/* 하단 여백 */}
@@ -789,7 +996,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         </ScrollView>
 
         {/* 댓글 입력창 */}
-        <View style={[styles.commentInputContainer, { paddingBottom: 12 + insets.bottom }]}>
+        <View style={styles.commentInputContainer}>
           <View style={styles.commentInputWrapper}>
             <TextInput
               style={styles.commentInput}
@@ -819,14 +1026,24 @@ const PostDetailScreen = ({ route, navigation }) => {
         <Modal
           visible={showMenuModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowMenuModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowMenuModal(false)}
-          >
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: menuModalBackdropOpacity,
+                },
+              ]}
+            >
+              <TouchableOpacity 
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setShowMenuModal(false)}
+              />
+            </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.bottomModal}>
                 <TouchableOpacity 
@@ -850,21 +1067,31 @@ const PostDetailScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               </View>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
 
         {/* 댓글 메뉴 모달 */}
         <Modal
           visible={showCommentMenuModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowCommentMenuModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowCommentMenuModal(false)}
-          >
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: commentMenuModalBackdropOpacity,
+                },
+              ]}
+            >
+              <TouchableOpacity 
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setShowCommentMenuModal(false)}
+              />
+            </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.bottomModal}>
                 <TouchableOpacity 
@@ -888,17 +1115,26 @@ const PostDetailScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               </View>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
 
         {/* 댓글 수정 모달 */}
         <Modal
           visible={showCommentEditModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowCommentEditModal(false)}
         >
-          <View style={styles.editCommentModal}>
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: commentEditModalBackdropOpacity,
+                },
+              ]}
+            />
+            <View style={styles.editCommentModal}>
             <View style={styles.editCommentHeader}>
               <Text style={styles.editCommentTitle}>댓글 수정</Text>
             </View>
@@ -930,20 +1166,31 @@ const PostDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
+          </View>
         </Modal>
 
         {/* 게시글 신고 모달 */}
         <Modal
           visible={showPostReportModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowPostReportModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowPostReportModal(false)}
-          >
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: postReportModalBackdropOpacity,
+                },
+              ]}
+            >
+              <TouchableOpacity 
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setShowPostReportModal(false)}
+              />
+            </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.reportModal} onStartShouldSetResponder={() => true}>
                 <View style={styles.reportModalHeader}>
@@ -952,11 +1199,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <Ionicons name="close" size={24} color={COLORS.TEXT} />
                   </TouchableOpacity>
                 </View>
-                <ScrollView 
-                  style={styles.reportModalContent} 
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.reportModalContentContainer}
-                >
+                <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
                   <Text style={styles.reportModalSubtitle}>신고 사유를 선택해주세요</Text>
                   {reportReasons.map((reason) => (
                     <TouchableOpacity
@@ -988,26 +1231,18 @@ const PostDetailScreen = ({ route, navigation }) => {
                     multiline
                     maxLength={500}
                   />
-                  {!isAuthor && 
-                   !currentPost.isAnonymous && 
-                   currentPost.authorId && 
-                   currentPost.authorId.trim() !== '' && 
-                   user?.uid && 
-                   currentPost.authorId !== user.uid && (
+                  {currentPost.authorId && currentPost.authorId !== user?.uid && (
                     <TouchableOpacity
-                      style={styles.blockUserCheckbox}
+                      style={styles.blockOptionContainer}
                       onPress={() => setShouldBlockPostAuthor(!shouldBlockPostAuthor)}
                       activeOpacity={0.7}
                     >
-                      <View style={[
-                        styles.checkbox,
-                        shouldBlockPostAuthor && styles.checkboxChecked
-                      ]}>
+                      <View style={styles.blockOptionCheckbox}>
                         {shouldBlockPostAuthor && (
-                          <Ionicons name="checkmark" size={16} color="#000000" />
+                          <Ionicons name="checkmark" size={18} color={COLORS.PRIMARY} />
                         )}
                       </View>
-                      <Text style={styles.blockUserText}>사용자 차단하기</Text>
+                      <Text style={styles.blockOptionText}>이 사용자 차단하기</Text>
                     </TouchableOpacity>
                   )}
                 </ScrollView>
@@ -1030,21 +1265,31 @@ const PostDetailScreen = ({ route, navigation }) => {
                 </View>
               </View>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
 
         {/* 댓글 신고 모달 */}
         <Modal
           visible={showCommentReportModal}
           transparent={true}
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowCommentReportModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowCommentReportModal(false)}
-          >
+          <View style={styles.modalOverlay}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                {
+                  opacity: commentReportModalBackdropOpacity,
+                },
+              ]}
+            >
+              <TouchableOpacity 
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setShowCommentReportModal(false)}
+              />
+            </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.reportModal} onStartShouldSetResponder={() => true}>
                 <View style={styles.reportModalHeader}>
@@ -1053,11 +1298,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <Ionicons name="close" size={24} color={COLORS.TEXT} />
                   </TouchableOpacity>
                 </View>
-                <ScrollView 
-                  style={styles.reportModalContent} 
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.reportModalContentContainer}
-                >
+                <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
                   <Text style={styles.reportModalSubtitle}>신고 사유를 선택해주세요</Text>
                   {reportReasons.map((reason) => (
                     <TouchableOpacity
@@ -1079,25 +1320,6 @@ const PostDetailScreen = ({ route, navigation }) => {
                       )}
                     </TouchableOpacity>
                   ))}
-                  {selectedComment && selectedComment.authorId && selectedComment.authorId !== user?.uid && (
-                    <TouchableOpacity
-                      style={[
-                        styles.reportReasonItem,
-                        shouldBlockCommentAuthor && styles.reportReasonItemSelected
-                      ]}
-                      onPress={() => setShouldBlockCommentAuthor(!shouldBlockCommentAuthor)}
-                    >
-                      <Text style={[
-                        styles.reportReasonText,
-                        shouldBlockCommentAuthor && styles.reportReasonTextSelected
-                      ]}>
-                        사용자 차단하기
-                      </Text>
-                      {shouldBlockCommentAuthor && (
-                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
-                      )}
-                    </TouchableOpacity>
-                  )}
                   <Text style={styles.reportDescriptionLabel}>추가 설명 (선택)</Text>
                   <TextInput
                     style={styles.reportDescriptionInput}
@@ -1108,6 +1330,20 @@ const PostDetailScreen = ({ route, navigation }) => {
                     multiline
                     maxLength={500}
                   />
+                  {selectedComment && selectedComment.authorId && selectedComment.authorId !== user?.uid && (
+                    <TouchableOpacity
+                      style={styles.blockOptionContainer}
+                      onPress={() => setShouldBlockCommentAuthor(!shouldBlockCommentAuthor)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.blockOptionCheckbox}>
+                        {shouldBlockCommentAuthor && (
+                          <Ionicons name="checkmark" size={18} color={COLORS.PRIMARY} />
+                        )}
+                      </View>
+                      <Text style={styles.blockOptionText}>이 사용자 차단하기</Text>
+                    </TouchableOpacity>
+                  )}
                 </ScrollView>
                 <View style={styles.reportModalActions}>
                   <TouchableOpacity 
@@ -1128,7 +1364,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 </View>
               </View>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
       </SafeAreaView>
     );
@@ -1140,16 +1376,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
   },
   header: {
-    backgroundColor: COLORS.BACKGROUND,
-    borderBottomWidth: 0.25,
-    borderBottomColor: COLORS.BORDER,
-  },
-  headerContent: {
-    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 0.25,
+    borderBottomColor: COLORS.BORDER,
+    position: 'relative',
   },
   backButton: {
     width: 44,
@@ -1157,20 +1391,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerTitleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: -1,
+  },
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
     color: COLORS.TEXT,
-    fontFamily: 'Pretendard-SemiBold',
   },
   shareButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerSpacer: {
-    width: 44,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -1427,8 +1665,15 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   bottomModalContainer: {
     justifyContent: 'flex-end',
@@ -1468,7 +1713,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editCommentModal: {
-    flex: 1,
     backgroundColor: COLORS.BACKGROUND,
     marginTop: 100,
     borderTopLeftRadius: 20,
@@ -1560,9 +1804,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     maxHeight: 400,
   },
-  reportModalContentContainer: {
-    paddingBottom: 100,
-  },
   reportModalSubtitle: {
     fontSize: 16,
     color: COLORS.TEXT_SECONDARY,
@@ -1611,33 +1852,34 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     borderWidth: 1,
     borderColor: COLORS.BORDER,
-    marginBottom: 16,
   },
-  blockUserCheckbox: {
+  blockOptionContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 20,
     paddingVertical: 12,
-    marginTop: 8,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.SURFACE,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
   },
-  checkbox: {
+  blockOptionCheckbox: {
     width: 24,
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: COLORS.BORDER,
-    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.PRIMARY,
+    backgroundColor: COLORS.CARD,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
-  checkboxChecked: {
-    backgroundColor: COLORS.PRIMARY,
-    borderColor: COLORS.PRIMARY,
-  },
-  blockUserText: {
+  blockOptionText: {
     fontSize: 16,
     color: COLORS.TEXT,
     fontWeight: '500',
+    flex: 1,
   },
   reportModalActions: {
     flexDirection: 'row',

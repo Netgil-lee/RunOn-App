@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Image,
@@ -11,10 +10,8 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
-import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { usePremium } from '../contexts/PremiumContext';
@@ -45,10 +42,6 @@ const PremiumScreen = ({ navigation }) => {
   // 인증 및 프리미엄 컨텍스트
   const { user } = useAuth();
   const { updatePremiumStatus } = usePremium();
-  
-  // Android SafeArea 처리
-  const insets = useSafeAreaInsets();
-  const statusBarHeight = Platform.OS === 'android' ? insets.top : 0;
 
   // 모달 상태 관리
   const [showMainModal, setShowMainModal] = useState(false);
@@ -185,14 +178,8 @@ const PremiumScreen = ({ navigation }) => {
   };
 
   const handleFreeTrial = () => {
-    // 플랜이 확장되어 있으면 선택된 플랜으로 결제, 아니면 기본 연간 구독
-    if (showPlansExpanded) {
-      handleFreeTrialWithPlan();
-    } else {
-      // 기본 연간 구독으로 진행
-      handleCloseMainModal();
-      // TODO: 연간 구독 무료 체험 시작 로직
-    }
+    // 준비중 알림 표시
+    Alert.alert('준비중', '서비스 준비 중입니다. 곧 만나요!');
   };
 
   const handleSelectPlan = (planType) => {
@@ -236,7 +223,7 @@ const PremiumScreen = ({ navigation }) => {
       setIsProcessing(true);
       setRetryCount(0);
 
-      // PaymentService 초기화 확인
+      // PaymentService 초기화 확인 (PremiumContext에서 이미 초기화되었을 수 있음)
       if (!paymentService.isInitialized) {
         const initialized = await paymentService.initialize();
         if (!initialized) {
@@ -244,8 +231,24 @@ const PremiumScreen = ({ navigation }) => {
         }
       }
 
-      // 제품 정보 로드
-      await paymentService.loadProducts();
+      // 제품 정보 로드 (이미 로드되었을 수 있지만 최신 정보를 위해 다시 로드)
+      try {
+        console.log('🛍️ 제품 정보 로드 시작...');
+        const loadedProducts = await paymentService.loadProducts();
+        console.log('✅ 제품 정보 로드 완료:', loadedProducts.length, '개');
+        
+        if (loadedProducts.length === 0) {
+          throw new Error('제품 정보를 불러올 수 없습니다. 네트워크 연결을 확인해주세요.');
+        }
+      } catch (loadError) {
+        console.error('❌ 제품 정보 로드 실패:', loadError);
+        setIsProcessing(false);
+        Alert.alert(
+          '제품 정보 로드 실패',
+          '제품 정보를 불러올 수 없습니다. 네트워크 연결을 확인하고 다시 시도해주세요.'
+        );
+        return;
+      }
 
       // 구매 요청
       // react-native-iap는 purchaseUpdatedListener로 구매 완료를 처리하므로
@@ -277,9 +280,9 @@ const PremiumScreen = ({ navigation }) => {
           // 에러 타입 확인
           const errorCode = error.code || error.message;
           
-          // 사용자 취소 처리
-          if (errorCode === 'E_USER_CANCELLED' || error.message?.includes('취소')) {
-            Alert.alert('결제 취소', '결제가 취소되었습니다');
+          // 사용자 취소 처리 (Alert는 표시하지 않음 - 정상적인 동작)
+          if (errorCode === 'E_USER_CANCELLED' || errorCode === 'user-cancelled' || error.message?.includes('취소')) {
+            // 사용자 취소는 정상적인 동작이므로 Alert 표시하지 않음
             return;
           }
 
@@ -373,7 +376,7 @@ const PremiumScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       {/* 헤더 */}
-      <View style={[styles.header, { paddingTop: statusBarHeight }]}>
+      <SafeAreaView style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -384,38 +387,13 @@ const PremiumScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>구독 서비스</Text>
           <View style={styles.headerSpacer} />
         </View>
-      </View>
+      </SafeAreaView>
 
-      <ScrollView 
-        style={styles.scrollView} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContentContainer}
-      >
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* RunOn Members 소개 섹션 */}
         <View style={styles.introSection}>
-          <View style={styles.introHeaderContainer}>
+          <View style={styles.introIcon}>
             <View style={styles.premiumBadgeContainer}>
-              {/* SVG RadialGradient를 사용한 부드러운 글로우 효과 */}
-              <View style={styles.premiumBadgeGlowContainer}>
-                <Svg width={190} height={100} style={styles.premiumBadgeGlowSvg}>
-                  <Defs>
-                    <RadialGradient id="premium-glow-premium-screen" cx="50%" cy="50%" r="60%">
-                      <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.5" />
-                      <Stop offset="20%" stopColor="#FF0073" stopOpacity="0.35" />
-                      <Stop offset="40%" stopColor="#FF0073" stopOpacity="0.25" />
-                      <Stop offset="60%" stopColor="#FF0073" stopOpacity="0.15" />
-                      <Stop offset="80%" stopColor="#FF0073" stopOpacity="0.05" />
-                      <Stop offset="100%" stopColor="#FF0073" stopOpacity="0" />
-                    </RadialGradient>
-                  </Defs>
-                  <Circle
-                    cx="80"
-                    cy="35"
-                    r="40"
-                    fill="url(#premium-glow-premium-screen)"
-                  />
-                </Svg>
-              </View>
               <Animated.View 
                 style={[
                   styles.premiumBadgeGlow,
@@ -431,8 +409,8 @@ const PremiumScreen = ({ navigation }) => {
                 <Ionicons name="diamond-outline" size={24} color="#FFFFFF" />
               </View>
             </View>
-            <Text style={styles.introTitle}>RunOn 멤버스</Text>
           </View>
+          <Text style={styles.introTitle}>RunOn 맴버스</Text>
           <Text style={styles.introSubtitle}>
             더 많은 서비스를 구독하고 혜택을 받으세요
           </Text>
@@ -468,7 +446,7 @@ const PremiumScreen = ({ navigation }) => {
           <View style={styles.featureItem}>
             <Ionicons name="trophy" size={24} color={COLORS.WHITE} />
             <View style={styles.featureContent}>
-              <Text style={styles.featureTitle}>러논멤버스를 위한 러닝 이벤트</Text>
+              <Text style={styles.featureTitle}>러논맴버스를 위한 러닝 이벤트</Text>
               <Text style={styles.featureDescription}>
                 특별한 경험을 위한 러닝세션에 참가할 수 있습니다.
               </Text>
@@ -481,13 +459,11 @@ const PremiumScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* 하단 고정 버튼 */}
-      <SafeAreaView style={[styles.bottomButtonWrapper, { paddingBottom: insets.bottom }]}>
+      <SafeAreaView style={styles.bottomButtonWrapper}>
         <View style={styles.bottomButtonContainer}>
           <TouchableOpacity
             style={styles.bottomButton}
-            onPress={() => {
-              Alert.alert('준비중', '구독 서비스를 준비 중입니다. 곧 만나요!');
-            }}
+            onPress={handleOpenMainModal}
           >
             <Text style={styles.bottomButtonText}>30일간 무료로 사용해보기</Text>
           </TouchableOpacity>
@@ -522,11 +498,10 @@ const PremiumScreen = ({ navigation }) => {
               {
                 transform: [{ translateY: modalContentTranslateY }],
                 opacity: modalContentOpacity,
-                paddingBottom: insets.bottom + 16, // 하단 시스템 네비게이터 위에 위치
               },
             ]}
           >
-            <Text style={styles.modalTitle}>RunOn 멤버스, 무료로 시작해보세요</Text>
+            <Text style={styles.modalTitle}>RunOn 맴버스, 무료로 시작해보세요</Text>
             
             {/* 연간 구독 UI (기본 표시) */}
             <View style={styles.titlePlanCardContainer}>
@@ -729,7 +704,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
   },
   backButton: {
     width: 44,
@@ -749,18 +723,12 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  scrollContentContainer: {
-    paddingTop: 30, // 상단 글로우를 위한 여유 공간
-  },
   introSection: {
     alignItems: 'center',
     paddingVertical: 40,
     paddingHorizontal: 20,
   },
-  introHeaderContainer: {
-    alignItems: 'center',
-    paddingVertical: 30, // 글로우가 잘리지 않도록 충분한 여유 공간
-    paddingHorizontal: 30, // 좌우 여유 공간도 추가
+  introIcon: {
     marginBottom: 16,
   },
   introTitle: {
@@ -817,28 +785,14 @@ const styles = StyleSheet.create({
     marginLeft: -2,
     marginRight: 8,
     backgroundColor: 'transparent',
-    position: 'relative',
-    width: 100,
-    height: 40,
-    overflow: 'visible',
-  },
-  premiumBadgeGlowContainer: {
-    position: 'absolute',
-    width: 190,
-    height: 80,
-    top: -15,
-    left: -30,
-    zIndex: 0,
-  },
-  premiumBadgeGlowSvg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
+    // 글로우 효과 - 핑크 색상 (범위 확대)
+    shadowColor: '#FF0073',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
   },
   premiumBadgeGlow: {
     backgroundColor: 'transparent',
-    position: 'relative',
-    zIndex: 1,
   },
   premiumBadgeImage: {
     width: 100,
@@ -852,7 +806,6 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -12 }, { translateY: -12 }],
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
   },
   // 하단 고정 버튼
   bottomButtonWrapper: {
@@ -918,6 +871,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 16,
     maxHeight: '100%',
     minHeight: 'auto',
   },
@@ -930,7 +884,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'Regular',
     color: COLORS.WHITE,
     marginBottom: 20,

@@ -7,10 +7,11 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../contexts/NetworkContext';
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -31,6 +32,16 @@ const VerificationScreen = ({ navigation, route }) => {
   const { verifyPhoneCode, sendPhoneVerification, confirmationResult, setConfirmationResult, loginAsDemo } = useAuth();
   const { isOnline } = useNetwork();
   const recaptchaVerifierRef = useRef(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    StatusBar.setTranslucent(false);
+    StatusBar.setBackgroundColor('#000000');
+    return () => {
+      StatusBar.setTranslucent(true);
+      StatusBar.setBackgroundColor('transparent');
+    };
+  }, []);
 
   // reCAPTCHA 초기화는 onLoad 콜백에서 처리
 

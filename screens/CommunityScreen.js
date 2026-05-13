@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
   TouchableOpacity,
@@ -11,9 +10,8 @@ import {
   Modal,
   Animated,
   Image,
-  Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
@@ -33,13 +31,10 @@ const COLORS = {
 };
 
 const CommunityScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { allEvents, chatRooms, joinEvent, userJoinedEvents } = useEvents();
   const { hasChatNotification, hasBoardNotification, notifications, markNotificationAsRead, handleChatTabClick, handleChatRoomClick, handleBoardTabClick } = useCommunity();
-  const insets = useSafeAreaInsets();
-  
-  // Android에서 상태바 높이만큼 여백 추가
-  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   
   // 디버깅: 알림 상태 확인
   useEffect(() => {
@@ -49,6 +44,23 @@ const CommunityScreen = ({ navigation, route }) => {
     console.log('🔍 CommunityScreen - unread chat notifications:', notifications.filter(n => n.type === 'message' && !n.isRead).length);
     console.log('🔍 CommunityScreen - unread board notifications:', notifications.filter(n => (n.type === 'like' || n.type === 'comment') && !n.isRead).length);
   }, [hasChatNotification, hasBoardNotification, notifications]);
+
+  // 모달 애니메이션 효과
+  useEffect(() => {
+    if (showFilters) {
+      Animated.timing(filtersModalBackdropOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(filtersModalBackdropOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showFilters, filtersModalBackdropOpacity]);
 
   // 특정 채팅방의 읽지 않은 알림 개수 계산
   const getUnreadCountForChatRoom = (chatRoomId) => {
@@ -89,6 +101,9 @@ const CommunityScreen = ({ navigation, route }) => {
   // 검색 및 필터 상태
   const [searchText, setSearchText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  
+  // 모달 오버레이 페이드 애니메이션
+  const filtersModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   const [selectedLocation, setSelectedLocation] = useState('전체');
   const [selectedDifficulty, setSelectedDifficulty] = useState('전체');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('전체');
@@ -96,19 +111,14 @@ const CommunityScreen = ({ navigation, route }) => {
   // 탭 상태
   const [activeTab, setActiveTab] = useState('모임'); // '모임', '채팅', '게시판'
   
-  // 탭 레이아웃 측정을 위한 상태
-  const [tabLayouts, setTabLayouts] = useState({});
-  const tabRefs = useRef({});
-  
   // route.params에서 activeTab을 받아서 설정
   useEffect(() => {
     if (route.params?.activeTab) {
       setActiveTab(route.params.activeTab);
       // 채팅 탭으로 이동하는 경우 슬라이딩 애니메이션 실행
       if (route.params.activeTab === '채팅') {
-        const tabIndex = ['모임', '채팅', '게시판'].indexOf('채팅');
         Animated.timing(slideAnim, {
-          toValue: tabIndex,
+          toValue: 1,
           duration: 300,
           useNativeDriver: false,
         }).start();
@@ -118,15 +128,6 @@ const CommunityScreen = ({ navigation, route }) => {
   
   // 슬라이딩 애니메이션 값
   const slideAnim = useRef(new Animated.Value(0)).current;
-  
-  // 탭 레이아웃 측정 핸들러
-  const handleTabLayout = (tabId, event) => {
-    const { x, width } = event.nativeEvent.layout;
-    setTabLayouts(prev => ({
-      ...prev,
-      [tabId]: { x, width }
-    }));
-  };
   
   // 게시판 카테고리 필터 상태
   const [selectedPostCategory, setSelectedPostCategory] = useState('전체');
@@ -399,25 +400,18 @@ const CommunityScreen = ({ navigation, route }) => {
 
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* 스크롤 가능한 컨텐츠 */}
-      <ScrollView 
-        style={styles.scrollView} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: 0 }]}
-      >
-        {/* 헤더 섹션 */}
-        <View style={[styles.headerSection, { paddingTop: 20 + statusBarPadding }]}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* 상단 고정: 제목 + 러닝모임/채팅/자유게시판 탭 (스크롤과 분리) */}
+      <View style={styles.fixedTopSection}>
+        <View style={styles.headerSection}>
           <View style={styles.titleContainer}>
             <Text style={styles.title}>커뮤니티</Text>
           </View>
           <Text style={styles.subtitle}>러너들과 함께 소통하고 달려보세요</Text>
         </View>
 
-        {/* 탭 선택 */}
         <View style={styles.tabContainer}>
           <TouchableOpacity 
-            ref={ref => tabRefs.current['모임'] = ref}
             style={styles.tab}
             onPress={() => {
               setActiveTab('모임');
@@ -427,14 +421,12 @@ const CommunityScreen = ({ navigation, route }) => {
                 useNativeDriver: false,
               }).start();
             }}
-            onLayout={(event) => handleTabLayout('모임', event)}
           >
             <Text style={[styles.tabText, activeTab === '모임' && styles.activeTabText]}>
               러닝모임
             </Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            ref={ref => tabRefs.current['채팅'] = ref}
             style={styles.tab}
             onPress={() => {
               setActiveTab('채팅');
@@ -445,7 +437,6 @@ const CommunityScreen = ({ navigation, route }) => {
                 useNativeDriver: false,
               }).start();
             }}
-            onLayout={(event) => handleTabLayout('채팅', event)}
           >
             <View style={styles.tabTextContainer}>
               <Text style={[styles.tabText, activeTab === '채팅' && styles.activeTabText]}>
@@ -457,7 +448,6 @@ const CommunityScreen = ({ navigation, route }) => {
             </View>
           </TouchableOpacity>
           <TouchableOpacity 
-            ref={ref => tabRefs.current['게시판'] = ref}
             style={styles.tab}
             onPress={() => {
               setActiveTab('게시판');
@@ -468,7 +458,6 @@ const CommunityScreen = ({ navigation, route }) => {
                 useNativeDriver: false,
               }).start();
             }}
-            onLayout={(event) => handleTabLayout('게시판', event)}
           >
             <View style={styles.tabTextContainer}>
               <Text style={[styles.tabText, activeTab === '게시판' && styles.activeTabText, { paddingLeft: 10 }]}>
@@ -480,36 +469,34 @@ const CommunityScreen = ({ navigation, route }) => {
             </View>
           </TouchableOpacity>
           
-          {/* 슬라이딩 언더라인 */}
+          {/* 슬라이딩 박스 */}
           <Animated.View 
             style={[
-              styles.slidingUnderline,
+              styles.slidingBox,
               {
                 transform: [
                   {
                     translateX: slideAnim.interpolate({
                       inputRange: [0, 1, 2],
-                      outputRange: [
-                        tabLayouts['모임']?.x || 0,
-                        (tabLayouts['채팅']?.x || 0) - 4, // 채팅 탭에서 약간 왼쪽으로 이동
-                        tabLayouts['게시판']?.x || 0
-                      ]
+                      outputRange: [0, 125, 255]
                     })
                   }
-                ],
-                width: slideAnim.interpolate({
-                  inputRange: [0, 1, 2],
-                  outputRange: [
-                    tabLayouts['모임']?.width || 0,
-                    tabLayouts['채팅']?.width || 0,
-                    tabLayouts['게시판']?.width || 0
-                  ]
-                })
+                ]
               }
             ]}
           />
         </View>
+      </View>
 
+      <ScrollView
+        style={styles.tabBodyScroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: 0, paddingBottom: Math.max(24, insets.bottom + 20) },
+        ]}
+      >
         {/* 러닝 모임 탭 */}
         {activeTab === '모임' && (
           <>
@@ -1016,18 +1003,24 @@ const CommunityScreen = ({ navigation, route }) => {
           </>
         )}
 
-        {/* 하단 여백 */}
-        <View style={styles.bottomSpacing} />
       </ScrollView>
 
       {/* 필터 모달 */}
       <Modal
         visible={showFilters}
         transparent={true}
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setShowFilters(false)}
       >
         <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.modalBackdrop,
+              {
+                opacity: filtersModalBackdropOpacity,
+              },
+            ]}
+          />
           <View style={styles.filterModal}>
             <View style={styles.filterHeader}>
               <Text style={styles.filterTitle}>필터 설정</Text>
@@ -1133,11 +1126,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
   },
+  fixedTopSection: {
+    backgroundColor: COLORS.BACKGROUND,
+  },
+  tabBodyScroll: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100, // BottomTab을 위한 여백
+    flexGrow: 1,
   },
   headerSection: {
     paddingHorizontal: 16,
@@ -1202,14 +1201,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 0,
     marginBottom: 16,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: COLORS.SURFACE,
     borderRadius: 12,
+    padding: 4,
     position: 'relative',
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
+    borderRadius: 8,
     zIndex: 2,
   },
   tabText: {
@@ -1235,16 +1236,17 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   activeTabText: {
-    color: COLORS.TEXT,
-    fontWeight: '700',
+    color: '#000000',
     fontFamily: 'Pretendard-SemiBold',
   },
-  slidingUnderline: {
+  slidingBox: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    height: 2,
+    top: 2.5,
+    left: 4,
+    width: 127,
+    height: 42.5,
     backgroundColor: COLORS.PRIMARY,
+    borderRadius: 8,
     zIndex: 1,
   },
   
@@ -1259,7 +1261,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.SURFACE,
     borderRadius: 12,
     paddingHorizontal: 4,
-    paddingVertical: 8,
+    paddingVertical: 12,
     gap: 12,
   },
   searchInput: {
@@ -1552,8 +1554,15 @@ const styles = StyleSheet.create({
   // 필터 모달 스타일
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   filterModal: {
     backgroundColor: COLORS.BACKGROUND,

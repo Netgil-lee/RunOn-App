@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -12,6 +11,7 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import { useEvents } from '../contexts/EventContext';
@@ -22,7 +22,7 @@ import RecommendationCard from '../components/RecommendationCard';
 import WeatherCard from '../components/WeatherCard';
 import MyDashboard from '../components/MyDashboard';
 import NewCafesList from '../components/NewCafesList';
-import { getFirestore, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import updateService from '../services/updateService';
 import storageService from '../services/storageService';
 
@@ -35,6 +35,9 @@ const COLORS = {
 };
 
 const HomeScreen = ({ navigation }) => {
+  // Safe Area insets 가져오기
+  const insets = useSafeAreaInsets();
+  
   // Context 안전장치 추가
   const authContext = useAuth();
   const notificationContext = useNotificationSettings();
@@ -67,7 +70,6 @@ const HomeScreen = ({ navigation }) => {
   // 스크롤 위치 추적
   const [currentScrollOffset, setCurrentScrollOffset] = useState(0);
   
-
   // 날씨 데이터 상태
   const [weatherData, setWeatherData] = useState(null);
   
@@ -109,32 +111,6 @@ const HomeScreen = ({ navigation }) => {
       console.error('커뮤니티 활동 데이터 가져오기 실패:', error);
     }
   };
-
-  // lastHomeAccess 업데이트 함수
-  const updateLastHomeAccess = useCallback(async () => {
-    if (!user || !user.uid) return;
-    
-    try {
-      const db = getFirestore();
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        lastHomeAccess: serverTimestamp()
-      });
-      console.log('✅ lastHomeAccess 업데이트 완료');
-    } catch (error) {
-      console.error('❌ lastHomeAccess 업데이트 실패:', error);
-      // 에러가 발생해도 앱 동작에는 영향 없도록 처리
-    }
-  }, [user]);
-
-  // 홈화면 포커스 시 lastHomeAccess 업데이트
-  useFocusEffect(
-    useCallback(() => {
-      if (user) {
-        updateLastHomeAccess();
-      }
-    }, [user, updateLastHomeAccess])
-  );
 
   // 컴포넌트 마운트 시 데이터 가져오기
   useEffect(() => {
@@ -390,21 +366,6 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate('Search');
   };
 
-  // 가이드 리셋 함수들 (개발환경에서만 사용)
-  const handleResetHomeGuide = () => {
-    resetGuide('home');
-    Alert.alert('가이드 리셋', '홈탭 가이드가 리셋되었습니다.');
-  };
-
-  const handleResetMeetingGuide = () => {
-    resetGuide('meeting');
-    Alert.alert('가이드 리셋', '모임탭 가이드가 리셋되었습니다.');
-  };
-
-  const handleResetAllGuides = () => {
-    resetGuide();
-    Alert.alert('가이드 리셋', '모든 가이드가 리셋되었습니다.');
-  };
 
   const handleViewAllEventsPress = () => {
     Alert.alert('러닝 일정', '전체 일정 보기가 곧 추가됩니다!');
@@ -475,8 +436,6 @@ const HomeScreen = ({ navigation }) => {
         decelerationRate="normal"
         bounces={true}
         alwaysBounceVertical={false}
-        scrollEnabled={true}
-        nestedScrollEnabled={false}
         onScroll={(event) => {
           const offsetY = event.nativeEvent.contentOffset.y;
           setCurrentScrollOffset(offsetY);

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,14 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Keyboard,
+  TouchableWithoutFeedback,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../contexts/NetworkContext';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
@@ -25,6 +31,16 @@ const PhoneAuthScreen = ({ navigation }) => {
   const { sendPhoneVerification, setConfirmationResult } = useAuth();
   const { isOnline } = useNetwork();
   const recaptchaVerifierRef = useRef(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    StatusBar.setTranslucent(false);
+    StatusBar.setBackgroundColor('#000000');
+    return () => {
+      StatusBar.setTranslucent(true);
+      StatusBar.setBackgroundColor('transparent');
+    };
+  }, []);
 
   // 휴대폰번호 포맷팅 (010-1234-5678)
   const formatPhoneNumber = (value) => {

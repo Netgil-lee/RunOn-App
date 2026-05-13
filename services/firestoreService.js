@@ -19,12 +19,19 @@ import {
   GeoPoint
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { firestore } from '../config/firebase';
 import getGeoFirestore from './geofirestoreService';
 
 class FirestoreService {
   constructor() {
-    this.db = getFirestore();
+    // firebase.js에서 이미 생성한 firestore 인스턴스 재사용
+    this.db = firestore;
     this.auth = getAuth();
+  }
+
+  // 로컬(file://) 경로는 다른 사용자 디바이스에서 열 수 없어 제외
+  isRemoteImageUrl(url) {
+    return typeof url === 'string' && url.startsWith('http');
   }
 
   // 사용자 프로필 관련
@@ -155,15 +162,14 @@ class FirestoreService {
       if (userSnap.exists()) {
         const userData = userSnap.data();
         
-        // 프로필 이미지 URL 통합 처리
-        let profileImage = null;
-        if (userData.profileImage) {
-          profileImage = userData.profileImage;
-        } else if (userData.profile?.profileImage) {
-          profileImage = userData.profile.profileImage;
-        } else if (userData.photoURL) {
-          profileImage = userData.photoURL;
-        }
+        // 프로필 이미지 URL 통합 처리 (원격 URL만 허용)
+        const profileImageCandidates = [
+          userData.profileImage,
+          userData.profile?.profileImage,
+          userData.photoURL
+        ];
+        const profileImage = profileImageCandidates.find((url) => this.isRemoteImageUrl(url)) || null;
+        const photoURL = this.isRemoteImageUrl(userData.photoURL) ? userData.photoURL : null;
         
         // 기본 프로필 이미지는 서비스 레이어에서 강제하지 않음
         // UI 컴포넌트에서 아이콘 또는 로컬 기본 이미지를 처리하도록 null 유지
@@ -172,6 +178,7 @@ class FirestoreService {
         // Firestore Timestamp 객체를 안전하게 처리
         return {
           ...userData,
+          photoURL,
           profileImage: profileImage, // 통합된 프로필 이미지로 덮어쓰기
           createdAt: userData.createdAt?.toDate?.() || userData.createdAt,
           onboardingCompletedAt: userData.onboardingCompletedAt?.toDate?.() || userData.onboardingCompletedAt,
@@ -205,14 +212,48 @@ class FirestoreService {
     
     while (retryCount < maxRetries) {
       try {
+        // GeoFirestore 사용 (새 모임은 새 형식만 사용)
+        const geofirestore = getGeoFirestore();
+        const geocollection = geofirestore.collection('events');
         
-        const eventsRef = collection(this.db, 'events');
-        const docRef = await addDoc(eventsRef, {
-          ...eventData,
+        // customMarkerCoords가 있으면 GeoPoint로 변환하여 coordinates에 저장
+        let coordinates = null;
+        if (eventData.customMarkerCoords) {
+          // lat/lng 또는 latitude/longitude 둘 다 지원
+          const lat = eventData.customMarkerCoords.latitude || eventData.customMarkerCoords.lat;
+          const lng = eventData.customMarkerCoords.longitude || eventData.customMarkerCoords.lng;
+          
+          if (lat != null && lng != null) {
+            coordinates = new GeoPoint(lat, lng);
+          } else {
+            console.error('❌ customMarkerCoords에 유효한 좌표가 없습니다:', eventData.customMarkerCoords);
+            throw new Error('유효한 좌표가 필요합니다.');
+          }
+        }
+        
+        // customMarkerCoords 제거하고 coordinates만 저장
+        const { customMarkerCoords, ...eventDataWithoutCustomCoords } = eventData;
+        
+        // 저장할 데이터 로그 출력 (디버깅용)
+        console.log('📝 저장할 이벤트 데이터:', {
+          location: eventDataWithoutCustomCoords.location,
+          customLocation: eventDataWithoutCustomCoords.customLocation,
+          coordinates: coordinates ? { lat: coordinates.latitude, lng: coordinates.longitude } : null,
+          title: eventDataWithoutCustomCoords.title,
+          type: eventDataWithoutCustomCoords.type
+        });
+        
+        const docRef = await geocollection.add({
+          ...eventDataWithoutCustomCoords,
+          coordinates: coordinates,  // GeoPoint로 저장 (새 필드)
+          status: eventDataWithoutCustomCoords.status || 'active', // status 필드 명시적 설정
+          // customMarkerCoords는 저장하지 않음 (새 모임은 새 형식만 사용)
+          // GeoFirestore가 자동으로 'g', 'l' 필드 추가
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
         
+        console.log('✅ 이벤트 저장 완료, ID:', docRef.id);
         return { success: true, id: docRef.id };
         
       } catch (error) {
@@ -264,6 +305,55 @@ class FirestoreService {
     }
   }
 
+  // 종료되지 않은 모든 모임 조회 (반경 제한 없음)
+  async getAllActiveEvents() {
+    try {
+      const eventsRef = collection(this.db, 'events');
+      // status 필드가 없는 구버전 문서도 포함하기 위해 전체 조회 후 클라이언트 필터링
+      const eventsQuery = query(eventsRef);
+      
+      const querySnapshot = await getDocs(eventsQuery);
+      const events = [];
+      querySnapshot.forEach((doc) => {
+        const eventData = doc.data();
+        const processedEvent = {
+          id: doc.id,
+          ...eventData,
+          createdAt: eventData.createdAt?.toDate?.() || eventData.createdAt,
+          updatedAt: eventData.updatedAt?.toDate?.() || eventData.updatedAt,
+        };
+        
+        // 종료된 모임은 제외 (status가 없는 경우는 active로 간주)
+        if (processedEvent.status === 'ended') {
+          return;
+        }
+
+        // 디버깅: location 필드 확인
+        if (!processedEvent.location) {
+          console.warn('⚠️ location 필드가 없는 이벤트:', doc.id, processedEvent);
+        }
+        
+        events.push(processedEvent);
+      });
+      
+      // 클라이언트 측에서 생성일 기준 내림차순 정렬
+      events.sort((a, b) => {
+        const aDate = a.createdAt?.getTime?.() || 0;
+        const bDate = b.createdAt?.getTime?.() || 0;
+        return bDate - aDate;
+      });
+      
+      console.log('✅ 전체 활성 모임 조회 완료:', events.length, '개');
+      // 디버깅: location 필드가 있는 이벤트 수 확인
+      const eventsWithLocation = events.filter(e => e.location);
+      console.log('📍 location 필드가 있는 모임:', eventsWithLocation.length, '개');
+      return events;
+    } catch (error) {
+      console.error('전체 활성 모임 조회 실패:', error);
+      throw error;
+    }
+  }
+
   async joinEvent(eventId, userId) {
     try {
       // 1. 먼저 이벤트 정보를 가져와서 참여 가능 여부 확인
@@ -276,7 +366,8 @@ class FirestoreService {
       
       const eventData = eventDoc.data();
       const currentParticipants = Array.isArray(eventData.participants) ? eventData.participants.length : 0;
-      const maxParticipants = eventData.maxParticipants || 6; // 기본값 6명
+      const maxParticipants = Number(eventData.maxParticipants);
+      const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
       
       // 디버깅 로그 추가
       console.log('🔍 FirestoreService - 참여자 수 계산 (백엔드):', {
@@ -287,11 +378,11 @@ class FirestoreService {
         isArray: Array.isArray(eventData.participants),
         currentParticipants,
         maxParticipants,
-        canJoin: currentParticipants < maxParticipants
+        canJoin: !hasParticipantLimit || currentParticipants < maxParticipants
       });
       
       // 2. 참여 가능 인원수 체크
-      if (currentParticipants >= maxParticipants) {
+      if (hasParticipantLimit && currentParticipants >= maxParticipants) {
         throw new Error('참여 가능 인원수가 마감되었습니다.');
       }
       
@@ -785,11 +876,21 @@ class FirestoreService {
     return onSnapshot(messagesQuery, callback, errorCallback);
   }
 
+  // ========== GeoFirestore 반경 쿼리 함수 ==========
+  
+  /**
+   * 두 좌표 간 거리 계산 (Haversine 공식)
+   * @param {number} lat1 - 첫 번째 좌표의 위도
+   * @param {number} lon1 - 첫 번째 좌표의 경도
+   * @param {number} lat2 - 두 번째 좌표의 위도
+   * @param {number} lon2 - 두 번째 좌표의 경도
+   * @returns {number} 거리 (km)
+   */
   calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // 지구 반지름 (km)
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a =
+    const a = 
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
       Math.sin(dLon / 2) * Math.sin(dLon / 2);
@@ -798,39 +899,38 @@ class FirestoreService {
   }
 
   /**
-   * 모든 활성 모임 조회 (지도 표시용 - status !== 'ended')
+   * 이벤트 좌표 추출 (하위 호환성 유지)
+   * @param {Object} eventData - 이벤트 데이터
+   * @returns {GeoPoint|null} GeoPoint 객체 또는 null
    */
-  async getAllActiveEvents() {
-    try {
-      const eventsRef = collection(this.db, 'events');
-      const eventsQuery = query(
-        eventsRef,
-        where('status', '!=', 'ended')
+  getEventCoordinates(eventData) {
+    if (eventData.coordinates) {
+      // GeoFirestore 형식 (새 모임, 우선)
+      return eventData.coordinates;
+    } else if (eventData.customMarkerCoords) {
+      // 기존 형식 (기존 모임, 하위 호환)
+      return new GeoPoint(
+        eventData.customMarkerCoords.latitude,
+        eventData.customMarkerCoords.longitude
       );
-      const snapshot = await getDocs(eventsQuery);
-      const events = [];
-      snapshot.forEach((doc) => {
-        const eventData = doc.data();
-        events.push({
-          id: doc.id,
-          ...eventData,
-          createdAt: eventData.createdAt?.toDate?.() || eventData.createdAt,
-          updatedAt: eventData.updatedAt?.toDate?.() || eventData.updatedAt,
-        });
-      });
-      return events;
-    } catch (error) {
-      console.error('활성 모임 조회 실패:', error);
-      throw error;
     }
+    return null;
   }
 
   /**
    * 반경 내 모임 검색 (하위 호환성 포함)
+   * 기존 모임(customMarkerCoords)과 새 모임(coordinates) 모두 검색
+   * @param {number} latitude - 중심 위도
+   * @param {number} longitude - 중심 경도
+   * @param {number} radiusInKm - 반경 (km), 기본값 3km
+   * @returns {Promise<Array>} 모임 배열
    */
   async getEventsNearbyHybrid(latitude, longitude, radiusInKm = 3) {
     try {
+      console.log('🔍 getEventsNearbyHybrid 시작:', { latitude, longitude, radiusInKm });
       const nearbyEvents = [];
+
+      // 1. GeoFirestore 쿼리 (새 모임 - coordinates 필드가 있는 모임)
       const geofirestore = getGeoFirestore();
       const geocollection = geofirestore.collection('events');
       const center = new GeoPoint(latitude, longitude);
@@ -839,22 +939,51 @@ class FirestoreService {
         radius: radiusInKm
       });
       const geoSnapshot = await geoQuery.get();
+
+      console.log('🔍 GeoFirestore 쿼리 결과:', geoSnapshot.size, '개');
+
+      // GeoFirestore 결과 추가
       geoSnapshot.forEach((doc) => {
         const eventData = doc.data();
+        console.log('🔍 GeoFirestore 모임:', doc.id, {
+          hasCoordinates: !!eventData.coordinates,
+          hasCustomMarkerCoords: !!eventData.customMarkerCoords,
+          status: eventData.status,
+          title: eventData.title
+        });
+        // 종료된 모임(status: 'ended')은 제외
         if (eventData.status !== 'ended') {
           nearbyEvents.push({ id: doc.id, ...eventData });
         }
       });
+
+      // 2. 일반 Firestore 쿼리 (기존 모임 - customMarkerCoords만 있는 모임)
+      // status 필드가 없는 구버전 문서도 포함하기 위해 전체 조회 후 필터링
       const eventsRef = collection(this.db, 'events');
-      const eventsQuery = query(
-        eventsRef,
-        where('status', '!=', 'ended')
-      );
+      const eventsQuery = query(eventsRef);
       const allEventsSnapshot = await getDocs(eventsQuery);
+
+      console.log('🔍 종료되지 않은 Firestore 모임 수:', allEventsSnapshot.size, '개');
+
+      // 기존 모임 중 반경 내 모임 추가
       allEventsSnapshot.forEach((doc) => {
         const eventData = doc.data();
+        if (eventData.status === 'ended') {
+          return;
+        }
+
         const hasCoordinates = !!eventData.coordinates;
         const hasCustomMarkerCoords = !!eventData.customMarkerCoords;
+        
+        console.log('🔍 Firestore 모임:', doc.id, {
+          hasCoordinates,
+          hasCustomMarkerCoords,
+          status: eventData.status,
+          title: eventData.title,
+          customMarkerCoords: eventData.customMarkerCoords
+        });
+        
+        // coordinates가 없고 customMarkerCoords만 있는 모임
         if (!hasCoordinates && hasCustomMarkerCoords) {
           const distance = this.calculateDistance(
             latitude,
@@ -862,11 +991,15 @@ class FirestoreService {
             eventData.customMarkerCoords.latitude,
             eventData.customMarkerCoords.longitude
           );
+          console.log('🔍 거리 계산:', doc.id, distance, 'km');
           if (distance <= radiusInKm) {
             nearbyEvents.push({ id: doc.id, ...eventData });
+            console.log('✅ 반경 내 모임 추가:', doc.id);
           }
         }
       });
+
+      console.log('✅ 최종 반경 내 모임 수:', nearbyEvents.length, '개');
       return nearbyEvents;
     } catch (error) {
       console.error('반경 내 모임 검색 실패:', error);
@@ -876,68 +1009,153 @@ class FirestoreService {
 
   /**
    * 반경 내 카페 검색
+   * @param {number} latitude - 중심 위도
+   * @param {number} longitude - 중심 경도
+   * @param {number} radiusInKm - 반경 (km), 기본값 0.7km (700m)
+   * @returns {Promise<Array>} 카페 배열
    */
   async getCafesNearby(latitude, longitude, radiusInKm = 0.7) {
     try {
+      console.log('🔍 [getCafesNearby] 시작:', { latitude, longitude, radiusInKm });
       const geofirestore = getGeoFirestore();
       const geocollection = geofirestore.collection('cafes');
       const center = new GeoPoint(latitude, longitude);
-      const q = geocollection.near({
+      
+      console.log('🔍 [getCafesNearby] GeoFirestore 컬렉션 준비 완료');
+      
+      const query = geocollection.near({
         center: center,
         radius: radiusInKm
       });
-      const snapshot = await q.get();
+      
+      console.log('🔍 [getCafesNearby] 쿼리 실행 중...');
+      const snapshot = await query.get();
       const cafes = [];
+      
+      console.log('🔍 [getCafesNearby] GeoFirestore 쿼리 결과:', snapshot.size, '개');
+      
       snapshot.forEach((doc) => {
-        cafes.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        console.log('📍 [getCafesNearby] 카페 발견:', {
+          id: doc.id,
+          name: data.name,
+          hasG: !!data.g,
+          gType: typeof data.g,
+          hasL: !!data.l,
+          hasCoordinates: !!data.coordinates
+        });
+        cafes.push({ id: doc.id, ...data });
       });
+      
+      console.log('✅ [getCafesNearby] 반경 내 카페 수:', cafes.length, '개');
       return cafes;
     } catch (error) {
-      if (error.code === 'permission-denied') return [];
+      // 권한 오류 또는 기타 오류 시 빈 배열 반환 (카페가 없을 수도 있음)
+      console.error('❌ [getCafesNearby] 카페 검색 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        latitude,
+        longitude,
+        radiusInKm
+      });
+      
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ [getCafesNearby] 카페 검색 권한 오류:', error.message);
+        return [];
+      }
+      // 다른 오류도 빈 배열 반환 (앱이 계속 작동하도록)
       return [];
     }
   }
 
   /**
-   * 모든 카페 조회
+   * 모든 카페 조회 (반경 제한 없음)
+   * @returns {Promise<Array>} 카페 배열
    */
   async getAllCafes() {
     try {
+      console.log('🔍 [getAllCafes] 모든 카페 조회 시작');
+      
+      // 일반 Firestore 쿼리로 모든 카페 가져오기
       const cafesRef = collection(this.db, 'cafes');
       const snapshot = await getDocs(cafesRef);
       const cafes = [];
+      
       snapshot.forEach((doc) => {
-        cafes.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        cafes.push({ id: doc.id, ...data });
       });
+      
+      console.log('✅ [getAllCafes] 모든 카페 조회 완료:', cafes.length, '개');
       return cafes;
     } catch (error) {
-      if (error.code === 'permission-denied') return [];
+      console.error('❌ [getAllCafes] 카페 조회 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
+      
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ [getAllCafes] 카페 조회 권한 오류:', error.message);
+        return [];
+      }
       return [];
     }
   }
 
   /**
-   * 카페 ID로 개별 조회
+   * 카페 ID로 개별 조회 (최신 데이터)
+   * @param {string} cafeId - 카페 ID
+   * @returns {Promise<Object|null>} 카페 데이터
    */
   async getCafeById(cafeId) {
     try {
+      console.log('🔍 [getCafeById] 카페 조회 시작:', cafeId);
+      
       const cafeRef = doc(this.db, 'cafes', cafeId);
       const cafeDoc = await getDoc(cafeRef);
-      if (!cafeDoc.exists()) return null;
-      return { id: cafeDoc.id, ...cafeDoc.data() };
+      
+      if (!cafeDoc.exists()) {
+        console.warn('⚠️ [getCafeById] 카페를 찾을 수 없음:', cafeId);
+        return null;
+      }
+      
+      const cafeData = {
+        id: cafeDoc.id,
+        ...cafeDoc.data()
+      };
+      
+      console.log('✅ [getCafeById] 카페 조회 완료:', cafeData.name);
+      return cafeData;
     } catch (error) {
-      if (error.code === 'permission-denied') return null;
+      console.error('❌ [getCafeById] 카페 조회 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        cafeId
+      });
+      
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ [getCafeById] 카페 조회 권한 오류:', error.message);
+        return null;
+      }
       return null;
     }
   }
 
   /**
    * 신규 입점 카페 조회 (최근 1개월)
+   * @param {number} maxCount - 최대 개수, 기본값 10
+   * @returns {Promise<Array>} 카페 배열
    */
   async getNewCafes(maxCount = 10) {
     try {
+      console.log('🔍 getNewCafes 시작');
+      
+      // 1개월 전 날짜 계산
       const oneMonthAgo = new Date();
       oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      
       const cafesRef = collection(this.db, 'cafes');
       const q = query(
         cafesRef,
@@ -945,8 +1163,10 @@ class FirestoreService {
         orderBy('createdAt', 'desc'),
         limit(maxCount)
       );
+      
       const snapshot = await getDocs(q);
       const cafes = [];
+      
       snapshot.forEach((doc) => {
         const data = doc.data();
         cafes.push({
@@ -957,44 +1177,220 @@ class FirestoreService {
           createdAt: data.createdAt,
         });
       });
+      
+      console.log('✅ 신규 카페 조회 완료:', cafes.length, '개');
       return cafes;
     } catch (error) {
-      if (error.code === 'permission-denied') return [];
+      // 권한 오류 또는 기타 오류 시 빈 배열 반환
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ 신규 카페 조회 권한 오류 (카페가 없거나 권한 없음)');
+        return [];
+      }
+      console.error('❌ 신규 카페 조회 실패:', error);
       return [];
     }
   }
 
   /**
-   * 모임/카페 검색 (제목, 상호명, 태그)
+   * 신규 입점 러닝푸드 조회 (최근 1개월)
+   * @param {number} maxCount - 최대 개수, 기본값 10
+   * @returns {Promise<Array>} 러닝푸드 배열
+   */
+  async getNewFoods(maxCount = 10) {
+    try {
+      console.log('🔍 getNewFoods 시작');
+
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+      const foodsRef = collection(this.db, 'foods');
+      const q = query(
+        foodsRef,
+        where('createdAt', '>=', oneMonthAgo),
+        orderBy('createdAt', 'desc'),
+        limit(maxCount)
+      );
+
+      const snapshot = await getDocs(q);
+      const foods = [];
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        foods.push({
+          id: doc.id,
+          name: data.name || '알 수 없는 러닝푸드',
+          location: data.address || data.location || '위치 정보 없음',
+          representativeImage: data.representativeImage || data.images?.[0] || null,
+          createdAt: data.createdAt,
+        });
+      });
+
+      console.log('✅ 신규 러닝푸드 조회 완료:', foods.length, '개');
+      return foods;
+    } catch (error) {
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ 신규 러닝푸드 조회 권한 오류 (러닝푸드가 없거나 권한 없음)');
+        return [];
+      }
+      console.error('❌ 신규 러닝푸드 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 모든 러닝푸드 조회 (반경 제한 없음)
+   * @returns {Promise<Array>} 러닝푸드 배열
+   */
+  async getAllFoods() {
+    try {
+      console.log('🔍 [getAllFoods] 모든 러닝푸드 조회 시작');
+
+      const foodsRef = collection(this.db, 'foods');
+      const snapshot = await getDocs(foodsRef);
+      const foods = [];
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        foods.push({ id: doc.id, ...data });
+      });
+
+      console.log('✅ [getAllFoods] 모든 러닝푸드 조회 완료:', foods.length, '개');
+      return foods;
+    } catch (error) {
+      console.error('❌ [getAllFoods] 러닝푸드 조회 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
+
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ [getAllFoods] 러닝푸드 조회 권한 오류:', error.message);
+        return [];
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 러닝푸드 ID로 개별 조회 (최신 데이터)
+   * @param {string} foodId - 러닝푸드 ID
+   * @returns {Promise<Object|null>} 러닝푸드 데이터
+   */
+  async getFoodById(foodId) {
+    try {
+      console.log('🔍 [getFoodById] 러닝푸드 조회 시작:', foodId);
+
+      const foodRef = doc(this.db, 'foods', foodId);
+      const foodDoc = await getDoc(foodRef);
+
+      if (!foodDoc.exists()) {
+        console.warn('⚠️ [getFoodById] 러닝푸드를 찾을 수 없음:', foodId);
+        return null;
+      }
+
+      const foodData = {
+        id: foodDoc.id,
+        ...foodDoc.data()
+      };
+
+      console.log('✅ [getFoodById] 러닝푸드 조회 완료:', foodData.name);
+      return foodData;
+    } catch (error) {
+      console.error('❌ [getFoodById] 러닝푸드 조회 실패:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        foodId
+      });
+
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ [getFoodById] 러닝푸드 조회 권한 오류:', error.message);
+        return null;
+      }
+      return null;
+    }
+  }
+
+  /**
+   * 모임/카페/러닝푸드 검색 (제목, 상호명, 태그)
+   * @param {string} searchQuery - 검색어
+   * @returns {Promise<Array>} 검색 결과 배열 (최대 5개)
    */
   async searchEventsAndCafes(searchQuery) {
     try {
-      if (!searchQuery || searchQuery.trim().length === 0) return [];
+      if (!searchQuery || searchQuery.trim().length === 0) {
+        return [];
+      }
+
       const queryLower = searchQuery.toLowerCase().trim();
       const results = [];
+
+      // 1. 모임 검색 (제목, 태그)
       const eventsRef = collection(this.db, 'events');
-      const eventsQuery = query(eventsRef, where('status', '!=', 'ended'));
+      const eventsQuery = query(
+        eventsRef,
+        where('status', '!=', 'ended') // 종료된 모임 제외
+      );
       const eventsSnapshot = await getDocs(eventsQuery);
+
       eventsSnapshot.forEach((doc) => {
         const data = doc.data();
         const titleMatch = data.title?.toLowerCase().includes(queryLower);
-        const tagMatch = data.hashtags?.toLowerCase().includes(queryLower) ||
-          data.tags?.some(tag => tag.toLowerCase().includes(queryLower));
+        const tagMatch = data.hashtags?.toLowerCase().includes(queryLower) || 
+                        data.tags?.some(tag => tag.toLowerCase().includes(queryLower));
+        
         if (titleMatch || tagMatch) {
-          results.push({ type: 'event', id: doc.id, ...data });
+          results.push({ 
+            type: 'event', 
+            id: doc.id, 
+            ...data 
+          });
         }
       });
+
+      // 2. 카페 검색 (상호명)
       const cafesRef = collection(this.db, 'cafes');
       const cafesSnapshot = await getDocs(cafesRef);
+
       cafesSnapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.name?.toLowerCase().includes(queryLower)) {
-          results.push({ type: 'cafe', id: doc.id, ...data });
+        const nameMatch = data.name?.toLowerCase().includes(queryLower);
+        
+        if (nameMatch) {
+          results.push({ 
+            type: 'cafe', 
+            id: doc.id, 
+            ...data 
+          });
         }
       });
+
+      // 3. 러닝푸드 검색 (상호명)
+      const foodsRef = collection(this.db, 'foods');
+      const foodsSnapshot = await getDocs(foodsRef);
+
+      foodsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        const nameMatch = data.name?.toLowerCase().includes(queryLower);
+
+        if (nameMatch) {
+          results.push({
+            type: 'food',
+            id: doc.id,
+            ...data
+          });
+        }
+      });
+
+      // 최대 5개 결과 반환
       return results.slice(0, 5);
     } catch (error) {
-      if (error.code === 'permission-denied') return [];
+      // 권한 오류 또는 기타 오류 시 빈 배열 반환 (검색이 계속 진행되도록)
+      if (error.code === 'permission-denied') {
+        console.warn('⚠️ 모임/카페/러닝푸드 검색 권한 오류:', error.message);
+        return [];
+      }
+      console.error('모임/카페/러닝푸드 검색 실패:', error);
+      // 다른 오류도 빈 배열 반환하여 검색이 계속 진행되도록 함
       return [];
     }
   }

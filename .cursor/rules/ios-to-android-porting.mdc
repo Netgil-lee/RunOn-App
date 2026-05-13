@@ -1,17 +1,22 @@
 ---
-description: iOS 프로젝트에서 Android 프로젝트로 코드를 가져오거나, 지도/위치 관련 코드를 수정할 때 적용
+description: iOS에서 Android로 코드/지도 WebView를 가져올 때 적용. SafeArea, RN→WebView postMessage(window+document) 등
 globs:
-  - screens/MapScreen.js
-  - screens/ScheduleScreen.js
-  - services/kakaoPlacesService.js
-  - config/environment.js
-  - components/*Map*.js
+  - screens/*.js
+  - components/*.js
+  - navigation/*.js
+  - App.js
+alwaysApply: false
 ---
 
 # iOS → Android 포팅 시 필수 체크 규칙
 
 > 이 규칙은 프로덕션 Android 빌드에서 실제 확인된 이슈를 기반으로 작성됨 (2026-03-12)
 > 상세 내용: `ANDROID_COMPATIBILITY_CHECKLIST.md` 섹션 12, `LOCATION_MAP_IMPROVEMENT_PLAN.md` 참고
+
+## iOS에서 지도/WebView 코드를 가져올 때 반드시 기억할 것
+
+- **RN → WebView `postMessage`는 Android에서 `document`로 올 수 있음.** iOS 프로젝트에서 복사한 HTML/인라인 스크립트가 `window.addEventListener('message', …)`만 쓰면, **토글(`switchToggle`), 마커 데이터(`updateEvents`/`updateCafes`/`updateFoods`), 현재 위치 등**이 WebView 안에서 **전혀 처리되지 않을 수 있음** (지도 탭에서 토글을 눌러도 마커가 안 나오는 현상).
+- 아래 **항목 2(WebView 메시지 리스너)**를 포팅할 때마다 확인하고, 동일 패턴을 **`MapScreen.js`·`HanRiverMap.js` 등 카카오맵 HTML을 생성하는 모든 파일**에 적용할 것.
 
 ## 지도/위치 관련 필수 체크 항목
 
@@ -20,9 +25,13 @@ globs:
 - iOS에서는 타이밍이 맞아 자동 표시되지만, Android에서는 GPS 응답이 WebView 로드보다 늦어 레이스 컨디션 발생
 - `mapLoaded` 핸들러에서 `if (currentLocation)` 체크만으로는 부족함 — 별도 useEffect 필요
 
-### 2. WebView 메시지 리스너 등록 (window + document)
-- Android의 react-native-webview는 postMessage 시 `document`에 이벤트를 dispatch함 (iOS는 `window`)
-- WebView HTML 내에서 반드시 `window.addEventListener('message')` + `document.addEventListener('message')` 둘 다 등록
+### 2. WebView 메시지 리스너 등록 (window + document) — iOS HTML 그대로 가져오면 누락되기 쉬움
+
+- **원인:** `react-native-webview`에서 React Native가 `webViewRef.postMessage(...)`로 보낸 문자열은, **Android에서는 `document`의 `message` 이벤트로 전달되는 경우가 많고**, iOS에서는 `window`로도 잘 들어옴. iOS에서만 검증된 코드는 리스너가 `window`만 듣고 있어도 문제가 안 보일 수 있음.
+- **필수:** WebView에 주입하는 HTML/스크립트에서 **동일 핸들러를** `window.addEventListener('message', handler)`와 **`document.addEventListener('message', handler)` 둘 다**에 등록.
+- **핸들러 내부:** `event.data`가 문자열이면 `JSON.parse`, 이미 객체면 그대로 쓰는 분기( `typeof raw === 'string' ? JSON.parse(raw) : raw` )를 두면 플랫폼/버전 차이에 안전함.
+- **영향받는 기능 예:** 지도 탭 토글, 모임/카페/푸드 마커 갱신, 현재 위치 마커, `setMapLevel`, 검색 장소 이동 등 **RN → Web으로 `postMessage`하는 모든 타입**.
+- **토글/레이어 전환 로직:** 한 토글에서 다른 종류 마커를 숨길 때(예: `events` 선택 시 `foodMarkers`도 `setMap(null)`) iOS와 동일하게 **모든 마커 배열**을 빠짐없이 처리했는지 확인 (Android에서만 “이전 마커가 남는” 현상 방지).
 
 ### 3. Android에서 injectJavaScript 사용 시 타이밍 주의
 - 카카오맵 SDK는 비동기 로드됨 → `window.__runOnMoveToLocation` 등 함수가 아직 정의되지 않았을 수 있음
@@ -45,8 +54,76 @@ globs:
 ### 6. Platform.OS 분기 확인
 - iOS 전용 코드(HealthKit, HapticFeedback 등)에 `Platform.OS === 'ios'` 가드 있는지 확인
 - Android 전용 처리가 필요한 부분(elevation, StatusBar 등) 확인
+- **중요:** `import` 직후 모듈 최상단에서 `Platform.OS`로 `require(...)` 하거나 `StyleSheet.create` 안에서 `Platform`을 쓰면, Expo에서 **`[runtime not ready]: Property 'Platform' doesn't exist`** 가 날 수 있음. `react-native`의 `Platform`은 네이티브 브릿지 준비 전에 아직 없을 수 있음.
+- **대안:** Firebase `appId` 등 초기 설정은 `expo-constants`의 `Constants.platform?.android` 등으로 분기. HealthKit 등 무거운 iOS 전용 모듈은 **`services/getAppleFitnessService.js` 패턴**(Constants로 iOS 판별 후 `require` 지연)으로 통일.
 
 ### 7. 그림자 스타일
 - `shadowOffset`, `shadowOpacity`, `shadowRadius`는 Android에서 무시됨 (iOS 전용)
 - Android는 `elevation`만 적용
 - rgba 배경에서 elevation 미동작 → 불투명 배경색 사용
+
+---
+
+## ⚠️ Android 시스템 UI 겹침 방지 (필수 — iOS 포팅 시 항상 적용)
+
+> iOS에서 가져온 화면은 Android의 상단 StatusBar, 하단 NavigationBar와 겹칠 수 있음
+> iOS는 SafeAreaView로 자동 처리되지만, Android는 추가 처리가 반드시 필요
+
+### 8. 상단 StatusBar 겹침 방지
+
+```js
+// ❌ BAD - iOS에서 가져온 코드 그대로 사용 시 Android에서 StatusBar와 겹침
+paddingTop: Platform.OS === 'ios' ? 60 : 50
+
+// ✅ GOOD - expo-status-bar 또는 StatusBar.currentHeight 사용
+import { StatusBar } from 'expo-status-bar';
+import { StatusBar as RNStatusBar } from 'react-native';
+
+paddingTop: Platform.OS === 'ios' ? 60 : (RNStatusBar.currentHeight || 24)
+```
+
+### 9. 하단 NavigationBar 겹침 방지 (핵심 규칙)
+
+- Android는 화면 하단에 소프트 네비게이션바(뒤로가기/홈/최근앱 버튼)가 존재
+- iOS 포팅 코드에서 `paddingBottom: 16` 등 고정값 사용 시 네비게이션바와 겹침 발생
+- **반드시 `react-native-safe-area-context`의 `useSafeAreaInsets()` 사용**
+
+```js
+// ❌ BAD
+paddingBottom: Platform.OS === 'ios' ? 34 : 16  // Android 네비게이션바 무시
+
+// ✅ GOOD
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const insets = useSafeAreaInsets();
+// ...
+paddingBottom: insets.bottom + 16  // 네비게이션바 높이 자동 포함
+```
+
+### 10. SafeAreaView 사용 규칙
+
+```js
+// ✅ GOOD - react-native-safe-area-context의 SafeAreaView 사용 (양쪽 대응)
+import { SafeAreaView } from 'react-native-safe-area-context';
+<SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+
+// ⚠️ react-native 기본 SafeAreaView는 Android에서 하단 inset을 처리 안 함
+import { SafeAreaView } from 'react-native';  // Android 하단 미처리
+```
+
+### 11. 모달/절대위치 요소 하단 처리
+
+- `position: 'absolute', bottom: 0` 으로 배치된 버튼, 탭바, 바텀시트는 반드시 `paddingBottom: 고정값 + insets.bottom` 또는 `bottom: 고정값 + insets.bottom` 로 보정
+
+```js
+// 하단 고정 바
+<View style={[styles.bottomBar, { paddingBottom: 22 + insets.bottom }]}>
+
+// 카드처럼 띄운 패널
+<View style={[styles.panel, { bottom: 24 + insets.bottom }]}>
+```
+
+### 12. `SafeAreaProvider` (앱 루트 필수)
+
+- `useSafeAreaInsets()`·`SafeAreaView`가 올바른 값을 받으려면 **`App.js`에서 `NavigationContainer`를 `<SafeAreaProvider>`로 한 번 감싸야 함**
+- 제공자 없으면 Android에서도 `insets.bottom` 이 `0`으로 나와 하단 겹침이 계속될 수 있음

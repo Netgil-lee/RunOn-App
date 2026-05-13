@@ -1,14 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { Platform, StyleSheet, Text, View, StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Linking, Platform, StyleSheet, Text, View, StatusBar } from 'react-native';
 import * as Network from 'expo-network';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 import * as Font from 'expo-font';
+import { doc, getDoc } from 'firebase/firestore';
 
 import AppNavigator from './navigation/AppNavigator';
 import firebaseService from './config/firebase';
+import { firestore } from './config/firebase';
+import pushNotificationService from './services/pushNotificationService';
 import { AuthProvider } from './contexts/AuthContext';
 import { NetworkProvider } from './contexts/NetworkContext';
 import { EventProvider } from './contexts/EventContext';
@@ -27,9 +30,121 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(true);
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [pendingDeepLinkEventId, setPendingDeepLinkEventId] = useState(null);
+  const navigationRef = useRef(null);
+
+  const extractEventIdFromUrl = useCallback((url) => {
+    if (!url) return null;
+
+    // iOS 네이티브 등록 스킴(com.runon.app), app.json 스킴(runon), 개발 스킴(exp+runon) 모두 허용
+    const match = url.match(/^(?:com\.runon\.app|runon|exp\+runon):\/\/event\/([^/?#]+)/i);
+    if (!match?.[1]) return null;
+
+    return decodeURIComponent(match[1]);
+  }, []);
+
+  const handleIncomingUrl = useCallback((url) => {
+    const eventId = extractEventIdFromUrl(url);
+    if (eventId) {
+      setPendingDeepLinkEventId(eventId);
+    }
+  }, [extractEventIdFromUrl]);
+
+  const tryNavigateToDeepLinkedEvent = useCallback(() => {
+    if (!pendingDeepLinkEventId) return;
+
+    const navigation = navigationRef.current;
+    if (!navigation?.isReady?.()) return;
+
+    const rootState = navigation.getRootState?.();
+    const hasMainRoute = rootState?.routeNames?.includes('Main');
+    if (!hasMainRoute) return;
+
+    navigation.navigate('Main', {
+      screen: 'MapTab',
+      params: {
+        targetEventId: pendingDeepLinkEventId,
+        activeToggle: 'events',
+      },
+    });
+    setPendingDeepLinkEventId(null);
+  }, [pendingDeepLinkEventId]);
 
   useEffect(() => {
     initializeAppLogic();
+  }, []);
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      handleIncomingUrl(url);
+    });
+
+    Linking.getInitialURL()
+      .then((initialUrl) => {
+        if (initialUrl) {
+          handleIncomingUrl(initialUrl);
+        }
+      })
+      .catch((error) => {
+        console.warn('초기 딥링크 URL 확인 실패:', error);
+      });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [handleIncomingUrl]);
+
+  useEffect(() => {
+    tryNavigateToDeepLinkedEvent();
+  }, [tryNavigateToDeepLinkedEvent]);
+
+  useEffect(() => {
+    pushNotificationService.setNavigationHandler(async (data) => {
+      const navigation = navigationRef.current;
+      if (!navigation?.isReady?.() || !data) {
+        return;
+      }
+
+      const type = data.type;
+
+      if ((type === 'new_message' || type === 'message') && data.chatRoomId) {
+        try {
+          const chatRoomRef = doc(firestore, 'chatRooms', String(data.chatRoomId));
+          const chatRoomSnap = await getDoc(chatRoomRef);
+          const chatRoom = chatRoomSnap.exists()
+            ? { id: chatRoomSnap.id, ...chatRoomSnap.data() }
+            : { id: String(data.chatRoomId), title: '채팅방' };
+
+          navigation.navigate('Chat', {
+            chatRoom,
+            returnToCommunity: true,
+            fromPushNotification: true,
+          });
+          return;
+        } catch (error) {
+          console.warn('채팅방 조회 실패, 최소 정보로 이동 시도:', error);
+          navigation.navigate('Chat', {
+            chatRoom: { id: String(data.chatRoomId), title: '채팅방' },
+            returnToCommunity: true,
+            fromPushNotification: true,
+          });
+          return;
+        }
+      }
+
+      if ((type === 'new_participant' || type === 'meeting_reminder') && (data.eventId || data.meetingId)) {
+        navigation.navigate('EventDetail', { eventId: data.eventId || data.meetingId });
+        return;
+      }
+
+      if (type === 'meeting_cancelled') {
+        navigation.navigate('Main', { screen: 'HomeTab' });
+      }
+    });
+
+    return () => {
+      pushNotificationService.setNavigationHandler(null);
+    };
   }, []);
 
   const initializeAppLogic = async () => {
@@ -108,8 +223,8 @@ export default function App() {
       <>
         <StatusBar 
           barStyle="light-content" 
-          backgroundColor="transparent" 
-          translucent={true}
+          backgroundColor="#000000" 
+          translucent={false}
         />
         <View style={styles.offlineContainer}>
           <Text style={styles.offlineText}>인터넷 연결을 확인하세요.</Text>
@@ -124,8 +239,8 @@ export default function App() {
       <>
         <StatusBar 
           barStyle="light-content" 
-          backgroundColor="transparent" 
-          translucent={true}
+          backgroundColor="#000000" 
+          translucent={false}
         />
         <View style={styles.offlineContainer}>
           <Text style={styles.offlineText}>앱 초기화 중...</Text>
@@ -135,30 +250,39 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
+    <>
       <StatusBar 
         barStyle="light-content" 
-        backgroundColor="transparent" 
-        translucent={true}
+        backgroundColor="#000000" 
+        translucent={false}
       />
-      <NavigationContainer>
-        <NetworkProvider>
-          <AuthProvider isDemoMode={isDemoMode}>
-            <PremiumProvider>
-            <NotificationSettingsProvider>
-              <EventProvider>
-                <CommunityProvider>
-                  <GuideProvider>
-                    <AppNavigator isDemoMode={isDemoMode} />
-                  </GuideProvider>
-                </CommunityProvider>
-              </EventProvider>
-            </NotificationSettingsProvider>
-            </PremiumProvider>
-          </AuthProvider>
-        </NetworkProvider>
-      </NavigationContainer>
-    </SafeAreaProvider>
+      <SafeAreaProvider>
+        <NavigationContainer
+          ref={navigationRef}
+          onReady={() => {
+            tryNavigateToDeepLinkedEvent();
+            pushNotificationService.handleInitialNotificationResponse();
+          }}
+          onStateChange={tryNavigateToDeepLinkedEvent}
+        >
+          <NetworkProvider>
+            <AuthProvider isDemoMode={isDemoMode}>
+              <PremiumProvider>
+                <NotificationSettingsProvider>
+                  <EventProvider>
+                    <CommunityProvider>
+                      <GuideProvider>
+                        <AppNavigator isDemoMode={isDemoMode} />
+                      </GuideProvider>
+                    </CommunityProvider>
+                  </EventProvider>
+                </NotificationSettingsProvider>
+              </PremiumProvider>
+            </AuthProvider>
+          </NetworkProvider>
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </>
   );
 }
 

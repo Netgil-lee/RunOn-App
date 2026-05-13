@@ -159,16 +159,18 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
                   // 참여 마감된 경우 버튼 비활성화
                   (() => {
                     const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                    const maxParticipants = event.maxParticipants || 6;
-                    return currentParticipants >= maxParticipants ? styles.disabledButton : {};
+                    const maxParticipants = Number(event.maxParticipants);
+                    const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+                    return hasParticipantLimit && currentParticipants >= maxParticipants ? styles.disabledButton : {};
                   })()
                 ]} 
                 onPress={() => onJoinPress(event)}
                 // 참여 마감된 경우 버튼 비활성화
                 disabled={(() => {
                   const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                  const maxParticipants = event.maxParticipants || 6;
-                  return currentParticipants >= maxParticipants;
+                  const maxParticipants = Number(event.maxParticipants);
+                  const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+                  return hasParticipantLimit && currentParticipants >= maxParticipants;
                 })()}
               >
                 <Text style={[
@@ -176,14 +178,16 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
                   // 참여 마감된 경우 텍스트 스타일 변경
                   (() => {
                     const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                    const maxParticipants = event.maxParticipants || 6;
-                    return currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
+                    const maxParticipants = Number(event.maxParticipants);
+                    const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+                    return hasParticipantLimit && currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
                   })()
                 ]}>
                   {(() => {
                     const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                    const maxParticipants = event.maxParticipants || 6;
-                    return currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
+                    const maxParticipants = Number(event.maxParticipants);
+                    const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
+                    return hasParticipantLimit && currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
                   })()}
                 </Text>
               </TouchableOpacity>

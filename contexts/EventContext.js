@@ -478,7 +478,7 @@ export const EventProvider = ({ children }) => {
         switch (type) {
           case 'reminder':
             notification.title = `${event.title}`;
-            notification.message = `오늘 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
+            notification.message = `내일 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
             break;
           case 'cancel':
             notification.title = `${event.title} 취소`;
@@ -520,7 +520,7 @@ export const EventProvider = ({ children }) => {
         switch (type) {
           case 'reminder':
             localNotification.title = `${event.title}`;
-            localNotification.message = `오늘 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
+            localNotification.message = `내일 ${event.time} ${event.location}에서 러닝 모임이 시작됩니다. 미리 준비해주세요!`;
             localNotification.icon = 'time';
             break;
           case 'cancel':
@@ -542,9 +542,9 @@ export const EventProvider = ({ children }) => {
     }
   };
 
-  // 모임 시작 1시간 전 reminder 알림 스케줄링
+  // 모임 시작 24시간 전 reminder 알림 스케줄링 (현재 미사용)
   const scheduleReminderNotification = (event) => {
-    // 모임 날짜와 시간을 파싱하여 1시간 전 시간 계산
+    // 모임 날짜와 시간을 파싱하여 24시간 전 시간 계산
     try {
       let eventDate;
       let eventTime;
@@ -586,8 +586,8 @@ export const EventProvider = ({ children }) => {
       }
       
       if (eventTime) {
-        // 1시간 전 시간 계산
-        const reminderTime = new Date(eventTime.getTime() - 60 * 60 * 1000);
+        // 24시간 전 시간 계산
+        const reminderTime = new Date(eventTime.getTime() - 24 * 60 * 60 * 1000);
         const now = new Date();
         
         // 현재 시간보다 미래인 경우에만 스케줄링
@@ -618,6 +618,13 @@ export const EventProvider = ({ children }) => {
         isPublic: newEvent.isPublic || true
       };
 
+      // 디버깅: EventContext에서 받은 데이터 확인
+      console.log('📥 EventContext.addEvent - 받은 데이터:', {
+        location: eventData.location,
+        customMarkerCoords: eventData.customMarkerCoords,
+        title: eventData.title
+      });
+      
       const result = await firestoreService.createEvent(eventData);
       
       if (result.success) {
@@ -628,6 +635,11 @@ export const EventProvider = ({ children }) => {
         await evaluationService.incrementParticipationCount(user.uid, true);
         
         console.log('✅ 이벤트 생성 완료:', result.id);
+        console.log('📤 반환하는 이벤트 데이터:', {
+          id: result.id,
+          location: eventData.location,
+          title: eventData.title
+        });
         return { ...eventData, id: result.id, chatRoomId: chatRoomResult?.id };
       }
     } catch (error) {
@@ -647,7 +659,8 @@ export const EventProvider = ({ children }) => {
 
       // 2. 로컬에서 참여 가능 여부 사전 체크
       const currentParticipants = Array.isArray(targetEvent.participants) ? targetEvent.participants.length : 1;
-      const maxParticipants = targetEvent.maxParticipants || 6;
+      const maxParticipants = Number(targetEvent.maxParticipants);
+      const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
       
       // 디버깅 로그 추가
       console.log('🔍 EventContext - 참여자 수 계산 (로컬):', {
@@ -662,10 +675,10 @@ export const EventProvider = ({ children }) => {
         },
         currentParticipants,
         maxParticipants,
-        canJoin: currentParticipants < maxParticipants
+        canJoin: !hasParticipantLimit || currentParticipants < maxParticipants
       });
       
-      if (currentParticipants >= maxParticipants) {
+      if (hasParticipantLimit && currentParticipants >= maxParticipants) {
         throw new Error('참여 가능 인원수가 마감되었습니다.');
       }
 
@@ -1054,28 +1067,37 @@ export const EventProvider = ({ children }) => {
     try {
       console.log('🔍 deleteEvent 호출됨 - eventId:', eventId);
       
-      // 삭제할 모임 찾기
-      const eventToDelete = userCreatedEvents.find(event => event.id === eventId);
+      // 삭제할 모임 찾기 (진행 중: userCreatedEvents / 종료됨: endedEvents)
+      const fromCreated = userCreatedEvents.find((event) => event.id === eventId);
+      const fromEnded = endedEvents.find((event) => event.id === eventId);
+      const eventToDelete = fromCreated || fromEnded;
       
       if (eventToDelete) {
-        // 내가 만든 모임을 삭제하는 경우, 참여자들에게 cancel 알림 생성
-        addMeetingNotification('cancel', eventToDelete, true);
-        
-        // Firebase에서 실제 이벤트 삭제
+        // 진행 중 내가 만든 모임 삭제 시에만 취소 알림
+        if (fromCreated) {
+          addMeetingNotification('cancel', eventToDelete, true);
+        }
+
         await firestoreService.deleteEvent(eventId);
         console.log('✅ Firebase에서 이벤트 삭제 완료');
-        
-        // Firebase에서 연결된 채팅방도 삭제
+
         await firestoreService.deleteChatRoom(eventId);
         console.log('✅ Firebase에서 채팅방 삭제 완료');
+
+        try {
+          await storageService.deleteEventFiles(eventId);
+        } catch (storageError) {
+          console.warn('⚠️ 모임 파일 삭제 실패(무시):', storageError?.message || storageError);
+        }
       }
 
       // 로컬 상태 업데이트
-      setUserCreatedEvents(prev => prev.filter(event => event.id !== eventId));
-      setAllEvents(prev => prev.filter(event => event.id !== eventId));
+      setUserCreatedEvents((prev) => prev.filter((event) => event.id !== eventId));
+      setEndedEvents((prev) => prev.filter((event) => event.id !== eventId));
+      setAllEvents((prev) => prev.filter((event) => event.id !== eventId));
       
       // 연결된 채팅방도 삭제
-      setChatRooms(prev => prev.filter(chatRoom => chatRoom.eventId !== eventId));
+      setChatRooms((prev) => prev.filter((chatRoom) => chatRoom.eventId !== eventId));
       
       console.log('✅ 로컬 상태 업데이트 완료');
     } catch (error) {

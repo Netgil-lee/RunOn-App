@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
-import { getFrequentCafes, getFrequentMeetingLocations } from '../services/userActivityService';
+import { getFrequentCafes, getFrequentFoods, getFrequentMeetingLocations } from '../services/userActivityService';
 import { Ionicons } from '@expo/vector-icons';
 
 // 디자인 시스템 색상 (HomeScreen과 동일)
@@ -33,6 +33,7 @@ const COLORS = {
 const MyDashboard = ({ navigation }) => {
   const { user } = useAuth();
   const [frequentCafes, setFrequentCafes] = useState([]);
+  const [frequentFoods, setFrequentFoods] = useState([]);
   const [frequentLocations, setFrequentLocations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -47,12 +48,14 @@ const MyDashboard = ({ navigation }) => {
       setIsLoading(true);
       
       // 병렬로 데이터 조회
-      const [cafes, locations] = await Promise.all([
+      const [cafes, foods, locations] = await Promise.all([
         getFrequentCafes(user.uid, 2, 3),
+        getFrequentFoods(user.uid, 2, 3),
         getFrequentMeetingLocations(user.uid, 2, 3)
       ]);
 
       setFrequentCafes(cafes);
+      setFrequentFoods(foods);
       setFrequentLocations(locations);
     } catch (error) {
       console.error('❌ [MyDashboard] 데이터 로드 실패:', error);
@@ -74,6 +77,14 @@ const MyDashboard = ({ navigation }) => {
     navigation.navigate('MapTab', {
       targetCafeId: cafe.cafeId,
       activeToggle: 'cafes'
+    });
+  };
+
+  // 러닝푸드 카드 클릭 핸들러
+  const handleFoodPress = (food) => {
+    navigation.navigate('MapTab', {
+      targetFoodId: food.foodId,
+      activeToggle: 'foods'
     });
   };
 
@@ -132,6 +143,50 @@ const MyDashboard = ({ navigation }) => {
     </TouchableOpacity>
   );
 
+  // 러닝푸드 카드 렌더링
+  const renderFoodCard = (food, index) => (
+    <TouchableOpacity
+      key={food.foodId || index}
+      style={styles.cafeCard}
+      onPress={() => handleFoodPress(food)}
+      activeOpacity={0.7}
+    >
+      {food.representativeImage ? (
+        <Image
+          source={{ uri: food.representativeImage }}
+          style={styles.cafeImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={styles.cafeImagePlaceholder}>
+          <Ionicons name="restaurant-outline" size={32} color={COLORS.SECONDARY} />
+        </View>
+      )}
+
+      <View style={styles.cafeInfoContainer}>
+        <View style={styles.cafeInfoRow}>
+          <Text style={styles.cafeName} numberOfLines={1}>
+            {food.foodName}
+          </Text>
+        </View>
+        {food.runningCertificationBenefit ? (
+          <View style={styles.cafeInfoRow}>
+            <Text style={styles.cafeBenefit} numberOfLines={1}>
+              {food.runningCertificationBenefit}
+            </Text>
+          </View>
+        ) : null}
+        {food.address ? (
+          <View style={styles.cafeInfoRow}>
+            <Text style={styles.cafeAddress} numberOfLines={1}>
+              {food.address}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  );
+
   // 장소 카드 렌더링 (아이콘 없이 텍스트만)
   const renderLocationCard = (location, index) => (
     <TouchableOpacity
@@ -158,6 +213,14 @@ const MyDashboard = ({ navigation }) => {
       <Ionicons name="cafe-outline" size={32} color={COLORS.SECONDARY} />
       <Text style={styles.emptyStateText}>방문한 카페가 없어요</Text>
       <Text style={styles.emptyStateSubtext}>지도에서 러닝카페를 찾아보세요!</Text>
+    </View>
+  );
+
+  const renderEmptyFoodState = () => (
+    <View style={styles.emptyStateCard}>
+      <Ionicons name="restaurant-outline" size={32} color={COLORS.SECONDARY} />
+      <Text style={styles.emptyStateText}>방문한 러닝푸드가 없어요</Text>
+      <Text style={styles.emptyStateSubtext}>지도에서 러닝푸드를 찾아보세요!</Text>
     </View>
   );
 
@@ -198,11 +261,24 @@ const MyDashboard = ({ navigation }) => {
         </View>
       </View>
 
+      {/* 자주 찾아가는 러닝푸드 */}
+      <View style={styles.subSection}>
+        <Text style={styles.subSectionTitle}>자주 찾아가는 러닝푸드</Text>
+
+        <View style={styles.cardsRow}>
+          {frequentFoods.length > 0 ? (
+            frequentFoods.map((food, index) => renderFoodCard(food, index))
+          ) : (
+            renderEmptyFoodState()
+          )}
+        </View>
+      </View>
+
       {/* 자주 개설하는 모임장소 */}
       <View style={styles.subSection}>
         <Text style={styles.subSectionTitle}>자주 개설하는 모임장소</Text>
         
-        <View style={styles.cardsRow}>
+        <View style={styles.locationCardsRow}>
           {frequentLocations.length > 0 ? (
             frequentLocations.map((location, index) => renderLocationCard(location, index))
           ) : (
@@ -250,6 +326,10 @@ const styles = StyleSheet.create({
   },
   cardsRow: {
     flexDirection: 'column',
+    gap: 10,
+  },
+  locationCardsRow: {
+    flexDirection: 'row',
     gap: 10,
   },
   // 카페 카드 스타일 (가로형)

@@ -2,9 +2,16 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, initializeAuth, getReactNativePersistence, PhoneAuthProvider } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import ENV from './environment';
 import { getFirestore } from 'firebase/firestore';
+
+// 모듈 로드 시점에는 react-native의 Platform이 아직 준비되지 않을 수 있음(Expo [runtime not ready]).
+// expo-constants로 앱 ID 분기.
+const firebaseAppId =
+  Constants.platform?.android != null
+    ? ENV.firebaseAppIdAndroid || ENV.firebaseAppId
+    : ENV.firebaseAppIdIos || ENV.firebaseAppId;
 
 const firebaseConfig = {
   apiKey: ENV.firebaseApiKey,
@@ -12,7 +19,7 @@ const firebaseConfig = {
   projectId: ENV.firebaseProjectId,
   storageBucket: ENV.firebaseStorageBucket,
   messagingSenderId: ENV.firebaseMessagingSenderId,
-  appId: Platform.OS === 'android' ? (ENV.firebaseAppIdAndroid || ENV.firebaseAppId) : (ENV.firebaseAppIdIos || ENV.firebaseAppId),
+  appId: firebaseAppId,
 };
 
 // Firebase 앱 초기화

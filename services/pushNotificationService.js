@@ -20,6 +20,8 @@ class PushNotificationService {
     this.isInitialized = false;
     this.notificationListener = null;
     this.responseListener = null;
+    this.navigationHandler = null;
+    this.initialResponseHandled = false;
   }
 
   // 푸시 알림 초기화
@@ -51,6 +53,17 @@ class PushNotificationService {
 
       // 실제 디바이스에서만 Expo Push Token 획득 및 저장
       if (isRealDevice) {
+        // iOS 원격 알림 등록 (명시적으로 등록하여 안정성 향상)
+        try {
+          if (Platform.OS === 'ios') {
+            await Notifications.registerForNotificationsAsync();
+            console.log('✅ iOS 원격 알림 등록 완료');
+          }
+        } catch (error) {
+          console.warn('⚠️ 원격 알림 등록 중 경고 (계속 진행):', error);
+          // 원격 알림 등록 실패해도 계속 진행 (getExpoPushTokenAsync가 내부적으로 처리할 수 있음)
+        }
+
         // Expo Push Token 획득
         this.expoPushToken = await this.getExpoPushToken();
         
@@ -86,7 +99,11 @@ class PushNotificationService {
     try {
       const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
                        Constants.easConfig?.projectId ||
-                       '16dd5f6f-bbea-451f-b1b4-6a3bd84e4e3a'; // 프로젝트 ID
+                       'b2ec1d33-1054-4404-b072-623c6cd66588'; // 프로젝트 ID (app.json과 일치)
+
+      console.log('🔍 사용 중인 Project ID:', projectId);
+      console.log('🔍 Constants.expoConfig?.extra?.eas?.projectId:', Constants.expoConfig?.extra?.eas?.projectId);
+      console.log('🔍 Constants.easConfig?.projectId:', Constants.easConfig?.projectId);
 
       const token = await Notifications.getExpoPushTokenAsync({
         projectId: projectId
@@ -97,6 +114,10 @@ class PushNotificationService {
       
     } catch (error) {
       console.error('❌ Expo Push Token 획득 실패:', error);
+      console.error('❌ 에러 상세:', error.message);
+      if (error.stack) {
+        console.error('❌ 스택 트레이스:', error.stack);
+      }
       return null;
     }
   }
@@ -147,15 +168,55 @@ class PushNotificationService {
     if (data?.type) {
       this.handleCustomNotification(data);
     }
+
+    // 포그라운드 수신 시 배지 카운트를 1 증가시켜 아이콘 상태를 유지
+    this.incrementBadgeCount().catch((error) => {
+      console.error('❌ 배지 카운트 증가 실패:', error);
+    });
   }
 
   // 알림 클릭 처리
   handleNotificationResponse(response) {
     const { data } = response.notification.request.content;
-    
-    if (data?.type && data?.navigationTarget) {
-      console.log('🎯 알림 클릭으로 화면 이동:', data.navigationTarget);
-      // 네비게이션 로직 추가 가능
+
+    if (!data) {
+      return;
+    }
+
+    if (data?.type || data?.navigationTarget || data?.chatRoomId) {
+      console.log('🎯 알림 클릭 데이터:', data);
+    }
+
+    if (typeof this.navigationHandler === 'function') {
+      try {
+        this.navigationHandler(data);
+      } catch (error) {
+        console.error('❌ 알림 클릭 네비게이션 처리 실패:', error);
+      }
+    }
+  }
+
+  // 앱 전역 네비게이션 핸들러 등록
+  setNavigationHandler(handler) {
+    this.navigationHandler = handler;
+  }
+
+  // 앱이 알림 탭으로 실행된 경우 초기 응답 처리
+  async handleInitialNotificationResponse() {
+    try {
+      if (this.initialResponseHandled) {
+        return;
+      }
+
+      const response = await Notifications.getLastNotificationResponseAsync();
+      if (!response) {
+        return;
+      }
+
+      this.initialResponseHandled = true;
+      this.handleNotificationResponse(response);
+    } catch (error) {
+      console.error('❌ 초기 알림 응답 처리 실패:', error);
     }
   }
 
@@ -424,6 +485,19 @@ class PushNotificationService {
       console.log('📱 앱 배지 설정:', count);
     } catch (error) {
       console.error('❌ 앱 배지 설정 실패:', error);
+    }
+  }
+
+  // 앱 배지 +1
+  async incrementBadgeCount() {
+    try {
+      const currentCount = await Notifications.getBadgeCountAsync();
+      const nextCount = Math.max(0, Number(currentCount || 0) + 1);
+      await Notifications.setBadgeCountAsync(nextCount);
+      return nextCount;
+    } catch (error) {
+      console.error('❌ 배지 카운트 증가 실패:', error);
+      return null;
     }
   }
 

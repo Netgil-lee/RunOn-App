@@ -945,12 +945,44 @@ async function getUserInfo(userId) {
 /**
  * Expo Push API를 통해 알림 전송
  */
-async function sendExpoPushNotification(expoPushToken, title, body, data = {}) {
+async function getUnreadBadgeCount(userId) {
   try {
+    if (!userId) {
+      return 0;
+    }
+
+    const [communitySnapshot, meetingSnapshot] = await Promise.all([
+      admin.firestore().collection('notifications')
+        .where('userId', '==', userId)
+        .where('isRead', '==', false)
+        .get(),
+      admin.firestore().collection('meetingNotifications')
+        .where('targetUserId', '==', userId)
+        .where('isRead', '==', false)
+        .get(),
+    ]);
+
+    return communitySnapshot.size + meetingSnapshot.size;
+  } catch (error) {
+    console.error(`❌ 배지 카운트 조회 실패: ${userId}`, error);
+    return 0;
+  }
+}
+
+async function sendExpoPushNotification(expoPushToken, title, body, data = {}, options = {}) {
+  try {
+    const { recipientId = null, includeCurrentNotification = false } = options;
+
     // 토큰 유효성 검사
     if (!Expo.isExpoPushToken(expoPushToken)) {
       console.error('❌ 유효하지 않은 Expo Push Token:', expoPushToken);
       return { success: false, error: 'Invalid token' };
+    }
+
+    let badgeCount = null;
+    if (recipientId) {
+      const unreadCount = await getUnreadBadgeCount(recipientId);
+      badgeCount = includeCurrentNotification ? unreadCount + 1 : unreadCount;
     }
 
     // 알림 메시지 생성
@@ -963,6 +995,10 @@ async function sendExpoPushNotification(expoPushToken, title, body, data = {}) {
       priority: 'high',
       channelId: 'runon-notifications'
     }];
+
+    if (badgeCount != null) {
+      messages[0].badge = Math.max(0, badgeCount);
+    }
 
     // 알림 전송
     const chunks = expo.chunkPushNotifications(messages);
@@ -996,6 +1032,296 @@ async function sendExpoPushNotification(expoPushToken, title, body, data = {}) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * 배지 재동기화용 무음 푸시 전송
+ * - title/body/sound 없이 badge만 갱신
+ */
+async function sendBadgeSyncPush(expoPushToken, recipientId) {
+  try {
+    if (!expoPushToken || !recipientId) {
+      return { success: false, error: 'missing_params' };
+    }
+
+    if (!Expo.isExpoPushToken(expoPushToken)) {
+      console.error('❌ 유효하지 않은 Expo Push Token(배지 동기화):', expoPushToken);
+      return { success: false, error: 'Invalid token' };
+    }
+
+    const badgeCount = await getUnreadBadgeCount(recipientId);
+    const messages = [{
+      to: expoPushToken,
+      badge: Math.max(0, badgeCount),
+      data: {
+        type: 'badge_sync',
+      },
+      contentAvailable: true,
+      priority: 'high',
+    }];
+
+    const chunks = expo.chunkPushNotifications(messages);
+    const tickets = [];
+
+    for (const chunk of chunks) {
+      const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+      tickets.push(...ticketChunk);
+    }
+
+    for (const ticket of tickets) {
+      if (ticket.status === 'error') {
+        console.error('❌ 배지 동기화 푸시 전송 에러:', ticket.message);
+        return { success: false, error: ticket.message };
+      }
+    }
+
+    return { success: true, badge: Math.max(0, badgeCount) };
+  } catch (error) {
+    console.error('❌ 배지 동기화 푸시 전송 실패:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 모임 시작 시각(Date) 파싱
+ */
+function parseEventStartDateTime(eventData) {
+  const rawDate = eventData?.date;
+  const rawTime = eventData?.time;
+
+  if (!rawDate || !rawTime) {
+    return null;
+  }
+
+  let baseDate = null;
+
+  if (rawDate instanceof Date) {
+    baseDate = new Date(rawDate);
+  } else if (rawDate && typeof rawDate.toDate === 'function') {
+    baseDate = rawDate.toDate();
+  } else if (typeof rawDate === 'string') {
+    const dateText = rawDate.trim();
+
+    const isoMatch = dateText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+      const year = Number(isoMatch[1]);
+      const month = Number(isoMatch[2]) - 1;
+      const day = Number(isoMatch[3]);
+      baseDate = new Date(year, month, day);
+    } else {
+      const koreanMatch = dateText.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+      if (koreanMatch) {
+        const year = Number(koreanMatch[1]);
+        const month = Number(koreanMatch[2]) - 1;
+        const day = Number(koreanMatch[3]);
+        baseDate = new Date(year, month, day);
+      } else {
+        const parsed = new Date(dateText);
+        if (!Number.isNaN(parsed.getTime())) {
+          baseDate = parsed;
+        }
+      }
+    }
+  }
+
+  if (!baseDate || Number.isNaN(baseDate.getTime())) {
+    return null;
+  }
+
+  let hours = null;
+  let minutes = null;
+
+  if (typeof rawTime === 'string') {
+    const timeText = rawTime.trim();
+    const koreanTimeMatch = timeText.match(/(오전|오후)\s*(\d{1,2}):(\d{2})/);
+
+    if (koreanTimeMatch) {
+      const isPm = koreanTimeMatch[1] === '오후';
+      hours = Number(koreanTimeMatch[2]);
+      minutes = Number(koreanTimeMatch[3]);
+
+      if (isPm && hours !== 12) {
+        hours += 12;
+      }
+      if (!isPm && hours === 12) {
+        hours = 0;
+      }
+    } else {
+      const plainTimeMatch = timeText.match(/^(\d{1,2}):(\d{2})$/);
+      if (plainTimeMatch) {
+        hours = Number(plainTimeMatch[1]);
+        minutes = Number(plainTimeMatch[2]);
+      }
+    }
+  } else if (typeof rawTime === 'number') {
+    hours = rawTime;
+    minutes = 0;
+  }
+
+  if (hours == null || minutes == null || Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return null;
+  }
+
+  const eventStart = new Date(baseDate);
+  eventStart.setHours(hours, minutes, 0, 0);
+
+  if (Number.isNaN(eventStart.getTime())) {
+    return null;
+  }
+
+  return eventStart;
+}
+
+// ============================================
+// 모임 24시간 전 리마인더 알림 스케줄러
+// ============================================
+
+/**
+ * 모임 시작 24시간 전에 참여자에게 리마인더 푸시 알림 전송
+ */
+exports.sendMeetingReminder24h = functions.pubsub
+  .schedule('*/5 * * * *') // 5분마다 실행
+  .timeZone('Asia/Seoul')
+  .onRun(async () => {
+    console.log('🕐 모임 24시간 전 리마인더 스케줄러 실행 시작');
+
+    try {
+      const now = new Date();
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const TOLERANCE_MS = 10 * 60 * 1000; // 스케줄 오차 보정 (±10분)
+      const windowStart = new Date(now.getTime() + DAY_MS - TOLERANCE_MS);
+      const windowEnd = new Date(now.getTime() + DAY_MS + TOLERANCE_MS);
+
+      const eventsSnapshot = await admin.firestore().collection('events').get();
+      console.log(`📋 전체 모임 조회 완료: ${eventsSnapshot.size}개`);
+
+      const results = [];
+
+      for (const eventDoc of eventsSnapshot.docs) {
+        const eventId = eventDoc.id;
+        const eventData = eventDoc.data();
+
+        try {
+          if (eventData.status === 'ended') {
+            continue;
+          }
+
+          if (eventData.reminder24hSentAt) {
+            continue;
+          }
+
+          const eventStart = parseEventStartDateTime(eventData);
+          if (!eventStart) {
+            continue;
+          }
+
+          if (eventStart < windowStart || eventStart > windowEnd) {
+            continue;
+          }
+
+          const participants = Array.isArray(eventData.participants) ? eventData.participants : [];
+          const organizerId = eventData.organizerId;
+          // 주최자도 리마인더를 받도록 수신자에 포함 (중복 제거)
+          const recipientSet = new Set(participants.filter(Boolean));
+          if (organizerId) {
+            recipientSet.add(organizerId);
+          }
+          const recipients = Array.from(recipientSet);
+
+          if (recipients.length === 0) {
+            await eventDoc.ref.update({
+              reminder24hSentAt: admin.firestore.FieldValue.serverTimestamp(),
+              reminder24hTargetStartAt: admin.firestore.Timestamp.fromDate(eventStart),
+            });
+            console.log(`ℹ️ 리마인더 수신 대상 없음: ${eventId}`);
+            continue;
+          }
+
+          const eventTitle = eventData.title || '모임';
+          const eventTime = eventData.time || '';
+          const eventLocation = eventData.location || '지정 장소';
+          const notificationTitle = `내일 ${eventTitle}`;
+          const notificationBody = `${eventTime} ${eventLocation}에서 시작됩니다. 미리 준비해주세요!`;
+
+          let successCount = 0;
+          const recipientResults = [];
+
+          for (const recipientId of recipients) {
+            try {
+              const recipientInfo = await getUserInfo(recipientId);
+              if (!recipientInfo || !recipientInfo.expoPushToken) {
+                recipientResults.push({ recipientId, success: false, reason: 'missing_token' });
+                continue;
+              }
+
+              const settings = await getUserNotificationSettings(recipientId);
+              if (!isNotificationTypeEnabled(settings, 'reminder')) {
+                recipientResults.push({ recipientId, success: false, reason: 'notification_off' });
+                continue;
+              }
+
+              const pushResult = await sendExpoPushNotification(
+                recipientInfo.expoPushToken,
+                notificationTitle,
+                notificationBody,
+                {
+                  type: 'meeting_reminder',
+                  meetingId: eventId,
+                  eventId: eventId,
+                  navigationTarget: 'EventDetail',
+                },
+                {
+                  recipientId,
+                  includeCurrentNotification: true,
+                }
+              );
+
+              if (pushResult.success) {
+                successCount += 1;
+                recipientResults.push({ recipientId, success: true });
+              } else {
+                recipientResults.push({
+                  recipientId,
+                  success: false,
+                  reason: pushResult.error || 'push_failed',
+                });
+              }
+            } catch (error) {
+              recipientResults.push({ recipientId, success: false, reason: error.message });
+            }
+          }
+
+          if (successCount > 0) {
+            await eventDoc.ref.update({
+              reminder24hSentAt: admin.firestore.FieldValue.serverTimestamp(),
+              reminder24hTargetStartAt: admin.firestore.Timestamp.fromDate(eventStart),
+            });
+            console.log(`✅ 모임 리마인더 전송 완료: ${eventId} (${successCount}/${recipients.length})`);
+          } else {
+            console.warn(`⚠️ 모임 리마인더 전송 실패/보류: ${eventId} (성공 0건)`);
+          }
+
+          results.push({
+            eventId,
+            recipients: recipients.length,
+            successCount,
+            details: recipientResults,
+          });
+        } catch (error) {
+          console.error(`❌ 모임 리마인더 처리 실패: ${eventId}`, error);
+          results.push({ eventId, success: false, error: error.message });
+        }
+      }
+
+      console.log('✅ 모임 24시간 전 리마인더 스케줄러 실행 완료', {
+        totalProcessed: results.length,
+      });
+
+      return { success: true, results };
+    } catch (error) {
+      console.error('❌ 모임 24시간 전 리마인더 스케줄러 실패:', error);
+      return null;
+    }
+  });
 
 // ============================================
 // 채팅 메시지 알림 함수
@@ -1089,6 +1415,7 @@ exports.onChatMessageCreated = functions.firestore
               title: notificationTitle,
               message: `${senderInfo.nickname}: ${messagePreview}`,
               chatId: chatRoomId,
+              eventId: chatRoom.eventId || null,
               senderId: senderId,
               timestamp: admin.firestore.FieldValue.serverTimestamp(),
               isRead: false,
@@ -1112,6 +1439,10 @@ exports.onChatMessageCreated = functions.firestore
               type: 'new_message',
               chatRoomId: chatRoomId,
               navigationTarget: 'Chat'
+            },
+            {
+              recipientId,
+              includeCurrentNotification: false,
             }
           );
 
@@ -1143,6 +1474,128 @@ exports.onChatMessageCreated = functions.firestore
 // ============================================
 
 /**
+ * 모임(삭제/종료) 시 채팅방/메시지/채팅알림 정리
+ * - removeChatRooms=true면 채팅 메시지와 채팅방 문서까지 삭제
+ */
+async function cleanupEventChatArtifacts(eventId, options = {}) {
+  const { removeChatRooms = true } = options;
+  const db = admin.firestore();
+  const affectedUserIds = new Set();
+  const chatRoomIds = new Set();
+
+  // 1) eventId가 기록된 채팅 알림 정리 (신규 데이터)
+  try {
+    const eventNotificationsSnapshot = await db
+      .collection('notifications')
+      .where('type', '==', 'message')
+      .where('eventId', '==', eventId)
+      .get();
+
+    for (const notificationDoc of eventNotificationsSnapshot.docs) {
+      const notificationData = notificationDoc.data();
+      if (notificationData?.userId) {
+        affectedUserIds.add(notificationData.userId);
+      }
+      if (notificationData?.chatId) {
+        chatRoomIds.add(notificationData.chatId);
+      }
+      await notificationDoc.ref.delete();
+    }
+
+    if (!eventNotificationsSnapshot.empty) {
+      console.log(`✅ eventId 기반 채팅 알림 정리 완료: ${eventId} (${eventNotificationsSnapshot.size}개)`);
+    }
+  } catch (error) {
+    console.error(`❌ eventId 기반 채팅 알림 정리 실패: ${eventId}`, error);
+  }
+
+  // 2) 모임 채팅방 조회 및 (옵션) 채팅 메시지/채팅방 삭제
+  try {
+    const chatRoomsSnapshot = await db
+      .collection('chatRooms')
+      .where('eventId', '==', eventId)
+      .get();
+
+    for (const chatRoomDoc of chatRoomsSnapshot.docs) {
+      const chatRoomId = chatRoomDoc.id;
+      chatRoomIds.add(chatRoomId);
+
+      const chatRoomData = chatRoomDoc.data();
+      const participants = Array.isArray(chatRoomData?.participants) ? chatRoomData.participants : [];
+      participants.forEach((participantId) => affectedUserIds.add(participantId));
+
+      if (removeChatRooms) {
+        const messagesSnapshot = await db
+          .collection('chatRooms')
+          .doc(chatRoomId)
+          .collection('messages')
+          .get();
+
+        for (const messageDoc of messagesSnapshot.docs) {
+          await messageDoc.ref.delete();
+        }
+        await chatRoomDoc.ref.delete();
+      }
+    }
+
+    if (!chatRoomsSnapshot.empty) {
+      console.log(
+        `✅ 모임 채팅방 정리 완료: ${eventId} (${chatRoomsSnapshot.size}개, removeChatRooms=${removeChatRooms})`
+      );
+    }
+  } catch (error) {
+    console.error(`❌ 모임 채팅방 정리 실패: ${eventId}`, error);
+  }
+
+  // 3) chatId 기반 채팅 알림 정리 (기존 데이터 하위호환)
+  try {
+    for (const chatRoomId of chatRoomIds) {
+      const legacyNotificationsSnapshot = await db
+        .collection('notifications')
+        .where('type', '==', 'message')
+        .where('chatId', '==', chatRoomId)
+        .get();
+
+      for (const notificationDoc of legacyNotificationsSnapshot.docs) {
+        const notificationData = notificationDoc.data();
+        if (notificationData?.userId) {
+          affectedUserIds.add(notificationData.userId);
+        }
+        await notificationDoc.ref.delete();
+      }
+
+      if (!legacyNotificationsSnapshot.empty) {
+        console.log(`✅ chatId 기반 채팅 알림 정리 완료: ${chatRoomId} (${legacyNotificationsSnapshot.size}개)`);
+      }
+    }
+  } catch (error) {
+    console.error(`❌ chatId 기반 채팅 알림 정리 실패: ${eventId}`, error);
+  }
+
+  return Array.from(affectedUserIds);
+}
+
+async function syncBadgeForUsers(userIds, logLabel) {
+  try {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return;
+    }
+
+    for (const targetUserId of userIds) {
+      const targetUserInfo = await getUserInfo(targetUserId);
+      if (!targetUserInfo || !targetUserInfo.expoPushToken) {
+        continue;
+      }
+      await sendBadgeSyncPush(targetUserInfo.expoPushToken, targetUserId);
+    }
+
+    console.log(`✅ 배지 재동기화 완료(${logLabel}): ${userIds.length}명`);
+  } catch (error) {
+    console.error(`❌ 배지 재동기화 실패(${logLabel}):`, error);
+  }
+}
+
+/**
  * 모임 삭제 시 참여자에게 알림 전송
  */
 exports.onEventDeleted = functions.firestore
@@ -1160,15 +1613,16 @@ exports.onEventDeleted = functions.firestore
       // 주최자 제외한 참여자 확인
       const recipients = participants.filter(participantId => participantId !== organizerId);
 
-      if (recipients.length === 0) {
-        console.log('⚠️ 알림을 받을 참여자가 없음');
-        return null;
-      }
-
       const eventTitle = eventData.title || '모임';
 
-      // 각 참여자에게 알림 전송
+      // 1) 삭제된 모임의 채팅 데이터/알림 정리
+      const affectedUserIds = await cleanupEventChatArtifacts(eventId, { removeChatRooms: true });
+
+      // 2) 각 참여자에게 모임 취소 알림 전송
       const results = [];
+      if (recipients.length === 0) {
+        console.log('⚠️ 알림을 받을 참여자가 없음');
+      }
       for (const recipientId of recipients) {
         try {
           // 수신자 정보 가져오기
@@ -1201,6 +1655,10 @@ exports.onEventDeleted = functions.firestore
               type: 'meeting_cancelled',
               meetingId: eventId,
               navigationTarget: 'Home'
+            },
+            {
+              recipientId,
+              includeCurrentNotification: false,
             }
           );
 
@@ -1217,12 +1675,44 @@ exports.onEventDeleted = functions.firestore
         }
       }
 
+      // 3) 채팅 알림 정리 영향 사용자 배지 재동기화
+      await syncBadgeForUsers(affectedUserIds, `event_deleted:${eventId}`);
+
       const successCount = results.filter(r => r.success).length;
       console.log(`✅ 모임 취소 알림 전송 완료: ${successCount}/${recipients.length}명`);
 
       return { success: true, results };
     } catch (error) {
       console.error('❌ 모임 취소 알림 전송 실패:', error);
+      return null;
+    }
+  });
+
+/**
+ * 모임 종료 시 채팅 데이터/알림 정리 + 배지 동기화
+ */
+exports.onEventEndedCleanup = functions.firestore
+  .document('events/{eventId}')
+  .onUpdate(async (change, context) => {
+    const { eventId } = context.params;
+    const beforeData = change.before.data() || {};
+    const afterData = change.after.data() || {};
+
+    // ended 전환 시점에만 실행
+    if (beforeData.status === 'ended' || afterData.status !== 'ended') {
+      return null;
+    }
+
+    console.log('🧹 모임 종료 채팅 정리 시작:', eventId);
+
+    try {
+      const affectedUserIds = await cleanupEventChatArtifacts(eventId, { removeChatRooms: true });
+      await syncBadgeForUsers(affectedUserIds, `event_ended:${eventId}`);
+
+      console.log(`✅ 모임 종료 채팅 정리 완료: ${eventId}`);
+      return { success: true, eventId, affectedUsers: affectedUserIds.length };
+    } catch (error) {
+      console.error(`❌ 모임 종료 채팅 정리 실패: ${eventId}`, error);
       return null;
     }
   });
@@ -1298,6 +1788,10 @@ exports.onEventParticipantAdded = functions.firestore
               eventId: eventId,
               participantId: participantId,
               navigationTarget: 'EventDetail'
+            },
+            {
+              recipientId: organizerId,
+              includeCurrentNotification: true,
             }
           );
 
@@ -1424,6 +1918,10 @@ exports.onPostLikeAdded = functions.firestore
               postId: postId,
               likerId: likerId,
               navigationTarget: 'PostDetail'
+            },
+            {
+              recipientId: authorId,
+              includeCurrentNotification: false,
             }
           );
 
@@ -1556,6 +2054,10 @@ exports.onPostCommentAdded = functions.firestore
               commentId: comment.id,
               commenterId: comment.authorId,
               navigationTarget: 'PostDetail'
+            },
+            {
+              recipientId: authorId,
+              includeCurrentNotification: false,
             }
           );
 
@@ -1581,4 +2083,470 @@ exports.onPostCommentAdded = functions.firestore
       return null;
     }
   });
+
+// ============================================
+// Garmin Connect Activity API - Ping 수신
+// ============================================
+
+const SUMMARY_TYPES = ['activities', 'activityDetails', 'activityFiles', 'manuallyUpdatedActivities', 'moveIQActivities'];
+
+/**
+ * Garmin Ping 수신 엔드포인트
+ * PDF 요구: 수신 후 즉시 HTTP 200 반환, 그 다음 비동기로 callbackURL 호출
+ */
+exports.garminPing = functions
+  .runWith({ timeoutSeconds: 120, memory: '256MB' })
+  .https.onRequest(async (req, res) => {
+    // 1. 즉시 HTTP 200 응답 (30초 이내 필수 - PDF Section 4.1)
+    res.status(200).send('OK');
+
+    // 2. 비동기 처리 (res.send() 후 실행)
+    if (req.method !== 'POST' || !req.body) {
+      console.log('⚠️ [garminPing] POST가 아니거나 body 없음');
+      return;
+    }
+
+    const body = req.body;
+    console.log('📥 [garminPing] 수신:', Object.keys(body));
+
+    for (const summaryType of SUMMARY_TYPES) {
+      const items = body[summaryType];
+      if (!Array.isArray(items) || items.length === 0) continue;
+
+      for (const item of items) {
+        const garminUserId = item.userId || item.userAccessToken;
+        const callbackURL = item.callbackURL;
+
+        if (callbackURL) {
+          // Ping 형식: callbackURL 호출 후 데이터 Pull
+          processGarminCallback(garminUserId, callbackURL, summaryType).catch((err) => {
+            console.error(`❌ [garminPing] ${summaryType} callback 처리 실패:`, err);
+          });
+        } else if (item.summaryId || item.activityId) {
+          // Push 형식: 데이터가 본문에 직접 포함됨 (Data Generator 등)
+          saveGarminActivityToFirestore(garminUserId, item, summaryType).catch((err) => {
+            console.error(`❌ [garminPing] ${summaryType} Push 저장 실패:`, err);
+          });
+        } else {
+          console.log(`⚠️ [garminPing] ${summaryType} - callbackURL 및 activity 데이터 없음 (deregistration?)`);
+        }
+      }
+    }
+  });
+
+/**
+ * Push 형식: 본문에 포함된 활동 데이터를 Firestore에 저장
+ */
+async function saveGarminActivityToFirestore(garminUserId, activity, summaryType) {
+  const summaryId = activity.summaryId || activity.activityId || activity.id;
+  if (!summaryId) return;
+
+  const db = admin.firestore();
+  const docId = `${garminUserId}_${summaryId}`;
+  const docData = {
+    garminUserId,
+    runonUserId: null,
+    summaryId: String(summaryId),
+    activityType: activity.activityType || 'UNKNOWN',
+    startTimeInSeconds: activity.startTimeInSeconds || 0,
+    durationInSeconds: activity.durationInSeconds || 0,
+    distanceInMeters: activity.distanceInMeters || 0,
+    averagePaceInMinutesPerKilometer: activity.averagePaceInMinutesPerKilometer || 0,
+    activeKilocalories: activity.activeKilocalories || 0,
+    deviceName: activity.deviceName || 'unknown',
+    summaryType,
+    rawData: activity,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await db.collection('garminActivities').doc(docId).set(docData, { merge: true });
+  console.log(`✅ [garminPing] ${summaryType} Push 저장 완료: ${summaryId} (garminUserId: ${garminUserId})`);
+}
+
+/**
+ * Garmin callbackURL 호출 후 Firestore에 저장
+ */
+async function processGarminCallback(garminUserId, callbackURL, summaryType) {
+  try {
+    console.log(`🔗 [garminPing] ${summaryType} callback 호출:`, callbackURL.substring(0, 80) + '...');
+
+    const response = await fetch(callbackURL);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const activities = Array.isArray(data) ? data : (data.data || data.activities || []);
+
+    if (!Array.isArray(activities)) {
+      console.log(`⚠️ [garminPing] ${summaryType} - 예상치 못한 응답 구조`);
+      return;
+    }
+
+    const db = admin.firestore();
+    let savedCount = 0;
+
+    for (const activity of activities) {
+      const summaryId = activity.summaryId || activity.activityId || activity.id;
+      if (!summaryId) continue;
+
+      const docId = `${garminUserId}_${summaryId}`;
+      const docData = {
+        garminUserId,
+        runonUserId: null,
+        summaryId: String(summaryId),
+        activityType: activity.activityType || 'UNKNOWN',
+        startTimeInSeconds: activity.startTimeInSeconds || 0,
+        durationInSeconds: activity.durationInSeconds || 0,
+        distanceInMeters: activity.distanceInMeters || 0,
+        averagePaceInMinutesPerKilometer: activity.averagePaceInMinutesPerKilometer || 0,
+        activeKilocalories: activity.activeKilocalories || 0,
+        deviceName: activity.deviceName || 'unknown',
+        summaryType,
+        rawData: activity,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await db.collection('garminActivities').doc(docId).set(docData, { merge: true });
+      savedCount++;
+    }
+
+    console.log(`✅ [garminPing] ${summaryType} 저장 완료: ${savedCount}건 (garminUserId: ${garminUserId})`);
+  } catch (error) {
+    console.error(`❌ [garminPing] processGarminCallback 실패:`, error);
+    throw error;
+  }
+}
+
+// ============================================
+// Garmin Connect - 앱용 활동 조회 API
+// ============================================
+
+/**
+ * 앱에서 Garmin 활동 데이터 조회
+ * GET /garminGetActivities?garminUserId=xxx&startTime=xxx&endTime=xxx
+ * - garminUserId: Garmin User ID (Eval 테스트용, OAuth 연동 전)
+ * - startTime, endTime: Unix timestamp (초, UTC)
+ */
+exports.garminGetActivities = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const garminUserId = req.query.garminUserId;
+    const startTime = parseInt(req.query.startTime, 10);
+    const endTime = parseInt(req.query.endTime, 10);
+
+    if (!garminUserId) {
+      res.status(400).json({ error: 'garminUserId가 필요합니다.' });
+      return;
+    }
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
+      res.status(400).json({ error: 'startTime, endTime (Unix 초)이 필요합니다.' });
+      return;
+    }
+    if (endTime - startTime > 24 * 60 * 60) {
+      res.status(400).json({ error: '조회 범위는 24시간 이내여야 합니다.' });
+      return;
+    }
+
+    const db = admin.firestore();
+    const snapshot = await db.collection('garminActivities')
+      .where('garminUserId', '==', garminUserId)
+      .where('startTimeInSeconds', '>=', startTime)
+      .where('startTimeInSeconds', '<=', endTime)
+      .get();
+
+    const activities = snapshot.docs.map((doc) => doc.data());
+    console.log(`✅ [garminGetActivities] 조회 완료: ${activities.length}건 (garminUserId: ${garminUserId})`);
+
+    res.status(200).json({ activities });
+  } catch (error) {
+    console.error('❌ [garminGetActivities] 실패:', error);
+    res.status(500).json({ error: '활동 조회 실패', message: error.message });
+  }
+});
+
+// ============================================
+// Garmin Connect - User Deregistration / User Permission (프로덕션 요건)
+// ============================================
+// OAuth2 PKCE 문서: Garmin이 사용자 연동 해제/권한 변경 시 우리 서버로 POST
+// Endpoint Configuration에 URL 등록 필요
+
+/**
+ * User Deregistration: 사용자가 Garmin Connect에서 연동 해제 시 Garmin이 호출
+ * POST 수신 → 즉시 200 → users에서 garminUserId 제거
+ */
+exports.garminUserDeregistration = functions.https.onRequest(async (req, res) => {
+  res.status(200).send('OK');
+
+  if (req.method !== 'POST' || !req.body) return;
+
+  try {
+    const userId = req.body.userId || req.body.userAccessToken;
+    if (!userId) {
+      console.log('⚠️ [garminUserDeregistration] userId 없음:', Object.keys(req.body));
+      return;
+    }
+
+    const db = admin.firestore();
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('garminUserId', '==', userId).get();
+
+    for (const doc of snapshot.docs) {
+      await doc.ref.update({ garminUserId: admin.firestore.FieldValue.delete() });
+      console.log(`✅ [garminUserDeregistration] 연동 해제: ${doc.id} (garminUserId: ${userId})`);
+    }
+  } catch (err) {
+    console.error('❌ [garminUserDeregistration] 실패:', err);
+  }
+});
+
+/**
+ * User Permission: 사용자가 Garmin Connect에서 권한 변경 시 Garmin이 호출
+ * POST 수신 → 즉시 200 → 로그 및 필요 시 처리
+ */
+exports.garminUserPermission = functions.https.onRequest(async (req, res) => {
+  res.status(200).send('OK');
+
+  if (req.method !== 'POST' || !req.body) return;
+
+  try {
+    const userId = req.body.userId || req.body.userAccessToken;
+    console.log('📥 [garminUserPermission] 수신:', userId, JSON.stringify(req.body).substring(0, 200));
+    // 권한 변경 시 추가 처리 필요 시 여기에 로직 추가
+  } catch (err) {
+    console.error('❌ [garminUserPermission] 실패:', err);
+  }
+});
+
+/**
+ * 모임 카드형 공유 이미지 엔드포인트 (SVG)
+ */
+exports.eventShareImage = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  const eventId = (req.query.eventId || '').toString().trim();
+  if (!eventId) {
+    res.status(400).send('eventId is required');
+    return;
+  }
+
+  const escapeSvg = (value = '') =>
+    String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const truncate = (value = '', max = 28) => {
+    const str = String(value || '');
+    return str.length > max ? `${str.slice(0, max - 1)}…` : str;
+  };
+
+  try {
+    const eventDoc = await admin.firestore().collection('events').doc(eventId).get();
+    if (!eventDoc.exists) {
+      res.status(404).send('Event not found');
+      return;
+    }
+
+    const event = eventDoc.data() || {};
+    const title = truncate(event.title || 'RunOn 러닝 모임', 30);
+    const location = truncate(event.location || '장소 미정', 16);
+    const dateTime = truncate(`${event.date || ''} ${event.time || ''}`.trim() || '일정 미정', 24);
+    const distance = truncate(event.distance ? `${event.distance}km` : '거리 미정', 10);
+    const pace = truncate(event.pace || '페이스 미정', 14);
+    const rawTags = String(event.hashtags || '')
+      .split(/\s+/)
+      .filter((tag) => tag.startsWith('#'))
+      .slice(0, 3);
+    const tags = rawTags.length > 0 ? rawTags : ['#런온', '#러닝모임', '#함께달려요'];
+
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" style="background:#0E0F12">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0E0F12" />
+      <stop offset="100%" stop-color="#12131A" />
+    </linearGradient>
+    <clipPath id="paceClip">
+      <rect x="620" y="280" width="488" height="100" rx="0" ry="0" />
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="1200" height="630" fill="#0E0F12"/>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#bg)"/>
+  <rect x="34" y="34" width="1132" height="562" rx="28" fill="url(#bg)" stroke="#1E2028" stroke-width="2"/>
+
+  <text x="84" y="130" fill="#FFFFFF" font-size="62" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(title)}</text>
+
+  <circle cx="88" cy="207" r="10" fill="#3AF8FF"/>
+  <text x="116" y="217" fill="#D3D3D3" font-size="42" font-family="Arial, sans-serif">${escapeSvg(location)}</text>
+
+  <circle cx="615" cy="207" r="10" fill="#3AF8FF"/>
+  <text x="643" y="217" fill="#D3D3D3" font-size="40" font-family="Arial, sans-serif">${escapeSvg(dateTime)}</text>
+
+  <rect x="84" y="258" width="1032" height="126" rx="22" fill="#1F2230"/>
+  <text x="290" y="336" fill="#FFFFFF" font-size="58" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(distance)}</text>
+  <rect x="598" y="280" width="2" height="82" fill="#3A3D4A"/>
+  <text x="864" y="336" text-anchor="middle" clip-path="url(#paceClip)" fill="#FFFFFF" font-size="58" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(pace)}</text>
+
+  <rect x="84" y="430" width="190" height="70" rx="35" fill="#123B45"/>
+  <text x="179" y="475" text-anchor="middle" fill="#3AF8FF" font-size="38" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(tags[0] || '#런온')}</text>
+  <rect x="294" y="430" width="260" height="70" rx="35" fill="#123B45"/>
+  <text x="424" y="475" text-anchor="middle" fill="#3AF8FF" font-size="38" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(tags[1] || '#러닝모임')}</text>
+  <rect x="574" y="430" width="210" height="70" rx="35" fill="#123B45"/>
+  <text x="679" y="475" text-anchor="middle" fill="#3AF8FF" font-size="38" font-family="Arial, sans-serif" font-weight="700">${escapeSvg(tags[2] || '#함께달려요')}</text>
+
+  <text x="84" y="568" fill="#5B6072" font-size="28" font-family="Arial, sans-serif">RunOn</text>
+</svg>`.trim();
+
+    res.set('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.status(200).send(svg);
+  } catch (error) {
+    console.error('❌ eventShareImage 처리 실패:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+/**
+ * 모임 공유 링크 엔드포인트
+ * - 웹 링크 미리보기(OG 메타) 제공
+ * - 앱 설치 사용자는 커스텀 스킴으로 자동 이동
+ */
+exports.eventShare = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'GET') {
+    res.status(405).send('Method Not Allowed');
+    return;
+  }
+
+  const escapeHtml = (value = '') =>
+    String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const eventId = (req.query.eventId || '').toString().trim();
+  const version = (req.query.v || '2').toString().trim();
+  if (!eventId) {
+    res.status(400).send('eventId is required');
+    return;
+  }
+
+  try {
+    const eventDoc = await admin.firestore().collection('events').doc(eventId).get();
+    if (!eventDoc.exists) {
+      res.status(404).send('Event not found');
+      return;
+    }
+
+    const event = eventDoc.data() || {};
+    const title = event.title || 'RunOn 러닝 모임';
+    const location = event.location || '장소 미정';
+    const date = event.date || '';
+    const time = event.time || '';
+    const description = `${location}${date || time ? ` · ${date} ${time}` : ''}`.trim();
+
+    const projectId = admin.app().options.projectId || 'runon-production-app';
+    const shareUrl = `https://us-central1-${projectId}.cloudfunctions.net/eventShare?eventId=${encodeURIComponent(eventId)}&v=${encodeURIComponent(version)}`;
+    const ogImage = `https://us-central1-${projectId}.cloudfunctions.net/eventShareImage?eventId=${encodeURIComponent(eventId)}&v=${encodeURIComponent(version)}`;
+    const deepLinkUrl = `com.runon.app://event/${encodeURIComponent(eventId)}`;
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.status(200).send(`<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="${escapeHtml(title)}" />
+  <meta property="og:description" content="${escapeHtml(description)}" />
+  <meta property="og:image" content="${escapeHtml(ogImage)}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:url" content="${escapeHtml(shareUrl)}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="${escapeHtml(ogImage)}" />
+  <style>
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0a0a0a; color:#fff; }
+    .wrap { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:16px; padding:24px; text-align:center; }
+    .title { font-size:22px; font-weight:700; }
+    .desc { color:#b3b3b3; font-size:14px; }
+    .btn { display:inline-block; padding:12px 16px; border-radius:10px; text-decoration:none; font-weight:600; }
+    .open { background:#3AF8FF; color:#000; }
+    .install { background:#1f1f24; color:#fff; border:1px solid #333; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">${escapeHtml(title)}</div>
+    <div class="desc">${escapeHtml(description)}</div>
+    <a class="btn open" id="openAppBtn" href="${escapeHtml(deepLinkUrl)}">러논 앱에서 열기</a>
+    <a class="btn install hidden" id="installBtn" href="https://apps.apple.com/" target="_blank" rel="noreferrer">앱 설치하기</a>
+    <div class="desc hidden" id="installHint">앱이 설치되어 있지 않다면 설치 후 다시 열어주세요.</div>
+  </div>
+  <script>
+    (function() {
+      var deepLink = ${JSON.stringify(deepLinkUrl)};
+      var installBtn = document.getElementById('installBtn');
+      var installHint = document.getElementById('installHint');
+      var opened = false;
+
+      var timeout = setTimeout(function() {
+        if (!opened) {
+          installBtn.classList.remove('hidden');
+          installHint.classList.remove('hidden');
+        }
+      }, 1800);
+
+      window.addEventListener('pagehide', function() {
+        opened = true;
+        clearTimeout(timeout);
+      });
+
+      // 사용자 클릭 없이도 앱 실행 시도
+      window.location.href = deepLink;
+    })();
+  </script>
+</body>
+</html>`);
+  } catch (error) {
+    console.error('❌ eventShare 처리 실패:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
 

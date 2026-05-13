@@ -4,21 +4,18 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
   Switch,
   Image,
-  Platform,
 } from 'react-native';
-import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import blacklistService from '../services/blacklistService';
-import fitnessService from '../services/fitnessService';
+import { getAppleFitnessService } from '../services/getAppleFitnessService';
 import TermsPrivacyModal from '../components/TermsPrivacyModal';
 
 // NetGill 디자인 시스템
@@ -45,8 +42,6 @@ const COLORS = {
 const SettingsScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
   const { settings, toggleSetting, updateSetting } = useNotificationSettings();
-  const insets = useSafeAreaInsets();
-  const statusBarHeight = Platform.OS === 'android' ? insets.top : 0;
   
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('privacy'); // 'privacy' or 'child-safety'
@@ -161,14 +156,15 @@ const SettingsScreen = ({ navigation }) => {
     checkHealthKitStatus();
   }, [user?.uid]);
 
-  // 건강데이터 상태 확인 (플랫폼별 자동 분기)
+  // HealthKit 상태 확인
   const checkHealthKitStatus = async () => {
     try {
       setHealthKitStatus(prev => ({ ...prev, isChecking: true }));
       
-      // Fitness 서비스 모듈 안전성 체크
-      if (!fitnessService || typeof fitnessService.checkPermissions !== 'function') {
-        console.warn('⚠️ Fitness 서비스가 사용할 수 없습니다.');
+      const appleFitnessService = getAppleFitnessService();
+      // HealthKit 모듈 안전성 체크
+      if (!appleFitnessService || typeof appleFitnessService.checkPermissions !== 'function') {
+        console.warn('⚠️ HealthKit 서비스가 사용할 수 없습니다.');
         setHealthKitStatus({
           isAvailable: false,
           hasPermissions: false,
@@ -177,7 +173,7 @@ const SettingsScreen = ({ navigation }) => {
         return;
       }
       
-      const status = await fitnessService.checkPermissions();
+      const status = await appleFitnessService.checkPermissions();
       
       setHealthKitStatus({
         isAvailable: status.isAvailable,
@@ -196,51 +192,53 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  // Health Connect 권한 요청
+  // HealthKit 권한 요청
   const handleHealthKitAccess = async () => {
     try {
-      const serviceName = 'Health Connect';
-      
       if (healthKitStatus.hasPermissions) {
         Alert.alert(
-          `${serviceName} 접근`,
-          `이미 ${serviceName} 권한이 허용되어 있습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.`,
+          '건강데이터 접근',
+          '이미 HealthKit 권한이 허용되어 있습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
           [{ text: '확인' }]
         );
         return;
       }
 
       Alert.alert(
-        `${serviceName} 접근`,
-        `${serviceName}에서 러닝 데이터를 가져오기 위해 건강 데이터 접근 권한이 필요합니다.\n\n허용하시겠습니까?`,
+        '건강데이터 접근',
+        'HealthKit에서 러닝 데이터를 가져오기 위해 건강 데이터 접근 권한이 필요합니다.\n\n허용하시겠습니까?',
         [
           { text: '취소', style: 'cancel' },
           { 
             text: '허용', 
             onPress: async () => {
               try {
-                const success = await fitnessService.requestPermissions();
+                const appleFitnessService = getAppleFitnessService();
+                if (!appleFitnessService) {
+                  Alert.alert('오류', 'HealthKit을 이 기기에서 사용할 수 없습니다.', [{ text: '확인' }]);
+                  return;
+                }
+                const success = await appleFitnessService.requestPermissions();
                 if (success) {
                   Alert.alert(
                     '권한 허용 완료',
-                    `${serviceName} 권한이 허용되었습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.`,
+                    'HealthKit 권한이 허용되었습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
                     [{ text: '확인' }]
                   );
                   // 상태 다시 확인
                   await checkHealthKitStatus();
                 } else {
-                  const errorMessage = '설정 > 앱 > RunOn > 권한에서 수동으로 허용해주세요.';
                   Alert.alert(
                     '권한 허용 실패',
-                    `${serviceName} 권한 허용에 실패했습니다.\n\n${errorMessage}`,
+                    'HealthKit 권한 허용에 실패했습니다.\n\n설정 > 개인정보 보호 및 보안 > 건강에서 수동으로 허용해주세요.',
                     [{ text: '확인' }]
                   );
                 }
               } catch (error) {
-                console.error(`❌ ${serviceName} 권한 요청 실패:`, error);
+                console.error('❌ HealthKit 권한 요청 실패:', error);
                 Alert.alert(
                   '오류',
-                  `${serviceName} 권한 요청 중 오류가 발생했습니다.`,
+                  'HealthKit 권한 요청 중 오류가 발생했습니다.',
                   [{ text: '확인' }]
                 );
               }
@@ -249,11 +247,10 @@ const SettingsScreen = ({ navigation }) => {
         ]
       );
     } catch (error) {
-      const serviceName = 'Health Connect';
-      console.error(`❌ ${serviceName} 접근 처리 실패:`, error);
+      console.error('❌ HealthKit 접근 처리 실패:', error);
       Alert.alert(
         '오류',
-        `${serviceName} 접근 처리 중 오류가 발생했습니다.`,
+        'HealthKit 접근 처리 중 오류가 발생했습니다.',
         [{ text: '확인' }]
       );
     }
@@ -370,7 +367,7 @@ const SettingsScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       {/* 헤더 */}
-      <View style={[styles.header, { paddingTop: statusBarHeight }]}>
+      <SafeAreaView style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -381,7 +378,7 @@ const SettingsScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>설정</Text>
           <View style={styles.headerSpacer} />
         </View>
-      </View>
+      </SafeAreaView>
 
       {/* 스크롤 가능한 컨텐츠 */}
       <ScrollView 
@@ -475,13 +472,13 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.section}>
           <SettingItem
             icon="heart-outline"
-            title="Health Connect 접근"
+            title="건강데이터 접근"
             subtitle={
               healthKitStatus.isChecking 
                 ? "상태 확인 중..." 
                 : healthKitStatus.hasPermissions 
-                  ? "Health Connect 권한 허용됨"
-                  : "건강데이터의 러닝 데이터 동기화 및 권한 관리"
+                  ? "HealthKit 권한 허용됨" 
+                  : "러닝 데이터 동기화 및 권한 관리"
             }
             onPress={handleHealthKitAccess}
           />
@@ -492,27 +489,6 @@ const SettingsScreen = ({ navigation }) => {
             onPress={handleBlacklistManagement}
             customIcon={
               <View style={styles.blacklistBadgeContainer}>
-                {/* SVG RadialGradient를 사용한 부드러운 글로우 효과 */}
-                <View style={styles.blacklistBadgeGlowContainer}>
-                  <Svg width={114} height={60} style={styles.blacklistBadgeGlowSvg}>
-                    <Defs>
-                      <RadialGradient id="blacklist-glow" cx="50%" cy="50%" r="60%">
-                        <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.5" />
-                        <Stop offset="20%" stopColor="#FF0073" stopOpacity="0.35" />
-                        <Stop offset="40%" stopColor="#FF0073" stopOpacity="0.25" />
-                        <Stop offset="60%" stopColor="#FF0073" stopOpacity="0.15" />
-                        <Stop offset="80%" stopColor="#FF0073" stopOpacity="0.05" />
-                        <Stop offset="100%" stopColor="#FF0073" stopOpacity="0" />
-                      </RadialGradient>
-                    </Defs>
-                    <Circle
-                      cx="57"
-                      cy="24"
-                      r="24"
-                      fill="url(#blacklist-glow)"
-                    />
-                  </Svg>
-                </View>
                 <View style={styles.blacklistBadgeGlow}>
                   <Image 
                     source={require('../assets/images/Union.png')} 
@@ -559,7 +535,7 @@ const SettingsScreen = ({ navigation }) => {
           <SettingItem
             icon="information-circle-outline"
             title="버전 정보"
-            subtitle="RunOn v1.0.1"
+            subtitle="RunOn v1.0.3"
             onPress={() => Alert.alert('버전 정보', 'RunOn v1.0.0\n최신 버전입니다.')}
           />
         </View>
@@ -574,27 +550,6 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('Premium')}
             customIcon={
               <View style={styles.premiumBadgeContainer}>
-                {/* SVG RadialGradient를 사용한 부드러운 글로우 효과 */}
-                <View style={styles.premiumBadgeGlowContainer}>
-                  <Svg width={114} height={60} style={styles.premiumBadgeGlowSvg}>
-                    <Defs>
-                      <RadialGradient id="premium-glow" cx="50%" cy="50%" r="60%">
-                        <Stop offset="0%" stopColor="#FF0073" stopOpacity="0.5" />
-                        <Stop offset="20%" stopColor="#FF0073" stopOpacity="0.35" />
-                        <Stop offset="40%" stopColor="#FF0073" stopOpacity="0.25" />
-                        <Stop offset="60%" stopColor="#FF0073" stopOpacity="0.15" />
-                        <Stop offset="80%" stopColor="#FF0073" stopOpacity="0.05" />
-                        <Stop offset="100%" stopColor="#FF0073" stopOpacity="0" />
-                      </RadialGradient>
-                    </Defs>
-                    <Circle
-                      cx="57"
-                      cy="24"
-                      r="24"
-                      fill="url(#premium-glow)"
-                    />
-                  </Svg>
-                </View>
                 <View style={styles.premiumBadgeGlow}>
                   <Image 
                     source={require('../assets/images/Union.png')} 
@@ -726,25 +681,14 @@ const styles = StyleSheet.create({
     width: 60,
     height: 24,
     backgroundColor: 'transparent',
-    position: 'relative',
-  },
-  premiumBadgeGlowContainer: {
-    position: 'absolute',
-    width: 114,
-    height: 48,
-    top: -12,
-    left: -27,
-    zIndex: 0,
-  },
-  premiumBadgeGlowSvg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
+    // 글로우 효과 - 핑크 색상
+    shadowColor: '#FF0073',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
   },
   premiumBadgeGlow: {
     backgroundColor: 'transparent',
-    position: 'relative',
-    zIndex: 1,
   },
   premiumBadgeImage: {
     width: 60,
@@ -758,32 +702,20 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -8 }, { translateY: -8 }],
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
   },
   // 블랙리스트 배지 스타일 (프리미엄 배지와 동일)
   blacklistBadgeContainer: {
     width: 60,
     height: 24,
     backgroundColor: 'transparent',
-    position: 'relative',
-  },
-  blacklistBadgeGlowContainer: {
-    position: 'absolute',
-    width: 114,
-    height: 48,
-    top: -12,
-    left: -27,
-    zIndex: 0,
-  },
-  blacklistBadgeGlowSvg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
+    // 글로우 효과 - 핑크 색상
+    shadowColor: '#FF0073',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
   },
   blacklistBadgeGlow: {
     backgroundColor: 'transparent',
-    position: 'relative',
-    zIndex: 1,
   },
   blacklistBadgeImage: {
     width: 60,
@@ -797,7 +729,6 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -8 }, { translateY: -8 }],
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
   },
   settingTextContainer: {
     flex: 1,

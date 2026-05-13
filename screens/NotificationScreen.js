@@ -1,24 +1,23 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
-  Dimensions,
-  Platform
+  Dimensions
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import weatherAlertService from '../services/weatherAlertService';
 import updateService from '../services/updateService';
+import pushNotificationService from '../services/pushNotificationService';
 import Animated, { 
   useSharedValue, 
   withTiming,
@@ -41,19 +40,13 @@ const COLORS = {
 
 const NotificationScreen = () => {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
-  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   const { isTabEnabled, isNotificationTypeEnabled, settings } = useNotificationSettings();
   const { meetingNotifications, setMeetingNotifications, chatRooms, addChatMessage, setUpdateNotification: setEventUpdateNotification, clearUpdateNotification, checkUpdateNotificationStatus, checkMeetingNotifications } = useEvents();
-  const { notifications: communityNotifications, markNotificationAsRead, getPostById, createLikeNotification, createCommentNotification, createChatNotification, handleChatTabClick, handleBoardTabClick } = useCommunity();
+  const { notifications: communityNotifications, markNotificationAsRead, deleteNotification, getPostById, createLikeNotification, createCommentNotification, createChatNotification, handleChatTabClick, handleBoardTabClick } = useCommunity();
   
   // 탭 상태
   const [activeTab, setActiveTab] = useState('general');
   const slideAnim = useSharedValue(0);
-  
-  // 탭 레이아웃 측정을 위한 refs
-  const tabRefs = useRef({});
-  const [tabLayouts, setTabLayouts] = useState({});
   
   // 알림 데이터
   const [notifications, setNotifications] = useState({
@@ -215,53 +208,32 @@ const NotificationScreen = () => {
     }, 0) + getUnreadCount('meeting');
   };
 
-  // 탭 레이아웃 측정 핸들러
-  const handleTabLayout = (tabId, event) => {
-    const { x, width } = event.nativeEvent.layout;
-    setTabLayouts(prev => ({
-      ...prev,
-      [tabId]: { x, width }
-    }));
-  };
+  // 앱 아이콘 배지 카운트를 현재 미읽음 알림 수와 동기화
+  useEffect(() => {
+    const syncBadgeCount = async () => {
+      try {
+        const unreadCount = getTotalUnreadCount();
+        await pushNotificationService.setBadgeCount(unreadCount);
+      } catch (error) {
+        console.error('❌ 배지 카운트 동기화 실패:', error);
+      }
+    };
+
+    syncBadgeCount();
+  }, [meetingNotifications, communityNotifications, notifications, updateNotification, updateReadStatus, settings]);
 
   // 슬라이딩 언더라인 애니메이션 스타일
   const slidingUnderlineStyle = useAnimatedStyle(() => {
-    // 모든 탭의 레이아웃이 측정되었는지 확인
-    const allLayoutsMeasured = tabs.every(tab => tabLayouts[tab.id]);
-    
-    if (!allLayoutsMeasured) {
-      return { opacity: 0 };
-    }
-
-    // 현재 활성 탭의 위치와 너비 가져오기
-    const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
-    const activeLayout = tabLayouts[tabs[activeIndex]?.id];
-    
-    if (!activeLayout) {
-      return { opacity: 0 };
-    }
-
-    // 각 탭의 위치를 배열로 생성
-    const positions = tabs.map(tab => tabLayouts[tab.id]?.x || 0);
-    const widths = tabs.map(tab => tabLayouts[tab.id]?.width || 0);
-    
-    // interpolate를 사용하여 부드러운 전환
-    const translateX = interpolate(
-      slideAnim.value,
-      tabs.map((_, index) => index),
-      positions
-    );
-    
-    const width = interpolate(
-      slideAnim.value,
-      tabs.map((_, index) => index),
-      widths
-    );
-
     return {
-      transform: [{ translateX }],
-      width,
-      opacity: 1,
+      transform: [
+        {
+          translateX: interpolate(
+            slideAnim.value,
+            [0, 1, 2],
+            [0, 128, 260]
+          )
+        }
+      ]
     };
   });
 
@@ -458,7 +430,7 @@ const NotificationScreen = () => {
         });
         break;
       case 'reminder':
-        Alert.alert('모임 알림', '모임 시작 1시간 전입니다. 준비하세요!');
+        Alert.alert('모임 알림', '모임 시작 하루 전입니다. 미리 준비하세요!');
         break;
       case 'cancel':
         console.log('❌ 모임 삭제 알림 클릭 - 읽음 처리만');
@@ -485,6 +457,28 @@ const NotificationScreen = () => {
         }
         break;
     }
+  };
+
+  const handleNotificationLongPress = (notification) => {
+    if (activeTab !== 'chat') return;
+
+    Alert.alert(
+      '알림 삭제',
+      '이 알림을 삭제하시겠어요?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            const deleted = await deleteNotification(notification.id);
+            if (!deleted) {
+              Alert.alert('오류', '알림 삭제에 실패했습니다.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   // 알림 아이템 컴포넌트
@@ -524,6 +518,8 @@ const NotificationScreen = () => {
           notification.isRead ? styles.readNotification : styles.unreadNotification
         ]}
         onPress={() => handleNotificationPress(notification)}
+        onLongPress={() => handleNotificationLongPress(notification)}
+        delayLongPress={300}
       >
         <View style={styles.notificationHeader}>
           <View style={styles.notificationIconContainer}>
@@ -558,16 +554,15 @@ const NotificationScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
-      <View style={[styles.header, { paddingTop: statusBarPadding }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>알림</Text>
-          <View style={styles.headerSpacer} />
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+        </TouchableOpacity>
+        <View style={styles.headerTitle}>
+          <Text style={styles.title}>알림</Text>
         </View>
       </View>
 
@@ -576,10 +571,8 @@ const NotificationScreen = () => {
         {tabs.map((tab, index) => (
           <TouchableOpacity
             key={tab.id}
-            ref={ref => tabRefs.current[tab.id] = ref}
             style={styles.tab}
             onPress={() => handleTabChange(tab.id)}
-            onLayout={(event) => handleTabLayout(tab.id, event)}
           >
             <View style={styles.tabContent}>
               <Text style={[
@@ -646,29 +639,28 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
   },
   header: {
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  headerContent: {
-    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 16,
+    paddingVertical: 16,
+    position: 'relative',
   },
   backButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 4,
+    position: 'absolute',
+    left: 16,
+    zIndex: 1,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: COLORS.TEXT,
-    fontFamily: 'Pretendard-SemiBold',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  headerSpacer: {
-    width: 44,
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.TEXT,
   },
   unreadBadge: {
     backgroundColor: COLORS.ERROR,
@@ -731,6 +723,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     left: 0,
+    width: 127,
     height: 2,
     backgroundColor: COLORS.PRIMARY,
     zIndex: 1,

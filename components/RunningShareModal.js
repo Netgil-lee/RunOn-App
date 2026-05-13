@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,25 +7,61 @@ import {
   TouchableOpacity,
   Alert,
   Dimensions,
-  Platform,
   TextInput,
+  Animated,
+  Platform,
+  InteractionManager,
   KeyboardAvoidingView,
   ScrollView,
+  Keyboard,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 import RunningShareCard from './RunningShareCard';
 import { getEnglishLocation } from '../utils/locationMapper';
-import fitnessService from '../services/fitnessService';
+import garminConnectService from '../services/garminConnectService';
+import runOnRunningService from '../services/runOnRunningService';
+import { getAppleFitnessService } from '../services/getAppleFitnessService';
+
+// 모듈 로드 시점에 Platform을 쓰면 [runtime not ready] 가능 — Constants로 Android만 판별
+if (Constants.platform?.android != null && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+const detectWorkoutSourceType = (...candidates) => {
+  for (const candidate of candidates) {
+    const text = `${candidate || ''}`.trim().toLowerCase();
+    if (!text) continue;
+    if (text.includes('runon')) return 'runon';
+    if (text.includes('apple')) return 'apple';
+    if (text.includes('fitness')) return 'apple';
+    if (text.includes('health')) return 'apple';
+    if (text.includes('garmin')) return 'garmin';
+  }
+  return 'unknown';
+};
+
+const normalizeWorkoutData = (data) => ({
+  distance: data?.distance || '0m',
+  pace: data?.pace || '0:00/km',
+  duration: data?.duration || '0s',
+  calories: data?.calories || 0,
+  routeCoordinates: Array.isArray(data?.routeCoordinates) ? data.routeCoordinates : [],
+});
 
 const RunningShareModal = ({ 
   visible, 
   onClose, 
   workoutData, 
   eventData,
+  workoutSource = null,
+  presetWorkoutData = null,
   onShareComplete 
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -34,8 +70,23 @@ const RunningShareModal = ({
   const [actualWorkoutData, setActualWorkoutData] = useState(null);
   const [customPlace, setCustomPlace] = useState('');
   const [hasEnteredPlace, setHasEnteredPlace] = useState(false);
+  const [dataSource, setDataSource] = useState('apple'); // 'apple' | 'garmin'
   const shareCardRef = useRef(null);
   const placeInputRef = useRef(null);
+  const localWorkoutData = normalizeWorkoutData(presetWorkoutData || workoutData);
+  const detectedSource = detectWorkoutSourceType(
+    workoutSource,
+    presetWorkoutData?.sourceLabel,
+    presetWorkoutData?.sourceName,
+    workoutData?.sourceLabel,
+    workoutData?.sourceName
+  );
+  const shouldUseRunOnLocalData = detectedSource === 'runon';
+  
+  // 모달 오버레이 페이드 애니메이션
+  const modalBackdropOpacity = useRef(new Animated.Value(0)).current;
+  // 모달 슬라이드 애니메이션
+  const modalSlideAnim = useRef(new Animated.Value(300)).current;
 
   // 권한 요청
   useEffect(() => {
@@ -46,40 +97,126 @@ const RunningShareModal = ({
     requestPermission();
   }, []);
 
-  // 모달이 열릴 때 상태 초기화 (iOS와 동일: place 입력부터 시작)
+  // 모달이 열릴 때 상태 초기화 및 애니메이션
   useEffect(() => {
     if (visible) {
       setCustomPlace('');
       setHasEnteredPlace(false);
       setActualWorkoutData(null);
+      
+      // 모달 슬라이드 초기 위치 설정
+      modalSlideAnim.setValue(300);
+      
+      // 배경 페이드 인 + 모달 슬라이드 업 동시 애니메이션
+      Animated.parallel([
+        Animated.timing(modalBackdropOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(modalSlideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [visible]);
+  }, [visible, modalBackdropOpacity, modalSlideAnim]);
 
-  // 실제 운동기록 데이터 가져오기 (place 입력 후에만 실행, iOS와 동일)
+  // 키보드 애니메이션 부드럽게 처리
   useEffect(() => {
-    if (visible && eventData && hasEnteredPlace) {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        LayoutAnimation.configureNext({
+          duration: 250,
+          create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+          update: { type: LayoutAnimation.Types.easeInEaseOut },
+        });
+      }
+    );
+
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        LayoutAnimation.configureNext({
+          duration: 200,
+          create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+          update: { type: LayoutAnimation.Types.easeInEaseOut },
+        });
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, []);
+
+  // 부드러운 닫기 애니메이션
+  const handleClose = useCallback(() => {
+    Keyboard.dismiss();
+    
+    // 배경 페이드 아웃 + 모달 슬라이드 다운 동시 애니메이션
+    Animated.parallel([
+      Animated.timing(modalBackdropOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalSlideAnim, {
+        toValue: 300,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // 애니메이션 완료 후 모달 닫기
+      onClose();
+    });
+  }, [modalBackdropOpacity, modalSlideAnim, onClose]);
+
+  // 실제 운동기록 데이터 가져오기 (place 입력 후에만 실행)
+  useEffect(() => {
+    if (!visible || !hasEnteredPlace) return;
+    if (shouldUseRunOnLocalData) return;
+    if (eventData) {
       fetchActualWorkoutData();
     }
-  }, [visible, eventData, hasEnteredPlace]);
+  }, [visible, eventData, hasEnteredPlace, dataSource, shouldUseRunOnLocalData]);
 
   const fetchActualWorkoutData = async () => {
     try {
       setIsLoadingWorkout(true);
-      console.log('🔍 [RunningShareModal] 실제 운동기록 데이터 조회 시작');
+      console.log('🔍 [RunningShareModal] 실제 운동기록 데이터 조회 시작', { dataSource });
       console.log('🔍 [RunningShareModal] eventData:', JSON.stringify(eventData, null, 2));
-      
-      // Fitness 서비스 상태 확인 (플랫폼별 자동 분기)
-      const isAvailable = fitnessService.isServiceAvailable();
-      console.log('🔍 [RunningShareModal] Fitness 서비스 사용 가능:', isAvailable);
-      
-      if (!isAvailable) {
-        console.warn('⚠️ [RunningShareModal] Fitness 서비스가 사용 불가능합니다. 초기화 시도...');
-        const initialized = await fitnessService.initialize();
-        console.log('🔍 [RunningShareModal] Fitness 초기화 결과:', initialized);
+
+      let workoutData = null;
+
+      if (dataSource === 'garmin' && garminConnectService.isServiceAvailable()) {
+        console.log('🔍 [RunningShareModal] Garmin Connect로 조회');
+        workoutData = await garminConnectService.findMatchingWorkout(eventData);
+      } else if (Platform.OS === 'ios') {
+        const appleFitnessService = getAppleFitnessService();
+        if (appleFitnessService) {
+          const isAvailable = appleFitnessService.isServiceAvailable();
+          console.log('🔍 [RunningShareModal] HealthKit 서비스 사용 가능:', isAvailable);
+
+          if (!isAvailable) {
+            console.warn('⚠️ [RunningShareModal] HealthKit 서비스가 사용 불가능합니다. 초기화 시도...');
+            const initialized = await appleFitnessService.initialize();
+            console.log('🔍 [RunningShareModal] HealthKit 초기화 결과:', initialized);
+          }
+
+          workoutData = await appleFitnessService.findMatchingWorkout(eventData);
+        }
+      } else {
+        // Android: RunOn 자체 러닝 기록에서 조회
+        console.log('🔍 [RunningShareModal] Android - RunOn 러닝 기록으로 조회');
+        const records = await runOnRunningService.getAllRecords();
+        workoutData = records.length > 0 ? records[0] : null;
       }
-      
-      console.log('🔍 [RunningShareModal] findMatchingWorkout 호출 시작');
-      const workoutData = await fitnessService.findMatchingWorkout(eventData);
+
       console.log('🔍 [RunningShareModal] findMatchingWorkout 결과:', workoutData ? '성공' : '실패');
       
       if (workoutData) {
@@ -116,16 +253,19 @@ const RunningShareModal = ({
     }
   };
 
-  // place 입력 처리 (iOS와 동일)
+  // place 입력 처리
   const handlePlaceSubmit = () => {
     if (!customPlace.trim()) {
       Alert.alert('입력 필요', 'Place를 입력해주세요.');
       return;
     }
+    if (shouldUseRunOnLocalData || presetWorkoutData) {
+      setActualWorkoutData(localWorkoutData);
+    }
     setHasEnteredPlace(true);
   };
 
-  // 공유카드 데이터 준비 (실제 운동기록 우선 사용, location은 사용자 입력 place 사용)
+  // 공유카드 데이터 준비 (실제 운동기록 우선 사용)
   const shareCardData = actualWorkoutData ? {
     distance: actualWorkoutData.distance || 0,
     pace: actualWorkoutData.pace || '0:00',
@@ -166,13 +306,25 @@ const RunningShareModal = ({
       const uri = await captureRef(shareCardRef, {
         format: 'png',
         quality: 1.0,
-        result: 'tmpfile'
+        result: 'tmpfile',
+        // iOS에서 SVG(경로 라인) 캡처 안정성 개선
+        useRenderInContext: Platform.OS === 'ios',
         // backgroundColor 제거 - 투명 배경으로 저장
       });
 
-      // 갤러리에 저장
+      // 갤러리에 저장 (앨범 생성 실패와 저장 실패를 분리)
       const asset = await MediaLibrary.createAssetAsync(uri);
-      await MediaLibrary.createAlbumAsync('RunOn', asset, false);
+      try {
+        const existingAlbum = await MediaLibrary.getAlbumAsync('RunOn');
+        if (existingAlbum) {
+          await MediaLibrary.addAssetsToAlbumAsync([asset], existingAlbum, false);
+        } else {
+          await MediaLibrary.createAlbumAsync('RunOn', asset, false);
+        }
+      } catch (albumError) {
+        // 앨범 처리 실패 시에도 asset 자체는 저장됐을 수 있으므로 성공 흐름 유지
+        console.warn('⚠️ RunOn 앨범 처리 실패(기본 사진첩 저장은 성공):', albumError);
+      }
 
       Alert.alert(
         '저장 완료',
@@ -202,42 +354,80 @@ const RunningShareModal = ({
     <Modal
       visible={visible}
       transparent={true}
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
+      presentationStyle="overFullScreen"
     >
-      <TouchableOpacity 
-        style={styles.overlay} 
-        activeOpacity={1} 
-        onPress={onClose}
-      >
-        <KeyboardAvoidingView 
-          style={styles.bottomModalContainer} 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      <View style={styles.overlay}>
+        <Animated.View
+          style={[
+            styles.modalBackdrop,
+            {
+              opacity: modalBackdropOpacity,
+            },
+          ]}
         >
-          <ScrollView 
+          <TouchableOpacity 
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1} 
+            onPressIn={handleClose}
+          />
+        </Animated.View>
+        <KeyboardAvoidingView 
+          style={styles.bottomModalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
+          <ScrollView
             contentContainerStyle={styles.scrollContentContainer}
             keyboardShouldPersistTaps="handled"
+            bounces={false}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.modalContainer}>
+            <Animated.View style={[
+              styles.modalContainer,
+              { transform: [{ translateY: modalSlideAnim }] }
+            ]}>
               {/* 헤더 */}
               <View style={styles.header}>
                 <Text style={styles.title}>러닝 기록 공유</Text>
                 <TouchableOpacity 
                   style={styles.closeButton}
-                  onPress={onClose}
+                  onPressIn={handleClose}
                 >
                   <Ionicons name="close" size={24} color="#ffffff" />
                 </TouchableOpacity>
               </View>
-              
+            
               {/* 구분선 */}
               <View style={styles.headerDivider} />
 
               {!hasEnteredPlace ? (
-                /* Place 입력 화면 (iOS와 동일) */
+                /* Place 입력 화면 */
                 <View style={styles.inputContainer}>
+                  {!presetWorkoutData && garminConnectService.isServiceAvailable() && (
+                    <View style={styles.dataSourceRow}>
+                      <Text style={styles.inputLabel}>데이터 소스</Text>
+                      <View style={styles.dataSourceButtons}>
+                        <TouchableOpacity
+                          style={[styles.dataSourceButton, dataSource === 'apple' && styles.dataSourceButtonActive]}
+                          onPress={() => setDataSource('apple')}
+                        >
+                          <Text style={[styles.dataSourceButtonText, dataSource === 'apple' && styles.dataSourceButtonTextActive]}>
+                            Apple Fitness
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.dataSourceButton, dataSource === 'garmin' && styles.dataSourceButtonActive]}
+                          onPress={() => setDataSource('garmin')}
+                        >
+                          <Text style={[styles.dataSourceButtonText, dataSource === 'garmin' && styles.dataSourceButtonTextActive]}>
+                            Garmin Connect
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
                   <Text style={styles.inputLabel}>place를 입력해주세요</Text>
                   <TextInput
                     ref={placeInputRef}
@@ -246,6 +436,7 @@ const RunningShareModal = ({
                     placeholderTextColor="#666666"
                     value={customPlace}
                     onChangeText={(text) => {
+                      // 영어, 숫자, 공백, 특수문자만 허용
                       const englishOnly = text.replace(/[^a-zA-Z0-9\s\-_.,!?]/g, '');
                       setCustomPlace(englishOnly);
                     }}
@@ -281,6 +472,7 @@ const RunningShareModal = ({
               {/* 액션 버튼 */}
               <View style={styles.actionButtons}>
                 {!hasEnteredPlace ? (
+                  /* 입력 버튼 */
                   <TouchableOpacity 
                     style={[
                       styles.actionButton, 
@@ -293,6 +485,7 @@ const RunningShareModal = ({
                     <Text style={styles.saveButtonText}>입력</Text>
                   </TouchableOpacity>
                 ) : (
+                  /* 이미지 저장 버튼 */
                   <TouchableOpacity 
                     style={[
                       styles.actionButton, 
@@ -316,10 +509,10 @@ const RunningShareModal = ({
               <Text style={styles.helpText}>
                 러닝 기록을 갤러리에 저장할 수 있습니다
               </Text>
-            </View>
+            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 };
@@ -327,8 +520,15 @@ const RunningShareModal = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   bottomModalContainer: {
     flex: 1,
@@ -447,6 +647,34 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-Regular',
     borderWidth: 1,
     borderColor: '#444444',
+  },
+  dataSourceRow: {
+    marginBottom: 16,
+  },
+  dataSourceButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  dataSourceButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#333333',
+    alignItems: 'center',
+  },
+  dataSourceButtonActive: {
+    backgroundColor: '#3AF8FF',
+  },
+  dataSourceButtonText: {
+    fontSize: 14,
+    color: '#999999',
+    fontFamily: 'Pretendard-Regular',
+  },
+  dataSourceButtonTextActive: {
+    color: '#000000',
+    fontFamily: 'Pretendard-SemiBold',
   },
 });
 

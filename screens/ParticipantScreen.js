@@ -2,16 +2,15 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Image,
   StyleSheet,
   Alert,
-  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import { 
   getCourseName, 
   getSeasonTitle, 
@@ -24,6 +23,7 @@ import evaluationService from '../services/evaluationService';
 import mannerDistanceService from '../services/mannerDistanceService';
 import MannerDistanceDisplay from '../components/MannerDistanceDisplay';
 import blacklistService from '../services/blacklistService';
+import firestoreService from '../services/firestoreService';
 import { useAuth } from '../contexts/AuthContext';
 
 const COLORS = {
@@ -46,8 +46,6 @@ const COLORS = {
 const ParticipantScreen = ({ route, navigation }) => {
   const { participant } = route.params;
   const { user } = useAuth();
-  const insets = useSafeAreaInsets();
-  const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
   
   const [communityStats, setCommunityStats] = useState({
     totalParticipated: 0,
@@ -58,6 +56,7 @@ const ParticipantScreen = ({ route, navigation }) => {
   });
   const [mannerDistance, setMannerDistance] = useState(null);
   const [isBlocking, setIsBlocking] = useState(false);
+  const [participantInstagramId, setParticipantInstagramId] = useState(participant?.instagramId || '');
 
   const getLevelInfo = (level) => {
     const levelMap = {
@@ -194,10 +193,51 @@ const ParticipantScreen = ({ route, navigation }) => {
     fetchCommunityStats();
   }, [participant?.id]);
 
+  useEffect(() => {
+    const fetchParticipantInstagram = async () => {
+      if (!participant?.id) return;
+
+      try {
+        const participantProfile = await firestoreService.getUserProfile(participant.id);
+        const instagramId = participantProfile?.profile?.instagramId || participantProfile?.instagramId || '';
+        setParticipantInstagramId(instagramId);
+      } catch (error) {
+        console.error('참여자 인스타 계정 로딩 오류:', error);
+      }
+    };
+
+    if (participant?.instagramId) {
+      setParticipantInstagramId(participant.instagramId);
+    }
+
+    fetchParticipantInstagram();
+  }, [participant?.id, participant?.instagramId]);
+
+  const handleCopyInstagramId = async () => {
+    const normalizedInstagramId = String(participantInstagramId || '').replace(/^@+/, '').trim();
+    if (!normalizedInstagramId) return;
+
+    try {
+      const setStringAsync =
+        Clipboard?.setStringAsync ||
+        Clipboard?.setString;
+
+      if (typeof setStringAsync !== 'function') {
+        throw new Error('Clipboard module unavailable');
+      }
+
+      await setStringAsync(normalizedInstagramId);
+      Alert.alert('복사 완료', '인스타 계정이 복사되었습니다.');
+    } catch (error) {
+      console.error('인스타 계정 복사 실패:', error);
+      Alert.alert('복사 실패', '인스타 계정을 복사하지 못했습니다. 다시 시도해주세요.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
-      <View style={[styles.header, { paddingTop: 16 + statusBarPadding }]}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
@@ -237,6 +277,20 @@ const ParticipantScreen = ({ route, navigation }) => {
                   );
                 }
               })()}
+              {!!participantInstagramId && (
+                <View style={styles.profileImageSocialSlot}>
+                  <TouchableOpacity
+                    style={styles.socialHandleTouchable}
+                    onPress={handleCopyInstagramId}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.socialHandleContainer}>
+                      <Ionicons name="logo-instagram" size={12} color={COLORS.TEXT} style={styles.socialHandleIcon} />
+                      <Text style={styles.socialHandleText}>{participantInstagramId.replace(/^@+/, '')}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
             <View style={styles.profileInfo}>
               <View style={styles.nameRow}>
@@ -491,6 +545,7 @@ const styles = StyleSheet.create({
   },
   profileImageWrap: {
     marginRight: 20,
+    alignItems: 'center',
   },
   profileImage: {
     width: 80,
@@ -512,6 +567,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    flexWrap: 'wrap',
   },
   profileName: {
     fontSize: 24,
@@ -529,6 +585,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: COLORS.TEXT,
+  },
+  socialHandleText: {
+    fontSize: 12,
+    color: COLORS.TEXT,
+  },
+  profileImageSocialSlot: {
+    marginTop: 10,
+    minHeight: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  socialHandleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  socialHandleIcon: {
+    marginRight: 4,
+  },
+  socialHandleTouchable: {
+    paddingVertical: 2,
+    paddingHorizontal: 2,
   },
   joinDate: {
     fontSize: 16,

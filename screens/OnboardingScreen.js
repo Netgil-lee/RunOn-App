@@ -928,7 +928,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    // paddingBottom은 JSX에서 insets.bottom과 함께 지정(StyleSheet에서 Platform 사용 금지)
   },
   nextButton: {
     borderRadius: 12,
