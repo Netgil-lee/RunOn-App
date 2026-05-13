@@ -22,6 +22,22 @@ import { PremiumProvider } from './contexts/PremiumContext';
 
 SplashScreen.preventAutoHideAsync();
 
+async function fetchCommunityPostByIdForPush(postId) {
+  const postIdStr = String(postId);
+  const postRef = doc(firestore, 'posts', postIdStr);
+  const postSnap = await getDoc(postRef);
+  if (!postSnap.exists()) {
+    return null;
+  }
+  const postData = postSnap.data();
+  return {
+    id: postSnap.id,
+    ...postData,
+    createdAt: postData.createdAt?.toDate?.() || postData.createdAt,
+    updatedAt: postData.updatedAt?.toDate?.() || postData.updatedAt,
+  };
+}
+
 // 안전한 폰트 설정 (Text.render 오버라이드 제거)
 // Timestamp 처리는 각 컴포넌트에서 개별적으로 수행
 
@@ -107,6 +123,18 @@ export default function App() {
 
       const type = data.type;
 
+      if (type === 'badge_sync') {
+        return;
+      }
+
+      if ((type === 'like' || type === 'comment') && data.postId) {
+        const post = await fetchCommunityPostByIdForPush(data.postId);
+        if (post) {
+          navigation.navigate('PostDetail', { post });
+        }
+        return;
+      }
+
       if ((type === 'new_message' || type === 'message') && data.chatRoomId) {
         try {
           const chatRoomRef = doc(firestore, 'chatRooms', String(data.chatRoomId));
@@ -139,6 +167,7 @@ export default function App() {
 
       if (type === 'meeting_cancelled') {
         navigation.navigate('Main', { screen: 'HomeTab' });
+        return;
       }
     });
 

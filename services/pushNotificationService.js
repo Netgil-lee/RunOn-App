@@ -5,6 +5,9 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestoreService from './firestoreService';
 
+/** Cloud Functions `sendExpoPushNotification`와 동일한 Android 채널 ID */
+const RUNON_PUSH_CHANNEL_ID = 'runon-notifications';
+
 // 알림 설정
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -51,6 +54,8 @@ class PushNotificationService {
 
       console.log('✅ 알림 권한 허용됨');
 
+      await this.ensureAndroidPushChannel();
+
       // 실제 디바이스에서만 Expo Push Token 획득 및 저장
       if (isRealDevice) {
         // iOS 원격 알림 등록 (명시적으로 등록하여 안정성 향상)
@@ -91,6 +96,28 @@ class PushNotificationService {
     } catch (error) {
       console.error('❌ 푸시 알림 초기화 실패:', error);
       return false;
+    }
+  }
+
+  /**
+   * Android 8+ 원격 푸시는 채널이 있어야 헤드업 표시가 안정적입니다.
+   * Cloud Functions에서 `channelId: 'runon-notifications'`로 전송합니다.
+   */
+  async ensureAndroidPushChannel() {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    try {
+      await Notifications.setNotificationChannelAsync(RUNON_PUSH_CHANNEL_ID, {
+        name: 'RunOn 알림',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        sound: 'default',
+        lightColor: '#3AF8FF',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
+    } catch (error) {
+      console.warn('⚠️ Android 알림 채널 설정 실패:', error);
     }
   }
 
@@ -244,6 +271,8 @@ class PushNotificationService {
       case 'weather_alert':
         console.log('🌦️ 날씨 경고 알림');
         break;
+      case 'badge_sync':
+        break;
       default:
         console.log('📱 일반 알림', data);
     }
@@ -311,7 +340,7 @@ class PushNotificationService {
         data: data,
         sound: 'default',
         priority: 'high',
-        channelId: 'runon-notifications',
+        channelId: RUNON_PUSH_CHANNEL_ID,
       };
 
       const response = await fetch('https://exp.host/--/api/v2/push/send', {

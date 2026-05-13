@@ -38,6 +38,7 @@
       "assets/fonts/Pretendard-Thin.otf"
     ],
     "android": {
+      "googleServicesFile": "./android/app/google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/appicon.png",
         "backgroundColor": "#000000"
@@ -72,7 +73,12 @@
       "expo-font",
       "expo-location",
       "expo-image-picker",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "runon-notifications"
+        }
+      ],
       "expo-web-browser"
     ],
     "runtimeVersion": {

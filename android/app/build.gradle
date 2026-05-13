@@ -200,3 +200,5 @@ dependencies {
     // Health Connect SDK
     implementation("androidx.health.connect:connect-client:1.1.0-alpha11")
 }
+
+apply plugin: "com.google.gms.google-services"
