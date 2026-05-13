@@ -30,7 +30,6 @@ import GuideOverlay from '../components/GuideOverlay';
 import firestoreService from '../services/firestoreService';
 import evaluationService from '../services/evaluationService';
 import RunningShareModal from '../components/RunningShareModal';
-import RouteMap from '../components/RouteMap';
 import appleFitnessService from '../services/appleFitnessService';
 import runOnRunningService from '../services/runOnRunningService';
 import ENV from '../config/environment';
@@ -57,8 +56,6 @@ const COLORS = {
 const FEED_META_STORAGE_KEY = 'runon_running_feed_meta_v1';
 const FEED_PAGE_SIZE = 8;
 const ROUTE_FETCH_STEP = 8;
-const FEED_MINIMAP_HEIGHT = 196;
-const FEED_LIVE_MAP_COUNT = 1;
 const EFFORT_COLORS = [
   '#4A4A4F',
   '#1B8FF7',
@@ -75,15 +72,6 @@ const EFFORT_COLORS = [
 
 const isRunOnWorkoutSource = (workout) => /runon/i.test(
   `${workout?.sourceLabel || workout?.sourceName || workout?.source || ''}`
-);
-
-const normalizeRouteCoordinates = (coordinates = []) => (
-  (Array.isArray(coordinates) ? coordinates : [])
-    .map((coord) => ({
-      latitude: Number(coord?.latitude),
-      longitude: Number(coord?.longitude),
-    }))
-    .filter((coord) => Number.isFinite(coord.latitude) && Number.isFinite(coord.longitude))
 );
 
 const parseDurationToSeconds = (durationValue) => {
@@ -1203,15 +1191,6 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                         hour12: true,
                       })
                     : '-';
-                  const miniRouteCoordinates = normalizeRouteCoordinates(workout.routeCoordinates);
-                  const miniMapWidth = Math.max(220, Math.floor(Dimensions.get('window').width) - 28);
-                  const forceKakaoMiniMap = workout?.forceKakaoMiniMap === true;
-                  const shouldUseSvgMiniMap = `${workout?.id || ''}`.startsWith('dummy-')
-                    || /simulator/i.test(`${workout?.sourceName || ''}`);
-                  const isLiveMapCandidate = index < FEED_LIVE_MAP_COUNT;
-                  const miniMapProvider = forceKakaoMiniMap
-                    ? 'kakao'
-                    : (!isLiveMapCandidate || shouldUseSvgMiniMap) ? 'svg' : 'kakao';
 
                   return (
                     <TouchableOpacity
@@ -1278,21 +1257,6 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                           <Text style={styles.runningFeedStatLabel}>Time</Text>
                           <Text style={styles.runningFeedStatValue}>{workout.duration}</Text>
                         </View>
-                      </View>
-
-                      <View style={styles.runningFeedRouteMapWrap}>
-                        {miniRouteCoordinates.length >= 2 ? (
-                          <RouteMap
-                            coordinates={miniRouteCoordinates}
-                            width={miniMapWidth}
-                            height={FEED_MINIMAP_HEIGHT}
-                            provider={miniMapProvider}
-                            debugTag={`feed-${workout.id}`}
-                            disableSvgFallback={forceKakaoMiniMap}
-                          />
-                        ) : (
-                          <Text style={styles.runningFeedRouteMapPlaceholder}>이동 경로 데이터가 없습니다.</Text>
-                        )}
                       </View>
 
                       <View style={styles.runningFeedFooter}>
@@ -6079,20 +6043,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.TEXT,
-  },
-  runningFeedRouteMapWrap: {
-    marginBottom: 12,
-    minHeight: FEED_MINIMAP_HEIGHT,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  runningFeedRouteMapPlaceholder: {
-    color: '#8A8A90',
-    fontSize: 12,
-    textAlign: 'center',
-    paddingHorizontal: 12,
   },
   runningFeedFooter: {
     flexDirection: 'row',

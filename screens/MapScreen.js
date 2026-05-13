@@ -8,7 +8,6 @@ import * as Location from 'expo-location';
 import BottomSheet, { BottomSheetFooter, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import MeetingCard from '../components/MeetingCard';
 import EventDetailScreen, { EventDetailBottomButton } from './EventDetailScreen';
 import ENV from '../config/environment';
 import firestoreService from '../services/firestoreService';
@@ -92,6 +91,52 @@ function getInstagramUrl(entity) {
   if (!trimmed) return '';
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
+}
+
+/** 바텀시트 목록용 날짜 라벨 (MeetingCard와 동일 규칙) */
+function formatMapEventDateLabel(dateString) {
+  if (!dateString) return '날짜 미정';
+  if (dateString.includes('(') && dateString.includes(')')) {
+    return dateString.replace(/^\d{4}년\s*/, '');
+  }
+  try {
+    let date;
+    if (dateString.includes('년')) {
+      const cleaned = dateString.replace(/^\d{4}년\s*/, '');
+      const match = cleaned.match(/(\d{1,2})월\s*(\d{1,2})일/);
+      if (match) {
+        const month = parseInt(match[1], 10);
+        const day = parseInt(match[2], 10);
+        date = new Date(new Date().getFullYear(), month - 1, day);
+      }
+    } else {
+      date = new Date(dateString);
+    }
+    if (date && !isNaN(date.getTime())) {
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+      return `${month}월 ${day}일 (${dayOfWeek})`;
+    }
+  } catch {
+    // ignore
+  }
+  return dateString.replace(/^\d{4}년\s*/, '');
+}
+
+function mapEventParticipantLabel(meeting) {
+  const participantCount = Array.isArray(meeting.participants)
+    ? meeting.participants.length
+    : meeting.participants || 1;
+  const maxParticipantText = meeting.maxParticipants ? `/${meeting.maxParticipants}` : '';
+  return `${participantCount}${maxParticipantText}`;
+}
+
+function mapEventDistanceLabel(meeting) {
+  if (meeting.distance == null || meeting.distance === '') return '-';
+  const s = String(meeting.distance).trim();
+  if (/km$/i.test(s)) return s;
+  return `${s}km`;
 }
 
 const MapScreen = ({ navigation, route }) => {
@@ -3111,19 +3156,74 @@ const MapScreen = ({ navigation, route }) => {
                   <View style={styles.listContent}>
                         {filteredEvents.length > 0 ? (
                           <>
-                            {(showAllEvents ? filteredEvents : filteredEvents.slice(0, 5)).map((event, index) => (
-                              <TouchableOpacity
-                                key={event.id || index}
-                                onPress={() => handleEventClick(event)}
-                                style={styles.eventCardContainer}
-                              >
-                                <MeetingCard
-                                  meeting={event}
-                                  onClose={() => {}}
-                                  onJoin={() => handleEventClick(event)}
-                                />
-                              </TouchableOpacity>
-                            ))}
+                            <View style={styles.mapEventFeedList}>
+                              {(showAllEvents ? filteredEvents : filteredEvents.slice(0, 5)).map((event, index, arr) => {
+                                const isLastItem = index === arr.length - 1;
+                                const typeBadge =
+                                  (event.type && String(event.type).trim()) ||
+                                  (event.eventType && String(event.eventType).trim()) ||
+                                  '러닝모임';
+                                return (
+                                  <TouchableOpacity
+                                    key={event.id || index}
+                                    onPress={() => handleEventClick(event)}
+                                    style={[
+                                      styles.mapEventFeedItem,
+                                      !isLastItem && styles.mapEventFeedItemDivider,
+                                    ]}
+                                    activeOpacity={0.85}
+                                  >
+                                    <View style={styles.mapEventFeedHeader}>
+                                      <View style={styles.mapEventFeedHeaderLeft}>
+                                        <Text style={styles.mapEventFeedDate}>
+                                          {formatMapEventDateLabel(event.date)}
+                                        </Text>
+                                        <View style={styles.mapEventFeedBadge}>
+                                          <Text style={styles.mapEventFeedBadgeText} numberOfLines={1}>
+                                            {typeBadge}
+                                          </Text>
+                                        </View>
+                                      </View>
+                                      <Text style={styles.mapEventFeedTime}>{event.time || '-'}</Text>
+                                    </View>
+
+                                    <Text style={styles.mapEventFeedTitle} numberOfLines={2}>
+                                      {event.title || '제목 없음'}
+                                    </Text>
+
+                                    <View style={styles.mapEventFeedStatRow}>
+                                      <View style={styles.mapEventFeedStatItem}>
+                                        <Text style={styles.mapEventFeedStatLabel}>거리</Text>
+                                        <Text style={styles.mapEventFeedStatValue}>
+                                          {mapEventDistanceLabel(event)}
+                                        </Text>
+                                      </View>
+                                      <View style={styles.mapEventFeedStatItem}>
+                                        <Text style={styles.mapEventFeedStatLabel}>페이스</Text>
+                                        <Text style={styles.mapEventFeedStatValue}>
+                                          {event.pace || '-'}
+                                        </Text>
+                                      </View>
+                                      <View style={styles.mapEventFeedStatItem}>
+                                        <Text style={styles.mapEventFeedStatLabel}>인원</Text>
+                                        <Text style={styles.mapEventFeedStatValue}>
+                                          {mapEventParticipantLabel(event)}
+                                        </Text>
+                                      </View>
+                                    </View>
+
+                                    {event.location ? (
+                                      <View style={styles.mapEventFeedLocationRow}>
+                                        <Ionicons name="location-outline" size={14} color={COLORS.PRIMARY} />
+                                        <Text style={styles.mapEventFeedLocationText} numberOfLines={1}>
+                                          {event.location}
+                                        </Text>
+                                      </View>
+                                    ) : null}
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </View>
                             {!showAllEvents && filteredEvents.length > 5 && (
                               <TouchableOpacity
                                 onPress={handleShowAllEvents}
@@ -3536,9 +3636,90 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-  eventCardContainer: {
-    marginBottom: 12,
+  mapEventFeedList: {
+    marginBottom: 8,
     marginHorizontal: 20,
+    backgroundColor: '#171719',
+  },
+  mapEventFeedItem: {
+    backgroundColor: '#171719',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  mapEventFeedItemDivider: {
+    borderBottomWidth: 7,
+    borderBottomColor: '#000000',
+  },
+  mapEventFeedHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  mapEventFeedHeaderLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  mapEventFeedDate: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  mapEventFeedBadge: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: '#2A2A2E',
+    borderWidth: 1,
+    borderColor: '#3A3A40',
+    maxWidth: '100%',
+  },
+  mapEventFeedBadgeText: {
+    fontSize: 11,
+    color: '#D4D4D8',
+    fontWeight: '600',
+  },
+  mapEventFeedTime: {
+    fontSize: 13,
+    color: '#A7A7AA',
+  },
+  mapEventFeedTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  mapEventFeedStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  mapEventFeedStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  mapEventFeedStatLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
+  mapEventFeedStatValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  mapEventFeedLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  mapEventFeedLocationText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#8E8E93',
   },
   emptyContainer: {
     padding: 40,
