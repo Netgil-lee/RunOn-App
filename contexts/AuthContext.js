@@ -6,7 +6,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { doc, setDoc, updateDoc, getFirestore, getDoc, serverTimestamp } from 'firebase/firestore';
-import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthViewModel } from '../viewmodels/AuthViewModel';
 import { useNetwork } from './NetworkContext';
@@ -66,11 +66,11 @@ export const AuthProvider = ({ children, isDemoMode = false }) => {
     const minSplashTime = 2500;
     const startTime = Date.now();
     
-    // 500ms 후에 Expo 스플래시 숨김 (커스텀 스플래시로 자연스럽게 전환)
+    // Android: 네이티브 스플래시 체감 최소화(인앱 스플래시와 배경 동일). iOS는 기존 지연 유지.
+    const splashHideDelayMs = Platform.OS === 'android' ? 0 : 500;
     setTimeout(() => {
-      
       SplashScreen.hideAsync();
-    }, 500);
+    }, splashHideDelayMs);
     
     // Firebase 인증 상태 모니터링 (안전성 강화)
     if (!auth) {

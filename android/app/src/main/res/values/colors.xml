@@ -1,4 +1,5 @@
 <resources>
+  <!-- 네이티브 스플래시·API30 이하 windowBackground: 인앱 스플래시와 동일 검정. 런처 아이콘 배경은 iconBackground 유지. -->
   <color name="splashscreen_background">#000000</color>
   <color name="iconBackground">#000000</color>
   <color name="colorPrimary">#023c69</color>

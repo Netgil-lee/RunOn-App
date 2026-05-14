@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  적응형 아이콘 전경: 원형 마스크에 꽉 차 잘리지 않도록,
+  전체 108dp 캔버스 안에 로고를 더 작은 박스에 넣어 그린다(Material 안전 영역 ~66dp 권장).
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+  <item
+    android:width="@dimen/adaptive_icon_foreground_slot"
+    android:height="@dimen/adaptive_icon_foreground_slot"
+    android:gravity="center">
+    <bitmap
+      android:gravity="center"
+      android:src="@mipmap/ic_launcher_foreground" />
+  </item>
+</layer-list>
