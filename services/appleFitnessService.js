@@ -457,6 +457,113 @@ class AppleFitnessService {
   }
 
   /**
+   * HealthKit 메타데이터 duration 값을 초 단위로 정규화
+   */
+  normalizeDurationValue(value) {
+    if (typeof value !== 'number' || value <= 0) return 0;
+    return value > 1000000 ? Math.floor(value / 1000) : Math.floor(value);
+  }
+
+  /**
+   * 운동 시간(Active Time) 우선 추출 — 경과 시간(start/end 차이)은 사용하지 않음
+   */
+  extractActiveDurationSeconds(workout, anchoredWorkoutDetails = null) {
+    let durationSeconds = 0;
+    let durationSource = 'unknown';
+
+    if (anchoredWorkoutDetails) {
+      if (anchoredWorkoutDetails.duration > 0) {
+        durationSeconds = Number(anchoredWorkoutDetails.duration);
+        durationSource = 'anchored.duration';
+      } else if (anchoredWorkoutDetails.activeDuration > 0) {
+        durationSeconds = Number(anchoredWorkoutDetails.activeDuration);
+        durationSource = 'anchored.activeDuration';
+      } else if (anchoredWorkoutDetails.totalDuration > 0) {
+        durationSeconds = Number(anchoredWorkoutDetails.totalDuration);
+        durationSource = 'anchored.totalDuration';
+      }
+    }
+
+    if (durationSeconds === 0 && workout?.metadata) {
+      const metadata = workout.metadata;
+      const activeDuration = this.normalizeDurationValue(metadata.HKWorkoutActiveDuration);
+      if (activeDuration > 0) {
+        durationSeconds = activeDuration;
+        durationSource = 'metadata.HKWorkoutActiveDuration';
+      } else {
+        const hkDuration = this.normalizeDurationValue(metadata.HKWorkoutDuration);
+        if (hkDuration > 0) {
+          durationSeconds = hkDuration;
+          durationSource = 'metadata.HKWorkoutDuration';
+        }
+      }
+    }
+
+    const workoutFieldPriority = [
+      { key: 'duration', source: 'workout.duration' },
+      { key: 'activeDuration', source: 'workout.activeDuration' },
+      { key: 'movingTime', source: 'workout.movingTime' },
+      { key: 'activeTime', source: 'workout.activeTime' },
+      { key: 'totalDuration', source: 'workout.totalDuration' },
+    ];
+
+    for (const { key, source } of workoutFieldPriority) {
+      if (durationSeconds === 0 && Number(workout?.[key]) > 0) {
+        durationSeconds = Number(workout[key]);
+        durationSource = source;
+        break;
+      }
+    }
+
+    return { durationSeconds, durationSource };
+  }
+
+  calculatePaceString(distanceMeters, durationSeconds) {
+    if (durationSeconds > 0 && distanceMeters > 0) {
+      const paceSecondsPerKm = (durationSeconds / distanceMeters) * 1000;
+      const paceMinutes = Math.floor(paceSecondsPerKm / 60);
+      const paceSeconds = Math.floor(paceSecondsPerKm % 60);
+      return `${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}/km`;
+    }
+    return '0:00/km';
+  }
+
+  async fetchAnchoredWorkoutsList(AppleHealthKit, rangeStart, rangeEnd) {
+    if (!AppleHealthKit?.getAnchoredWorkouts) return [];
+    try {
+      const anchoredResults = await new Promise((resolve) => {
+        AppleHealthKit.getAnchoredWorkouts(
+          {
+            startDate: rangeStart.toISOString(),
+            endDate: rangeEnd.toISOString(),
+          },
+          (error, results) => {
+            if (error) {
+              resolve(null);
+              return;
+            }
+            resolve(results);
+          }
+        );
+      });
+      return Array.isArray(anchoredResults?.data) ? anchoredResults.data : [];
+    } catch (error) {
+      console.warn('⚠️ [AppleFitnessService] fetchAnchoredWorkoutsList 실패:', error?.message || error);
+      return [];
+    }
+  }
+
+  findAnchoredWorkoutByStart(anchoredList, startTime, toleranceMs = 2 * 60 * 1000) {
+    if (!startTime || !Array.isArray(anchoredList) || anchoredList.length === 0) return null;
+    const targetMs = startTime.getTime();
+    return anchoredList.find((workout) => {
+      const anchoredStart = workout?.start ? new Date(workout.start) : null;
+      if (!anchoredStart || Number.isNaN(anchoredStart.getTime())) return false;
+      return Math.abs(anchoredStart.getTime() - targetMs) < toleranceMs;
+    }) || null;
+  }
+
+  /**
    * HealthKit에서 이동경로 좌표 조회
    * @param {Date} startDate - 시작 시간
    * @param {Date} endDate - 종료 시간
@@ -794,7 +901,7 @@ class AppleFitnessService {
       const cacheTtlMs = Number.isFinite(options?.cacheTtlMs)
         ? Math.max(0, Math.floor(options.cacheTtlMs))
         : 60000;
-      const cacheKey = JSON.stringify({ days: Number.isFinite(days) ? days : 0 });
+      const cacheKey = JSON.stringify({ days: Number.isFinite(days) ? days : 0, durationMode: 'activeTime' });
 
       const loadAll = !Number.isFinite(days) || days <= 0;
       const periodDays = loadAll ? 0 : days;
@@ -912,6 +1019,8 @@ class AppleFitnessService {
             || activityId === 1;
         });
 
+        const anchoredList = await this.fetchAnchoredWorkoutsList(AppleHealthKit, startDate, now);
+
         const mapped = runningWorkouts.map((workout) => {
           const startTime = parseDateValue(workout.start) || parseDateValue(workout.startDate);
           const endTime = parseDateValue(workout.end) || parseDateValue(workout.endDate);
@@ -919,18 +1028,13 @@ class AppleFitnessService {
           const distanceMiles = Number(workout.distance || 0);
           const distanceMeters = distanceMiles * 1609.34;
 
-          let durationSeconds = Number(workout.duration || 0);
-          if ((!durationSeconds || durationSeconds <= 0) && startTime && endTime) {
-            durationSeconds = Math.max(0, Math.floor((endTime.getTime() - startTime.getTime()) / 1000));
-          }
+          const anchoredMatch = startTime
+            ? this.findAnchoredWorkoutByStart(anchoredList, startTime)
+            : null;
+          const { durationSeconds } = this.extractActiveDurationSeconds(workout, anchoredMatch);
 
-          let pace = '0:00/km';
-          if (durationSeconds > 0 && distanceMeters > 0) {
-            const paceSecondsPerKm = (durationSeconds / distanceMeters) * 1000;
-            const paceMinutes = Math.floor(paceSecondsPerKm / 60);
-            const paceSeconds = Math.floor(paceSecondsPerKm % 60);
-            pace = `${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}/km`;
-          } else if (workout.averagePace) {
+          let pace = this.calculatePaceString(distanceMeters, durationSeconds);
+          if (durationSeconds <= 0 && workout.averagePace) {
             pace = this.formatPace(workout.averagePace);
           }
 
@@ -947,6 +1051,10 @@ class AppleFitnessService {
             pace,
             calories: Math.round(calories),
             routeCoordinates: [],
+            raw: {
+              durationSeconds,
+              distanceMeters,
+            },
             _routeQuery: {
               workoutId: id,
               startTime,
@@ -1490,112 +1598,28 @@ class AppleFitnessService {
         });
       }
       
-      // 1순위: getAnchoredWorkouts에서 가져온 상세 정보의 duration 확인
-      if (anchoredWorkoutDetails) {
-        if (anchoredWorkoutDetails.duration && anchoredWorkoutDetails.duration > 0) {
-          durationSeconds = anchoredWorkoutDetails.duration;
-          durationSource = 'getAnchoredWorkouts.duration (Active Time)';
-          console.log('✅ [AppleFitnessService] getAnchoredWorkouts에서 duration 추출:', durationSeconds, '초');
-        } else if (anchoredWorkoutDetails.activeDuration && anchoredWorkoutDetails.activeDuration > 0) {
-          durationSeconds = anchoredWorkoutDetails.activeDuration;
-          durationSource = 'getAnchoredWorkouts.activeDuration (Active Time)';
-          console.log('✅ [AppleFitnessService] getAnchoredWorkouts에서 activeDuration 추출:', durationSeconds, '초');
-        } else if (anchoredWorkoutDetails.totalDuration && anchoredWorkoutDetails.totalDuration > 0) {
-          durationSeconds = anchoredWorkoutDetails.totalDuration;
-          durationSource = 'getAnchoredWorkouts.totalDuration (Active Time 가능)';
-          console.log('✅ [AppleFitnessService] getAnchoredWorkouts에서 totalDuration 추출:', durationSeconds, '초');
-        }
-      }
-      
-      // 2순위: 메타데이터에서 Active Duration 확인 (HealthKit의 실제 운동 시간)
-      if (durationSeconds === 0 && closestWorkout.metadata) {
-        const metadata = closestWorkout.metadata;
-        
-        // HKWorkoutActiveDuration: 실제 운동 시간 (일시정지 제외) - 가장 정확
-        if (metadata.HKWorkoutActiveDuration && metadata.HKWorkoutActiveDuration > 0) {
-          // 초 단위로 변환 (밀리초일 수 있음)
-          durationSeconds = typeof metadata.HKWorkoutActiveDuration === 'number' 
-            ? (metadata.HKWorkoutActiveDuration > 1000000 
-                ? Math.floor(metadata.HKWorkoutActiveDuration / 1000) // 밀리초인 경우
-                : metadata.HKWorkoutActiveDuration) // 초 단위인 경우
-            : 0;
-          
-          if (durationSeconds > 0) {
-            durationSource = 'metadata.HKWorkoutActiveDuration (Active Time)';
-            console.log('✅ [AppleFitnessService] 메타데이터 HKWorkoutActiveDuration에서 운동 시간 추출:', durationSeconds, '초');
-          }
-        }
-        // HKWorkoutDuration: 워크아웃 지속 시간 (일부 경우 Active Time과 동일)
-        else if (metadata.HKWorkoutDuration && metadata.HKWorkoutDuration > 0) {
-          durationSeconds = typeof metadata.HKWorkoutDuration === 'number'
-            ? (metadata.HKWorkoutDuration > 1000000
-                ? Math.floor(metadata.HKWorkoutDuration / 1000)
-                : metadata.HKWorkoutDuration)
-            : 0;
-          
-          if (durationSeconds > 0) {
-            durationSource = 'metadata.HKWorkoutDuration (Active Time 가능)';
-            console.log('✅ [AppleFitnessService] 메타데이터 HKWorkoutDuration에서 운동 시간 추출:', durationSeconds, '초');
-          }
-        }
-      }
-      
-      // 3순위: duration 필드 (HealthKit의 실제 운동 시간 = Active Time)
-      if (durationSeconds === 0 && closestWorkout.duration && closestWorkout.duration > 0) {
-        durationSeconds = closestWorkout.duration;
-        durationSource = 'duration (Active Time)';
-        console.log('✅ [AppleFitnessService] duration 필드에서 운동 시간 추출:', durationSeconds, '초');
-      }
-      // 4순위: 다른 가능한 운동 시간 필드명들
-      if (durationSeconds === 0 && closestWorkout.activeDuration && closestWorkout.activeDuration > 0) {
-        durationSeconds = closestWorkout.activeDuration;
-        durationSource = 'activeDuration';
-        console.log('✅ [AppleFitnessService] activeDuration 필드에서 운동 시간 추출:', durationSeconds, '초');
-      }
-      if (durationSeconds === 0 && closestWorkout.movingTime && closestWorkout.movingTime > 0) {
-        durationSeconds = closestWorkout.movingTime;
-        durationSource = 'movingTime';
-        console.log('✅ [AppleFitnessService] movingTime 필드에서 운동 시간 추출:', durationSeconds, '초');
-      }
-      if (durationSeconds === 0 && closestWorkout.activeTime && closestWorkout.activeTime > 0) {
-        durationSeconds = closestWorkout.activeTime;
-        durationSource = 'activeTime';
-        console.log('✅ [AppleFitnessService] activeTime 필드에서 운동 시간 추출:', durationSeconds, '초');
-      }
-      if (durationSeconds === 0 && closestWorkout.totalDuration && closestWorkout.totalDuration > 0) {
-        durationSeconds = closestWorkout.totalDuration;
-        durationSource = 'totalDuration';
-        console.log('✅ [AppleFitnessService] totalDuration 필드에서 운동 시간 추출:', durationSeconds, '초');
-      }
-      // 경과 시간(start/end)은 사용하지 않음. 운동 시간(Active Time)만 사용
+      const activeDurationResult = this.extractActiveDurationSeconds(closestWorkout, anchoredWorkoutDetails);
+      durationSeconds = activeDurationResult.durationSeconds;
+      durationSource = activeDurationResult.durationSource;
 
       console.log('🔍 [AppleFitnessService] 최종 duration:', {
         초: durationSeconds,
         출처: durationSource,
         분: Math.floor(durationSeconds / 60),
-        설명: durationSource.includes('경과 시간') ? '⚠️ 일시정지 포함됨' : '✅ 실제 운동 시간'
+        설명: '✅ 운동 시간(Active Time) 우선',
       });
 
-      // 페이스 계산 - 운동 시간(Active Time) 기반
-      // 페이스 = 운동 시간 / 거리 (일시정지 제외된 정확한 페이스)
       let paceFormatted = '0:00/km';
       let paceSource = 'unknown';
-      
+
       if (durationSeconds > 0 && distanceMeters > 0) {
-        // 운동 시간과 거리로부터 페이스 계산
-        const paceSecondsPerKm = (durationSeconds / distanceMeters) * 1000; // 초/km
-        const paceMinutes = Math.floor(paceSecondsPerKm / 60);
-        const paceSeconds = Math.floor(paceSecondsPerKm % 60);
-        paceFormatted = `${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}/km`;
+        paceFormatted = this.calculatePaceString(distanceMeters, durationSeconds);
         paceSource = `계산 (${durationSource})`;
-        
-        const isAccuratePace = !durationSource.includes('경과 시간');
-        console.log(isAccuratePace ? '✅' : '⚠️', '[AppleFitnessService] 페이스 계산:', {
+        console.log('✅ [AppleFitnessService] 페이스 계산:', {
           페이스: paceFormatted,
           운동시간: `${Math.floor(durationSeconds / 60)}분 ${durationSeconds % 60}초`,
           거리: `${(distanceMeters / 1000).toFixed(2)}km`,
           시간출처: durationSource,
-          정확도: isAccuratePace ? '정확 (운동 시간 기반)' : '부정확 (경과 시간 기반 - 일시정지 포함)'
         });
       } else if (closestWorkout.averagePace) {
         paceFormatted = this.formatPace(closestWorkout.averagePace);

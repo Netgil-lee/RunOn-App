@@ -126,3 +126,7 @@
   - Apple Fitness + RunOn 기록 동시 표시
   - 최신순 정렬
   - 카드 출처 라벨(`Apple Fitness`/`RunOn`) 표시
+- 2026-04-25: Apple Fitness 피드 시간/페이스 정책 반영
+  - 러닝 피드·공유 매칭 모두 **운동 시간(Active Time) 우선**
+  - 경과 시간(start/end 차이)은 페이스·Time 계산에 사용하지 않음
+  - `getAnchoredWorkouts` + 메타데이터 + workout 필드 순으로 운동 시간 추출
