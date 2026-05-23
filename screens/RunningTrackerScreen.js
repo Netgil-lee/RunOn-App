@@ -451,43 +451,46 @@ const RunningTrackerScreen = ({ navigation }) => {
   const processIncomingLocation = (nextCoord, nextTimestamp, accuracy = 0, providedSpeed) => {
     if (endedRef.current) return;
     if (!nextCoord) return;
+    const nextTs = nextTimestamp || Date.now();
 
     latestGpsCoordRef.current = nextCoord;
-    latestGpsTimestampRef.current = nextTimestamp || Date.now();
+    latestGpsTimestampRef.current = nextTs;
 
     if (isPausedRef.current) {
       lastCoordRef.current = nextCoord;
-      lastTimestampRef.current = nextTimestamp || Date.now();
+      lastTimestampRef.current = nextTs;
       return;
     }
 
     const previous = lastCoordRef.current;
     const previousTimestamp = lastTimestampRef.current;
-    lastCoordRef.current = nextCoord;
-    lastTimestampRef.current = nextTimestamp || Date.now();
-    routeCoordinatesRef.current = [...routeCoordinatesRef.current, nextCoord];
-    setRouteCoordinates(routeCoordinatesRef.current);
-
-    if (!previous) return;
-    let delta = calcDistanceMeters(previous, nextCoord);
-
-    if (previousTimestamp) {
-      const elapsed = Math.max(((nextTimestamp || Date.now()) - previousTimestamp) / 1000, 1);
-      const reportedSpeed = Number(providedSpeed);
-      if (Number.isFinite(reportedSpeed) && reportedSpeed > 0.5) {
-        const speedBasedDelta = reportedSpeed * elapsed;
-        delta = Math.max(delta, speedBasedDelta);
-      }
+    if (!previous) {
+      lastCoordRef.current = nextCoord;
+      lastTimestampRef.current = nextTs;
+      routeCoordinatesRef.current = [...routeCoordinatesRef.current, nextCoord];
+      setRouteCoordinates(routeCoordinatesRef.current);
+      return;
     }
+    let delta = calcDistanceMeters(previous, nextCoord);
+    const runElapsedSeconds = runStartedAtMsRef.current
+      ? Math.max(0, (nextTs - runStartedAtMsRef.current) / 1000)
+      : 0;
 
     if (delta < 0.2) return;
     if (delta > 1000) return;
     if (accuracy > 60 && delta > 120) return;
+    if (runElapsedSeconds < 20 && (accuracy > 35 || delta > 40)) return;
     if (previousTimestamp) {
-      const elapsed = Math.max(((nextTimestamp || Date.now()) - previousTimestamp) / 1000, 1);
+      const elapsed = Math.max((nextTs - previousTimestamp) / 1000, 1);
       const speedMps = delta / elapsed;
       if (speedMps > 12) return;
+      if (runElapsedSeconds < 20 && speedMps > 6.5) return;
     }
+
+    lastCoordRef.current = nextCoord;
+    lastTimestampRef.current = nextTs;
+    routeCoordinatesRef.current = [...routeCoordinatesRef.current, nextCoord];
+    setRouteCoordinates(routeCoordinatesRef.current);
 
     distanceMetersRef.current += delta;
     setDistanceMeters(distanceMetersRef.current);
@@ -506,7 +509,7 @@ const RunningTrackerScreen = ({ navigation }) => {
     }, 5000);
 
     if (previousTimestamp) {
-      const elapsed = Math.max(((nextTimestamp || Date.now()) - previousTimestamp) / 1000, 1);
+      const elapsed = Math.max((nextTs - previousTimestamp) / 1000, 1);
       const speedFromDelta = delta / elapsed;
       const reportedSpeed = Number(providedSpeed);
       const baseSpeed = Number.isFinite(reportedSpeed) && reportedSpeed > 0.3
@@ -559,14 +562,16 @@ const RunningTrackerScreen = ({ navigation }) => {
 
       const previous = lastCoordRef.current;
       const previousTimestamp = lastTimestampRef.current;
-      lastCoordRef.current = nextCoord;
-      lastTimestampRef.current = nextTimestamp;
-
-      // 경로 배열에는 무조건 추가 (지도 경로 표시용)
-      routeCoordinatesRef.current = [...routeCoordinatesRef.current, nextCoord];
-      setRouteCoordinates(routeCoordinatesRef.current);
-
-      if (!previous) return;
+      const runElapsedSeconds = runStartedAtMsRef.current
+        ? Math.max(0, (nextTimestamp - runStartedAtMsRef.current) / 1000)
+        : 0;
+      if (!previous) {
+        lastCoordRef.current = nextCoord;
+        lastTimestampRef.current = nextTimestamp;
+        routeCoordinatesRef.current = [...routeCoordinatesRef.current, nextCoord];
+        setRouteCoordinates(routeCoordinatesRef.current);
+        return;
+      }
 
       const delta = calcDistanceMeters(previous, nextCoord);
 
@@ -574,6 +579,7 @@ const RunningTrackerScreen = ({ navigation }) => {
       if (delta < 0.5) return;              // 너무 작은 이동 무시
       if (delta > 1500) return;             // 1.5km 초과 점프는 오류 좌표
       if (accuracy > 100 && delta > 200) return;  // 정확도 낮고 점프 큰 경우만 제거
+      if (runElapsedSeconds < 20 && (accuracy > 35 || delta > 40)) return;
 
       // 백그라운드 구간은 elapsed time 기반 속도 계산 신뢰도가 낮으므로
       // 명백히 불가능한 속도(20m/s = 72km/h 초과)만 걸러냄
@@ -581,7 +587,14 @@ const RunningTrackerScreen = ({ navigation }) => {
         const elapsed = Math.max((nextTimestamp - previousTimestamp) / 1000, 1);
         const speedMps = delta / elapsed;
         if (speedMps > 20) return;
+        if (runElapsedSeconds < 20 && speedMps > 6.5) return;
       }
+
+      lastCoordRef.current = nextCoord;
+      lastTimestampRef.current = nextTimestamp;
+      // 거리 누적에 반영된 좌표만 경로에 추가해 초기 튐을 시각적으로도 제거한다.
+      routeCoordinatesRef.current = [...routeCoordinatesRef.current, nextCoord];
+      setRouteCoordinates(routeCoordinatesRef.current);
 
       distanceMetersRef.current += delta;
       setDistanceMeters(distanceMetersRef.current);
@@ -807,8 +820,8 @@ const RunningTrackerScreen = ({ navigation }) => {
 
       if (!initialCoord) {
         const fallbackPosition = await Location.getLastKnownPositionAsync({
-          maxAge: 20000,
-          requiredAccuracy: 120,
+          maxAge: 10000,
+          requiredAccuracy: 60,
         });
         if (fallbackPosition?.coords) {
           initialCoord = {

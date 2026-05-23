@@ -331,6 +331,148 @@ class HealthConnectService {
     }
   }
 
+  parseWorkoutStartTime(workout) {
+    if (!workout) return null;
+    const raw = workout.start ?? workout.startDate;
+    if (!raw) return null;
+    const date = raw instanceof Date ? new Date(raw) : new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  parseWorkoutEndTime(workout, startDate, durationSeconds = 0) {
+    if (!workout) return null;
+    const raw = workout.end ?? workout.endDate;
+    if (raw) {
+      const date = raw instanceof Date ? new Date(raw) : new Date(raw);
+      if (!Number.isNaN(date.getTime())) return date;
+    }
+    if (startDate && durationSeconds > 0) {
+      return new Date(startDate.getTime() + durationSeconds * 1000);
+    }
+    return null;
+  }
+
+  isRunningWorkout(workout) {
+    const activityName = `${workout?.activityName || ''}`;
+    return activityName === 'Running' || workout?.activityId === 1;
+  }
+
+  async mapWorkoutToFeedItem(workout, HealthConnect, includeRoute = false) {
+    const startDate = this.parseWorkoutStartTime(workout);
+    if (!startDate) return null;
+
+    const distanceMiles = Number(workout.distance || 0);
+    const distanceMeters = distanceMiles * 1609.34;
+    const endDate = this.parseWorkoutEndTime(workout, startDate, Number(workout.duration || 0));
+    let durationSeconds = Number(workout.duration || 0);
+    if (!durationSeconds && endDate) {
+      durationSeconds = Math.max(0, Math.floor((endDate.getTime() - startDate.getTime()) / 1000));
+    }
+
+    let paceFormatted = '0:00/km';
+    if (durationSeconds > 0 && distanceMeters > 0) {
+      const paceSecondsPerKm = (durationSeconds / distanceMeters) * 1000;
+      const paceMinutes = Math.floor(paceSecondsPerKm / 60);
+      const paceSeconds = Math.floor(paceSecondsPerKm % 60);
+      paceFormatted = `${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}/km`;
+    } else if (workout.averagePace) {
+      paceFormatted = this.formatPace(workout.averagePace);
+    }
+
+    const calories = Math.round(
+      Number(workout.calories || workout.totalEnergyBurned || workout.energyBurned || 0)
+    );
+    const workoutId = workout.id || workout.uuid || workout.workoutId;
+    const feedId = workoutId ? `hc-${workoutId}` : `hc-${startDate.getTime()}`;
+
+    let routeCoordinates = [];
+    if (includeRoute && workoutId && HealthConnect?.getWorkoutRouteSamples) {
+      try {
+        routeCoordinates = await HealthConnect.getWorkoutRouteSamples({ id: workoutId });
+        if (!Array.isArray(routeCoordinates)) routeCoordinates = [];
+      } catch (error) {
+        console.warn('⚠️ [HealthConnectService] 피드 경로 조회 실패:', error?.message || error);
+        routeCoordinates = [];
+      }
+    }
+
+    const sourceName = `${workout.sourceName || workout.source || 'Google Health Connect'}`.trim();
+
+    return {
+      id: feedId,
+      startTime: startDate.toISOString(),
+      sourceName,
+      sourceLabel: 'Google Health Connect',
+      distance: this.formatDistance(distanceMeters),
+      pace: paceFormatted,
+      duration: this.formatDuration(durationSeconds),
+      calories,
+      routeCoordinates,
+      raw: {
+        distanceMeters,
+        durationSeconds,
+        startDate: startDate.toISOString(),
+        endDate: endDate ? endDate.toISOString() : null,
+        calories,
+      },
+    };
+  }
+
+  /**
+   * 최근 러닝 기록 목록 조회 (러닝 피드용)
+   * @param {number} days - 조회 기간(일). 0 이하이면 최근 5년
+   */
+  async getRecentRunningWorkouts(days = 14, options = {}) {
+    const { includeRoutes = false, routeFetchLimit = 10 } = options;
+
+    if (!this.isServiceAvailable()) {
+      const initialized = await this.initialize();
+      if (!initialized) {
+        const error = new Error('Health Connect permission required');
+        error.code = 'NO_PERMISSION';
+        throw error;
+      }
+    }
+
+    const HealthConnect = await loadHealthConnectModule();
+    if (!HealthConnect || typeof HealthConnect.getSamples !== 'function') {
+      return [];
+    }
+
+    const loadAll = !Number.isFinite(days) || days <= 0;
+    const startDate = loadAll
+      ? new Date(Date.now() - (5 * 365 * 24 * 60 * 60 * 1000))
+      : new Date(Date.now() - (days * 24 * 60 * 60 * 1000));
+    const endDate = new Date();
+
+    const workouts = await HealthConnect.getSamples({
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      type: 'Workout',
+    });
+
+    const runningWorkouts = (workouts || [])
+      .filter((workout) => this.isRunningWorkout(workout))
+      .sort((a, b) => {
+        const aStart = this.parseWorkoutStartTime(a)?.getTime() || 0;
+        const bStart = this.parseWorkoutStartTime(b)?.getTime() || 0;
+        return bStart - aStart;
+      });
+
+    const mapped = [];
+    for (let index = 0; index < runningWorkouts.length; index += 1) {
+      const shouldIncludeRoute = includeRoutes && index < routeFetchLimit;
+      const item = await this.mapWorkoutToFeedItem(
+        runningWorkouts[index],
+        HealthConnect,
+        shouldIncludeRoute
+      );
+      if (item) mapped.push(item);
+    }
+
+    return mapped;
+  }
+
   /**
    * Health Connect에서 이동경로 좌표 조회
    * @param {Date} startDate - 시작 시간

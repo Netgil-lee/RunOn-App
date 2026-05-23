@@ -8,7 +8,8 @@ const RunningShareCard = forwardRef(({
   duration, 
   location, 
   calories,
-  routeCoordinates // 이동경로 좌표 데이터
+  routeCoordinates, // 이동경로 좌표 데이터
+  showRoute = true,
 }, ref) => {
   // distance, pace, duration은 이미 포맷팅된 문자열로 받음
   // distance: "5.2km" 또는 "530m"
@@ -45,7 +46,7 @@ const RunningShareCard = forwardRef(({
 
       {/* 이동경로 (로고 위에 표시) - 항상 공간 할당 */}
       <View style={styles.routeContainer}>
-        {routeCoordinates && routeCoordinates.length > 0 && (
+        {showRoute && routeCoordinates && routeCoordinates.length > 0 && (
           <RouteMap 
             coordinates={routeCoordinates} 
             width={170} 
@@ -92,9 +93,8 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 28,
-    fontWeight: 'bold',
     color: '#ffffff',
-    fontFamily: 'Gold-Regular',
+    fontFamily: 'Gold-Bold',
     textAlign: 'center',
     lineHeight: 26,
   },
@@ -116,9 +116,8 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 30,
-    fontWeight: 'bold',
     color: '#ffffff',
-    fontFamily: 'Gold-Regular',
+    fontFamily: 'Gold-Bold',
     lineHeight: 28,
   },
   logoSection: {

@@ -18,6 +18,7 @@ import {
   UIManager,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
@@ -60,6 +61,7 @@ const RunningShareModal = ({
   onClose, 
   workoutData, 
   eventData,
+  showRoute = true,
   workoutSource = null,
   presetWorkoutData = null,
   onShareComplete 
@@ -71,8 +73,10 @@ const RunningShareModal = ({
   const [customPlace, setCustomPlace] = useState('');
   const [hasEnteredPlace, setHasEnteredPlace] = useState(false);
   const [dataSource, setDataSource] = useState('apple'); // 'apple' | 'garmin'
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const shareCardRef = useRef(null);
   const placeInputRef = useRef(null);
+  const insets = useSafeAreaInsets();
   const localWorkoutData = normalizeWorkoutData(presetWorkoutData || workoutData);
   const detectedSource = detectWorkoutSourceType(
     workoutSource,
@@ -128,12 +132,16 @@ const RunningShareModal = ({
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
+      (event) => {
         LayoutAnimation.configureNext({
           duration: 250,
           create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
           update: { type: LayoutAnimation.Types.easeInEaseOut },
         });
+        if (Platform.OS === 'android') {
+          const rawHeight = Number(event?.endCoordinates?.height || 0);
+          setKeyboardHeight(Math.max(0, rawHeight - Math.max(insets.bottom, 0)));
+        }
       }
     );
 
@@ -145,6 +153,7 @@ const RunningShareModal = ({
           create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
           update: { type: LayoutAnimation.Types.easeInEaseOut },
         });
+        setKeyboardHeight(0);
       }
     );
 
@@ -152,7 +161,7 @@ const RunningShareModal = ({
       keyboardWillShowListener.remove();
       keyboardWillHideListener.remove();
     };
-  }, []);
+  }, [insets.bottom]);
 
   // 부드러운 닫기 애니메이션
   const handleClose = useCallback(() => {
@@ -375,17 +384,21 @@ const RunningShareModal = ({
         </Animated.View>
         <KeyboardAvoidingView 
           style={styles.bottomModalContainer}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={0}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContentContainer}
+            contentContainerStyle={[
+              styles.scrollContentContainer,
+              Platform.OS === 'android' && keyboardHeight > 0 ? { paddingBottom: keyboardHeight } : null,
+            ]}
             keyboardShouldPersistTaps="handled"
             bounces={false}
             showsVerticalScrollIndicator={false}
           >
             <Animated.View style={[
               styles.modalContainer,
+              Platform.OS === 'android' && keyboardHeight > 0 ? { marginBottom: keyboardHeight } : null,
               { transform: [{ translateY: modalSlideAnim }] }
             ]}>
               {/* 헤더 */}
@@ -464,6 +477,7 @@ const RunningShareModal = ({
                       location={shareCardData.location}
                       calories={shareCardData.calories}
                       routeCoordinates={shareCardData.routeCoordinates}
+                      showRoute={showRoute}
                     />
                   )}
                 </View>

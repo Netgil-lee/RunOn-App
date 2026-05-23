@@ -38,6 +38,9 @@ import * as Location from 'expo-location';
 import * as Clipboard from 'expo-clipboard';
 import { recordMeetingLocation } from '../services/userActivityService';
 import { getAppleFitnessService } from '../services/getAppleFitnessService';
+import healthConnectService from '../services/healthConnectService';
+
+const EXTERNAL_FITNESS_LABEL = Platform.OS === 'ios' ? 'Apple Fitness' : 'Google Health Connect';
 
 const firestore = getFirestore();
 
@@ -367,28 +370,37 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
     try {
       const runOnWorkouts = await runOnRunningService.getRecentRunningWorkouts(0);
 
-      let appleWorkouts = [];
-      let appleErrorCode = '';
+      let externalWorkouts = [];
+      let externalErrorCode = '';
       const appleFitnessService = getAppleFitnessService();
-      if (Platform.OS === 'ios' && appleFitnessService) {
+      if (Platform.OS === 'ios' && appleFitnessService?.getRecentRunningWorkouts) {
         try {
-          appleWorkouts = await appleFitnessService.getRecentRunningWorkouts(0, {
+          externalWorkouts = await appleFitnessService.getRecentRunningWorkouts(0, {
             includeRoutes: true,
             routeFetchLimit: feedRouteFetchLimit,
             cacheTtlMs: 90000,
           });
         } catch (error) {
-          appleErrorCode = error?.code || 'UNKNOWN';
+          externalErrorCode = error?.code || 'UNKNOWN';
+        }
+      } else if (Platform.OS === 'android') {
+        try {
+          externalWorkouts = await healthConnectService.getRecentRunningWorkouts(0, {
+            includeRoutes: true,
+            routeFetchLimit: feedRouteFetchLimit,
+          });
+        } catch (error) {
+          externalErrorCode = error?.code || 'UNKNOWN';
         }
       }
 
-      const normalizedApple = (appleWorkouts || []).map((item) => {
+      const normalizedExternal = (externalWorkouts || []).map((item) => {
         const sourceName = `${item?.sourceName || item?.source || ''}`.trim();
         const isRunOnSource = /runon/i.test(sourceName);
         return {
           ...item,
-          sourceLabel: isRunOnSource ? 'RunOn' : 'Apple Fitness',
-          sourceType: 'apple',
+          sourceLabel: isRunOnSource ? 'RunOn' : EXTERNAL_FITNESS_LABEL,
+          sourceType: Platform.OS === 'ios' ? 'apple' : 'health_connect',
         };
       });
       const normalizedRunOn = (runOnWorkouts || []).map((item) => ({
@@ -398,15 +410,15 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
       }));
 
       // 동일 세션(시간대) 데이터는 RunOn 로컬 기록을 우선한다.
-      const filteredApple = normalizedApple.filter((appleWorkout) => {
-        return !normalizedRunOn.some((runOnWorkout) => isSameRunningSession(runOnWorkout, appleWorkout));
+      const filteredExternal = normalizedExternal.filter((externalWorkout) => {
+        return !normalizedRunOn.some((runOnWorkout) => isSameRunningSession(runOnWorkout, externalWorkout));
       });
 
-      const merged = [...filteredApple, ...normalizedRunOn]
+      const merged = [...filteredExternal, ...normalizedRunOn]
         .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
 
       setFeedWorkouts(merged);
-      setFeedErrorCode(merged.length === 0 ? appleErrorCode : '');
+      setFeedErrorCode(merged.length === 0 ? externalErrorCode : '');
     } catch (error) {
       const code = error?.code || 'UNKNOWN';
       setFeedErrorCode(code);
@@ -1046,7 +1058,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
           <Text style={styles.subtitle}>
             {mainMode === 'group'
               ? '러닝 모임을 만들고 관리해보세요'
-              : 'Apple Fitness와 RunOn 러닝 기록을 함께 확인하고 공유 이미지를 저장해보세요'}
+              : `${EXTERNAL_FITNESS_LABEL}와 RunOn 러닝 기록을 함께 확인하고 공유 이미지를 저장해보세요`}
           </Text>
         </View>
 
@@ -1168,7 +1180,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                 <Text style={styles.runningFeedPlaceholderTitle}>러닝 기록을 불러오지 못했어요</Text>
                 <Text style={styles.runningFeedPlaceholderText}>
                   {feedErrorCode === 'NO_PERMISSION'
-                    ? 'Apple Fitness 권한을 확인해주세요.'
+                    ? `${EXTERNAL_FITNESS_LABEL} 권한을 확인해주세요.`
                     : '잠시 후 다시 시도해주세요.'}
                 </Text>
                 <TouchableOpacity style={styles.runningFeedRetryButton} onPress={loadRunningFeed}>
@@ -1180,7 +1192,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                 <Ionicons name="fitness-outline" size={34} color={COLORS.PRIMARY} />
                 <Text style={styles.runningFeedPlaceholderTitle}>러닝 기록이 없어요</Text>
                 <Text style={styles.runningFeedPlaceholderText}>
-                  RunOn과 Apple Fitness의 러닝 기록이 여기에 표시됩니다.
+                  {`RunOn과 ${EXTERNAL_FITNESS_LABEL}의 러닝 기록이 여기에 표시됩니다.`}
                 </Text>
               </View>
             ) : (
@@ -1445,6 +1457,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
       <RunningShareModal
         visible={showFeedShareModal}
         onClose={handleFeedShareClose}
+        showRoute={false}
         workoutSource={selectedFeedWorkout?.sourceLabel || selectedFeedWorkout?.sourceName || null}
         workoutData={{
           distance: selectedFeedWorkout?.distance || '0m',
