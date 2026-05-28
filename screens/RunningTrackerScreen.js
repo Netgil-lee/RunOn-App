@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, ActivityIndicator, AppState, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, ActivityIndicator, AppState, Linking, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
@@ -20,6 +20,12 @@ const COLORS = {
   DANGER: '#FF4D4F',
 };
 const GPS_START_CACHE_MAX_AGE_MS = 15000;
+const LOCATION_GAP_RESET_MS = 45000;
+const DUPLICATE_TIME_WINDOW_MS = 2500;
+const DUPLICATE_DISTANCE_METERS = 8;
+const INSTANT_PACE_WINDOW_MS = 30000;
+const START_COUNTDOWN_INTERVAL_MS = 700;
+const PACE_WARMUP_MS = 3000;
 
 const toRad = (value) => (value * Math.PI) / 180;
 const calcDistanceMeters = (from, to) => {
@@ -109,6 +115,7 @@ const RunningTrackerScreen = ({ navigation }) => {
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [pendingFinishData, setPendingFinishData] = useState(null);
   const [isSavingRun, setIsSavingRun] = useState(false);
+  const [startCountdownNumber, setStartCountdownNumber] = useState(null);
   const runningMapWebViewRef = useRef(null);
   const isRunningMapLoadedRef = useRef(false);
   const pendingMapPayloadRef = useRef(null);
@@ -119,6 +126,7 @@ const RunningTrackerScreen = ({ navigation }) => {
   const lastTimestampRef = useRef(null);
   const distanceMetersRef = useRef(0);
   const routeCoordinatesRef = useRef([]);
+  const displayRouteCoordinatesRef = useRef([]);
   const runStartedAtMsRef = useRef(null);
   const totalPausedMsRef = useRef(0);
   const pauseStartedAtMsRef = useRef(null);
@@ -129,6 +137,15 @@ const RunningTrackerScreen = ({ navigation }) => {
   const latestGpsCoordRef = useRef(null);
   const latestGpsTimestampRef = useRef(null);
   const smoothedSpeedMpsRef = useRef(null);
+  const paceSamplesRef = useRef([]);
+  const lastAcceptedPointRef = useRef(null);
+  const gpsDotAnimValuesRef = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]);
+  const gpsDotLoopsRef = useRef([]);
+  const startTransitionAnimRef = useRef(new Animated.Value(0));
   const activeSessionIdRef = useRef(null);
   const sessionSaveTimerRef = useRef(null);
   const appStateRef = useRef(AppState.currentState);
@@ -140,10 +157,11 @@ const RunningTrackerScreen = ({ navigation }) => {
     () => formatPace(distanceMeters, elapsedSeconds),
     [distanceMeters, elapsedSeconds]
   );
+  const startTransitionAnim = startTransitionAnimRef.current;
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const nextRoute = routeCoordinatesRef.current || [];
+      const nextRoute = displayRouteCoordinatesRef.current || [];
       setMapRouteCoordinates(nextRoute.length > 0 ? [...nextRoute] : []);
     }, 2000);
     return () => clearInterval(timer);
@@ -446,7 +464,80 @@ const RunningTrackerScreen = ({ navigation }) => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
-  const processIncomingLocation = (nextCoord, nextTimestamp, accuracy = 0, providedSpeed) => {
+  useEffect(() => {
+    Animated.timing(startTransitionAnim, {
+      toValue: hasStartedRun ? 1 : 0,
+      duration: 260,
+      useNativeDriver: true,
+    }).start();
+  }, [hasStartedRun, startTransitionAnim]);
+
+  useEffect(() => {
+    gpsDotLoopsRef.current.forEach((loop) => loop?.stop?.());
+    gpsDotLoopsRef.current = [];
+
+    if (!isGpsPreparing) {
+      gpsDotAnimValuesRef.current.forEach((value) => value.setValue(0));
+      return undefined;
+    }
+
+    const makeLoop = (animatedValue, delayMs) => Animated.loop(
+      Animated.sequence([
+        Animated.delay(delayMs),
+        Animated.timing(animatedValue, {
+          toValue: 1,
+          duration: 210,
+          useNativeDriver: false,
+        }),
+        Animated.timing(animatedValue, {
+          toValue: 0,
+          duration: 210,
+          useNativeDriver: false,
+        }),
+      ])
+    );
+
+    const loops = gpsDotAnimValuesRef.current.map((value, index) => makeLoop(value, index * 120));
+    gpsDotLoopsRef.current = loops;
+    loops.forEach((loop) => loop.start());
+
+    return () => {
+      loops.forEach((loop) => loop.stop());
+    };
+  }, [isGpsPreparing]);
+
+  const appendPaceSample = (deltaMeters, timestampMs) => {
+    const ts = Number(timestampMs || Date.now());
+    if (runStartedAtMsRef.current && (ts - runStartedAtMsRef.current < PACE_WARMUP_MS)) {
+      setCurrentPaceText('--:--/km');
+      return;
+    }
+    paceSamplesRef.current = [
+      ...paceSamplesRef.current,
+      { deltaMeters: Math.max(0, Number(deltaMeters || 0)), timestampMs: ts },
+    ].filter((item) => ts - item.timestampMs <= INSTANT_PACE_WINDOW_MS);
+
+    const totalDistance = paceSamplesRef.current.reduce((sum, item) => sum + item.deltaMeters, 0);
+    const firstTs = paceSamplesRef.current[0]?.timestampMs;
+    const elapsed = firstTs ? Math.max((ts - firstTs) / 1000, 1) : 0;
+    if (totalDistance < 5 || elapsed < 3) return;
+
+    const speedMps = totalDistance / elapsed;
+    if (!Number.isFinite(speedMps) || speedMps <= 0.3) return;
+    setCurrentPaceText(formatPaceFromMps(speedMps));
+  };
+
+  const isDuplicateAcceptedPoint = (nextCoord, nextTimestamp) => {
+    const last = lastAcceptedPointRef.current;
+    if (!last?.coord || !Number.isFinite(last?.timestampMs)) return false;
+    const ts = Number(nextTimestamp || Date.now());
+    const timeGapMs = Math.abs(ts - last.timestampMs);
+    if (timeGapMs > DUPLICATE_TIME_WINDOW_MS) return false;
+    const gapMeters = calcDistanceMeters(last.coord, nextCoord);
+    return gapMeters <= DUPLICATE_DISTANCE_METERS;
+  };
+
+  const processIncomingLocation = (nextCoord, nextTimestamp, accuracy = 0) => {
     if (endedRef.current) return;
     if (!nextCoord) return;
 
@@ -461,22 +552,33 @@ const RunningTrackerScreen = ({ navigation }) => {
 
     const previous = lastCoordRef.current;
     const previousTimestamp = lastTimestampRef.current;
+    const hasLongGap = !!(
+      previous
+      && previousTimestamp
+      && ((nextTimestamp || Date.now()) - previousTimestamp > LOCATION_GAP_RESET_MS)
+    );
     lastCoordRef.current = nextCoord;
     lastTimestampRef.current = nextTimestamp || Date.now();
     routeCoordinatesRef.current = [...routeCoordinatesRef.current, nextCoord];
     setRouteCoordinates(routeCoordinatesRef.current);
+    if (hasLongGap) {
+      displayRouteCoordinatesRef.current = [nextCoord];
+      setMapRouteCoordinates([nextCoord]);
+    } else {
+      displayRouteCoordinatesRef.current = [...displayRouteCoordinatesRef.current, nextCoord];
+      setMapRouteCoordinates(displayRouteCoordinatesRef.current);
+    }
 
     if (!previous) return;
-    let delta = calcDistanceMeters(previous, nextCoord);
-
-    if (previousTimestamp) {
-      const elapsed = Math.max(((nextTimestamp || Date.now()) - previousTimestamp) / 1000, 1);
-      const reportedSpeed = Number(providedSpeed);
-      if (Number.isFinite(reportedSpeed) && reportedSpeed > 0.5) {
-        const speedBasedDelta = reportedSpeed * elapsed;
-        delta = Math.max(delta, speedBasedDelta);
-      }
+    if (hasLongGap) {
+      // 백그라운드/화면OFF 구간에서 좌표가 끊긴 뒤 복귀하면
+      // 직선 보간으로 거리 과대/과소 누적되는 문제를 방지한다.
+      paceSamplesRef.current = [];
+      smoothedSpeedMpsRef.current = null;
+      setCurrentPaceText('--:--/km');
+      return;
     }
+    let delta = calcDistanceMeters(previous, nextCoord);
 
     if (delta < 0.2) return;
     if (delta > 1000) return;
@@ -486,9 +588,14 @@ const RunningTrackerScreen = ({ navigation }) => {
       const speedMps = delta / elapsed;
       if (speedMps > 12) return;
     }
+    if (isDuplicateAcceptedPoint(nextCoord, nextTimestamp)) return;
 
     distanceMetersRef.current += delta;
     setDistanceMeters(distanceMetersRef.current);
+    lastAcceptedPointRef.current = {
+      coord: nextCoord,
+      timestampMs: Number(nextTimestamp || Date.now()),
+    };
 
     // 세션 상태 주기적 영속화 (5초 debounce)
     if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current);
@@ -502,23 +609,7 @@ const RunningTrackerScreen = ({ navigation }) => {
       }).catch(() => {});
       sessionSaveTimerRef.current = null;
     }, 5000);
-
-    if (previousTimestamp) {
-      const elapsed = Math.max(((nextTimestamp || Date.now()) - previousTimestamp) / 1000, 1);
-      const speedFromDelta = delta / elapsed;
-      const reportedSpeed = Number(providedSpeed);
-      const baseSpeed = Number.isFinite(reportedSpeed) && reportedSpeed > 0.3
-        ? reportedSpeed
-        : speedFromDelta;
-      if (Number.isFinite(baseSpeed) && baseSpeed > 0.3) {
-        const prevSmoothed = smoothedSpeedMpsRef.current;
-        const nextSmoothed = Number.isFinite(prevSmoothed)
-          ? (prevSmoothed * 0.72) + (baseSpeed * 0.28)
-          : baseSpeed;
-        smoothedSpeedMpsRef.current = nextSmoothed;
-        setCurrentPaceText(formatPaceFromMps(nextSmoothed));
-      }
-    }
+    appendPaceSample(delta, nextTimestamp || Date.now());
   };
 
   /**
@@ -532,8 +623,8 @@ const RunningTrackerScreen = ({ navigation }) => {
   const processBufferedLocations = (items) => {
     if (!Array.isArray(items) || items.length === 0) return;
     if (endedRef.current) return;
-
-    const sorted = [...items].sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+    const sorted = [...items]
+      .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
 
     sorted.forEach((item) => {
       const nextCoord = {
@@ -542,59 +633,8 @@ const RunningTrackerScreen = ({ navigation }) => {
       };
       const nextTimestamp = Number(item.timestamp || Date.now());
       const accuracy = Number(item.accuracy || 0);
-
       if (!Number.isFinite(nextCoord.latitude) || !Number.isFinite(nextCoord.longitude)) return;
-      if (endedRef.current) return;
-
-      latestGpsCoordRef.current = nextCoord;
-      latestGpsTimestampRef.current = nextTimestamp;
-
-      if (isPausedRef.current) {
-        lastCoordRef.current = nextCoord;
-        lastTimestampRef.current = nextTimestamp;
-        return;
-      }
-
-      const previous = lastCoordRef.current;
-      const previousTimestamp = lastTimestampRef.current;
-      lastCoordRef.current = nextCoord;
-      lastTimestampRef.current = nextTimestamp;
-
-      // 경로 배열에는 무조건 추가 (지도 경로 표시용)
-      routeCoordinatesRef.current = [...routeCoordinatesRef.current, nextCoord];
-      setRouteCoordinates(routeCoordinatesRef.current);
-
-      if (!previous) return;
-
-      const delta = calcDistanceMeters(previous, nextCoord);
-
-      // 완화된 필터 (백그라운드 GPS 특성 반영)
-      if (delta < 0.5) return;              // 너무 작은 이동 무시
-      if (delta > 1500) return;             // 1.5km 초과 점프는 오류 좌표
-      if (accuracy > 100 && delta > 200) return;  // 정확도 낮고 점프 큰 경우만 제거
-
-      // 백그라운드 구간은 elapsed time 기반 속도 계산 신뢰도가 낮으므로
-      // 명백히 불가능한 속도(20m/s = 72km/h 초과)만 걸러냄
-      if (previousTimestamp) {
-        const elapsed = Math.max((nextTimestamp - previousTimestamp) / 1000, 1);
-        const speedMps = delta / elapsed;
-        if (speedMps > 20) return;
-      }
-
-      distanceMetersRef.current += delta;
-      setDistanceMeters(distanceMetersRef.current);
-
-      if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current);
-      sessionSaveTimerRef.current = setTimeout(() => {
-        runningTrackingSessionService.update({
-          distanceMeters: distanceMetersRef.current,
-          totalPausedMs: totalPausedMsRef.current,
-          isPaused: isPausedRef.current,
-          pauseStartedAtMs: pauseStartedAtMsRef.current,
-          lastCoord: nextCoord,
-        }).catch(() => {});
-        sessionSaveTimerRef.current = null;
-      }, 5000);
+      processIncomingLocation(nextCoord, nextTimestamp, accuracy);
     });
   };
 
@@ -674,6 +714,7 @@ const RunningTrackerScreen = ({ navigation }) => {
                 lastCoordRef.current = lastCoord;
                 lastTimestampRef.current = Date.now();
                 routeCoordinatesRef.current = [lastCoord];
+                displayRouteCoordinatesRef.current = [lastCoord];
                 setRouteCoordinates([lastCoord]);
                 setMapRouteCoordinates([lastCoord]);
                 setPreStartCurrentLocation(lastCoord);
@@ -685,8 +726,7 @@ const RunningTrackerScreen = ({ navigation }) => {
                   processIncomingLocation(
                     { latitude: Number(item.latitude), longitude: Number(item.longitude) },
                     Number(item.timestamp || Date.now()),
-                    Number(item.accuracy || 0),
-                    Number(item.speed)
+                    Number(item.accuracy || 0)
                   );
                 });
               }
@@ -769,7 +809,7 @@ const RunningTrackerScreen = ({ navigation }) => {
     };
   }, [navigation]);
 
-  const handleStartRun = async () => {
+  const startRunTracking = async () => {
     if (hasStartedRun || isGpsPreparing || isStartingRun) return;
     setIsStartingRun(true);
     /** 타이머·기록 시작 시각: 반드시 「러닝 시작」 탭 직후 (GPS fix 타임스탬프 사용 안 함) */
@@ -833,11 +873,14 @@ const RunningTrackerScreen = ({ navigation }) => {
       smoothedSpeedMpsRef.current = null;
       totalPausedMsRef.current = 0;
       pauseStartedAtMsRef.current = null;
+      paceSamplesRef.current = [];
+      lastAcceptedPointRef.current = null;
       runStartedAtMsRef.current = sessionStartMs;
       startTimeRef.current = new Date(sessionStartMs);
       lastCoordRef.current = initialCoord;
       lastTimestampRef.current = sessionStartMs;
       routeCoordinatesRef.current = [initialCoord];
+      displayRouteCoordinatesRef.current = [initialCoord];
       setRouteCoordinates([initialCoord]);
       setMapRouteCoordinates([initialCoord]);
       setPreStartCurrentLocation(initialCoord);
@@ -854,15 +897,21 @@ const RunningTrackerScreen = ({ navigation }) => {
         lastCoord: initialCoord,
       });
 
-      try {
-        const hasBackgroundPermission = await backgroundLocationService.ensureBackgroundPermission();
-        if (hasBackgroundPermission) {
-          await backgroundLocationService.start();
-        } else {
-          console.warn('⚠️ 백그라운드 위치 권한 미허용: 포그라운드 추적만 동작');
-        }
-      } catch (bgError) {
-        console.warn('⚠️ 백그라운드 위치 추적 시작 실패:', bgError?.message || bgError);
+      const hasBackgroundPermission = await backgroundLocationService.ensureBackgroundPermission();
+      if (!hasBackgroundPermission) {
+        setBgPermissionGranted(false);
+        const permissionError = new Error('BACKGROUND_PERMISSION_REQUIRED');
+        permissionError.code = 'BACKGROUND_PERMISSION_REQUIRED';
+        throw permissionError;
+      }
+      setBgPermissionGranted(true);
+
+      await backgroundLocationService.start();
+      const didStartBackgroundTracking = await backgroundLocationService.isStarted();
+      if (!didStartBackgroundTracking) {
+        const startError = new Error('BACKGROUND_TRACKING_START_FAILED');
+        startError.code = 'BACKGROUND_TRACKING_START_FAILED';
+        throw startError;
       }
 
       const watcher = await Location.watchPositionAsync(
@@ -872,24 +921,57 @@ const RunningTrackerScreen = ({ navigation }) => {
           distanceInterval: 1,
         },
         (position) => {
+          if (appStateRef.current !== 'active') return;
           const nextCoord = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           };
           const nextTimestamp = position.timestamp || Date.now();
           const accuracy = Number(position.coords?.accuracy || 0);
-          processIncomingLocation(nextCoord, nextTimestamp, accuracy, position.coords?.speed);
+          processIncomingLocation(nextCoord, nextTimestamp, accuracy);
         }
       );
 
       locationWatcherRef.current = watcher;
       setHasStartedRun(true);
     } catch (error) {
+      if (error?.code === 'BACKGROUND_PERMISSION_REQUIRED') {
+        await runningTrackingSessionService.clear().catch(() => {});
+        await backgroundLocationService.stop().catch(() => {});
+        Alert.alert(
+          '백그라운드 위치 권한 필요',
+          '화면이 꺼진 상태에서도 정확한 거리/경로 측정을 위해 위치 권한을 "항상 허용"으로 설정해주세요.',
+          [
+            { text: '취소', style: 'cancel' },
+            { text: '설정으로 이동', onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+      if (error?.code === 'BACKGROUND_TRACKING_START_FAILED') {
+        await runningTrackingSessionService.clear().catch(() => {});
+        await backgroundLocationService.stop().catch(() => {});
+        Alert.alert('오류', '백그라운드 위치 추적 시작에 실패했습니다. 권한/기기 설정을 확인 후 다시 시도해주세요.');
+        return;
+      }
       console.error('❌ 러닝 시작 실패:', error);
       Alert.alert('오류', '러닝 시작에 실패했습니다. GPS 상태를 확인 후 다시 시도해주세요.');
     } finally {
       setIsStartingRun(false);
     }
+  };
+
+  const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const handleStartRun = async () => {
+    if (hasStartedRun || isGpsPreparing || isStartingRun || startCountdownNumber !== null) return;
+    for (let value = 3; value >= 1; value -= 1) {
+      setStartCountdownNumber(value);
+      // 3-2-1 리듬으로 시작 타이밍을 명확히 전달
+      await waitMs(START_COUNTDOWN_INTERVAL_MS);
+    }
+    setStartCountdownNumber(null);
+    await startRunTracking();
   };
 
   const handleExitBeforeStart = () => {
@@ -910,6 +992,9 @@ const RunningTrackerScreen = ({ navigation }) => {
       isPausedRef.current = next;
       if (next) {
         pauseStartedAtMsRef.current = Date.now();
+        paceSamplesRef.current = [];
+        smoothedSpeedMpsRef.current = null;
+        setCurrentPaceText('--:--/km');
       } else if (pauseStartedAtMsRef.current) {
         totalPausedMsRef.current += Date.now() - pauseStartedAtMsRef.current;
         pauseStartedAtMsRef.current = null;
@@ -1097,17 +1182,31 @@ const RunningTrackerScreen = ({ navigation }) => {
     setShowFinishConfirmModal(true);
   };
 
-  useEffect(() => {
-    if (!hasStartedRun || endedRef.current) return undefined;
-    const timer = setInterval(() => {
-      backgroundLocationService.consumeBufferedLocations()
-        .then((items) => processBufferedLocations(items))
-        .catch(() => {});
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [hasStartedRun]);
-
   const finishMapCoordinates = toMapCoords(pendingFinishData?.finalRouteCoordinates || []);
+  const preStartControlsOpacity = startTransitionAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+  const runningControlsOpacity = startTransitionAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+  const preStartControlsTranslateY = startTransitionAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 8],
+  });
+  const runningControlsTranslateY = startTransitionAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [8, 0],
+  });
+  const bottomModalTranslateY = startTransitionAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [6, 0],
+  });
+  const bottomModalOpacity = startTransitionAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.96, 1],
+  });
 
   return (
     <View style={styles.container}>
@@ -1140,9 +1239,30 @@ const RunningTrackerScreen = ({ navigation }) => {
           pointerEvents="box-none"
         >
           {isGpsPreparing ? (
-            <View style={styles.gpsPreparingWrap}>
-              <Text style={[styles.mapPlaceholderText, styles.gpsPreparingText]}>GPS 수신 확인중...</Text>
-              <Text style={styles.gpsPreparingSubText}>정확한 시작 위치를 확인하고 있어요</Text>
+            <View style={styles.gpsPreparingGlassCard}>
+              <Text style={styles.gpsPreparingText}>위치 확인 중</Text>
+              <View style={styles.gpsLoadingDotsRow}>
+                {gpsDotAnimValuesRef.current.map((value, index) => (
+                  <Animated.View
+                    key={`gps-loading-dot-${index}`}
+                    style={[
+                      styles.gpsLoadingDot,
+                      {
+                        transform: [{
+                          scale: value.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 1.35],
+                          }),
+                        }],
+                        backgroundColor: value.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['#FFFFFF', COLORS.PRIMARY],
+                        }),
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
             </View>
           ) : showGpsReadyFeedback ? (
             <View style={styles.gpsReadyFeedbackWrap}>
@@ -1173,7 +1293,15 @@ const RunningTrackerScreen = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      <View style={styles.bottomModal}>
+      <Animated.View
+        style={[
+          styles.bottomModal,
+          {
+            opacity: bottomModalOpacity,
+            transform: [{ translateY: bottomModalTranslateY }],
+          },
+        ]}
+      >
         <View style={styles.metricRow}>
           <View style={styles.metricItem}>
             <Text style={styles.metricLabel}>시간</Text>
@@ -1193,60 +1321,84 @@ const RunningTrackerScreen = ({ navigation }) => {
           </View>
         </View>
         <View style={styles.actionRow}>
-          {!hasStartedRun ? (
-            <>
-              <TouchableOpacity
-                style={[
-                  styles.startButton,
-                  (isGpsPreparing || isStartingRun) && styles.disabledActionButton,
-                ]}
-                onPress={handleStartRun}
-                disabled={isGpsPreparing || isStartingRun}
-              >
-                {isStartingRun ? (
-                  <ActivityIndicator size="small" color="#000000" />
-                ) : (
-                  <>
-                    <Ionicons name="play" size={18} color="#000000" />
-                    <Text style={styles.startButtonText}>러닝 시작</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.endButton}
-                onPress={handleExitBeforeStart}
-              >
-                <Ionicons name="stop" size={18} color="#ffffff" />
-                <Text style={styles.endButtonText}>러닝 종료</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity
-                style={[styles.pauseButton, isGpsPreparing && styles.disabledActionButton]}
-                onPress={handlePauseResume}
-                disabled={isGpsPreparing}
-              >
-                <Ionicons name={isPaused ? 'play' : 'pause'} size={18} color="#000000" />
-                <Text style={styles.pauseButtonText}>{isPaused ? '재개' : '일시정지'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.endButton, isGpsPreparing && styles.disabledActionButton]}
-                onPress={handleEnd}
-                disabled={isGpsPreparing}
-              >
-                <Ionicons name="stop" size={18} color="#ffffff" />
-                <Text style={styles.endButtonText}>종료</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <Animated.View
+            pointerEvents={hasStartedRun ? 'none' : 'auto'}
+            style={[
+              styles.actionLayer,
+              {
+                opacity: preStartControlsOpacity,
+                transform: [{ translateY: preStartControlsTranslateY }],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[
+                styles.startButton,
+                (isGpsPreparing || isStartingRun || startCountdownNumber !== null) && styles.disabledActionButton,
+              ]}
+              onPress={handleStartRun}
+              disabled={isGpsPreparing || isStartingRun || startCountdownNumber !== null}
+            >
+              {isStartingRun ? (
+                <ActivityIndicator size="small" color="#000000" />
+              ) : (
+                <>
+                  <Ionicons name="play" size={18} color="#000000" />
+                  <Text style={styles.startButtonText}>러닝 시작</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.endButton}
+              onPress={handleExitBeforeStart}
+              disabled={startCountdownNumber !== null}
+            >
+              <Ionicons name="stop" size={18} color="#000000" />
+              <Text style={styles.endButtonText}>러닝 종료</Text>
+            </TouchableOpacity>
+          </Animated.View>
+          <Animated.View
+            pointerEvents={hasStartedRun ? 'auto' : 'none'}
+            style={[
+              styles.actionLayer,
+              {
+                opacity: runningControlsOpacity,
+                transform: [{ translateY: runningControlsTranslateY }],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.pauseButton, isGpsPreparing && styles.disabledActionButton]}
+              onPress={handlePauseResume}
+              disabled={isGpsPreparing}
+            >
+              <Ionicons name={isPaused ? 'play' : 'pause'} size={18} color="#000000" />
+              <Text style={styles.pauseButtonText}>{isPaused ? '재개' : '일시정지'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.endButton, isGpsPreparing && styles.disabledActionButton]}
+              onPress={handleEnd}
+              disabled={isGpsPreparing}
+            >
+              <Ionicons name="stop" size={18} color="#000000" />
+              <Text style={styles.endButtonText}>종료</Text>
+            </TouchableOpacity>
+          </Animated.View>
         </View>
         {runningMapStatus === 'error' && !isGpsPreparing && (
           <TouchableOpacity style={styles.mapRetryButton} onPress={handleRetryRunningMap}>
             <Text style={styles.mapRetryButtonText}>지도 다시 시도</Text>
           </TouchableOpacity>
         )}
-      </View>
+      </Animated.View>
+
+      {startCountdownNumber !== null && (
+        <View style={styles.startCountdownOverlay} pointerEvents="auto">
+          <View style={styles.startCountdownCard}>
+            <Text style={styles.startCountdownNumber}>{startCountdownNumber}</Text>
+          </View>
+        </View>
+      )}
 
       <Modal visible={showFinishConfirmModal} transparent animationType="fade" onRequestClose={handleDiscardRunRecord}>
         <View style={styles.finishModalOverlay}>
@@ -1352,6 +1504,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actionRow: {
+    position: 'relative',
+    minHeight: 56,
+  },
+  actionLayer: {
+    ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     gap: 12,
   },
@@ -1380,21 +1537,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
-  gpsPreparingWrap: {
+  gpsPreparingGlassCard: {
     alignItems: 'center',
     justifyContent: 'center',
+    width: 190,
+    minHeight: 76,
+    borderRadius: 20,
+    backgroundColor: 'rgba(20,20,24,0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    shadowColor: '#000000',
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
   },
   gpsPreparingText: {
-    fontSize: 19,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#ECFCFF',
-    marginBottom: 6,
+    marginBottom: 10,
   },
-  gpsPreparingSubText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#BBD2D6',
-    textAlign: 'center',
+  gpsLoadingDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  gpsLoadingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
   },
   gpsReadyFeedbackWrap: {
     alignItems: 'center',
@@ -1439,7 +1614,7 @@ const styles = StyleSheet.create({
   },
   endButton: {
     flex: 1,
-    backgroundColor: COLORS.DANGER,
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1448,7 +1623,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   endButtonText: {
-    color: '#ffffff',
+    color: '#000000',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -1490,6 +1665,33 @@ const styles = StyleSheet.create({
     color: '#E7E7EC',
     fontSize: 12,
     fontWeight: '600',
+  },
+  startCountdownOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(8,8,12,0.42)',
+    zIndex: 11,
+  },
+  startCountdownCard: {
+    width: 104,
+    height: 104,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(20,20,24,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  startCountdownNumber: {
+    color: '#FFFFFF',
+    fontSize: 52,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   finishModalOverlay: {
     flex: 1,

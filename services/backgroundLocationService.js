@@ -51,6 +51,10 @@ if (!TaskManager.isTaskDefined(BACKGROUND_RUNNING_LOCATION_TASK)) {
 const backgroundLocationService = {
   taskName: BACKGROUND_RUNNING_LOCATION_TASK,
 
+  async isStarted() {
+    return Location.hasStartedLocationUpdatesAsync(BACKGROUND_RUNNING_LOCATION_TASK);
+  },
+
   async ensureBackgroundPermission() {
     const current = await Location.getBackgroundPermissionsAsync();
     if (current?.granted) return true;
@@ -66,9 +70,11 @@ const backgroundLocationService = {
     await AsyncStorage.setItem(BUFFER_KEY, JSON.stringify([]));
 
     await Location.startLocationUpdatesAsync(BACKGROUND_RUNNING_LOCATION_TASK, {
-      accuracy: Location.Accuracy.Balanced,
+      accuracy: Location.Accuracy.High,
       distanceInterval: 3,
       timeInterval: 1500,
+      deferredUpdatesDistance: 1,
+      deferredUpdatesInterval: 1000,
       activityType: Location.ActivityType.Fitness,
       pausesUpdatesAutomatically: false,
       showsBackgroundLocationIndicator: true,
