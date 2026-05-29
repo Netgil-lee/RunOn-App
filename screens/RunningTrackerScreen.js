@@ -537,7 +537,7 @@ const RunningTrackerScreen = ({ navigation }) => {
     return gapMeters <= DUPLICATE_DISTANCE_METERS;
   };
 
-  const processIncomingLocation = (nextCoord, nextTimestamp, accuracy = 0) => {
+  const processIncomingLocation = (nextCoord, nextTimestamp, accuracy = 0, skipDuplicateCheck = false) => {
     if (endedRef.current) return;
     if (!nextCoord) return;
 
@@ -588,7 +588,7 @@ const RunningTrackerScreen = ({ navigation }) => {
       const speedMps = delta / elapsed;
       if (speedMps > 12) return;
     }
-    if (isDuplicateAcceptedPoint(nextCoord, nextTimestamp)) return;
+    if (!skipDuplicateCheck && isDuplicateAcceptedPoint(nextCoord, nextTimestamp)) return;
 
     distanceMetersRef.current += delta;
     setDistanceMeters(distanceMetersRef.current);
@@ -634,7 +634,7 @@ const RunningTrackerScreen = ({ navigation }) => {
       const nextTimestamp = Number(item.timestamp || Date.now());
       const accuracy = Number(item.accuracy || 0);
       if (!Number.isFinite(nextCoord.latitude) || !Number.isFinite(nextCoord.longitude)) return;
-      processIncomingLocation(nextCoord, nextTimestamp, accuracy);
+      processIncomingLocation(nextCoord, nextTimestamp, accuracy, true);
     });
   };
 
