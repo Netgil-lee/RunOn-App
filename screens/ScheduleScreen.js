@@ -35,7 +35,6 @@ import runOnRunningService from '../services/runOnRunningService';
 import ENV from '../config/environment';
 import storageService from '../services/storageService';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { searchPlace } from '../services/kakaoPlacesService';
 import * as Location from 'expo-location';
 import * as Clipboard from 'expo-clipboard';
 import { recordMeetingLocation } from '../services/userActivityService';
@@ -2146,9 +2145,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [showLocationDropdown, setShowLocationDropdown] = useState(false); // 드롭다운 표시 상태
   // 검색 관련 state
   const [locationSearchQuery, setLocationSearchQuery] = useState('');
-  const [locationSearchResults, setLocationSearchResults] = useState([]);
-  const [isLocationSearching, setIsLocationSearching] = useState(false);
-  const [showLocationSearchResults, setShowLocationSearchResults] = useState(false);
   
   // 모달 오버레이 페이드 애니메이션
   const datePickerModalBackdropOpacity = useRef(new Animated.Value(0)).current;
@@ -2397,39 +2393,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   ];
 
 
-  // 장소 검색 함수
-  const [noSearchResults, setNoSearchResults] = useState(false);
-  
-  const performLocationSearch = async (query) => {
-    if (!query.trim()) {
-      setLocationSearchResults([]);
-      setShowLocationSearchResults(false);
-      setIsLocationSearching(false);
-      setNoSearchResults(false);
-      return;
-    }
-
-    setIsLocationSearching(true);
-    setShowLocationSearchResults(true);
-    setNoSearchResults(false);
-
-    try {
-      const results = await searchPlace(query, { size: 10 });
-      setLocationSearchResults(results);
-      
-      if (results.length === 0) {
-        // Alert 대신 UI에서 표시 (더 부드러운 UX)
-        setNoSearchResults(true);
-      }
-    } catch (error) {
-      console.error('장소 검색 실패:', error);
-      setNoSearchResults(true);
-      setLocationSearchResults([]);
-    } finally {
-      setIsLocationSearching(false);
-    }
-  };
-
   const clearMapMoveRetries = useCallback(() => {
     mapMoveRetryTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
     mapMoveRetryTimeoutsRef.current = [];
@@ -2513,59 +2476,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       Alert.alert('위치 오류', 'GPS 위치를 가져올 수 없습니다.');
     }
   }, [moveMapToLocation]);
-
-  // 검색 결과 선택 핸들러
-  const handleLocationSearchResultSelect = (result) => {
-    const locationName = result.place_name || result.name;
-    const locationLat = parseFloat(result.y || result.lat);
-    const locationLng = parseFloat(result.x || result.lng);
-
-    // 사용자가 검색 결과를 직접 선택한 이후에는
-    // 비동기 현재위치 초기화가 선택 좌표를 덮어쓰지 않도록 플래그 설정
-    hasUserSelectedLocationRef.current = true;
-    setIsLocationInitialized(true);
-    
-    // 선택된 장소 정보 저장
-    setLocation(locationName);
-    const newSelectedLocationData = {
-      name: locationName,
-      lat: locationLat,
-      lng: locationLng,
-      address: result.address_name || result.road_address_name || '',
-    };
-    // 새 검색 결과로 WebView가 재로딩되므로 로딩 완료 신호 전까지 이동 명령을 큐에 보관
-    isInlineMapLoadedRef.current = false;
-    setSelectedLocationData(newSelectedLocationData);
-    setSelectedLocation('custom'); // 커스텀 위치로 설정
-    setLocationSearchQuery(locationName);
-    setShowLocationSearchResults(false);
-    
-    // 검색 결과 선택 시에는 빨간 마커(상세 위치 마커)를 설정하지 않음
-    // 지도 클릭 시에만 빨간 마커가 나타나도록 함
-    // 기존 커스텀 마커 초기화
-    setCustomMarkerCoords(null);
-    setHasCustomMarker(false);
-    setCustomLocation(''); // 상세 위치 설명도 초기화
-    
-    // 이동 명령은 WebView 로딩 완료(inlineMapLoaded) 시점에 자동 실행됨
-    moveMapToLocation(locationLat, locationLng, true);
-  };
-
-  // Debounce를 통한 자동 검색
-  useEffect(() => {
-    if (!locationSearchQuery.trim()) {
-      setLocationSearchResults([]);
-      setShowLocationSearchResults(false);
-      setIsLocationSearching(false);
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      performLocationSearch(locationSearchQuery);
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [locationSearchQuery]);
 
   const canProceed = () => {
     switch (currentStep) {
@@ -2969,70 +2879,16 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           onChangeText={setLocationSearchQuery}
           autoCapitalize="none"
           autoCorrect={false}
-          onFocus={() => setShowLocationSearchResults(true)}
-          onBlur={() => {
-            // 약간의 지연 후 드롭다운 닫기 (선택 이벤트가 먼저 발생하도록)
-            setTimeout(() => setShowLocationSearchResults(false), 200);
-          }}
         />
-        {isLocationSearching && (
-          <ActivityIndicator size="small" color={COLORS.PRIMARY} style={styles.locationSearchLoading} />
-        )}
-        {locationSearchQuery.length > 0 && !isLocationSearching && (
-        <TouchableOpacity
-          onPress={() => {
-              setLocationSearchQuery('');
-              setLocationSearchResults([]);
-              setShowLocationSearchResults(false);
-            }}
+        {locationSearchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setLocationSearchQuery('')}
             style={styles.locationSearchClearButton}
           >
             <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
-        </TouchableOpacity>
+          </TouchableOpacity>
         )}
       </View>
-
-      {/* 검색 결과 리스트 */}
-      {showLocationSearchResults && locationSearchResults.length > 0 && (
-        <View style={styles.locationSearchResultsDropdown}>
-          <ScrollView style={styles.locationSearchResultsList}>
-            {locationSearchResults.map((result, index) => (
-          <TouchableOpacity
-                key={index}
-                style={styles.locationSearchResultItem}
-                onPress={() => handleLocationSearchResultSelect(result)}
-              >
-            <Ionicons 
-                  name="location"
-              size={20} 
-                  color={COLORS.PRIMARY}
-                  style={styles.locationSearchResultIcon}
-                />
-                <View style={styles.locationSearchResultContent}>
-                  <Text style={styles.locationSearchResultTitle}>
-                    {result.place_name || result.name}
-                  </Text>
-                  <Text style={styles.locationSearchResultSubtitle} numberOfLines={1}>
-                    {result.address_name || result.road_address_name || ''}
-                  </Text>
-                  {result.category_name && (
-                    <Text style={styles.locationSearchResultCategory}>{result.category_name}</Text>
-                  )}
-                </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-        </View>
-      )}
-
-      {/* 검색 결과 없음 표시 */}
-      {showLocationSearchResults && noSearchResults && locationSearchResults.length === 0 && !isLocationSearching && (
-        <View style={styles.noSearchResultsContainer}>
-          <Ionicons name="search-outline" size={24} color={COLORS.SECONDARY} />
-          <Text style={styles.noSearchResultsText}>검색 결과가 없습니다</Text>
-          <Text style={styles.noSearchResultsSubtext}>다른 키워드로 검색해 보세요</Text>
-        </View>
-      )}
 
       {/* 3단계: 선택된 장소 정보 및 지도 */}
       <View style={styles.selectedLocationSection}>

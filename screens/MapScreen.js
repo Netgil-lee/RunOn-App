@@ -159,7 +159,6 @@ const MapScreen = ({ navigation, route }) => {
   const foodsRef = useRef([]);
   const handleCafeClickRef = useRef(null);
   const handleFoodClickRef = useRef(null);
-  const [clusterData, setClusterData] = useState(null); // 클러스터 클릭 시 데이터
   const [selectedEvent, setSelectedEvent] = useState(null); // 선택된 모임 (상세 화면 표시용)
   const [selectedCafe, setSelectedCafe] = useState(null); // 선택된 카페 (상세 화면 표시용)
   const [selectedFood, setSelectedFood] = useState(null); // 선택된 러닝푸드 (상세 화면 표시용)
@@ -175,7 +174,7 @@ const MapScreen = ({ navigation, route }) => {
   const [cafeSearchQuery, setCafeSearchQuery] = useState(''); // 카페 검색어
   const [foodSearchQuery, setFoodSearchQuery] = useState(''); // 러닝푸드 검색어
   const [mapSearchQuery, setMapSearchQuery] = useState(''); // 지도 탭 검색어
-  const [searchResults, setSearchResults] = useState([]); // 검색 결과
+  const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false); // 검색 중 상태
   const [showSearchResults, setShowSearchResults] = useState(false); // 검색 결과 표시 여부
   const [isSearchMode, setIsSearchMode] = useState(false); // 검색 전용 화면 모드
@@ -273,68 +272,28 @@ const MapScreen = ({ navigation, route }) => {
     return maxBottomSheetHeight;
   }, [maxBottomSheetHeight]);
   
-  // 필터링된 모임 목록 (검색어 기반)
   const filteredEvents = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return clusterData 
-        ? clusterData.filter(item => item.type === 'event').map(item => item.data)
-        : events;
-    }
-    
+    if (!searchQuery.trim()) return events;
     const query = searchQuery.toLowerCase();
-    const allEvents = clusterData 
-      ? clusterData.filter(item => item.type === 'event').map(item => item.data)
-      : events;
-    
-    return allEvents.filter(event => {
+    return events.filter(event => {
       const titleMatch = event.title?.toLowerCase().includes(query);
-      const tagMatch = event.tags?.some(tag => 
-        tag.toLowerCase().includes(query) || 
-        (typeof tag === 'string' && tag.toLowerCase().includes(query))
-      );
+      const tagMatch = event.tags?.some(tag => tag.toLowerCase().includes(query));
       const hashtagMatch = event.hashtags?.toLowerCase().includes(query);
-      
       return titleMatch || tagMatch || hashtagMatch;
     });
-  }, [events, clusterData, searchQuery]);
-  
-  // 필터링된 카페 목록 (검색어 기반)
+  }, [events, searchQuery]);
+
   const filteredCafes = useMemo(() => {
-    if (!cafeSearchQuery.trim()) {
-      return clusterData 
-        ? clusterData.filter(item => item.type === 'cafe').map(item => item.data)
-        : cafes;
-    }
-    
+    if (!cafeSearchQuery.trim()) return cafes;
     const query = cafeSearchQuery.toLowerCase();
-    const allCafes = clusterData 
-      ? clusterData.filter(item => item.type === 'cafe').map(item => item.data)
-      : cafes;
-    
-    return allCafes.filter(cafe => {
-      const nameMatch = cafe.name?.toLowerCase().includes(query);
-      return nameMatch;
-    });
-  }, [cafes, clusterData, cafeSearchQuery]);
+    return cafes.filter(cafe => cafe.name?.toLowerCase().includes(query));
+  }, [cafes, cafeSearchQuery]);
 
-  // 필터링된 러닝푸드 목록 (검색어 기반)
   const filteredFoods = useMemo(() => {
-    if (!foodSearchQuery.trim()) {
-      return clusterData
-        ? clusterData.filter(item => item.type === 'food').map(item => item.data)
-        : foods;
-    }
-
+    if (!foodSearchQuery.trim()) return foods;
     const query = foodSearchQuery.toLowerCase();
-    const allFoods = clusterData
-      ? clusterData.filter(item => item.type === 'food').map(item => item.data)
-      : foods;
-
-    return allFoods.filter(food => {
-      const nameMatch = food.name?.toLowerCase().includes(query);
-      return nameMatch;
-    });
-  }, [foods, clusterData, foodSearchQuery]);
+    return foods.filter(food => food.name?.toLowerCase().includes(query));
+  }, [foods, foodSearchQuery]);
 
   // Runon 색상 시스템
   const COLORS = {
@@ -364,7 +323,7 @@ const MapScreen = ({ navigation, route }) => {
         <meta http-equiv="Expires" content="0">
         <title>러논 지도</title>
         <!-- 카카오맵 SDK 로딩 -->
-        <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${javascriptKey}&libraries=services,clusterer,drawing"></script>
+        <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${javascriptKey}"></script>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
@@ -430,11 +389,9 @@ const MapScreen = ({ navigation, route }) => {
           var cafeInfoWindows = []; // 카페 마커 정보창 배열
           var foodInfoWindows = []; // 러닝푸드 마커 정보창 배열
           var currentToggle = 'events'; // 'events' | 'cafes' | 'foods'
-          var clusterer = null; // MarkerClusterer 인스턴스
-          var currentEventsData = []; // 현재 표시된 모임 데이터
-          var currentCafesData = []; // 현재 표시된 카페 데이터
-          var currentFoodsData = []; // 현재 표시된 러닝푸드 데이터
-          var searchPlaceMarker = null; // 검색한 장소 마커
+          var currentEventsData = [];
+          var currentCafesData = [];
+          var currentFoodsData = [];
           var isProgrammaticMove = false; // 프로그래밍 방식 지도 이동 중 플래그
           var currentMapLevel = 9; // 현재 지도 레벨
           var openEventInfoWindowId = null; // 현재 열려있는 모임 인포윈도우의 이벤트 ID
@@ -445,28 +402,6 @@ const MapScreen = ({ navigation, route }) => {
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage('LOG: ' + type.toUpperCase() + ' - ' + message);
             }
-          }
-          
-          // 클러스터 업데이트 함수
-          function updateClusterer() {
-            if (!clusterer || !map) return;
-            
-            var activeMarkers = [];
-            if (currentToggle === 'events') {
-              activeMarkers = eventMarkers;
-            } else if (currentToggle === 'cafes') {
-              activeMarkers = cafeMarkers;
-            } else if (currentToggle === 'foods') {
-              activeMarkers = foodMarkers;
-            }
-            
-            // 클러스터에 마커 업데이트
-            clusterer.clear();
-            if (activeMarkers.length > 0) {
-              clusterer.addMarkers(activeMarkers);
-            }
-            
-            log('🔄 클러스터 업데이트: ' + activeMarkers.length + '개 마커', 'info');
           }
           
           // 마커 표시/숨김 함수
@@ -520,7 +455,6 @@ const MapScreen = ({ navigation, route }) => {
             }
             
             // 클러스터 업데이트
-            updateClusterer();
             
             log('🔄 토글 변경: ' + toggle, 'info');
           }
@@ -549,8 +483,7 @@ const MapScreen = ({ navigation, route }) => {
             
             if (!eventsData || eventsData.length === 0) {
               log('📍 모임 데이터 없음', 'info');
-              updateClusterer();
-              return;
+                return;
             }
             
             eventsData.forEach(function(event) {
@@ -656,7 +589,6 @@ const MapScreen = ({ navigation, route }) => {
             });
             
             // 클러스터 업데이트
-            updateClusterer();
             
             // 이전에 열려있던 인포윈도우 복원 (마커 클릭 시 필수 동작 실행 중이면 유지)
             if (previouslyOpenEventId) {
@@ -692,8 +624,7 @@ const MapScreen = ({ navigation, route }) => {
             
             if (!cafesData || cafesData.length === 0) {
               log('📍 카페 데이터 없음', 'info');
-              updateClusterer();
-              return;
+                return;
             }
             
             cafesData.forEach(function(cafe) {
@@ -801,7 +732,6 @@ const MapScreen = ({ navigation, route }) => {
             });
             
             // 클러스터 업데이트
-            updateClusterer();
             
             // 이전에 열려있던 인포윈도우 복원 (마커 클릭 시 필수 동작 실행 중이면 유지)
             if (previouslyOpenCafeId) {
@@ -835,8 +765,7 @@ const MapScreen = ({ navigation, route }) => {
 
             if (!foodsData || foodsData.length === 0) {
               log('📍 러닝푸드 데이터 없음', 'info');
-              updateClusterer();
-              return;
+                return;
             }
 
             foodsData.forEach(function(food) {
@@ -933,7 +862,6 @@ const MapScreen = ({ navigation, route }) => {
               }
             });
 
-            updateClusterer();
 
             if (previouslyOpenFoodId) {
               setTimeout(function() {
@@ -1072,38 +1000,7 @@ const MapScreen = ({ navigation, route }) => {
                   map.setCenter(placePosition);
                   map.setLevel(3); // 더 확대 (숫자가 작을수록 확대)
                   
-                  // 기존 검색 장소 마커 제거
-                  if (searchPlaceMarker) {
-                    searchPlaceMarker.setMap(null);
-                    searchPlaceMarker = null;
-                  }
-                  
-                  // 검색한 장소에 마커 표시 (금색 마커)
-                  var searchPlaceSvg = '<svg width="28" height="35" viewBox="0 0 28 35" xmlns="http://www.w3.org/2000/svg">' +
-                    '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="#FFD700"/>' +
-                    '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="none" stroke="#ffffff" stroke-width="2"/>' +
-                    '<circle cx="14" cy="14" r="7" fill="#ffffff"/>' +
-                    '<circle cx="14" cy="14" r="4" fill="#FFD700"/>' +
-                    '</svg>';
-                  
-                  var searchPlaceImageSrc = 'data:image/svg+xml;base64,' + btoa(searchPlaceSvg);
-                  var searchPlaceImageSize = new kakao.maps.Size(28, 35);
-                  var searchPlaceImageOffset = new kakao.maps.Point(14, 35);
-                  
-                  var searchPlaceImage = new kakao.maps.MarkerImage(
-                    searchPlaceImageSrc,
-                    searchPlaceImageSize,
-                    { offset: searchPlaceImageOffset }
-                  );
-                  
-                  searchPlaceMarker = new kakao.maps.Marker({
-                    position: placePosition,
-                    image: searchPlaceImage,
-                    map: map,
-                    zIndex: 200
-                  });
-                  
-                  log('📍 장소 위치로 지도 이동 및 마커 표시', 'info');
+                  log('📍 장소 위치로 지도 이동', 'info');
                 }
               } else if (data.type === 'mapClick' || data.type === 'mapDrag') {
                 // 지도 클릭/드래그 시 React Native로 메시지 전송 (지도는 자동으로 움직임)
@@ -1182,70 +1079,6 @@ const MapScreen = ({ navigation, route }) => {
                 map = window.map;
                 map.setMapTypeId(kakao.maps.MapTypeId.ROADMAP);
                 currentMapLevel = map.getLevel(); // 초기 레벨 설정
-                
-                // MarkerClusterer 초기화
-                clusterer = new kakao.maps.MarkerClusterer({
-                  map: map,
-                  markers: [],
-                  gridSize: 60,
-                  minClusterSize: 5,
-                  averageCenter: true,
-                  styles: [{
-                    width: '50px',
-                    height: '50px',
-                    background: 'rgba(58, 248, 255, 0.5)',
-                    borderRadius: '50%',
-                    textAlign: 'center',
-                    lineHeight: '50px',
-                    color: '#ffffff',
-                    fontSize: '14px',
-                    fontWeight: 'bold'
-                  }]
-                });
-                
-                // 클러스터 클릭 이벤트
-                kakao.maps.event.addListener(clusterer, 'clusterclick', function(cluster) {
-                  var markers = cluster.getMarkers();
-                  var clusterData = [];
-                  
-                  markers.forEach(function(marker) {
-                    // 마커가 eventMarkers에 속하는지 확인
-                    var eventIndex = eventMarkers.indexOf(marker);
-                    if (eventIndex !== -1 && currentEventsData[eventIndex]) {
-                      clusterData.push({
-                        type: 'event',
-                        data: currentEventsData[eventIndex]
-                      });
-                    }
-                    
-                    // 마커가 cafeMarkers에 속하는지 확인
-                    var cafeIndex = cafeMarkers.indexOf(marker);
-                    if (cafeIndex !== -1 && currentCafesData[cafeIndex]) {
-                      clusterData.push({
-                        type: 'cafe',
-                        data: currentCafesData[cafeIndex]
-                      });
-                    }
-
-                    // 마커가 foodMarkers에 속하는지 확인
-                    var foodIndex = foodMarkers.indexOf(marker);
-                    if (foodIndex !== -1 && currentFoodsData[foodIndex]) {
-                      clusterData.push({
-                        type: 'food',
-                        data: currentFoodsData[foodIndex]
-                      });
-                    }
-                  });
-                  
-                  if (window.ReactNativeWebView && clusterData.length > 0) {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'clusterClick',
-                      clusterData: clusterData,
-                      markerCount: markers.length
-                    }));
-                    log('📍 클러스터 클릭: ' + markers.length + '개 마커', 'info');
-                  }
-                });
                 
                 // 지도 클릭 이벤트 리스너 추가 (bottom sheet만 닫고, 지도는 자동으로 움직임)
                 // 마커 클릭은 별도로 처리되므로 여기서는 지도 영역 클릭만 처리
@@ -1739,19 +1572,6 @@ const MapScreen = ({ navigation, route }) => {
           handleMapInteraction();
         }
         
-        // 클러스터 클릭 시 Bottom Sheet 확장 및 목록 표시
-        if (parsedData.type === 'clusterClick') {
-          const { clusterData: clickedClusterData, markerCount } = parsedData;
-          console.log('📍 클러스터 클릭:', markerCount, '개 마커');
-          
-          // 클러스터 데이터를 상태에 저장
-          setClusterData(clickedClusterData);
-          
-          // Bottom Sheet 확장
-          if (bottomSheetRef.current) {
-            bottomSheetRef.current.snapToIndex(1); // 전체 확장
-          }
-        }
       } catch (parseError) {
         // 문자열 메시지 처리 (collapseBottomSheet)
         if (data === 'collapseBottomSheet') {
@@ -1831,7 +1651,6 @@ const MapScreen = ({ navigation, route }) => {
     setSelectedEvent(null); // 선택된 모임 초기화
     setSelectedCafe(null); // 선택된 카페 초기화
     setSelectedFood(null); // 선택된 러닝푸드 초기화
-    setClusterData(null); // 클러스터 데이터 초기화
     
     // Bottom Sheet 축소
     if (bottomSheetRef.current) {
@@ -1899,7 +1718,6 @@ const MapScreen = ({ navigation, route }) => {
     setSelectedEvent(null); // 상세 화면 닫기
     setSelectedCafe(null); // 카페 상세 화면 닫기
     setSelectedFood(null); // 러닝푸드 상세 화면 닫기
-    setClusterData(null); // 클러스터 데이터 초기화
     setShowAllEvents(false); // 전체 보기 모드 해제
     setShowAllCafes(false); // 전체 보기 모드 해제
     setShowAllFoods(false); // 전체 보기 모드 해제
@@ -2320,20 +2138,6 @@ const MapScreen = ({ navigation, route }) => {
             ...item,
             searchType: item.type, // 'event' | 'cafe' | 'food'
             source: 'firestore'
-          });
-        });
-      }
-      
-      // Kakao Places API 결과 추가
-      if (results.kakaoResults && results.kakaoResults.length > 0) {
-        results.kakaoResults.forEach(item => {
-          allResults.push({
-            ...item,
-            searchType: 'place',
-            source: 'kakao',
-            name: item.place_name,
-            address: item.address_name || item.road_address_name,
-            category: item.category_name
           });
         });
       }
