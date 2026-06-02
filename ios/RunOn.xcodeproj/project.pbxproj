@@ -12,6 +12,8 @@
 		54ED4A2F2EAAA7AA00E88548 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54ED4A2D2EAAA7AA00E88548 /* HealthKit.framework */; };
 		8FD445BA8C84EF66552295E7 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E263AD39FD4D9C8A0A8FDB2F /* ExpoModulesProvider.swift */; };
 		A61003F77FE453DD5A79D73B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BDD7A9EA28500AF918CEECFF /* PrivacyInfo.xcprivacy */; };
+		AA001234AA000002000AABB1 /* RunningTrackerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001234AA000001000AABB1 /* RunningTrackerModule.swift */; };
+		AA001234AA000004000AABB1 /* RunningTrackerModule.m in Sources */ = {isa = PBXBuildFile; fileRef = AA001234AA000003000AABB1 /* RunningTrackerModule.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		ED4C7AAC4E3EC0DC58F95C14 /* Pods_RunOn.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4488E3F94C917229E1F8A543 /* Pods_RunOn.framework */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
@@ -24,6 +26,8 @@
 		4488E3F94C917229E1F8A543 /* Pods_RunOn.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunOn.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		4CB90133C5F069153589833B /* Pods-RunOn.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunOn.release.xcconfig"; path = "Target Support Files/Pods-RunOn/Pods-RunOn.release.xcconfig"; sourceTree = "<group>"; };
 		54ED4A2D2EAAA7AA00E88548 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
+		AA001234AA000001000AABB1 /* RunningTrackerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RunningTrackerModule.swift; path = RunOn/RunningTrackerModule.swift; sourceTree = "<group>"; };
+		AA001234AA000003000AABB1 /* RunningTrackerModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = RunningTrackerModule.m; path = RunOn/RunningTrackerModule.m; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = RunOn/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		BDD7A9EA28500AF918CEECFF /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = RunOn/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -69,6 +73,8 @@
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				F11748442D0722820044C1D9 /* RunOn-Bridging-Header.h */,
+				AA001234AA000001000AABB1 /* RunningTrackerModule.swift */,
+				AA001234AA000003000AABB1 /* RunningTrackerModule.m */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
@@ -350,6 +356,8 @@
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				8FD445BA8C84EF66552295E7 /* ExpoModulesProvider.swift in Sources */,
+				AA001234AA000002000AABB1 /* RunningTrackerModule.swift in Sources */,
+				AA001234AA000004000AABB1 /* RunningTrackerModule.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -365,7 +373,7 @@
 				CODE_SIGN_ENTITLEMENTS = RunOn/RunOn.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 181;
+				CURRENT_PROJECT_VERSION = 182;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 662HSA2S7V;
 				ENABLE_BITCODE = NO;
@@ -379,7 +387,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.28;
+				MARKETING_VERSION = 1.1.29;
 				NEW_SETTING = "";
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -409,7 +417,7 @@
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 181;
+				CURRENT_PROJECT_VERSION = 182;
 				DEVELOPMENT_TEAM = 662HSA2S7V;
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 662HSA2S7V;
 				INFOPLIST_FILE = RunOn/Info.plist;
@@ -418,7 +426,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.28;
+				MARKETING_VERSION = 1.1.29;
 				NEW_SETTING = "";
 				OTHER_LDFLAGS = (
 					"$(inherited)",
