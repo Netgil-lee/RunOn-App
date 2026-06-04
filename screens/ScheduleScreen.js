@@ -22,6 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import RouteMapSnapshot from '../components/RouteMapSnapshot';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
@@ -1257,6 +1258,15 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                           <Text style={styles.runningFeedStatValue}>{workout.duration}</Text>
                         </View>
                       </View>
+
+                      {Array.isArray(workout.routeCoordinates) && workout.routeCoordinates.length >= 2 && (
+                        <View style={styles.runningFeedMapWrapper}>
+                          <RouteMapSnapshot
+                            coordinates={workout.routeCoordinates}
+                            workoutId={workout.id}
+                          />
+                        </View>
+                      )}
 
                       <View style={styles.runningFeedFooter}>
                         <View style={styles.runningFeedActionButtons}>
@@ -5437,7 +5447,12 @@ const styles = StyleSheet.create({
   runningFeedStatRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 12,
+  },
+  runningFeedMapWrapper: {
+    marginHorizontal: -14,  // 카드 paddingHorizontal(14) 상쇄 → 풀 너비
+    marginBottom: 12,
+    overflow: 'hidden',
   },
   runningFeedStatItem: {
     flex: 1,
