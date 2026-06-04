@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, ActivityIndicator, AppState, Linking, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Audio } from 'expo-av';
 import appleFitnessService from '../services/appleFitnessService';
@@ -9,7 +9,7 @@ import runOnRunningService from '../services/runOnRunningService';
 import nativeRunningService from '../services/nativeRunningService';
 import runningTrackingSessionService from '../services/runningTrackingSessionService';
 import RouteMap from '../components/RouteMap';
-import ENV from '../config/environment';
+
 
 const COLORS = {
   PRIMARY: '#3AF8FF',
@@ -97,18 +97,14 @@ const RunningTrackerScreen = ({ navigation }) => {
   const [isRunFinished, setIsRunFinished] = useState(false);
   const [isGpsPreparing, setIsGpsPreparing] = useState(true);
   const [showGpsReadyFeedback, setShowGpsReadyFeedback] = useState(false);
-  const [runningMapStatus, setRunningMapStatus] = useState('loading');
-  const [runningMapError, setRunningMapError] = useState('');
-  const [runningMapReloadKey, setRunningMapReloadKey] = useState(0);
+  const [runningMapReady, setRunningMapReady] = useState(false);
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [pendingFinishData, setPendingFinishData] = useState(null);
   const [isSavingRun, setIsSavingRun] = useState(false);
   const [startCountdownNumber, setStartCountdownNumber] = useState(null);
   const [bgPermissionGranted, setBgPermissionGranted] = useState(true);
 
-  const runningMapWebViewRef = useRef(null);
-  const isRunningMapLoadedRef = useRef(false);
-  const pendingMapPayloadRef = useRef(null);
+  const runningMapRef = useRef(null);
 
   const startTimeRef = useRef(new Date());
   const distanceMetersRef = useRef(0);
@@ -149,207 +145,27 @@ const RunningTrackerScreen = ({ navigation }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const createRunningMapHTML = useMemo(() => {
-    const kakaoApiKey = ENV.kakaoMapApiKey;
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-          <style>
-            html, body, #map {
-              width: 100%;
-              height: 100%;
-              margin: 0;
-              padding: 0;
-              background: #101014;
-            }
-          </style>
-        </head>
-        <body>
-          <div id="map"></div>
-          <script>
-            var map = null;
-            var polyline = null;
-            var currentMarker = null;
-            var startMarker = null;
-            var endMarker = null;
-            var mapReady = false;
+  // 경로 좌표 메모이제이션
+  const mapCoords = useMemo(() => toMapCoords(mapRouteCoordinates), [mapRouteCoordinates]);
 
-            function createMarkerImage(fillColor) {
-              var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">' +
-                '<circle cx="13" cy="13" r="10" fill="' + fillColor + '" stroke="#fff" stroke-width="3"/>' +
-                '</svg>';
-              return new kakao.maps.MarkerImage(
-                'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
-                new kakao.maps.Size(26, 26),
-                { offset: new kakao.maps.Point(13, 13) }
-              );
-            }
+  // 현재 위치 (러닝 중: 마지막 좌표, 시작 전: GPS 위치)
+  const mapCurrentLocation = useMemo(() => {
+    if (mapCoords.length > 0) return mapCoords[mapCoords.length - 1];
+    if (!hasStartedRun && preStartCurrentLocation) return preStartCurrentLocation;
+    return null;
+  }, [mapCoords, hasStartedRun, preStartCurrentLocation]);
 
-            function initMap() {
-              try {
-                var container = document.getElementById('map');
-                var options = {
-                  center: new kakao.maps.LatLng(37.5665, 126.9780),
-                  level: 4,
-                };
-                map = new kakao.maps.Map(container, options);
-                map.setZoomable(false);
-                mapReady = true;
-                postToRN('runningMapLoaded');
-              } catch (error) {
-                postToRN('runningMapError:MAP_INIT_FAILED');
-              }
-            }
-
-            function postToRN(msg) {
-              try {
-                window.ReactNativeWebView.postMessage(msg);
-              } catch(e) {}
-            }
-
-            document.addEventListener('message', handleMessage);
-            window.addEventListener('message', handleMessage);
-
-            function handleMessage(event) {
-              try {
-                var payload = JSON.parse(event.data);
-                if (!mapReady || !map) return;
-
-                if (payload.type === 'updateRunningRoute') {
-                  var coords = payload.routeCoordinates || [];
-                  var currentLoc = payload.currentLocation;
-                  var isFinished = payload.isFinished;
-                  var shouldFollow = payload.shouldFollowCamera;
-
-                  if (coords.length >= 2) {
-                    var path = coords.map(function(c) {
-                      return new kakao.maps.LatLng(c.latitude, c.longitude);
-                    });
-
-                    if (!polyline) {
-                      polyline = new kakao.maps.Polyline({
-                        map: map,
-                        path: path,
-                        strokeWeight: 5,
-                        strokeColor: '#3AF8FF',
-                        strokeOpacity: 0.95,
-                        strokeStyle: 'solid',
-                      });
-                    } else {
-                      polyline.setPath(path);
-                    }
-
-                    if (!startMarker) {
-                      startMarker = new kakao.maps.Marker({
-                        map: map,
-                        position: path[0],
-                        image: createMarkerImage('#00C853'),
-                      });
-                    }
-
-                    if (isFinished && !endMarker && coords.length >= 1) {
-                      var lastCoord = coords[coords.length - 1];
-                      endMarker = new kakao.maps.Marker({
-                        map: map,
-                        position: new kakao.maps.LatLng(lastCoord.latitude, lastCoord.longitude),
-                        image: createMarkerImage('#FF3B30'),
-                      });
-                    }
-                  }
-
-                  if (currentLoc) {
-                    var currentLatLng = new kakao.maps.LatLng(currentLoc.latitude, currentLoc.longitude);
-                    if (!currentMarker) {
-                      currentMarker = new kakao.maps.Marker({
-                        map: map,
-                        position: currentLatLng,
-                        image: createMarkerImage('#3AF8FF'),
-                      });
-                    } else {
-                      currentMarker.setPosition(currentLatLng);
-                    }
-                    if (shouldFollow) {
-                      map.setCenter(currentLatLng);
-                    }
-                  }
-                }
-              } catch(e) {}
-            }
-
-            (function() {
-              try {
-                var sdk = document.createElement('script');
-                sdk.type = 'text/javascript';
-                sdk.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoApiKey}&autoload=false';
-                sdk.onload = function() {
-                  kakao.maps.load(initMap);
-                };
-                sdk.onerror = function() {
-                  postToRN('runningMapError:SDK_LOAD_FAILED');
-                };
-                document.head.appendChild(sdk);
-              } catch (error) {
-                postToRN('runningMapError:' + (error && error.message ? error.message : 'SDK_LOAD_EXCEPTION'));
-              }
-            })();
-
-            setTimeout(function() {
-              if (!mapReady) {
-                postToRN('runningMapError:MAP_LOAD_TIMEOUT');
-              }
-            }, 7000);
-          </script>
-        </body>
-      </html>
-    `;
-  }, []);
-
-  const postRunningMapPayload = (payload) => {
-    if (!runningMapWebViewRef.current) return;
-    if (!isRunningMapLoadedRef.current) {
-      pendingMapPayloadRef.current = payload;
-      return;
-    }
-    runningMapWebViewRef.current.postMessage(JSON.stringify(payload));
-  };
-
+  // 카메라 자동 추적 (러닝 중 + 일시정지 아닐 때)
   useEffect(() => {
-    const normalizedCoords = toMapCoords(mapRouteCoordinates);
-    const currentLocation = normalizedCoords.length > 0
-      ? normalizedCoords[normalizedCoords.length - 1]
-      : (!hasStartedRun ? preStartCurrentLocation : null);
-    const shouldFollowCamera = !isPaused && !isRunFinished;
-
-    postRunningMapPayload({
-      type: 'updateRunningRoute',
-      routeCoordinates: normalizedCoords,
-      currentLocation,
-      isFinished: isRunFinished,
-      shouldFollowCamera,
-    });
-  }, [mapRouteCoordinates, isPaused, isRunFinished, hasStartedRun, preStartCurrentLocation]);
-
-  const handleRunningMapMessage = (event) => {
-    const data = event?.nativeEvent?.data;
-    if (data === 'runningMapLoaded') {
-      isRunningMapLoadedRef.current = true;
-      setRunningMapStatus('ready');
-      setRunningMapError('');
-      if (pendingMapPayloadRef.current && runningMapWebViewRef.current) {
-        runningMapWebViewRef.current.postMessage(JSON.stringify(pendingMapPayloadRef.current));
-        pendingMapPayloadRef.current = null;
-      }
-      return;
+    if (!isPaused && !isRunFinished && mapCurrentLocation) {
+      runningMapRef.current?.animateToRegion({
+        latitude: mapCurrentLocation.latitude,
+        longitude: mapCurrentLocation.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      }, 300);
     }
-    if (typeof data === 'string' && data.startsWith('runningMapError:')) {
-      const errorMessage = data.replace('runningMapError:', '').trim() || 'MAP_UNKNOWN_ERROR';
-      setRunningMapStatus('error');
-      setRunningMapError(errorMessage);
-    }
-  };
+  }, [mapCurrentLocation, isPaused, isRunFinished]);
 
   const playGpsReadyBeep = async () => {
     try {
@@ -754,13 +570,6 @@ const RunningTrackerScreen = ({ navigation }) => {
     });
   };
 
-  const handleRetryRunningMap = () => {
-    isRunningMapLoadedRef.current = false;
-    pendingMapPayloadRef.current = null;
-    setRunningMapError('');
-    setRunningMapStatus('loading');
-    setRunningMapReloadKey((prev) => prev + 1);
-  };
 
   const buildFinalizedRunData = async () => {
     const endTime = new Date();
@@ -922,33 +731,55 @@ const RunningTrackerScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.fullMapWrap}>
-        <WebView
-          key={`running-map-${runningMapReloadKey}`}
-          ref={runningMapWebViewRef}
-          source={{ html: createRunningMapHTML }}
+        <MapView
+          ref={runningMapRef}
+          provider={PROVIDER_DEFAULT}
           style={styles.runningMapWebView}
-          onMessage={handleRunningMapMessage}
-          onError={() => {
-            setRunningMapStatus('error');
-            setRunningMapError('WEBVIEW_LOAD_ERROR');
+          initialRegion={{
+            latitude: preStartCurrentLocation?.latitude ?? 37.5665,
+            longitude: preStartCurrentLocation?.longitude ?? 126.9780,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
           }}
-          javaScriptEnabled
-          domStorageEnabled
-          originWhitelist={['*']}
-          mixedContentMode="always"
           scrollEnabled={false}
-          bounces={false}
-        />
+          zoomEnabled={false}
+          rotateEnabled={false}
+          pitchEnabled={false}
+          showsUserLocation={false}
+          showsMyLocationButton={false}
+          showsCompass={false}
+          mapType="standard"
+          onMapReady={() => setRunningMapReady(true)}
+        >
+          {mapCoords.length >= 2 && (
+            <Polyline
+              coordinates={mapCoords}
+              strokeColor="#3AF8FF"
+              strokeWidth={5}
+              lineCap="round"
+              lineJoin="round"
+            />
+          )}
+          {mapCoords.length >= 1 && (
+            <Marker coordinate={mapCoords[0]} tracksViewChanges={false} anchor={{ x: 0.5, y: 0.5 }}>
+              <View style={styles.runMarkerStart} />
+            </Marker>
+          )}
+          {isRunFinished && mapCoords.length >= 1 && (
+            <Marker coordinate={mapCoords[mapCoords.length - 1]} tracksViewChanges={false} anchor={{ x: 0.5, y: 0.5 }}>
+              <View style={styles.runMarkerEnd} />
+            </Marker>
+          )}
+          {mapCurrentLocation && (
+            <Marker coordinate={mapCurrentLocation} tracksViewChanges={false} anchor={{ x: 0.5, y: 0.5 }}>
+              <View style={styles.runMarkerCurrent} />
+            </Marker>
+          )}
+        </MapView>
       </View>
 
-      {(runningMapStatus !== 'ready' || isGpsPreparing || showGpsReadyFeedback) && (
-        <View
-          style={[
-            styles.mapLoadingOverlay,
-            runningMapStatus === 'error' && styles.mapErrorOverlay,
-          ]}
-          pointerEvents="box-none"
-        >
+      {(isGpsPreparing || showGpsReadyFeedback) && (
+        <View style={styles.mapLoadingOverlay} pointerEvents="box-none">
           {isGpsPreparing ? (
             <View style={styles.gpsPreparingGlassCard}>
               <Text style={styles.gpsPreparingText}>위치 확인 중</Text>
@@ -975,17 +806,11 @@ const RunningTrackerScreen = ({ navigation }) => {
                 ))}
               </View>
             </View>
-          ) : showGpsReadyFeedback ? (
+          ) : (
             <View style={styles.gpsReadyFeedbackWrap}>
               <Ionicons name="checkmark-circle" size={42} color={COLORS.PRIMARY} />
               <Text style={styles.gpsReadyFeedbackText}>GPS 수신 완료</Text>
             </View>
-          ) : (
-            <Text style={styles.mapPlaceholderText}>
-              {runningMapStatus === 'error'
-                ? `지도 로드 실패: ${runningMapError || '알 수 없는 오류'}`
-                : '카카오맵 로딩 중...'}
-            </Text>
           )}
         </View>
       )}
@@ -1095,11 +920,6 @@ const RunningTrackerScreen = ({ navigation }) => {
             </TouchableOpacity>
           </Animated.View>
         </View>
-        {runningMapStatus === 'error' && !isGpsPreparing && (
-          <TouchableOpacity style={styles.mapRetryButton} onPress={handleRetryRunningMap}>
-            <Text style={styles.mapRetryButtonText}>지도 다시 시도</Text>
-          </TouchableOpacity>
-        )}
       </Animated.View>
 
       {startCountdownNumber !== null && (
@@ -1135,7 +955,6 @@ const RunningTrackerScreen = ({ navigation }) => {
                   coordinates={finishMapCoordinates}
                   width={300}
                   height={172}
-                  debugTag="finish-modal"
                 />
               ) : (
                 <Text style={styles.finishRoutePlaceholder}>이동 경로 데이터가 없습니다.</Text>
@@ -1221,6 +1040,30 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     gap: 12,
+  },
+  runMarkerCurrent: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#3AF8FF',
+    borderWidth: 2.5,
+    borderColor: '#fff',
+  },
+  runMarkerStart: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#00C853',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  runMarkerEnd: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#FF3B30',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   runningMapWebView: {
     width: '100%',

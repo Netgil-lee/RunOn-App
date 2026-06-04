@@ -57,6 +57,44 @@ target 'RunOn' do
   pod 'RNAppleHealthKit', :path => '../node_modules/react-native-health'
 
   post_install do |installer|
+    # ── Xcode 26 SwiftUICore workaround ──────────────────────────────────────
+    # SwiftUICore.tbd has allowable-clients that blocks third-party binaries.
+    # Solution: create a patched copy without the restriction, inject it first
+    # in FRAMEWORK_SEARCH_PATHS so the linker uses our version.
+    sdk_path = `xcrun --sdk iphonesimulator --show-sdk-path 2>/dev/null`.strip
+    unless sdk_path.empty?
+      src_tbd = "#{sdk_path}/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore.tbd"
+      if File.exist?(src_tbd)
+        patch_fw_dir = File.join(installer.config.installation_root, 'Pods', 'SwiftUICorePatch', 'SwiftUICore.framework')
+        FileUtils.mkdir_p(patch_fw_dir)
+        content = File.read(src_tbd)
+        # Remove allowable-clients block (everything from that key until next top-level key)
+        patched = content.gsub(/^allowable-clients:.*?(?=^[a-z])/m, '')
+        tbd_dest = File.join(patch_fw_dir, 'SwiftUICore.tbd')
+        File.write(tbd_dest, patched)
+        patch_search_path = File.join(installer.config.installation_root, 'Pods', 'SwiftUICorePatch')
+        # Prepend patched path to all pod targets
+        installer.pods_project.targets.each do |t|
+          t.build_configurations.each do |c|
+            existing = c.build_settings['FRAMEWORK_SEARCH_PATHS'] || '$(inherited)'
+            c.build_settings['FRAMEWORK_SEARCH_PATHS'] = "\"#{patch_search_path}\" #{existing}"
+          end
+        end
+        # Prepend to main RunOn app target
+        installer.aggregate_targets.each do |agg|
+          agg.user_project.native_targets.each do |t|
+            t.build_configurations.each do |c|
+              existing = c.build_settings['FRAMEWORK_SEARCH_PATHS'] || '$(inherited)'
+              c.build_settings['FRAMEWORK_SEARCH_PATHS'] = "\"#{patch_search_path}\" #{existing}"
+            end
+          end
+          agg.user_project.save
+        end
+        puts "✅ SwiftUICore.tbd patched (Xcode 26 workaround)"
+      end
+    end
+    # ─────────────────────────────────────────────────────────────────────────
+
     react_native_post_install(
       installer,
       config[:reactNativePath],
@@ -98,6 +136,10 @@ target 'RunOn' do
         end
       end
       
+      # Fix for Xcode 26: patch SwiftUICore.tbd allowable-clients restriction
+      # SwiftUICore.tbd in Xcode 26 SDK blocks non-Apple binaries from linking (even indirectly)
+      # We create a patched copy without the restriction and prepend it to FRAMEWORK_SEARCH_PATHS
+
       # Fix script phases with paths containing parentheses (e.g., "RunOn-App (Production)")
       target.build_phases.each do |phase|
         if phase.is_a?(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)

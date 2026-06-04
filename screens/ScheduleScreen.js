@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { WebView } from 'react-native-webview';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
@@ -2157,10 +2157,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   
   // GPS 권한 상태 (안내 문구 노출용)
   const [isGpsPermissionGranted, setIsGpsPermissionGranted] = useState(false);
-  const mapWebViewRef = useRef(null);
-  const isInlineMapLoadedRef = useRef(false);
-  const pendingMapMoveRef = useRef(null);
-  const latestMapMoveRequestIdRef = useRef(null);
+  const inlineMapRef = useRef(null);
   const mapMoveRetryTimeoutsRef = useRef([]);
   const hasUserSelectedLocationRef = useRef(false);
   
@@ -2393,54 +2390,15 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   ];
 
 
-  const clearMapMoveRetries = useCallback(() => {
-    mapMoveRetryTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
-    mapMoveRetryTimeoutsRef.current = [];
+  // 지도 이동 함수 (Apple MapView animateToRegion)
+  const moveMapToLocation = useCallback((lat, lng) => {
+    inlineMapRef.current?.animateToRegion({
+      latitude: lat,
+      longitude: lng,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    }, 400);
   }, []);
-
-  const postMapMoveWithRetry = useCallback((payload) => {
-    if (!mapWebViewRef.current) return;
-
-    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    latestMapMoveRequestIdRef.current = requestId;
-    const payloadWithRequestId = { ...payload, requestId };
-
-    clearMapMoveRetries();
-
-    // 특정 실기기에서 postMessage가 드물게 유실되는 이슈를 완화하기 위해 짧게 재전송
-    [0, 220, 700].forEach((delayMs) => {
-      const timeoutId = setTimeout(() => {
-        if (latestMapMoveRequestIdRef.current !== requestId) return;
-        if (!mapWebViewRef.current) return;
-        mapWebViewRef.current.postMessage(JSON.stringify(payloadWithRequestId));
-      }, delayMs);
-      mapMoveRetryTimeoutsRef.current.push(timeoutId);
-    });
-  }, [clearMapMoveRetries]);
-
-  // 지도 이동 함수 (WebView에 postMessage로 좌표 전달)
-  const moveMapToLocation = useCallback((lat, lng, addMarker = false) => {
-    const movePayload = {
-      type: 'moveToLocation',
-      lat: lat,
-      lng: lng,
-      addMarker: addMarker,
-    };
-
-    if (!mapWebViewRef.current || !isInlineMapLoadedRef.current) {
-      pendingMapMoveRef.current = movePayload;
-      return;
-    }
-
-    postMapMoveWithRetry(movePayload);
-  }, [postMapMoveWithRetry]);
-
-  useEffect(() => {
-    return () => {
-      clearMapMoveRetries();
-      latestMapMoveRequestIdRef.current = null;
-    };
-  }, [clearMapMoveRetries]);
 
   // 현재 위치 버튼: GPS 권한 요청 후 실제 위치로 지도 이동
   const moveToCurrentLocation = useCallback(async () => {
@@ -2459,7 +2417,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       });
       const { latitude, longitude } = pos.coords;
 
-      // 검색으로 선택된 장소가 없는 경우 GPS 위치로 지도 초기값도 업데이트
       if (!hasUserSelectedLocationRef.current) {
         setSelectedLocationData({
           name: '',
@@ -2468,7 +2425,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           address: '',
         });
       } else {
-        // 검색 장소가 있는 경우에는 지도 뷰만 이동
         moveMapToLocation(latitude, longitude);
       }
     } catch (error) {
@@ -3002,472 +2958,57 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     };
   }, [showLocationDropdown]);
 
-  // 인라인 카카오맵 컴포넌트를 별도로 분리하여 격리
-  const InlineKakaoMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, initialCustomMarkerCoords, mapWebViewRef, onCurrentLocationPress }) => {
-    // WebView 재렌더링 방지를 위한 안정적인 key 생성
-    const stableKey = React.useMemo(() => {
-      if (!selectedLocation) return 'no-location-no-boundary-v24';
-      return `${selectedLocation.id || 'custom'}-${selectedLocation.name}-no-boundary-v24`;
-    }, [selectedLocation?.id, selectedLocation?.name]);
+  // 인라인 Apple Maps 컴포넌트 (모임 생성 2단계 위치 선택)
+  const InlineAppleMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, initialCustomMarkerCoords, inlineMapRef, onCurrentLocationPress }) => {
+    const [markerCoord, setMarkerCoord] = React.useState(
+      initialCustomMarkerCoords
+        ? { latitude: initialCustomMarkerCoords.lat, longitude: initialCustomMarkerCoords.lng }
+        : null
+    );
 
-    if (!selectedLocation) return null;
+    const initialRegion = React.useMemo(() => {
+      if (!selectedLocation?.lat || !selectedLocation?.lng) return null;
+      return {
+        latitude: selectedLocation.lat,
+        longitude: selectedLocation.lng,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      };
+    }, [selectedLocation?.lat, selectedLocation?.lng]);
 
-    // 선택된 장소의 카카오맵 HTML 생성
-    const createInlineMapHTML = React.useCallback(() => {
-      // TestFlight에서 API 키 로딩 상태 확인
-      const kakaoApiKey = ENV.kakaoMapApiKey;
-      if (!__DEV__) {
-
+    const handleMapPress = React.useCallback((e) => {
+      const { latitude, longitude } = e.nativeEvent.coordinate;
+      setMarkerCoord({ latitude, longitude });
+      if (onCustomMarkerChange) {
+        onCustomMarkerChange(true, { lat: latitude, lng: longitude });
       }
-      
-      // selectedLocation 값들을 변수로 추출 (템플릿 문자열에서 사용)
-      // 이 시점에서 selectedLocation은 반드시 유효한 lat/lng를 가져야 함 (상위에서 보장)
-      const locationName = selectedLocation?.name || '';
-      const locationLat = selectedLocation?.lat;
-      const locationLng = selectedLocation?.lng;
-      const customMarkerLat = initialCustomMarkerCoords?.lat || null;
-      const customMarkerLng = initialCustomMarkerCoords?.lng || null;
-      const hasCustomMarkerValue = initialCustomMarkerCoords ? true : false;
-      const currentLocationLat = selectedLocation?.lat;
-      const currentLocationLng = selectedLocation?.lng;
-      // name이 비어있으면 GPS 위치 (파란 원형 마커로 표시)
-      const isCurrentLocationGPS = !selectedLocation?.name || selectedLocation.name === '';
-      
-      return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    }, [onCustomMarkerChange]);
 
-            <title>${locationName || '위치'} 위치</title>
-            <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${ENV.kakaoMapApiKey}"></script>
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    background: #171719; 
-                    overflow: hidden; 
-                    height: 300px;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                }
-                #map { 
-                    width: 100%; 
-                    height: 300px; 
-                    border: none;
-                }
-                
-                /* 카카오맵 기본 InfoWindow 완전히 숨기기 */
-                div[style*="background"] {
-                    background: transparent !important;
-                    border: none !important;
-                    box-shadow: none !important;
-                    padding: 0 !important;
-                }
-                
-                /* 모든 InfoWindow 관련 기본 스타일 제거 */
-                .infowindow,
-                .info-window-container,
-                [class*="infowindow"],
-                [class*="InfoWindow"] {
-                    background: transparent !important;
-                    border: none !important;
-                    box-shadow: none !important;
-                    padding: 0 !important;
-                }
-                
-                /* 홈화면과 동일한 정보창 스타일 */
-                .info-window {
-                    background: #171719 !important;
-                    color: #ffffff !important;
-                    padding: 6px 10px !important;
-                    border-radius: 4px !important;
-                    border: 1px solid #333333 !important;
-                    font-size: 11px !important;
-                    font-weight: 500 !important;
-                    white-space: nowrap !important;
-                    text-align: center !important;
-                    margin: 0 !important;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-                    display: inline-block !important;
-                    margin-top: -5px !important;
-                }
-                
-                .diagonal-info {
-                    transform: translate(70px, 5px) !important;
-                }
-                
-                /* 커스텀 마커 정보창 스타일 */
-                .custom-info-window {
-                    background: #171719 !important;
-                    color: #3AF8FF !important;
-                    padding: 6px 10px !important;
-                    border-radius: 4px !important;
-                    border: 1px solid #3AF8FF !important;
-                    font-size: 11px !important;
-                    font-weight: 600 !important;
-                    white-space: nowrap !important;
-                    text-align: center !important;
-                    margin: 0 !important;
-                    box-shadow: 0 2px 8px rgba(58, 248, 255, 0.3) !important;
-                    display: inline-block !important;
-                    margin-top: -5px !important;
-                }
-            </style>
-        </head>
-        <body>
-            <div id="map"></div>
-            
-            <script>
-                var map;
-                var customMarker = null;
-                var customInfoWindow = null;
-                var currentLocationMarker = null;
-                var searchMarker = null;
-                var currentMapCenter = null;
-                var currentMapLevel = 4;
-                
-
-                
-                function waitForKakaoSDK() {
-                    if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
-                        setTimeout(waitForKakaoSDK, 100);
-                        return;
-                    }
-                    initializeMap();
-                }
-                
-                function initializeMap() {
-                    try {
-                        var mapContainer = document.getElementById('map');
-                        
-                        // 지도 중심 설정 (커스텀 마커가 있으면 그 위치 중심으로)
-                        var mapCenter, mapLevel = 4;
-                        var hasCustomMarker = ${hasCustomMarkerValue};
-                        
-                        if (hasCustomMarker) {
-                            // 커스텀 마커가 있으면 그 위치를 중심으로
-                            mapCenter = new kakao.maps.LatLng(${customMarkerLat || locationLat}, ${customMarkerLng || locationLng});
-                        } else {
-                            // 기본 장소를 중심으로
-                            mapCenter = new kakao.maps.LatLng(${locationLat}, ${locationLng});
-                        }
-                        
-                        var mapOption = {
-                            center: mapCenter,
-                            level: mapLevel,
-                            disableDoubleClick: false,
-                            disableDoubleClickZoom: false
-                        };
-                        
-                        map = new kakao.maps.Map(mapContainer, mapOption);
-                        map.setMapTypeId(kakao.maps.MapTypeId.ROADMAP);
-                        
-                        // 현재 지도 상태 저장
-                        currentMapCenter = map.getCenter();
-                        currentMapLevel = map.getLevel();
-                        
-                        // 현재 위치 마커 생성 (GPS 위치일 때만 표시) - SVG 사용
-                        var isCurrentLocationGPS = ${isCurrentLocationGPS};
-                        if (isCurrentLocationGPS) {
-                            var currentLocationPosition = new kakao.maps.LatLng(${currentLocationLat}, ${currentLocationLng});
-                            
-                            // SVG 사용 (넓은 반경의 파란색 원 + 투명도 40%)
-                            var currentLocationSvg = '<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">' +
-                                '<circle cx="25" cy="25" r="25" fill="#2294FF" fill-opacity="0.4"/>' +
-                                '<circle cx="25" cy="25" r="10" fill="#ffffff"/>' +
-                                '<circle cx="25" cy="25" r="6" fill="#2294FF"/>' +
-                                '</svg>';
-                            
-                            var currentLocationImageSrc = 'data:image/svg+xml;base64,' + btoa(currentLocationSvg);
-                            var currentLocationImageSize = new kakao.maps.Size(50, 50);
-                            var currentLocationImageOffset = new kakao.maps.Point(25, 50);
-                            
-                            var currentLocationImage = new kakao.maps.MarkerImage(
-                                currentLocationImageSrc,
-                                currentLocationImageSize,
-                                { offset: currentLocationImageOffset }
-                            );
-                            
-                            currentLocationMarker = new kakao.maps.Marker({
-                                position: currentLocationPosition,
-                                image: currentLocationImage,
-                                map: map,
-                                zIndex: 500 // 기본 마커(600)와 커스텀 마커(700)보다 낮게
-                            });
-                        }
-                        
-                        // 커스텀 마커 이미지 생성 (빨간색)
-                        var customSvgString = '<svg width="28" height="35" viewBox="0 0 28 35" xmlns="http://www.w3.org/2000/svg">' +
-                            '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="#FF4444"/>' +
-                            '<circle cx="14" cy="14" r="7" fill="#ffffff"/>' +
-                            '<circle cx="14" cy="14" r="4" fill="#FF4444"/>' +
-                            '</svg>';
-                        
-                        var customMarkerImageSrc = 'data:image/svg+xml;base64,' + btoa(customSvgString);
-                        var customMarkerImageSize = new kakao.maps.Size(28, 35);
-                        var customMarkerImageOffset = new kakao.maps.Point(14, 35);
-                        
-                        var customMarkerImage = new kakao.maps.MarkerImage(
-                            customMarkerImageSrc,
-                            customMarkerImageSize,
-                            { offset: customMarkerImageOffset }
-                        );
-
-                        // 검색 결과용 노란 마커 생성/갱신
-                        function showSearchMarker(lat, lng) {
-                            if (searchMarker) {
-                                searchMarker.setMap(null);
-                            }
-
-                            var searchSvgString = '<svg width="24" height="30" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
-                                '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#FFD700"/>' +
-                                '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
-                                '<circle cx="12" cy="12" r="3" fill="#FFD700"/>' +
-                                '</svg>';
-
-                            var searchMarkerImageSrc = 'data:image/svg+xml;base64,' + btoa(searchSvgString);
-                            var searchMarkerImage = new kakao.maps.MarkerImage(
-                                searchMarkerImageSrc,
-                                new kakao.maps.Size(24, 30),
-                                { offset: new kakao.maps.Point(12, 30) }
-                            );
-
-                            searchMarker = new kakao.maps.Marker({
-                                position: new kakao.maps.LatLng(lat, lng),
-                                image: searchMarkerImage,
-                                map: map,
-                                zIndex: 650
-                            });
-                        }
-                        
-                        // 지도 클릭 이벤트 (상세 위치 설정)
-                        kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
-                            var latlng = mouseEvent.latLng;
-                            var clickLat = latlng.getLat();
-                            var clickLng = latlng.getLng();
-                            
-                            // 디버그 로그
-                            if (window.ReactNativeWebView) {
-                                window.ReactNativeWebView.postMessage('LOG: INFO - 지도 클릭: ' + clickLat + ', ' + clickLng);
-                            }
-                            
-                            // 기존 커스텀 마커 제거
-                            if (customMarker) {
-                                customMarker.setMap(null);
-                            }
-                            if (customInfoWindow) {
-                                customInfoWindow.close();
-                            }
-                            
-                            // 새 커스텀 마커 생성
-                            customMarker = new kakao.maps.Marker({
-                                position: latlng,
-                                image: customMarkerImage,
-                                map: map
-                            });
-                            
-                            // 커스텀 정보창 생성
-                            var customInfoContent = '<div class="custom-info-window">상세 위치</div>';
-                            customInfoWindow = new kakao.maps.InfoWindow({
-                                content: customInfoContent,
-                                removable: false,
-                                yAnchor: 1.0
-                            });
-                            
-                            // 커스텀 정보창 표시
-                            customInfoWindow.open(map, customMarker);
-                            
-                            // 커스텀 마커 클릭 이벤트
-                            kakao.maps.event.addListener(customMarker, 'click', function() {
-                                if (customInfoWindow.getMap()) {
-                                    customInfoWindow.close();
-                                } else {
-                                    customInfoWindow.open(map, customMarker);
-                                }
-                            });
-                            
-                            // React Native에 커스텀 마커 정보 전송
-                            if (window.ReactNativeWebView) {
-                                var message = 'customMarkerAdded:' + latlng.getLat() + ',' + latlng.getLng();
-                                window.ReactNativeWebView.postMessage(message);
-                            }
-                            
-                            // 현재 지도 중심과 레벨 업데이트 (재렌더링 방지용)
-                            currentMapCenter = map.getCenter();
-                            currentMapLevel = map.getLevel();
-                        });
-                        
-                        // 커스텀 마커 복원 (있는 경우)
-                        if (hasCustomMarker) {
-                            var customLat = ${customMarkerCoords?.lat || 'null'};
-                            var customLng = ${customMarkerCoords?.lng || 'null'};
-                            
-                            if (customLat !== null && customLng !== null && !isNaN(customLat) && !isNaN(customLng)) {
-                                var customPosition = new kakao.maps.LatLng(customLat, customLng);
-                                
-                                customMarker = new kakao.maps.Marker({
-                                    position: customPosition,
-                                    image: customMarkerImage,
-                                    map: map
-                                });
-                                
-                                var customInfoContent = '<div class="custom-info-window">상세 위치</div>';
-                                customInfoWindow = new kakao.maps.InfoWindow({
-                                    content: customInfoContent,
-                                    removable: false,
-                                    yAnchor: 1.0
-                                });
-                                
-                                customInfoWindow.open(map, customMarker);
-                                
-                                kakao.maps.event.addListener(customMarker, 'click', function() {
-                                    if (customInfoWindow.getMap()) {
-                                        customInfoWindow.close();
-                                    } else {
-                                        customInfoWindow.open(map, customMarker);
-                                    }
-                                });
-                            }
-                        }
-                        
-                        // React Native에서 보낸 메시지 처리 (지도 이동)
-                        document.addEventListener('message', function(event) {
-                            try {
-                                var data = JSON.parse(event.data);
-                                if (data.type === 'moveToLocation') {
-                                    var newCenter = new kakao.maps.LatLng(data.lat, data.lng);
-                                    map.setCenter(newCenter);
-                                    map.setLevel(4);
-                                    if (data.addMarker) {
-                                        showSearchMarker(data.lat, data.lng);
-                                    }
-                                    if (window.ReactNativeWebView && data.requestId) {
-                                        window.ReactNativeWebView.postMessage('moveToLocationAck:' + data.requestId);
-                                    }
-                                    
-                                    currentMapCenter = newCenter;
-                                    currentMapLevel = 4;
-                                }
-                            } catch (e) {
-                                // JSON 파싱 실패 시 무시
-                            }
-                        });
-                        
-                        // iOS용 메시지 리스너
-                        window.addEventListener('message', function(event) {
-                            try {
-                                var data = JSON.parse(event.data);
-                                if (data.type === 'moveToLocation') {
-                                    var newCenter = new kakao.maps.LatLng(data.lat, data.lng);
-                                    map.setCenter(newCenter);
-                                    map.setLevel(4);
-                                    if (data.addMarker) {
-                                        showSearchMarker(data.lat, data.lng);
-                                    }
-                                    if (window.ReactNativeWebView && data.requestId) {
-                                        window.ReactNativeWebView.postMessage('moveToLocationAck:' + data.requestId);
-                                    }
-                                    
-                                    currentMapCenter = newCenter;
-                                    currentMapLevel = 4;
-                                }
-                            } catch (e) {
-                                // JSON 파싱 실패 시 무시
-                            }
-                        });
-                        
-                        // 메시지 리스너 등록이 끝난 뒤 로딩 완료 신호 전송
-                        // (실기기에서는 신호가 너무 빨리 오면 moveToLocation 메시지가 유실될 수 있음)
-                        if (window.ReactNativeWebView) {
-                            window.ReactNativeWebView.postMessage('inlineMapLoaded');
-                        }
-                        
-                    } catch (error) {
-                        console.error('Inline map error:', error);
-                        if (window.ReactNativeWebView) {
-                            window.ReactNativeWebView.postMessage('inlineMapError: ' + error.message);
-                        }
-                    }
-                }
-                
-                // SDK 로딩 대기
-                waitForKakaoSDK();
-            </script>
-        </body>
-        </html>
-      `;
-    }, [selectedLocation, initialCustomMarkerCoords]);
-
-    // 메시지 처리 함수를 useCallback으로 최적화
-    const handleWebViewMessage = React.useCallback((event) => {
-              const { data } = event.nativeEvent;
-              
-              if (data === 'inlineMapLoaded') {
-        isInlineMapLoadedRef.current = true;
-        if (pendingMapMoveRef.current && mapWebViewRef.current) {
-          postMapMoveWithRetry(pendingMapMoveRef.current);
-          pendingMapMoveRef.current = null;
-        }
-              } else if (data.startsWith('inlineMapError')) {
-        console.error('인라인 지도 로딩 실패:', data);
-              } else if (data.startsWith('moveToLocationAck:')) {
-                const ackRequestId = data.replace('moveToLocationAck:', '');
-                if (latestMapMoveRequestIdRef.current === ackRequestId) {
-                  clearMapMoveRetries();
-                  latestMapMoveRequestIdRef.current = null;
-                }
-              } else if (data.startsWith('customMarkerAdded:')) {
-                const coords = data.replace('customMarkerAdded:', '');
-                const [lat, lng] = coords.split(',');
-                
-                // 중복 업데이트 방지
-                const newCoords = {
-                  lat: parseFloat(lat),
-                  lng: parseFloat(lng)
-                };
-                
-                if (!customMarkerCoords || 
-                    customMarkerCoords.lat !== newCoords.lat || 
-                    customMarkerCoords.lng !== newCoords.lng) {
-                  // 부모 컴포넌트에 변경 알림
-                  if (onCustomMarkerChange) {
-                    onCustomMarkerChange(true, newCoords);
-          }
-        }
-      }
-    }, [selectedLocation?.name, selectedLocation?.lat, selectedLocation?.lng, customMarkerCoords, onCustomMarkerChange, postMapMoveWithRetry, clearMapMoveRetries]);
+    if (!initialRegion) return null;
 
     return (
       <View style={styles.inlineMapSection}>
-        <View 
-          style={styles.inlineMapContainer}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderGrant={() => {}}
-          onResponderRelease={() => {}}
-        >
-          <WebView
-            ref={mapWebViewRef}
-            key={stableKey}
-            source={{ html: createInlineMapHTML() }}
-            style={styles.inlineMapWebView}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={true}
-            scalesPageToFit={false}
-            scrollEnabled={false}
-            bounces={false}
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-            nestedScrollEnabled={false}
-            onMessage={handleWebViewMessage}
-            // WebView 재렌더링 최적화 설정
-            cacheEnabled={true}
-            incognito={false}
-            thirdPartyCookiesEnabled={false}
-            sharedCookiesEnabled={false}
-          />
-          {/* 현재 위치 버튼 */}
+        <View style={styles.inlineMapContainer}>
+          <MapView
+            ref={inlineMapRef}
+            provider={PROVIDER_DEFAULT}
+            style={{ flex: 1 }}
+            initialRegion={initialRegion}
+            onPress={handleMapPress}
+            showsUserLocation={true}
+            showsMyLocationButton={false}
+            showsCompass={false}
+            mapType="standard"
+          >
+            {markerCoord && (
+              <Marker coordinate={markerCoord} tracksViewChanges={false}>
+                <View style={styles.inlineMarkerContainer}>
+                  <View style={styles.inlineMarkerPin} />
+                  <View style={styles.inlineMarkerTail} />
+                </View>
+              </Marker>
+            )}
+          </MapView>
           <TouchableOpacity
             style={styles.currentLocationButton}
             onPress={onCurrentLocationPress}
@@ -3479,17 +3020,12 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       </View>
     );
   }, (prevProps, nextProps) => {
-    // 더 엄격한 비교 조건 설정
-    const locationChanged = prevProps.selectedLocation?.id !== nextProps.selectedLocation?.id ||
-                           prevProps.selectedLocation?.name !== nextProps.selectedLocation?.name;
-    
-    // 커스텀 마커 변경은 WebView 내부에서 처리하므로 지도 재생성 조건에서 제외
-    const shouldNotRerender = !locationChanged;
-    
-
-    
-    return shouldNotRerender;
+    return (
+      prevProps.selectedLocation?.lat === nextProps.selectedLocation?.lat &&
+      prevProps.selectedLocation?.lng === nextProps.selectedLocation?.lng
+    );
   });
+
 
   // 인라인 지도 컴포넌트 메모이제이션
   const memoizedInlineMap = useMemo(() => {
@@ -3525,12 +3061,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             <Text style={styles.mapGuideText}>지도를 클릭하여 상세한 모임장소를 정하세요!</Text>
           </View>
         </View>
-        <InlineKakaoMapComponent 
-          key={`map-${selectedLocationData.id || selectedLocationData.name || 'custom'}-${selectedLocationData.lat}-${selectedLocationData.lng}`}
+        <InlineAppleMapComponent
           selectedLocation={selectedLocationData}
           onCustomMarkerChange={handleCustomMarkerChange}
           initialCustomMarkerCoords={customMarkerCoords}
-          mapWebViewRef={mapWebViewRef}
+          inlineMapRef={inlineMapRef}
           onCurrentLocationPress={moveToCurrentLocation}
         />
       </React.Fragment>
@@ -5490,15 +5025,33 @@ const styles = StyleSheet.create({
     marginHorizontal: -20,
   },
   inlineMapContainer: {
-    height: 300,
+    height: 420,
     overflow: 'hidden',
     borderRadius: 0,
     borderWidth: 0,
     backgroundColor: 'transparent',
   },
-  inlineMapWebView: {
-    flex: 1,
-    backgroundColor: 'transparent',
+  inlineMarkerContainer: {
+    alignItems: 'center',
+  },
+  inlineMarkerPin: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#3AF8FF',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  inlineMarkerTail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#3AF8FF',
+    marginTop: -2,
   },
   currentLocationButton: {
     position: 'absolute',

@@ -377,6 +377,10 @@
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 662HSA2S7V;
 				ENABLE_BITCODE = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"/Users/lee_mac/RunOn-App (Production_iOS)/ios/Pods/SwiftUICorePatch\"",
+					"$(inherited)",
+				);
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
@@ -420,6 +424,10 @@
 				CURRENT_PROJECT_VERSION = 182;
 				DEVELOPMENT_TEAM = 662HSA2S7V;
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 662HSA2S7V;
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"/Users/lee_mac/RunOn-App (Production_iOS)/ios/Pods/SwiftUICorePatch\"",
+					"$(inherited)",
+				);
 				INFOPLIST_FILE = RunOn/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
