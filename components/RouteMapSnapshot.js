@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, View } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 
-// 앱 생명주기 내 스냅샷을 메모리에 캐싱 (workout.id → file URI)
 const snapshotCache = new Map();
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const DOT_RADIUS = 6;
 
 const normalizeCoords = (coordinates = []) =>
   (coordinates || [])
@@ -15,7 +15,6 @@ const normalizeCoords = (coordinates = []) =>
     }))
     .filter((c) => Number.isFinite(c.latitude) && Number.isFinite(c.longitude));
 
-// 시각적 표시 전용 다운샘플링 — 원본 데이터 변경 없음
 const downsample = (coords, maxPoints = 200) => {
   if (coords.length <= maxPoints) return coords;
   const stride = Math.ceil(coords.length / maxPoints);
@@ -42,15 +41,32 @@ const calcRegion = (coords) => {
   };
 };
 
-const DotMarker = ({ color }) => (
-  <View style={{ backgroundColor: 'transparent' }}>
+// 위경도 → 이미지 픽셀 좌표 변환 (등장방형 투영 — 러닝 거리 범위에서 충분히 정확)
+const coordToPixel = (coord, region, width, height) => {
+  const x = ((coord.longitude - (region.longitude - region.longitudeDelta / 2)) / region.longitudeDelta) * width;
+  const y = ((region.latitude + region.latitudeDelta / 2 - coord.latitude) / region.latitudeDelta) * height;
+  return { x: Math.round(x), y: Math.round(y) };
+};
+
+// takeSnapshot()이 PNG로 저장할 때 커스텀 Marker View의 투명 배경이
+// 검은 픽셀로 렌더링되는 iOS 버그를 피하기 위해 MapView 외부에 오버레이로 렌더링
+const DotOverlay = ({ coord, region, width, height, color }) => {
+  if (!coord || !region) return null;
+  const { x, y } = coordToPixel(coord, region, width, height);
+  return (
     <View style={{
-      width: 12, height: 12, borderRadius: 6,
+      position: 'absolute',
+      left: x - DOT_RADIUS,
+      top: y - DOT_RADIUS,
+      width: DOT_RADIUS * 2,
+      height: DOT_RADIUS * 2,
+      borderRadius: DOT_RADIUS,
       backgroundColor: color,
-      borderWidth: 2, borderColor: '#fff',
+      borderWidth: 2,
+      borderColor: '#fff',
     }} />
-  </View>
-);
+  );
+};
 
 const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WIDTH }) => {
   const height = width;
@@ -72,8 +88,10 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
 
   if (!region) return null;
 
+  const startCoord = displayCoords[0];
+  const endCoord = displayCoords[displayCoords.length - 1];
+
   const handleMapReady = () => {
-    // 타일 로딩 완료 대기 후 스냅샷 촬영
     timerRef.current = setTimeout(async () => {
       try {
         const uri = await mapRef.current?.takeSnapshot({
@@ -93,18 +111,22 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
     }, 1000);
   };
 
-  // 스냅샷 완료 → 메모리 효율적인 정적 이미지로 교체 (MapView 언마운트)
+  // 스냅샷 완료 → Image + 좌표 계산 오버레이 점으로 표시 (MapView 언마운트)
   if (snapshotUri) {
     return (
-      <Image
-        source={{ uri: snapshotUri }}
-        style={{ width, height }}
-        resizeMode="cover"
-      />
+      <View style={{ width, height }}>
+        <Image
+          source={{ uri: snapshotUri }}
+          style={{ width, height }}
+          resizeMode="cover"
+        />
+        <DotOverlay coord={startCoord} region={region} width={width} height={height} color="#28C76F" />
+        <DotOverlay coord={endCoord} region={region} width={width} height={height} color="#FF4D4F" />
+      </View>
     );
   }
 
-  // 스냅샷 생성 중: 실제 MapView가 직접 표시되다가 스냅샷 완료 후 Image로 전환
+  // 스냅샷 생성 중: MapView + Marker 없이 렌더링, 점은 외부 오버레이로 표시
   return (
     <View style={{ width, height }} pointerEvents="none">
       <MapView
@@ -125,29 +147,22 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
         mapType="standard"
         onMapReady={handleMapReady}
       >
-        {/* 검은 테두리 레이어 — 청록 경로가 눈에 잘 보이도록 */}
         <Polyline
           coordinates={displayCoords}
           strokeColor="#000000"
-          strokeWidth={8}
+          strokeWidth={5}
           lineCap="round"
           lineJoin="round"
         />
         <Polyline
           coordinates={displayCoords}
           strokeColor="#3AF8FF"
-          strokeWidth={4}
+          strokeWidth={3}
           lineCap="round"
           lineJoin="round"
         />
-        <Marker coordinate={displayCoords[0]} tracksViewChanges={false} anchor={{ x: 0.5, y: 0.5 }}>
-          <DotMarker color="#28C76F" />
-        </Marker>
-        <Marker coordinate={displayCoords[displayCoords.length - 1]} tracksViewChanges={false} anchor={{ x: 0.5, y: 0.5 }}>
-          <DotMarker color="#FF4D4F" />
-        </Marker>
       </MapView>
-      {/* 타일 로딩 중 반투명 오버레이 */}
+      {/* 로딩 오버레이 */}
       <View style={{
         position: 'absolute', top: 0, left: 0, width, height,
         backgroundColor: 'rgba(0,0,0,0.15)',
@@ -155,6 +170,9 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
       }}>
         <ActivityIndicator size="small" color="#3AF8FF" />
       </View>
+      {/* 점은 MapView 외부에 렌더링 — takeSnapshot() 캡처 범위 밖 */}
+      <DotOverlay coord={startCoord} region={region} width={width} height={height} color="#28C76F" />
+      <DotOverlay coord={endCoord} region={region} width={width} height={height} color="#FF4D4F" />
     </View>
   );
 });
