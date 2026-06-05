@@ -98,7 +98,7 @@ const RouteMap = ({
         <Polyline
           coordinates={normalizedCoordinates}
           strokeColor="#000000"
-          strokeWidth={3}
+          strokeWidth={5}
           lineCap="round"
           lineJoin="round"
         />
