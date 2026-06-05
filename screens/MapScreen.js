@@ -139,7 +139,7 @@ function mapEventDistanceLabel(meeting) {
 }
 
 const PinMarker = React.memo(({ color }) => (
-  <View style={{ alignItems: 'center' }}>
+  <View style={{ alignItems: 'center', backgroundColor: 'transparent' }}>
     <View style={{
       width: 32, height: 32, borderRadius: 16, backgroundColor: color,
       alignItems: 'center', justifyContent: 'center',
@@ -227,6 +227,9 @@ const MapScreen = ({ navigation, route }) => {
   const bottomSheetRef = useRef(null);
   const searchInputRef = useRef(null);
   const eventDetailScreenRef = useRef(null);
+  // react-native-maps에서 Marker.onPress 발화 후 MapView.onPress도 연달아 발화됨
+  // 마커 클릭 시 선택 상태가 즉시 리셋되는 것을 막기 위한 플래그
+  const suppressMapPressRef = useRef(false);
   const [bottomButtonProps, setBottomButtonProps] = useState(null);
   const { user } = useAuth();
   const { endEvent, joinEvent, leaveEvent, chatRooms } = useEvents();
@@ -692,6 +695,8 @@ const MapScreen = ({ navigation, route }) => {
 
   // 지도 클릭/드래그 시 Bottom Sheet 축소
   const handleMapInteraction = useCallback(() => {
+    // 마커 클릭 직후 발화되는 MapView.onPress는 무시
+    if (suppressMapPressRef.current) return;
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(0); // 부분 확장으로 복귀
     }
@@ -705,16 +710,18 @@ const MapScreen = ({ navigation, route }) => {
   
   // 모임 클릭 핸들러
   const handleEventClick = useCallback((event) => {
+    suppressMapPressRef.current = true;
+    setTimeout(() => { suppressMapPressRef.current = false; }, 300);
     setSelectedEvent(event);
     setSelectedCafe(null);
     setSelectedFood(null);
     setShowAllEvents(false); // 전체 보기 모드 해제 (상세 화면으로 전환)
-    
+
     // Bottom Sheet 전체 확장 (60%)
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(1);
     }
-    
+
     const coords = getMarkerCoords(event);
     if (coords) animateToLocation(coords.latitude, coords.longitude, 0.01, true);
   }, [animateToLocation, getMarkerCoords]);
@@ -833,6 +840,8 @@ const MapScreen = ({ navigation, route }) => {
   
   // 카페 클릭 핸들러
   const handleCafeClick = useCallback(async (cafe) => {
+    suppressMapPressRef.current = true;
+    setTimeout(() => { suppressMapPressRef.current = false; }, 300);
     // 먼저 기존 데이터로 표시 (로딩 느림 방지)
     setSelectedCafe(cafe);
     setSelectedEvent(null);
@@ -897,6 +906,8 @@ const MapScreen = ({ navigation, route }) => {
 
   // 러닝푸드 클릭 핸들러
   const handleFoodClick = useCallback(async (food) => {
+    suppressMapPressRef.current = true;
+    setTimeout(() => { suppressMapPressRef.current = false; }, 300);
     setSelectedFood(food);
     setSelectedEvent(null);
     setSelectedCafe(null);

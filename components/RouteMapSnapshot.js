@@ -43,15 +43,17 @@ const calcRegion = (coords) => {
 };
 
 const DotMarker = ({ color }) => (
-  <View style={{
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: color,
-    borderWidth: 1.5, borderColor: '#fff',
-  }} />
+  <View style={{ backgroundColor: 'transparent' }}>
+    <View style={{
+      width: 12, height: 12, borderRadius: 6,
+      backgroundColor: color,
+      borderWidth: 2, borderColor: '#fff',
+    }} />
+  </View>
 );
 
 const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WIDTH }) => {
-  const height = Math.round(width * 0.44);
+  const height = width;
   const mapRef = useRef(null);
   const timerRef = useRef(null);
   const [snapshotUri, setSnapshotUri] = useState(() => snapshotCache.get(workoutId) || null);
@@ -123,6 +125,14 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
         mapType="standard"
         onMapReady={handleMapReady}
       >
+        {/* 검은 테두리 레이어 — 청록 경로가 눈에 잘 보이도록 */}
+        <Polyline
+          coordinates={displayCoords}
+          strokeColor="#000000"
+          strokeWidth={8}
+          lineCap="round"
+          lineJoin="round"
+        />
         <Polyline
           coordinates={displayCoords}
           strokeColor="#3AF8FF"

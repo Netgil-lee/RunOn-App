@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import appleFitnessService from '../services/appleFitnessService';
+import RouteMap from '../components/RouteMap';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const COLORS = {
   PRIMARY: '#3AF8FF',
@@ -65,6 +68,16 @@ const RunningResultScreen = ({ navigation, route }) => {
         </View>
       </View>
 
+      {workoutPayload?.routeCoordinates?.length >= 2 && (
+        <View style={styles.mapContainer}>
+          <RouteMap
+            coordinates={workoutPayload.routeCoordinates}
+            width={SCREEN_WIDTH - 40}
+            height={SCREEN_WIDTH - 40}
+          />
+        </View>
+      )}
+
       <View style={styles.statusRow}>
         <Ionicons
           name={saveStatus === 'success' ? 'checkmark-circle' : 'warning-outline'}
@@ -122,6 +135,11 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT,
     fontSize: 20,
     fontWeight: '700',
+  },
+  mapContainer: {
+    marginTop: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   statusRow: {
     marginTop: 16,

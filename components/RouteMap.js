@@ -67,16 +67,27 @@ const RouteMap = ({
       >
         <Polyline
           coordinates={normalizedCoordinates}
+          strokeColor="#000000"
+          strokeWidth={7}
+          lineCap="round"
+          lineJoin="round"
+        />
+        <Polyline
+          coordinates={normalizedCoordinates}
           strokeColor="#3AF8FF"
           strokeWidth={3}
           lineCap="round"
           lineJoin="round"
         />
-        <Marker coordinate={start} tracksViewChanges={false}>
-          <View style={[styles.dot, styles.dotStart]} />
+        <Marker coordinate={start} tracksViewChanges={false} anchor={{ x: 0.5, y: 0.5 }}>
+          <View style={{ backgroundColor: 'transparent' }}>
+            <View style={[styles.dot, styles.dotStart]} />
+          </View>
         </Marker>
-        <Marker coordinate={end} tracksViewChanges={false}>
-          <View style={[styles.dot, styles.dotEnd]} />
+        <Marker coordinate={end} tracksViewChanges={false} anchor={{ x: 0.5, y: 0.5 }}>
+          <View style={{ backgroundColor: 'transparent' }}>
+            <View style={[styles.dot, styles.dotEnd]} />
+          </View>
         </Marker>
       </MapView>
     </View>
