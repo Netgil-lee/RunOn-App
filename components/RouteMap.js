@@ -98,14 +98,14 @@ const RouteMap = ({
         <Polyline
           coordinates={normalizedCoordinates}
           strokeColor="#000000"
-          strokeWidth={5}
+          strokeWidth={3}
           lineCap="round"
           lineJoin="round"
         />
         <Polyline
           coordinates={normalizedCoordinates}
           strokeColor="#3AF8FF"
-          strokeWidth={3}
+          strokeWidth={4}
           lineCap="round"
           lineJoin="round"
         />

@@ -150,14 +150,14 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
         <Polyline
           coordinates={displayCoords}
           strokeColor="#000000"
-          strokeWidth={5}
+          strokeWidth={3}
           lineCap="round"
           lineJoin="round"
         />
         <Polyline
           coordinates={displayCoords}
           strokeColor="#3AF8FF"
-          strokeWidth={3}
+          strokeWidth={4}
           lineCap="round"
           lineJoin="round"
         />
