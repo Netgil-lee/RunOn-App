@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, View } from 'react-native';
 import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 
+// { uri, startDot: {x,y}, endDot: {x,y} } 형태로 캐싱
 const snapshotCache = new Map();
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const DOT_RADIUS = 6;
 
 const normalizeCoords = (coordinates = []) =>
   (coordinates || [])
@@ -40,11 +42,30 @@ const calcRegion = (coords) => {
   };
 };
 
+// MapView 외부 오버레이로 렌더링 — takeSnapshot() PNG 캡처 범위 밖이므로
+// 커스텀 Marker View의 검은 사각형 버그 없음
+const DotOverlay = ({ pos, color }) => {
+  if (!pos) return null;
+  return (
+    <View style={{
+      position: 'absolute',
+      left: pos.x - DOT_RADIUS,
+      top: pos.y - DOT_RADIUS,
+      width: DOT_RADIUS * 2,
+      height: DOT_RADIUS * 2,
+      borderRadius: DOT_RADIUS,
+      backgroundColor: color,
+      borderWidth: 2,
+      borderColor: '#fff',
+    }} />
+  );
+};
+
 const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WIDTH }) => {
   const height = width;
   const mapRef = useRef(null);
   const timerRef = useRef(null);
-  const [snapshotUri, setSnapshotUri] = useState(() => snapshotCache.get(workoutId) || null);
+  const [snapshotData, setSnapshotData] = useState(() => snapshotCache.get(workoutId) || null);
 
   const displayCoords = useMemo(
     () => downsample(normalizeCoords(coordinates)),
@@ -60,9 +81,18 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
 
   if (!region) return null;
 
+  const startCoord = displayCoords[0];
+  const endCoord = displayCoords[displayCoords.length - 1];
+
   const handleMapReady = () => {
     timerRef.current = setTimeout(async () => {
       try {
+        // MapView 내부 투영으로 정확한 픽셀 좌표 계산
+        const [startDot, endDot] = await Promise.all([
+          mapRef.current.pointForCoordinate(startCoord),
+          mapRef.current.pointForCoordinate(endCoord),
+        ]);
+
         const uri = await mapRef.current?.takeSnapshot({
           width: Math.round(width),
           height,
@@ -70,9 +100,11 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
           quality: 0.85,
           result: 'file',
         });
+
         if (uri) {
-          snapshotCache.set(workoutId, uri);
-          setSnapshotUri(uri);
+          const data = { uri, startDot, endDot };
+          snapshotCache.set(workoutId, data);
+          setSnapshotData(data);
         }
       } catch {
         // 실패 시 라이브 MapView 유지
@@ -80,16 +112,22 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
     }, 1000);
   };
 
-  if (snapshotUri) {
+  // 스냅샷 완료 → Image + pointForCoordinate로 계산한 정확한 위치에 점 오버레이
+  if (snapshotData) {
     return (
-      <Image
-        source={{ uri: snapshotUri }}
-        style={{ width, height }}
-        resizeMode="cover"
-      />
+      <View style={{ width, height }}>
+        <Image
+          source={{ uri: snapshotData.uri }}
+          style={{ width, height }}
+          resizeMode="cover"
+        />
+        <DotOverlay pos={snapshotData.startDot} color="#28C76F" />
+        <DotOverlay pos={snapshotData.endDot} color="#FF4D4F" />
+      </View>
     );
   }
 
+  // 스냅샷 생성 중: Marker 없이 MapView 렌더링 (PNG 캡처 시 검은 사각형 방지)
   return (
     <View style={{ width, height }} pointerEvents="none">
       <MapView
@@ -110,6 +148,14 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
         mapType="standard"
         onMapReady={handleMapReady}
       >
+        {/* 검은 테두리 레이어 */}
+        <Polyline
+          coordinates={displayCoords}
+          strokeColor="#000000"
+          strokeWidth={5}
+          lineCap="round"
+          lineJoin="round"
+        />
         <Polyline
           coordinates={displayCoords}
           strokeColor="#3AF8FF"
