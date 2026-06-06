@@ -5462,13 +5462,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   runningFeedStatLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
+    fontSize: 13,
+    color: '#ffffff',
     marginBottom: 4,
   },
   runningFeedStatValue: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
     color: COLORS.TEXT,
   },
   runningFeedFooter: {
