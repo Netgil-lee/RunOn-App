@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
-import RouteMap from './RouteMap';
+import RouteSvg from './RouteSvg';
 
 const RunningShareCard = forwardRef(({ 
   distance, 
@@ -46,7 +46,7 @@ const RunningShareCard = forwardRef(({
       {/* 이동경로 (로고 위에 표시) - 항상 공간 할당 */}
       <View style={styles.routeContainer}>
         {routeCoordinates && routeCoordinates.length > 0 && (
-          <RouteMap
+          <RouteSvg
             coordinates={routeCoordinates}
             width={170}
             height={100}

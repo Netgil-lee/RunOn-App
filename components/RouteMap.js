@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 
@@ -30,20 +30,13 @@ const calcRegion = (coords) => {
   };
 };
 
-const coordToPixel = (coord, region, width, height) => {
-  const x = ((coord.longitude - (region.longitude - region.longitudeDelta / 2)) / region.longitudeDelta) * width;
-  const y = ((region.latitude + region.latitudeDelta / 2 - coord.latitude) / region.latitudeDelta) * height;
-  return { x: Math.round(x), y: Math.round(y) };
-};
-
-const DotOverlay = ({ coord, region, width, height, color }) => {
-  if (!coord || !region) return null;
-  const { x, y } = coordToPixel(coord, region, width, height);
+const DotOverlay = ({ pos, color }) => {
+  if (!pos) return null;
   return (
     <View style={{
       position: 'absolute',
-      left: x - DOT_RADIUS,
-      top: y - DOT_RADIUS,
+      left: pos.x - DOT_RADIUS,
+      top: pos.y - DOT_RADIUS,
       width: DOT_RADIUS * 2,
       height: DOT_RADIUS * 2,
       borderRadius: DOT_RADIUS,
@@ -54,11 +47,10 @@ const DotOverlay = ({ coord, region, width, height, color }) => {
   );
 };
 
-const RouteMap = ({
-  coordinates,
-  width = 200,
-  height = 100,
-}) => {
+const RouteMap = ({ coordinates, width = 200, height = 100 }) => {
+  const mapRef = useRef(null);
+  const [dotPositions, setDotPositions] = useState(null);
+
   const normalizedCoordinates = useMemo(
     () => normalizeCoordinates(coordinates),
     [coordinates]
@@ -74,9 +66,22 @@ const RouteMap = ({
   const start = normalizedCoordinates[0];
   const end = normalizedCoordinates[normalizedCoordinates.length - 1];
 
+  const handleMapReady = async () => {
+    try {
+      const [startPos, endPos] = await Promise.all([
+        mapRef.current.pointForCoordinate(start),
+        mapRef.current.pointForCoordinate(end),
+      ]);
+      setDotPositions({ start: startPos, end: endPos });
+    } catch {
+      // pointForCoordinate 실패 시 점 미표시
+    }
+  };
+
   return (
     <View style={[styles.container, { width, height }]}>
       <MapView
+        ref={mapRef}
         provider={PROVIDER_DEFAULT}
         style={StyleSheet.absoluteFill}
         region={region}
@@ -94,6 +99,7 @@ const RouteMap = ({
         showsBuildings={false}
         toolbarEnabled={false}
         moveOnMarkerPress={false}
+        onMapReady={handleMapReady}
       >
         <Polyline
           coordinates={normalizedCoordinates}
@@ -110,8 +116,8 @@ const RouteMap = ({
           lineJoin="round"
         />
       </MapView>
-      <DotOverlay coord={start} region={region} width={width} height={height} color="#28C76F" />
-      <DotOverlay coord={end} region={region} width={width} height={height} color="#FF4D4F" />
+      <DotOverlay pos={dotPositions?.start} color="#28C76F" />
+      <DotOverlay pos={dotPositions?.end} color="#FF4D4F" />
     </View>
   );
 };
