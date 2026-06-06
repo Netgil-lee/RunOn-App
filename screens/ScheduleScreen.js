@@ -379,15 +379,18 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
         appleErrorCode = error?.code || 'UNKNOWN';
       }
 
-      const normalizedApple = (appleWorkouts || []).map((item) => {
-        const sourceName = `${item?.sourceName || item?.source || ''}`.trim();
-        const isRunOnSource = /runon/i.test(sourceName);
-        return {
+      const normalizedApple = (appleWorkouts || [])
+        .filter((item) => {
+          // RunOn 앱이 HealthKit에 직접 저장한 기록은 제외
+          // → RunOn 로컬 기록(AsyncStorage)이 동일 데이터를 이미 포함하므로 중복 방지
+          const sourceName = `${item?.sourceName || item?.source || ''}`.trim();
+          return !/runon/i.test(sourceName);
+        })
+        .map((item) => ({
           ...item,
-          sourceLabel: isRunOnSource ? 'RunOn' : 'Apple Fitness',
+          sourceLabel: 'Apple Fitness',
           sourceType: 'apple',
-        };
-      });
+        }));
       const normalizedRunOn = (runOnWorkouts || []).map((item) => ({
         ...item,
         sourceLabel: 'RunOn',
