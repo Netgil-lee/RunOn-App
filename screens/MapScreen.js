@@ -16,6 +16,7 @@ import { useEvents } from '../contexts/EventContext';
 import evaluationService from '../services/evaluationService';
 import { recordCafeVisit, recordFoodVisit } from '../services/userActivityService';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { useTheme } from '../contexts/ThemeContext';
 
 // 현재 위치 마커는 SVG로 직접 생성 (이미지 파일 사용 안 함)
 
@@ -313,13 +314,7 @@ const MapScreen = ({ navigation, route }) => {
     return foods.filter(food => food.name?.toLowerCase().includes(query));
   }, [foods, foodSearchQuery]);
 
-  // Runon 색상 시스템
-  const COLORS = {
-    PRIMARY: '#3AF8FF',
-    BACKGROUND: '#000000',
-    SURFACE: '#1F1F24',
-    SECONDARY: '#666666',
-  };
+  const { colors } = useTheme();
 
   // 기본 위치 (서울 중심)
   const DEFAULT_LOCATION = {
@@ -1153,7 +1148,7 @@ const MapScreen = ({ navigation, route }) => {
       <View style={styles.container}>
         {isLoading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+            <ActivityIndicator size="large" color={colors.PRIMARY} />
           </View>
         )}
         
@@ -1179,15 +1174,15 @@ const MapScreen = ({ navigation, route }) => {
                 onPress={handleSearchBack}
                 style={styles.searchBackButton}
               >
-                <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
+                <Ionicons name="arrow-back" size={24} color={colors.PRIMARY} />
               </TouchableOpacity>
             ) : (
-              <Ionicons name="search" size={24} color={COLORS.SECONDARY} style={styles.mapSearchIcon} />
+              <Ionicons name="search" size={24} color={colors.TEXT_SECONDARY} style={styles.mapSearchIcon} />
             )}
             <TextInput
               style={styles.mapSearchInput}
               placeholder="모임, 카페, 푸드, 장소 검색..."
-              placeholderTextColor={COLORS.SECONDARY}
+              placeholderTextColor={colors.TEXT_SECONDARY}
               value={mapSearchQuery}
               onChangeText={handleMapSearchInput}
               onSubmitEditing={handleSearchSubmit}
@@ -1202,7 +1197,7 @@ const MapScreen = ({ navigation, route }) => {
               }}
             />
             {isSearching && (
-              <ActivityIndicator size="small" color={COLORS.PRIMARY} style={styles.mapSearchLoading} />
+              <ActivityIndicator size="small" color={colors.PRIMARY} style={styles.mapSearchLoading} />
             )}
             {mapSearchQuery.length > 0 && !isSearching && (
               <TouchableOpacity
@@ -1213,7 +1208,7 @@ const MapScreen = ({ navigation, route }) => {
                 }}
                 style={styles.mapSearchClearButton}
               >
-                <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
               </TouchableOpacity>
             )}
           </Animated.View>
@@ -1258,13 +1253,13 @@ const MapScreen = ({ navigation, route }) => {
                   onPress={handleSearchBack}
                   style={styles.searchModeBackButton}
                 >
-                  <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
+                  <Ionicons name="arrow-back" size={24} color={colors.PRIMARY} />
                 </TouchableOpacity>
                 <TextInput
                   ref={searchInputRef}
                   style={styles.searchModeInput}
                   placeholder="모임, 카페, 푸드, 장소 검색..."
-                  placeholderTextColor={COLORS.SECONDARY}
+                  placeholderTextColor={colors.TEXT_SECONDARY}
                   value={mapSearchQuery}
                   onChangeText={handleMapSearchInput}
                   onSubmitEditing={handleSearchSubmit}
@@ -1274,7 +1269,7 @@ const MapScreen = ({ navigation, route }) => {
                   autoFocus={true}
                 />
                 {isSearching && (
-                  <ActivityIndicator size="small" color={COLORS.PRIMARY} style={styles.searchModeLoading} />
+                  <ActivityIndicator size="small" color={colors.PRIMARY} style={styles.searchModeLoading} />
                 )}
                 {mapSearchQuery.length > 0 && !isSearching && (
                   <TouchableOpacity
@@ -1284,7 +1279,7 @@ const MapScreen = ({ navigation, route }) => {
                     }}
                     style={styles.searchModeClearButton}
                   >
-                    <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                    <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1307,7 +1302,7 @@ const MapScreen = ({ navigation, route }) => {
                         'location'
                       }
                       size={20}
-                      color={COLORS.PRIMARY}
+                      color={colors.PRIMARY}
                       style={styles.searchModeResultIcon}
                     />
                     <View style={styles.searchModeResultContent}>
@@ -1356,7 +1351,7 @@ const MapScreen = ({ navigation, route }) => {
                       'location'
                     }
                     size={20}
-                    color={COLORS.PRIMARY}
+                    color={colors.PRIMARY}
                     style={styles.searchResultIcon}
                   />
                   <View style={styles.searchResultContent}>
@@ -1549,7 +1544,7 @@ const MapScreen = ({ navigation, route }) => {
                       onPress={handleCloseCafeDetail}
                       style={styles.cafeDetailCloseButton}
                     >
-                      <Ionicons name="close" size={24} color={COLORS.SECONDARY} />
+                      <Ionicons name="close" size={24} color={colors.TEXT_SECONDARY} />
                     </TouchableOpacity>
                   </View>
                   
@@ -1708,7 +1703,7 @@ const MapScreen = ({ navigation, route }) => {
                       onPress={handleCloseFoodDetail}
                       style={styles.cafeDetailCloseButton}
                     >
-                      <Ionicons name="close" size={24} color={COLORS.SECONDARY} />
+                      <Ionicons name="close" size={24} color={colors.TEXT_SECONDARY} />
                     </TouchableOpacity>
                   </View>
                   
@@ -1841,11 +1836,11 @@ const MapScreen = ({ navigation, route }) => {
                 <View style={styles.bottomSheetHeader}>
                   {activeToggle === 'events' && (
                     <View style={styles.bottomSheetSearchContainer}>
-                      <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+                      <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} style={styles.searchIcon} />
                       <TextInput
                         style={styles.bottomSheetSearchInput}
                         placeholder="모임 제목, 태그로 검색..."
-                        placeholderTextColor={COLORS.SECONDARY}
+                        placeholderTextColor={colors.TEXT_SECONDARY}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         autoCapitalize="none"
@@ -1856,18 +1851,18 @@ const MapScreen = ({ navigation, route }) => {
                           onPress={() => setSearchQuery('')}
                           style={styles.clearButton}
                         >
-                          <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                          <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
                         </TouchableOpacity>
                       )}
                     </View>
                   )}
                   {activeToggle === 'cafes' && (
                     <View style={styles.bottomSheetSearchContainer}>
-                      <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+                      <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} style={styles.searchIcon} />
                       <TextInput
                         style={styles.bottomSheetSearchInput}
                         placeholder="카페 상호명으로 검색..."
-                        placeholderTextColor={COLORS.SECONDARY}
+                        placeholderTextColor={colors.TEXT_SECONDARY}
                         value={cafeSearchQuery}
                         onChangeText={setCafeSearchQuery}
                         autoCapitalize="none"
@@ -1878,18 +1873,18 @@ const MapScreen = ({ navigation, route }) => {
                           onPress={() => setCafeSearchQuery('')}
                           style={styles.clearButton}
                         >
-                          <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                          <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
                         </TouchableOpacity>
                       )}
                     </View>
                   )}
                   {activeToggle === 'foods' && (
                     <View style={styles.bottomSheetSearchContainer}>
-                      <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+                      <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} style={styles.searchIcon} />
                       <TextInput
                         style={styles.bottomSheetSearchInput}
                         placeholder="러닝푸드 상호명으로 검색..."
-                        placeholderTextColor={COLORS.SECONDARY}
+                        placeholderTextColor={colors.TEXT_SECONDARY}
                         value={foodSearchQuery}
                         onChangeText={setFoodSearchQuery}
                         autoCapitalize="none"
@@ -1900,7 +1895,7 @@ const MapScreen = ({ navigation, route }) => {
                           onPress={() => setFoodSearchQuery('')}
                           style={styles.clearButton}
                         >
-                          <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                          <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -1968,7 +1963,7 @@ const MapScreen = ({ navigation, route }) => {
 
                                     {event.location ? (
                                       <View style={styles.mapEventFeedLocationRow}>
-                                        <Ionicons name="location-outline" size={14} color={COLORS.PRIMARY} />
+                                        <Ionicons name="location-outline" size={14} color={colors.PRIMARY} />
                                         <Text style={styles.mapEventFeedLocationText} numberOfLines={1}>
                                           {event.location}
                                         </Text>
@@ -1984,7 +1979,7 @@ const MapScreen = ({ navigation, route }) => {
                                 style={styles.showMoreButton}
                               >
                                 <Text style={styles.showMoreButtonText}>더보기</Text>
-                                <Ionicons name="chevron-down" size={20} color={COLORS.PRIMARY} />
+                                <Ionicons name="chevron-down" size={20} color={colors.PRIMARY} />
                               </TouchableOpacity>
                             )}
                           </>
@@ -2027,7 +2022,7 @@ const MapScreen = ({ navigation, route }) => {
                                     )}
                                     {cafe.runningCertificationBenefit && (
                                       <View style={styles.cafeBenefit}>
-                                        <Ionicons name="gift" size={14} color={COLORS.PRIMARY} />
+                                        <Ionicons name="gift" size={14} color={colors.PRIMARY} />
                                         <Text style={styles.cafeBenefitText}>
                                           {cafe.runningCertificationBenefit}
                                         </Text>
@@ -2043,7 +2038,7 @@ const MapScreen = ({ navigation, route }) => {
                                 style={styles.showMoreButton}
                               >
                                 <Text style={styles.showMoreButtonText}>더보기</Text>
-                                <Ionicons name="chevron-down" size={20} color={COLORS.PRIMARY} />
+                                <Ionicons name="chevron-down" size={20} color={colors.PRIMARY} />
                               </TouchableOpacity>
                             )}
                           </>
@@ -2085,7 +2080,7 @@ const MapScreen = ({ navigation, route }) => {
                                     )}
                                     {food.runningCertificationBenefit && (
                                       <View style={styles.cafeBenefit}>
-                                        <Ionicons name="gift" size={14} color={COLORS.PRIMARY} />
+                                        <Ionicons name="gift" size={14} color={colors.PRIMARY} />
                                         <Text style={styles.cafeBenefitText}>
                                           {food.runningCertificationBenefit}
                                         </Text>
@@ -2101,7 +2096,7 @@ const MapScreen = ({ navigation, route }) => {
                                 style={styles.showMoreButton}
                               >
                                 <Text style={styles.showMoreButtonText}>더보기</Text>
-                                <Ionicons name="chevron-down" size={20} color={COLORS.PRIMARY} />
+                                <Ionicons name="chevron-down" size={20} color={colors.PRIMARY} />
                               </TouchableOpacity>
                             )}
                           </>
@@ -2277,7 +2272,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   bottomSheetBackground: {
-    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (COLORS.SURFACE)
+    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (colors.SURFACE)
     // iOS 그림자
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -2290,7 +2285,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (COLORS.SURFACE)
+    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (colors.SURFACE)
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
@@ -2353,14 +2348,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 8,
     marginBottom: 8,
-    backgroundColor: '#1F1F24', // COLORS.SURFACE
+    backgroundColor: '#1F1F24', // colors.SURFACE
     borderRadius: 12,
     marginHorizontal: 16,
   },
   showMoreButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3AF8FF', // COLORS.PRIMARY
+    color: '#3AF8FF', // colors.PRIMARY
     marginRight: 8,
   },
   bottomSheetPlaceholder: {
@@ -2520,7 +2515,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cafeBenefitText: {
-    color: '#3AF8FF', // COLORS.PRIMARY
+    color: '#3AF8FF', // colors.PRIMARY
     fontSize: 12,
     marginLeft: 4,
   },
@@ -2591,7 +2586,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#3AF8FF', // COLORS.PRIMARY
+    backgroundColor: '#3AF8FF', // colors.PRIMARY
   },
   cafeDetailSection: {
     marginBottom: 20,

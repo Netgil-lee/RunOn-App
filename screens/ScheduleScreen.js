@@ -39,19 +39,12 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import * as Location from 'expo-location';
 import * as Clipboard from 'expo-clipboard';
 import { recordMeetingLocation } from '../services/userActivityService';
+import { useTheme } from '../contexts/ThemeContext';
 
 const firestore = getFirestore();
 
 
 // NetGill 디자인 시스템 - 홈화면과 동일한 색상 팔레트
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
 
 const FEED_META_STORAGE_KEY = 'runon_running_feed_meta_v1';
 const FEED_PAGE_SIZE = 8;
@@ -121,6 +114,8 @@ const isSameRunningSession = (runOnWorkout, appleWorkout) => {
 
 
 const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMeetingCardRef, onMyCreatedMeetingsSectionRef, onMeetingCardRef, onMeetingCardMenuRef }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const authContext = useAuth();
   const { user } = authContext || {};
   const [userProfile, setUserProfile] = useState(null);
@@ -1045,7 +1040,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               onPress={handleCreateEvent}
             >
               <View style={styles.optionIconContainer}>
-                <Ionicons name="add-circle" size={48} color={COLORS.PRIMARY} />
+                <Ionicons name="add-circle" size={48} color={colors.PRIMARY} />
               </View>
               <View style={styles.optionContent}>
                 <Text style={styles.optionTitle}>새 모임 만들기</Text>
@@ -1110,7 +1105,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                 <Text style={styles.optionTitle}>종료된 모임</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                   <Text style={styles.optionSubtitle}>종료된 모임을 확인하고 </Text>
-                  <Text style={[styles.optionSubtitle, { color: COLORS.PRIMARY }]}>러닝매너</Text>
+                  <Text style={[styles.optionSubtitle, { color: colors.PRIMARY }]}>러닝매너</Text>
                   <Text style={styles.optionSubtitle}>를 작성하세요</Text>
                 </View>
                 <View style={styles.optionBadge}>
@@ -1127,15 +1122,15 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
             <View style={styles.infoSection}>
               <Text style={styles.infoTitle}>💡 모임 관리 팁</Text>
               <View style={styles.infoItem}>
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
                 <Text style={styles.infoText}>모임 생성 시 상세한 정보를 입력하면 더 많은 참여자를 모을 수 있어요</Text>
               </View>
               <View style={styles.infoItem}>
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
                 <Text style={styles.infoText}>참여한 모임은 시작 24시간 전까지 취소할 수 있어요</Text>
               </View>
               <View style={styles.infoItem}>
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
                 <Text style={styles.infoText}>날씨나 상황 변경 시 참여자들에게 미리 알려주세요</Text>
               </View>
             </View>
@@ -1144,7 +1139,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
           <>
             {isFeedLoading ? (
               <View style={styles.runningFeedPlaceholderCard}>
-                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                <ActivityIndicator size="small" color={colors.PRIMARY} />
                 <Text style={styles.runningFeedPlaceholderTitle}>러닝 기록을 불러오는 중</Text>
               </View>
             ) : feedErrorCode ? (
@@ -1162,7 +1157,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               </View>
             ) : feedWorkouts.length === 0 ? (
               <View style={styles.runningFeedPlaceholderCard}>
-                <Ionicons name="fitness-outline" size={34} color={COLORS.PRIMARY} />
+                <Ionicons name="fitness-outline" size={34} color={colors.PRIMARY} />
                 <Text style={styles.runningFeedPlaceholderTitle}>러닝 기록이 없어요</Text>
                 <Text style={styles.runningFeedPlaceholderText}>
                   RunOn과 Apple Fitness의 러닝 기록이 여기에 표시됩니다.
@@ -1311,7 +1306,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                           <View style={styles.runningFeedEffortScaleRow}>
                             {Array.from({ length: 11 }).map((_, level) => {
                               const isActive = effortLevel !== null && level <= effortLevel;
-                              const activeColor = EFFORT_COLORS[level] || COLORS.PRIMARY;
+                              const activeColor = EFFORT_COLORS[level] || colors.PRIMARY;
                               return (
                                 <TouchableOpacity
                                   key={`${workout.id}-effort-${level}`}
@@ -1904,13 +1899,13 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
       <View style={styles.locationDateTimeRow}>
         {/* 위치 */}
         <View style={styles.infoRow}>
-          <Ionicons name="location-outline" size={16} color={COLORS.PRIMARY} />
+          <Ionicons name="location-outline" size={16} color={colors.PRIMARY} />
           <Text style={styles.infoText}>{event.location}</Text>
         </View>
 
         {/* 날짜/시간 */}
         <View style={styles.infoRow}>
-          <Ionicons name="time-outline" size={16} color={COLORS.PRIMARY} />
+          <Ionicons name="time-outline" size={16} color={colors.PRIMARY} />
           <Text style={styles.infoText}>
             {event.date ? formatDateWithoutYear(event.date) : '날짜 없음'} {event.time || '시간 없음'}
           </Text>
@@ -1964,7 +1959,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
             isEvaluationCompleted ? (
               <View style={styles.completedSection}>
                 <View style={[styles.evaluationCompletedButton, styles.evaluationCompletedButtonBright]}>
-                  <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                  <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
                   <Text style={styles.evaluationCompletedButtonText}>러닝매너 작성완료</Text>
                 </View>
                 <TouchableOpacity 
@@ -2839,11 +2834,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       {/* 1단계: 장소 유형 선택 */}
       {/* 장소 검색바 */}
       <View style={styles.locationSearchContainer}>
-        <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.locationSearchIcon} />
+        <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} style={styles.locationSearchIcon} />
         <TextInput
           style={styles.locationSearchInput}
           placeholder="장소 키워드 입력 (예: 여의도, 해운대, 석촌호수 등)"
-          placeholderTextColor={COLORS.SECONDARY}
+          placeholderTextColor={colors.TEXT_SECONDARY}
           value={locationSearchQuery}
           onChangeText={setLocationSearchQuery}
           autoCapitalize="none"
@@ -2854,7 +2849,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             onPress={() => setLocationSearchQuery('')}
             style={styles.locationSearchClearButton}
           >
-            <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+            <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
           </TouchableOpacity>
         )}
       </View>
@@ -3544,10 +3539,10 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   scrollView: {
     flex: 1,
@@ -3565,20 +3560,20 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 20,
     marginBottom: 8,
     fontFamily: 'Pretendard-Bold',
   },
   emptySubtitle: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     marginBottom: 32,
     fontFamily: 'Pretendard-Regular',
   },
   createButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 25,
@@ -3597,7 +3592,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   eventCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 12,
@@ -3678,7 +3673,7 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
   },
@@ -3742,12 +3737,12 @@ const styles = StyleSheet.create({
   },
   shareMeetingLinkButtonText: {
     fontSize: 13,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
   evaluationButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -3770,11 +3765,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
   },
   evaluationCompletedButtonText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
@@ -3858,7 +3853,7 @@ const styles = StyleSheet.create({
   eventTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
     lineHeight: 28,
     letterSpacing: -0.5,
@@ -4000,30 +3995,30 @@ const styles = StyleSheet.create({
   hashtagBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + '40',
+    borderColor: colors.PRIMARY + '40',
   },
   hashtagText: {
     fontSize: 12,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   publicBadge: {
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + '40',
+    borderColor: colors.PRIMARY + '40',
   },
   publicText: {
     fontSize: 11,
     fontWeight: '700',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   addMoreButton: {
     flexDirection: 'row',
@@ -4034,13 +4029,13 @@ const styles = StyleSheet.create({
   addMoreButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginLeft: 8,
   },
   // Flow styles
   flowContainer: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   flowHeader: {
     flexDirection: 'row',
@@ -4056,7 +4051,7 @@ const styles = StyleSheet.create({
   flowTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   flowContent: {
     flex: 1,
@@ -4073,7 +4068,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#333333',
     gap: 12,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   fixedBottomNav: {
     position: 'absolute',
@@ -4086,7 +4081,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#333333',
     gap: 12,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   backButton: {
     flex: 1,
@@ -4105,7 +4100,7 @@ const styles = StyleSheet.create({
   nextButton: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -4145,9 +4140,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepCircleActive: {
-    backgroundColor: COLORS.PRIMARY,
-    borderColor: COLORS.PRIMARY,
-    shadowColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
+    borderColor: colors.PRIMARY,
+    shadowColor: colors.PRIMARY,
     shadowOffset: {
       width: 0,
       height: 0,
@@ -4166,7 +4161,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   stepLineActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   stepLineInactive: {
     backgroundColor: '#666666',
@@ -4178,7 +4173,7 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
   },
   stepSubtitle: {
@@ -4193,7 +4188,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   eventTypeCard: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -4207,15 +4202,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   eventTypeCardSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   popularBadge: {
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
@@ -4231,7 +4226,7 @@ const styles = StyleSheet.create({
   eventTypeName: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
   },
   inputGroup: {
@@ -4245,13 +4240,13 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   textInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     borderWidth: 1,
     borderColor: '#333333',
     minHeight: 48,
@@ -4280,10 +4275,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   paceInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     borderWidth: 1,
     borderColor: '#333333',
     minHeight: 48,
@@ -4313,7 +4308,7 @@ const styles = StyleSheet.create({
   },
   difficultyCard: {
     flex: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
@@ -4321,14 +4316,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   difficultyCardSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   difficultyName: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   difficultyDescription: {
     fontSize: 14,
@@ -4336,7 +4331,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   dateTimeButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
@@ -4351,10 +4346,10 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   timeSelectButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
@@ -4366,7 +4361,7 @@ const styles = StyleSheet.create({
   timeSelectText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   modalOverlay: {
     flex: 1,
@@ -4377,14 +4372,14 @@ const styles = StyleSheet.create({
 
 
   dateTimePickerContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     margin: 20,
     borderRadius: 12,
     padding: 20,
     width: '90%',
   },
   datePickerContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     margin: 20,
     borderRadius: 12,
     padding: 0,
@@ -4403,7 +4398,7 @@ const styles = StyleSheet.create({
   datePickerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   datePickerCancelText: {
     fontSize: 16,
@@ -4413,10 +4408,10 @@ const styles = StyleSheet.create({
   datePickerConfirmText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   dateTimePicker: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     height: 200,
   },
   dateTimeActions: {
@@ -4438,7 +4433,7 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     padding: 12,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 8,
   },
   confirmButtonText: {
@@ -4447,7 +4442,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   shareOption: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
@@ -4457,8 +4452,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   shareOptionSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   shareOptionContent: {
@@ -4473,7 +4468,7 @@ const styles = StyleSheet.create({
   shareOptionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   shareOptionDescription: {
     fontSize: 14,
@@ -4485,9 +4480,9 @@ const styles = StyleSheet.create({
   noticeSection: {
     marginTop: 24,
     padding: 20,
-    backgroundColor: COLORS.PRIMARY + '15',
+    backgroundColor: colors.PRIMARY + '15',
     borderRadius: 16,
-    shadowColor: COLORS.PRIMARY,
+    shadowColor: colors.PRIMARY,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -4499,7 +4494,7 @@ const styles = StyleSheet.create({
   noticeTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -4511,7 +4506,7 @@ const styles = StyleSheet.create({
   },
   noticeText: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 22,
     flex: 1,
     fontWeight: '400',
@@ -4524,7 +4519,7 @@ const styles = StyleSheet.create({
   },
   locationTypeCard: {
     flex: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
@@ -4532,8 +4527,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   locationTypeCardSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   locationTypeEmoji: {
@@ -4542,7 +4537,7 @@ const styles = StyleSheet.create({
   locationTypeName: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   locationTypeDescription: {
@@ -4556,7 +4551,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   locationCard: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
@@ -4566,8 +4561,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   locationCardSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   locationEmoji: {
@@ -4577,7 +4572,7 @@ const styles = StyleSheet.create({
   locationName: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
     marginBottom: 4,
   },
@@ -4592,22 +4587,22 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     borderRadius: 6,
   },
   mapButtonText: {
     fontSize: 11,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   
   // 선택된 장소 표시 스타일
   selectedLocationDisplay: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -4627,7 +4622,7 @@ const styles = StyleSheet.create({
   selectedLocationName: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
   },
   selectedLocationDescription: {
@@ -4649,7 +4644,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   locationModalContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '85%',
@@ -4685,7 +4680,7 @@ const styles = StyleSheet.create({
   locationModalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   locationModalCancelText: {
     fontSize: 16,
@@ -4695,7 +4690,7 @@ const styles = StyleSheet.create({
   locationModalConfirmText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   locationModalConfirmTextDisabled: {
     color: '#666666',
@@ -4712,7 +4707,7 @@ const styles = StyleSheet.create({
   // 카카오맵 WebView 스타일
   kakaoMapContainer: {
     flex: 1,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   kakaoMapWebView: {
     flex: 1,
@@ -4724,7 +4719,7 @@ const styles = StyleSheet.create({
   locationSearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     paddingHorizontal: 12,
     marginBottom: 16,
@@ -4737,7 +4732,7 @@ const styles = StyleSheet.create({
   },
   locationSearchInput: {
     flex: 1,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 14,
   },
   locationSearchLoading: {
@@ -4748,7 +4743,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   locationSearchResultsDropdown: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     maxHeight: 300,
     marginBottom: 16,
@@ -4777,22 +4772,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationSearchResultTitle: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
   },
   locationSearchResultSubtitle: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
   },
   locationSearchResultCategory: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontSize: 10,
     marginTop: 2,
   },
   noSearchResultsContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
@@ -4801,13 +4796,13 @@ const styles = StyleSheet.create({
     borderColor: '#333333',
   },
   noSearchResultsText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 14,
     fontWeight: '500',
     marginTop: 8,
   },
   noSearchResultsSubtext: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
     marginTop: 4,
   },
@@ -4818,7 +4813,7 @@ const styles = StyleSheet.create({
   },
   locationTypeButton: {
     flex: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -4830,14 +4825,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   locationTypeButtonSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   locationTypeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   
   // 구체적 장소 선택 스타일
@@ -4847,11 +4842,11 @@ const styles = StyleSheet.create({
   specificLocationLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
   },
   dropdownButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
@@ -4866,13 +4861,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dropdownButtonTextSelected: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   
   // 드롭다운 목록 스타일
   dropdownList: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#333333',
@@ -4892,12 +4887,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   dropdownItemSelected: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
   },
   dropdownItemText: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
   dropdownItemDistance: {
@@ -4905,7 +4900,7 @@ const styles = StyleSheet.create({
     color: '#666666',
   },
   popularBadgeSmall: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -4921,11 +4916,11 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   selectedLocationCard: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -4933,14 +4928,14 @@ const styles = StyleSheet.create({
   },
   selectedLocationDistance: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   coursePhotoSection: {
     marginBottom: 8,
   },
   coursePhotoButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#333333',
@@ -4957,7 +4952,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4967,12 +4962,12 @@ const styles = StyleSheet.create({
   coursePhotoButtonTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
   },
   coursePhotoButtonSubtitle: {
     fontSize: 13,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 16,
   },
   
@@ -4988,14 +4983,14 @@ const styles = StyleSheet.create({
   mapGuideText: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'left',
   },
   gpsPermissionNotice: {
     marginTop: 6,
     marginLeft: 22,
     fontSize: 13,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 18,
   },
   locationErrorContainer: {
@@ -5016,7 +5011,7 @@ const styles = StyleSheet.create({
   },
   locationErrorText: {
     fontSize: 13,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -5026,7 +5021,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   requiredMark: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontSize: 18,
     fontWeight: '600',
     marginRight: 4,
@@ -5073,7 +5068,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -5089,7 +5084,7 @@ const styles = StyleSheet.create({
   customLocationInputContainer: {
     marginTop: 12,
     padding: 16,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#3AF8FF',
@@ -5097,7 +5092,7 @@ const styles = StyleSheet.create({
   customLocationLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginBottom: 8,
   },
   customLocationInput: {
@@ -5107,7 +5102,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333333',
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
   },
   customLocationHint: {
@@ -5152,14 +5147,14 @@ const styles = StyleSheet.create({
     color: '#FF0000',
   },
   customLocationInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
     borderColor: '#333333',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     minHeight: 50,
     textAlignVertical: 'top',
   },
@@ -5176,14 +5171,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   hashtagInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
     borderColor: '#333333',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   selectedTags: {
     flexDirection: 'row',
@@ -5203,7 +5198,7 @@ const styles = StyleSheet.create({
   },
   selectedTagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginRight: 6,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
@@ -5211,7 +5206,7 @@ const styles = StyleSheet.create({
 
   // 메인 옵션 카드 스타일
   mainOptionCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -5238,7 +5233,7 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   optionSubtitle: {
@@ -5248,7 +5243,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   optionBadge: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -5257,7 +5252,7 @@ const styles = StyleSheet.create({
   optionBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
 
   // 모임/러닝 피드 토글
@@ -5279,7 +5274,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   modeToggleButtonActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   modeToggleButtonText: {
     fontSize: 14,
@@ -5299,12 +5294,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 22,
   },
 
@@ -5315,12 +5310,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 2,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
     textAlign: 'center',
   },
@@ -5339,7 +5334,7 @@ const styles = StyleSheet.create({
 
   // 정보 섹션 스타일
   infoSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -5347,7 +5342,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 16,
   },
   infoItem: {
@@ -5363,7 +5358,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   runningFeedPlaceholderCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#2B2B2F',
@@ -5375,7 +5370,7 @@ const styles = StyleSheet.create({
   runningFeedPlaceholderTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 12,
     marginBottom: 8,
   },
@@ -5387,7 +5382,7 @@ const styles = StyleSheet.create({
   },
   runningFeedRetryButton: {
     marginTop: 14,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -5399,10 +5394,10 @@ const styles = StyleSheet.create({
   },
   runningFeedList: {
     marginBottom: 16,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   runningFeedItemCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     paddingVertical: 14,
     paddingHorizontal: 14,
   },
@@ -5419,7 +5414,7 @@ const styles = StyleSheet.create({
   runningFeedItemDate: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   runningFeedSourceBadge: {
     marginTop: 6,
@@ -5432,8 +5427,8 @@ const styles = StyleSheet.create({
     borderColor: '#3A3A40',
   },
   runningFeedSourceBadgeRunOn: {
-    backgroundColor: COLORS.PRIMARY,
-    borderColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
+    borderColor: colors.PRIMARY,
   },
   runningFeedSourceBadgeText: {
     fontSize: 11,
@@ -5469,7 +5464,7 @@ const styles = StyleSheet.create({
   runningFeedStatValue: {
     fontSize: 15,
     fontWeight: '800',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   runningFeedFooter: {
     flexDirection: 'row',
@@ -5575,7 +5570,7 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
   },
   runningFeedMemoSaveButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -5664,7 +5659,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomModal: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 34, // 하단 안전 영역 고려
@@ -5676,7 +5671,7 @@ const styles = StyleSheet.create({
   },
   bottomMenuItemText: {
     fontSize: 18,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   bottomMenuItemTextDelete: {
@@ -5684,7 +5679,7 @@ const styles = StyleSheet.create({
   },
   bottomModalSeparator: {
     height: 8,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   // 날짜/시간 선택 모달 오버레이
   datePickerModalOverlay: {
@@ -5764,18 +5759,18 @@ const styles = StyleSheet.create({
   coursePhotoName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   coursePhotoDescription: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 4,
     textAlign: 'center',
   },
   coursePhotoDistance: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
     marginBottom: 8,
   },
@@ -5785,7 +5780,7 @@ const styles = StyleSheet.create({
   },
   coursePhotoFeature: {
     fontSize: 13,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
   },
   coursePhotoLoading: {
@@ -5794,7 +5789,7 @@ const styles = StyleSheet.create({
     height: 120,
   },
   coursePhotoLoadingText: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 15,
   },
   
@@ -5805,7 +5800,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
@@ -5819,11 +5814,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
   modalEventInfo: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -5831,7 +5826,7 @@ const styles = StyleSheet.create({
   modalEventTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 12,
     fontFamily: 'Pretendard-SemiBold',
   },
@@ -5845,12 +5840,12 @@ const styles = StyleSheet.create({
   },
   modalEventDetailText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Regular',
   },
   modalMessage: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
     marginBottom: 24,
     fontFamily: 'Pretendard-Regular',
@@ -5861,7 +5856,7 @@ const styles = StyleSheet.create({
   },
   modalButtonSecondary: {
     flex: 1,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -5869,12 +5864,12 @@ const styles = StyleSheet.create({
   modalButtonSecondaryText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   modalButtonPrimary: {
     flex: 1,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',

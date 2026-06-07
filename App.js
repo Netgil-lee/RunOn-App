@@ -18,6 +18,7 @@ import { CommunityProvider } from './contexts/CommunityContext';
 import { NotificationSettingsProvider } from './contexts/NotificationSettingsContext';
 import { GuideProvider } from './contexts/GuideContext';
 import { PremiumProvider } from './contexts/PremiumContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -263,21 +264,23 @@ export default function App() {
         }}
         onStateChange={tryNavigateToDeepLinkedEvent}
       >
-        <NetworkProvider>
-          <AuthProvider isDemoMode={isDemoMode}>
-            <PremiumProvider>
-              <NotificationSettingsProvider>
-                <EventProvider>
-                  <CommunityProvider>
-                    <GuideProvider>
-                      <AppNavigator isDemoMode={isDemoMode} />
-                    </GuideProvider>
-                  </CommunityProvider>
-                </EventProvider>
-              </NotificationSettingsProvider>
-            </PremiumProvider>
-          </AuthProvider>
-        </NetworkProvider>
+        <ThemeProvider>
+          <NetworkProvider>
+            <AuthProvider isDemoMode={isDemoMode}>
+              <PremiumProvider>
+                <NotificationSettingsProvider>
+                  <EventProvider>
+                    <CommunityProvider>
+                      <GuideProvider>
+                        <AppNavigator isDemoMode={isDemoMode} />
+                      </GuideProvider>
+                    </CommunityProvider>
+                  </EventProvider>
+                </NotificationSettingsProvider>
+              </PremiumProvider>
+            </AuthProvider>
+          </NetworkProvider>
+        </ThemeProvider>
       </NavigationContainer>
     </>
   );

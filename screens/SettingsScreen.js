@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,34 +14,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../contexts/ThemeContext';
 import blacklistService from '../services/blacklistService';
 import appleFitnessService from '../services/appleFitnessService';
 import TermsPrivacyModal from '../components/TermsPrivacyModal';
 
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  WHITE: '#ffffff',
-  GRAY_100: '#f3f4f6',
-  GRAY_200: '#e5e7eb',
-  GRAY_300: '#d1d5db',
-  GRAY_400: '#9ca3af',
-  GRAY_500: '#6b7280',
-  GRAY_600: '#4b5563',
-  GRAY_700: '#1F2937',
-  GRAY_800: '#1f2937',
-  GRAY_900: '#111827',
-  BLUE_50: '#eff6ff',
-  BLUE_600: '#2563eb',
-  RED_600: '#dc2626',
-};
-
 const SettingsScreen = ({ navigation }) => {
+  const { colors, isDark, setTheme } = useTheme();
   const { user, logout } = useAuth();
   const { settings, toggleSetting, updateSetting } = useNotificationSettings();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('privacy'); // 'privacy' or 'child-safety'
@@ -319,7 +301,7 @@ const SettingsScreen = ({ navigation }) => {
     >
       <View style={styles.settingItemLeft}>
         <View style={styles.iconContainer}>
-          {customIcon ? customIcon : <Ionicons name={icon} size={20} color="#97DCDE" />}
+          {customIcon ? customIcon : <Ionicons name={icon} size={20} color={colors.PRIMARY} />}
         </View>
         <View style={styles.settingTextContainer}>
           <Text style={styles.settingTitle}>{title}</Text>
@@ -328,7 +310,7 @@ const SettingsScreen = ({ navigation }) => {
       </View>
       <View style={styles.settingItemRight}>
         {children}
-        {showArrow && <Ionicons name="chevron-forward" size={16} color={COLORS.GRAY_400} />}
+        {showArrow && <Ionicons name="chevron-forward" size={16} color={colors.TEXT_SECONDARY} />}
       </View>
     </TouchableOpacity>
   );
@@ -337,9 +319,9 @@ const SettingsScreen = ({ navigation }) => {
     <Switch
       value={enabled}
       onValueChange={onToggle}
-      trackColor={{ false: COLORS.GRAY_600, true: COLORS.PRIMARY }}
-      thumbColor={enabled ? COLORS.WHITE : COLORS.GRAY_300}
-      ios_backgroundColor={COLORS.GRAY_600}
+      trackColor={{ false: colors.BORDER, true: colors.PRIMARY }}
+      thumbColor={enabled ? '#ffffff' : colors.TEXT_SECONDARY}
+      ios_backgroundColor={colors.BORDER}
     />
   );
 
@@ -367,7 +349,7 @@ const SettingsScreen = ({ navigation }) => {
             style={styles.backButton} 
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.WHITE} />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>설정</Text>
           <View style={styles.headerSpacer} />
@@ -464,6 +446,31 @@ const SettingsScreen = ({ navigation }) => {
         {/* 앱 */}
         <SectionTitle title="앱" />
         <View style={styles.section}>
+          {/* 화면 모드 */}
+          <View style={styles.settingItem}>
+            <View style={styles.settingItemLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={20} color={colors.PRIMARY} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={styles.settingTitle}>화면 모드</Text>
+              </View>
+            </View>
+            <View style={styles.themeSegment}>
+              <TouchableOpacity
+                style={[styles.themeSegmentBtn, isDark && styles.themeSegmentBtnActive]}
+                onPress={() => setTheme('dark')}
+              >
+                <Text style={[styles.themeSegmentText, isDark && styles.themeSegmentTextActive]}>다크</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.themeSegmentBtn, !isDark && styles.themeSegmentBtnActive]}
+                onPress={() => setTheme('light')}
+              >
+                <Text style={[styles.themeSegmentText, !isDark && styles.themeSegmentTextActive]}>라이트</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           <SettingItem
             icon="heart-outline"
             title="건강데이터 접근"
@@ -588,13 +595,13 @@ const SettingsScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   headerContent: {
     height: 56,
@@ -612,7 +619,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   headerSpacer: {
@@ -631,13 +638,13 @@ const styles = StyleSheet.create({
   sectionTitleText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.GRAY_400,
+    color: colors.TEXT_SECONDARY,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     fontFamily: 'Pretendard-SemiBold',
   },
   section: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
@@ -648,7 +655,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   settingItemLeft: {
     flexDirection: 'row',
@@ -730,13 +737,13 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     marginBottom: 2,
     fontFamily: 'Pretendard-Medium',
   },
   settingSubtitle: {
     fontSize: 14,
-    color: COLORS.GRAY_400,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-Regular',
   },
   settingItemRight: {
@@ -744,13 +751,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deleteText: {
-    color: COLORS.RED_600,
+    color: colors.ERROR,
     fontSize: 16,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
   },
   bottomSpacing: {
     height: 100,
+  },
+  // 화면 모드 세그먼트
+  themeSegment: {
+    flexDirection: 'row',
+    backgroundColor: colors.BORDER,
+    borderRadius: 8,
+    padding: 2,
+  },
+  themeSegmentBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  themeSegmentBtnActive: {
+    backgroundColor: colors.SURFACE,
+  },
+  themeSegmentText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.TEXT_SECONDARY,
+    fontFamily: 'Pretendard-Medium',
+  },
+  themeSegmentTextActive: {
+    color: colors.TEXT,
+    fontWeight: '700',
   },
 });
 

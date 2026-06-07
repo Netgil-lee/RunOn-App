@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,19 +18,13 @@ import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import ScheduleCard from '../components/ScheduleCard';
 import { formatTimestamp, sanitizeTimestamps } from '../utils/timestampUtils';
+import { useTheme } from '../contexts/ThemeContext';
 
 
 // NetGill 디자인 시스템 - 최종 색상 팔레트
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
-
 const CommunityScreen = ({ navigation, route }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const { allEvents, chatRooms, joinEvent, userJoinedEvents } = useEvents();
   const { hasChatNotification, hasBoardNotification, notifications, markNotificationAsRead, handleChatTabClick, handleChatRoomClick, handleBoardTabClick } = useCommunity();
@@ -498,11 +492,11 @@ const CommunityScreen = ({ navigation, route }) => {
             {/* 검색 및 필터 */}
             <View style={styles.searchSection}>
               <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color={COLORS.SECONDARY} />
+                <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} />
                 <TextInput
                   style={styles.searchInput}
                   placeholder="모임 제목이나 태그로 검색..."
-                  placeholderTextColor={COLORS.SECONDARY}
+                  placeholderTextColor={colors.TEXT_SECONDARY}
                   value={searchText}
                   onChangeText={setSearchText}
                 />
@@ -510,7 +504,7 @@ const CommunityScreen = ({ navigation, route }) => {
                   style={styles.filterButton}
                   onPress={() => setShowFilters(true)}
                 >
-                  <Ionicons name="filter" size={20} color={COLORS.PRIMARY} />
+                  <Ionicons name="filter" size={20} color={colors.PRIMARY} />
                 </TouchableOpacity>
               </View>
               
@@ -521,7 +515,7 @@ const CommunityScreen = ({ navigation, route }) => {
                     <View style={styles.filterTag}>
                       <Text style={styles.filterTagText}>{selectedLocation}</Text>
                       <TouchableOpacity onPress={() => setSelectedLocation('전체')}>
-                        <Ionicons name="close" size={16} color={COLORS.PRIMARY} />
+                        <Ionicons name="close" size={16} color={colors.PRIMARY} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -529,7 +523,7 @@ const CommunityScreen = ({ navigation, route }) => {
                     <View style={styles.filterTag}>
                       <Text style={styles.filterTagText}>{selectedDifficulty}</Text>
                       <TouchableOpacity onPress={() => setSelectedDifficulty('전체')}>
-                        <Ionicons name="close" size={16} color={COLORS.PRIMARY} />
+                        <Ionicons name="close" size={16} color={colors.PRIMARY} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -537,7 +531,7 @@ const CommunityScreen = ({ navigation, route }) => {
                     <View style={styles.filterTag}>
                       <Text style={styles.filterTagText}>{selectedTimeSlot}</Text>
                       <TouchableOpacity onPress={() => setSelectedTimeSlot('전체')}>
-                        <Ionicons name="close" size={16} color={COLORS.PRIMARY} />
+                        <Ionicons name="close" size={16} color={colors.PRIMARY} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -571,7 +565,7 @@ const CommunityScreen = ({ navigation, route }) => {
               </View>
             ) : (
               <View style={styles.emptyState}>
-                <Ionicons name="search" size={60} color={COLORS.SECONDARY} />
+                <Ionicons name="search" size={60} color={colors.TEXT_SECONDARY} />
                 <Text style={styles.emptyTitle}>
                   {searchText || selectedLocation !== '전체' || selectedDifficulty !== '전체' || selectedTimeSlot !== '전체' 
                     ? '검색 조건에 맞는 모임이 없어요' 
@@ -678,7 +672,7 @@ const CommunityScreen = ({ navigation, route }) => {
                             
                             <View style={styles.chatRoomFooter}>
                               <View style={styles.participantsInfo}>
-                                <Ionicons name="people" size={14} color={COLORS.SECONDARY} />
+                                <Ionicons name="people" size={14} color={colors.TEXT_SECONDARY} />
                                 <Text style={[styles.participantsCount, { color: '#666666' }]}>
                                   {(() => {
                                     const participants = chatRoom.participants;
@@ -710,7 +704,7 @@ const CommunityScreen = ({ navigation, route }) => {
                                 isCreatedByUser: chatRoom.isCreatedByUser,
                                 maxParticipants: chatRoom.maxParticipants
                               })}
-                              <Ionicons name="chevron-forward" size={16} color={COLORS.SECONDARY} />
+                              <Ionicons name="chevron-forward" size={16} color={colors.TEXT_SECONDARY} />
                             </View>
                           </TouchableOpacity>
                         ))}
@@ -761,7 +755,7 @@ const CommunityScreen = ({ navigation, route }) => {
                           
                           <View style={styles.chatRoomFooter}>
                             <View style={styles.participantsInfo}>
-                              <Ionicons name="people" size={14} color={COLORS.SECONDARY} />
+                              <Ionicons name="people" size={14} color={colors.TEXT_SECONDARY} />
                               <Text style={[styles.participantsCount, { color: '#666666' }]}>
                                 {(() => {
                                   const participants = chatRoom.participants;
@@ -793,7 +787,7 @@ const CommunityScreen = ({ navigation, route }) => {
                                 maxParticipants: chatRoom.maxParticipants
                               })}
                             </View>
-                            <Ionicons name="chevron-forward" size={16} color={COLORS.SECONDARY} />
+                            <Ionicons name="chevron-forward" size={16} color={colors.TEXT_SECONDARY} />
                           </View>
                         </TouchableOpacity>
                       ))}
@@ -802,7 +796,7 @@ const CommunityScreen = ({ navigation, route }) => {
                 </>
               ) : (
                 <View style={styles.emptyState}>
-                  <Ionicons name="chatbubbles-outline" size={60} color={COLORS.SECONDARY} />
+                  <Ionicons name="chatbubbles-outline" size={60} color={colors.TEXT_SECONDARY} />
                   <Text style={styles.emptyTitle}>활성 채팅방이 없어요</Text>
                   <Text style={styles.emptySubtitle}>
                     진행 중인 러닝 모임에 참여하면 자동으로 채팅방이 생성됩니다
@@ -900,11 +894,11 @@ const CommunityScreen = ({ navigation, route }) => {
                         </View>
                         <View style={styles.postStats}>
                           <View style={styles.postStat}>
-                            <Ionicons name="heart" size={14} color={COLORS.PRIMARY} />
+                            <Ionicons name="heart" size={14} color={colors.PRIMARY} />
                             <Text style={styles.postStatText}>{Array.isArray(post.likes) ? post.likes.length : 0}</Text>
                           </View>
                           <View style={styles.postStat}>
-                            <Ionicons name="chatbubble" size={14} color={COLORS.SECONDARY} />
+                            <Ionicons name="chatbubble" size={14} color={colors.TEXT_SECONDARY} />
                             <Text style={styles.postStatText}>{Array.isArray(post.comments) ? post.comments.length : 0}</Text>
                           </View>
                         </View>
@@ -964,11 +958,11 @@ const CommunityScreen = ({ navigation, route }) => {
                         </View>
                         <View style={styles.postStats}>
                           <View style={styles.postStat}>
-                            <Ionicons name="heart" size={14} color={COLORS.PRIMARY} />
+                            <Ionicons name="heart" size={14} color={colors.PRIMARY} />
                             <Text style={styles.postStatText}>{Array.isArray(post.likes) ? post.likes.length : 0}</Text>
                           </View>
                           <View style={styles.postStat}>
-                            <Ionicons name="chatbubble" size={14} color={COLORS.SECONDARY} />
+                            <Ionicons name="chatbubble" size={14} color={colors.TEXT_SECONDARY} />
                             <Text style={styles.postStatText}>{Array.isArray(post.comments) ? post.comments.length : 0}</Text>
                           </View>
                         </View>
@@ -981,7 +975,7 @@ const CommunityScreen = ({ navigation, route }) => {
               {/* 빈 상태 */}
               {myPosts.length === 0 && otherPosts.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Ionicons name="document-text-outline" size={60} color={COLORS.SECONDARY} />
+                  <Ionicons name="document-text-outline" size={60} color={colors.TEXT_SECONDARY} />
                   <Text style={styles.emptyTitle}>
                     {selectedPostCategory !== '전체' 
                       ? `${selectedPostCategory} 카테고리의 게시글이 없어요` 
@@ -1022,7 +1016,7 @@ const CommunityScreen = ({ navigation, route }) => {
             <View style={styles.filterHeader}>
               <Text style={styles.filterTitle}>필터 설정</Text>
               <TouchableOpacity onPress={() => setShowFilters(false)}>
-                <Ionicons name="close" size={24} color={COLORS.TEXT} />
+                <Ionicons name="close" size={24} color={colors.TEXT} />
               </TouchableOpacity>
             </View>
 
@@ -1118,10 +1112,10 @@ const CommunityScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   scrollView: {
     flex: 1,
@@ -1142,19 +1136,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
   notificationBadge: {
     width: 10,
     height: 10,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 5,
     marginLeft: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-Regular',
   },
   eventsSection: {
@@ -1171,14 +1165,14 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
     textAlign: 'center',
     fontFamily: 'Pretendard-SemiBold',
   },
   emptySubtitle: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 24,
     fontFamily: 'Pretendard-Regular',
@@ -1192,7 +1186,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 0,
     marginBottom: 16,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 4,
     position: 'relative',
@@ -1207,7 +1201,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-SemiBold',
   },
   tabTextContainer: {
@@ -1236,7 +1230,7 @@ const styles = StyleSheet.create({
     left: 4,
     width: 127,
     height: 42.5,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 8,
     zIndex: 1,
   },
@@ -1249,7 +1243,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     paddingHorizontal: 4,
     paddingVertical: 12,
@@ -1258,7 +1252,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Regular',
   },
   filterButton: {
@@ -1273,7 +1267,7 @@ const styles = StyleSheet.create({
   filterTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1281,7 +1275,7 @@ const styles = StyleSheet.create({
   },
   filterTagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
   },
@@ -1290,11 +1284,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.SECONDARY,
+    borderColor: colors.TEXT_SECONDARY,
   },
   resetFiltersText: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   
   // 게시판 스타일
@@ -1313,30 +1307,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
-    borderColor: COLORS.SURFACE,
+    borderColor: colors.SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
   },
   categorySearchItemActive: {
-    backgroundColor: COLORS.PRIMARY + '20',
-    borderColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
   },
   categorySearchText: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',
   },
   categorySearchTextActive: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
   },
   createPostButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 12,
     paddingVertical: 16,
     gap: 8,
@@ -1351,7 +1345,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   postCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 0,
@@ -1363,7 +1357,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   postCategory: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -1371,21 +1365,21 @@ const styles = StyleSheet.create({
   postCategoryText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   postDate: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   postTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
   },
   postContent: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -1403,7 +1397,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1414,7 +1408,7 @@ const styles = StyleSheet.create({
   },
   postAuthor: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',
   },
   postStats: {
@@ -1428,11 +1422,11 @@ const styles = StyleSheet.create({
   },
   postStatText: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   myPostCard: {
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.PRIMARY,
+    borderLeftColor: colors.PRIMARY,
   },
   
   // 채팅 스타일
@@ -1450,31 +1444,31 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     marginVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dividerText: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
-    backgroundColor: COLORS.BACKGROUND,
+    color: colors.TEXT_SECONDARY,
+    backgroundColor: colors.BACKGROUND,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 8,
     fontWeight: '500',
   },
   chatRoomCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 0,
@@ -1494,7 +1488,7 @@ const styles = StyleSheet.create({
   chatRoomTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
 
@@ -1504,10 +1498,10 @@ const styles = StyleSheet.create({
   },
   chatRoomTime: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   unreadBadge: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -1522,7 +1516,7 @@ const styles = StyleSheet.create({
   },
   lastMessage: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 12,
     lineHeight: 20,
   },
@@ -1538,7 +1532,7 @@ const styles = StyleSheet.create({
   },
   participantsCount: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',
   },
   
@@ -1556,7 +1550,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   filterModal: {
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
@@ -1570,12 +1564,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.SURFACE,
+    borderBottomColor: colors.SURFACE,
   },
   filterTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   filterSection: {
     paddingHorizontal: 20,
@@ -1584,7 +1578,7 @@ const styles = StyleSheet.create({
   filterSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 12,
   },
   filterOptions: {
@@ -1596,21 +1590,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
-    borderColor: COLORS.SURFACE,
+    borderColor: colors.SURFACE,
   },
   selectedFilterOption: {
-    backgroundColor: COLORS.PRIMARY + '20',
-    borderColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
   },
   filterOptionText: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',
   },
   selectedFilterOptionText: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
   },
   filterActions: {
@@ -1624,19 +1618,19 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.SECONDARY,
+    borderColor: colors.TEXT_SECONDARY,
     alignItems: 'center',
   },
   resetButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   applyButton: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     alignItems: 'center',
   },
   applyButtonText: {
