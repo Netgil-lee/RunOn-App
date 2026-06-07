@@ -1628,7 +1628,7 @@ const MapScreen = ({ navigation, route }) => {
                   {selectedCafe.runningCertificationBenefit && (
                     <View style={styles.cafeDetailSection}>
                       <View style={styles.cafeDetailSectionTitleRow}>
-                        <Ionicons name="gift-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Ionicons name="gift-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                         <Text style={styles.cafeDetailSectionTitle}>러닝인증 혜택</Text>
                       </View>
                       <View style={[styles.cafeDetailSectionContent, styles.cafeBenefit]}>
@@ -1644,7 +1644,7 @@ const MapScreen = ({ navigation, route }) => {
                     <View style={styles.cafeDetailSection}>
                       <View style={styles.cafeDetailAddressRow}>
                         <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 0, marginRight: 8 }]}>
-                          <Ionicons name="location-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                          <Ionicons name="location-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                           <Text style={[styles.cafeDetailSectionTitle, { marginBottom: 0 }]}>주소</Text>
                         </View>
                         <Text style={styles.cafeDetailText}>{selectedCafe.address}</Text>
@@ -1656,7 +1656,7 @@ const MapScreen = ({ navigation, route }) => {
                   {selectedCafe.operatingHours && (
                     <View style={styles.cafeDetailSection}>
                       <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 8 }]}>
-                        <Ionicons name="time-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Ionicons name="time-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                         <Text style={styles.cafeDetailSectionTitle}>운영시간</Text>
                       </View>
                       <View style={styles.cafeDetailSectionContent}>
@@ -1781,7 +1781,7 @@ const MapScreen = ({ navigation, route }) => {
                   {selectedFood.runningCertificationBenefit && (
                     <View style={styles.cafeDetailSection}>
                       <View style={styles.cafeDetailSectionTitleRow}>
-                        <Ionicons name="gift-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Ionicons name="gift-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                         <Text style={styles.cafeDetailSectionTitle}>러닝인증 혜택</Text>
                       </View>
                       <View style={[styles.cafeDetailSectionContent, styles.cafeBenefit]}>
@@ -1796,7 +1796,7 @@ const MapScreen = ({ navigation, route }) => {
                     <View style={styles.cafeDetailSection}>
                       <View style={styles.cafeDetailAddressRow}>
                         <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 0, marginRight: 8 }]}>
-                          <Ionicons name="location-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                          <Ionicons name="location-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                           <Text style={[styles.cafeDetailSectionTitle, { marginBottom: 0 }]}>주소</Text>
                         </View>
                         <Text style={styles.cafeDetailText}>{selectedFood.address}</Text>
@@ -1807,7 +1807,7 @@ const MapScreen = ({ navigation, route }) => {
                   {selectedFood.operatingHours && (
                     <View style={styles.cafeDetailSection}>
                       <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 8 }]}>
-                        <Ionicons name="time-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Ionicons name="time-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                         <Text style={styles.cafeDetailSectionTitle}>운영시간</Text>
                       </View>
                       <View style={styles.cafeDetailSectionContent}>
@@ -2131,7 +2131,7 @@ const MapScreen = ({ navigation, route }) => {
               accessibilityRole="button"
               accessibilityLabel="이미지 전체보기 닫기"
             >
-              <Ionicons name="close" size={30} color="#FFFFFF" />
+              <Ionicons name="close" size={30} color={colors.TEXT} />
             </TouchableOpacity>
 
             <FlatList
@@ -2182,7 +2182,7 @@ const MapScreen = ({ navigation, route }) => {
 const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDE7',
+    backgroundColor: colors.BACKGROUND,
   },
   map: {
     ...StyleSheet.absoluteFillObject,
@@ -2230,7 +2230,7 @@ const createStyles = (colors) => StyleSheet.create({
     elevation: 8,
   },
   toggleButtonActive: {
-    backgroundColor: '#3AF8FF',
+    backgroundColor: colors.PRIMARY,
     // iOS 그림자
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -2240,7 +2240,7 @@ const createStyles = (colors) => StyleSheet.create({
     elevation: 8,
   },
   toggleText: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
     fontWeight: '500',
   },
@@ -2254,7 +2254,7 @@ const createStyles = (colors) => StyleSheet.create({
     right: 20,
     bottom: 110,
     zIndex: 220,
-    backgroundColor: '#3AF8FF',
+    backgroundColor: colors.PRIMARY,
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -2291,7 +2291,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderTopRightRadius: 20,
   },
   bottomSheetIndicator: {
-    backgroundColor: '#666666',
+    backgroundColor: colors.BORDER,
     width: 50,
     height: 4,
     borderRadius: 2,
@@ -2321,7 +2321,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   bottomSheetSearchInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 14,
   },
   bottomSheetBody: {
@@ -2356,7 +2356,7 @@ const createStyles = (colors) => StyleSheet.create({
   showMoreButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3AF8FF', // colors.PRIMARY
+    color: colors.PRIMARY,
     marginRight: 8,
   },
   bottomSheetPlaceholder: {
@@ -2378,7 +2378,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 14,
   },
   clearButton: {
@@ -2387,13 +2387,10 @@ const createStyles = (colors) => StyleSheet.create({
   },
   mapEventFeedList: {
     marginBottom: 8,
-    marginHorizontal: 20,
-    backgroundColor: colors.CARD,
   },
   mapEventFeedItem: {
-    backgroundColor: colors.CARD,
     paddingVertical: 14,
-    paddingHorizontal: 14,
+    paddingHorizontal: 20,
   },
   mapEventFeedItemDivider: {
     borderBottomWidth: 7,
@@ -2412,7 +2409,7 @@ const createStyles = (colors) => StyleSheet.create({
   mapEventFeedDate: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.TEXT,
   },
   mapEventFeedBadge: {
     marginTop: 6,
@@ -2437,7 +2434,7 @@ const createStyles = (colors) => StyleSheet.create({
   mapEventFeedTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: colors.TEXT,
     marginBottom: 12,
   },
   mapEventFeedStatRow: {
@@ -2457,7 +2454,7 @@ const createStyles = (colors) => StyleSheet.create({
   mapEventFeedStatValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.TEXT,
   },
   mapEventFeedLocationRow: {
     flexDirection: 'row',
@@ -2500,7 +2497,7 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
   },
   cafeName: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
@@ -2516,12 +2513,12 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 4,
   },
   cafeBenefitText: {
-    color: '#3AF8FF', // colors.PRIMARY
+    color: colors.PRIMARY,
     fontSize: 12,
     marginLeft: 4,
   },
   cafeDetailBenefitText: {
-    color: '#3AF8FF',
+    color: colors.PRIMARY,
     fontSize: 16,
     marginLeft: 0,
   },
@@ -2541,7 +2538,7 @@ const createStyles = (colors) => StyleSheet.create({
     minWidth: 0,
   },
   cafeDetailName: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 26,
     fontWeight: '700',
     flexShrink: 1,
@@ -2581,19 +2578,19 @@ const createStyles = (colors) => StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#666666',
+    backgroundColor: colors.BORDER,
   },
   cafeImagePaginationDotActive: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#3AF8FF', // colors.PRIMARY
+    backgroundColor: colors.PRIMARY, // colors.PRIMARY
   },
   cafeDetailSection: {
     marginBottom: 20,
   },
   cafeDetailDescription: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
     lineHeight: 22,
     marginBottom: 10,
@@ -2611,13 +2608,13 @@ const createStyles = (colors) => StyleSheet.create({
     paddingLeft: 24,
   },
   cafeDetailSectionTitle: {
-    color: '#FFFFFF', // 흰색
+    color: colors.TEXT,
     fontSize: 18,
     fontWeight: '700',
     marginRight: 0, // 주소 타이틀 옆에 내용이 오도록
   },
   cafeDetailText: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
     lineHeight: 22,
   },
@@ -2645,7 +2642,7 @@ const createStyles = (colors) => StyleSheet.create({
     minWidth: 48,
   },
   operatingHoursTime: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
   },
   mapSearchWrapper: {
@@ -2678,7 +2675,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   mapSearchInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
   },
   currentLocationButton: {
@@ -2747,7 +2744,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   searchResultTitle: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
@@ -2757,7 +2754,7 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 12,
   },
   searchResultCategory: {
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     fontSize: 11,
     marginTop: 2,
   },
@@ -2796,7 +2793,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   searchModeInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
   },
   searchModeLoading: {
@@ -2825,7 +2822,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   searchModeResultTitle: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
@@ -2835,7 +2832,7 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 14,
   },
   searchModeResultCategory: {
-    color: '#3AF8FF',
+    color: colors.PRIMARY,
     fontSize: 12,
     marginTop: 4,
   },
@@ -2888,7 +2885,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 6,
   },
   imageViewerCounterText: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 13,
     fontWeight: '600',
   },

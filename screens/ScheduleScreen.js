@@ -1057,7 +1057,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                 <View style={styles.cardTopNotificationBadge} />
               )}
               <View style={styles.optionIconContainer}>
-                <Ionicons name="people" size={48} color="#ffffff" />
+                <Ionicons name="people" size={48} color={colors.TEXT_SECONDARY} />
               </View>
               <View style={styles.optionContent}>
                 <Text style={styles.optionTitle}>내가 참여한 모임</Text>
@@ -1079,7 +1079,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               onPress={handleViewMyCreated}
             >
               <View style={styles.optionIconContainer}>
-                <Ionicons name="create" size={48} color="#ffffff" />
+                <Ionicons name="create" size={48} color={colors.TEXT_SECONDARY} />
               </View>
               <View style={styles.optionContent}>
                 <Text style={styles.optionTitle}>내가 만든 모임</Text>
