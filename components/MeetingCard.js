@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,127 +7,87 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const MeetingCard = ({ meeting, onClose, onJoin }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (!meeting) return null;
 
-
-  // 연도를 제거하고 요일을 추가하는 함수 (ScheduleCard와 동일)
   const formatDateWithoutYear = (dateString) => {
     if (!dateString) return '';
-    
-    // 이미 요일이 포함된 형식인 경우 (예: "1월 18일 (목)") 그대로 반환
-    if (dateString.includes('(') && dateString.includes(')')) {
-      return dateString;
-    }
-    
-    // "2024년 1월 18일" 또는 ISO 형식을 "1월 18일 (요일)" 형식으로 변환
+    if (dateString.includes('(') && dateString.includes(')')) return dateString;
     try {
       let date;
       if (dateString.includes('년')) {
-        // 한국어 형식: "2024년 1월 18일"
         const cleaned = dateString.replace(/^\d{4}년\s*/, '');
         const match = cleaned.match(/(\d{1,2})월\s*(\d{1,2})일/);
         if (match) {
-          const month = parseInt(match[1]);
-          const day = parseInt(match[2]);
-          date = new Date(new Date().getFullYear(), month - 1, day);
+          date = new Date(new Date().getFullYear(), parseInt(match[1]) - 1, parseInt(match[2]));
         }
       } else {
-        // ISO 형식: "2024-01-18"
         date = new Date(dateString);
       }
-      
       if (date && !isNaN(date.getTime())) {
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
         const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
-        return `${month}월 ${day}일 (${dayOfWeek})`;
+        return `${date.getMonth() + 1}월 ${date.getDate()}일 (${dayOfWeek})`;
       }
-    } catch (error) {
-      // 파싱 실패 시 무시
-    }
-    
-    // 파싱 실패 시 연도만 제거하여 반환
+    } catch {}
     return dateString.replace(/^\d{4}년\s*/, '');
   };
 
-  // 해시태그 파싱 함수 (ScheduleCard와 동일)
   const parseHashtags = (hashtagString) => {
-    if (!hashtagString || !hashtagString.trim()) return [];
-    
+    if (!hashtagString?.trim()) return [];
     return hashtagString
       .split(/\s+/)
       .filter(tag => tag.startsWith('#') && tag.length > 1)
       .map(tag => tag.replace(/[^#\w가-힣]/g, ''))
-      .slice(0, 5); // 최대 5개까지만 표시
+      .slice(0, 5);
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          {/* 모임 생성자 프로필 */}
           <View style={styles.organizerAvatar}>
             {meeting.organizerImage && !meeting.organizerImage.startsWith('file://') ? (
-              <Image 
-                source={{ uri: meeting.organizerImage }} 
-                style={styles.organizerAvatarImage}
-              />
+              <Image source={{ uri: meeting.organizerImage }} style={styles.organizerAvatarImage} />
             ) : (
               <Ionicons name="person" size={16} color="#ffffff" />
             )}
           </View>
-          {/* 생성자 이름 */}
           <View style={styles.organizerDetails}>
-            <Text style={styles.organizerName}>
-              {meeting.organizer}
-            </Text>
+            <Text style={styles.organizerName}>{meeting.organizer}</Text>
           </View>
           <Text style={styles.title}>{meeting.title}</Text>
         </View>
         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <Ionicons name="close" size={20} color={COLORS.SECONDARY} />
+          <Ionicons name="close" size={20} color={colors.TEXT_SECONDARY} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
-        {/* 설명 */}
         <Text style={styles.description}>{meeting.description}</Text>
-        
-        {/* 날짜/시간과 참여자수를 한 줄로 배치 */}
         <View style={styles.locationDateTimeRow}>
-          {/* 날짜/시간 */}
           <View style={styles.infoRow}>
-            <Ionicons name="time-outline" size={16} color={COLORS.PRIMARY} />
+            <Ionicons name="time-outline" size={16} color={colors.PRIMARY} />
             <Text style={styles.infoText}>
               {formatDateWithoutYear(meeting.date)} {meeting.time}
             </Text>
           </View>
-          {/* 참여자수 (우측) */}
           <View style={[styles.infoRow, styles.participantInfoRow]}>
-            <Ionicons name="people-outline" size={16} color={COLORS.PRIMARY} />
+            <Ionicons name="people-outline" size={16} color={colors.PRIMARY} />
             <Text style={styles.infoText}>
               {(() => {
-                const participantCount = Array.isArray(meeting.participants) ? meeting.participants.length : (meeting.participants || 1);
-                const maxParticipantText = meeting.maxParticipants ? `/${meeting.maxParticipants}` : '';
-                return `${participantCount}${maxParticipantText}`;
+                const count = Array.isArray(meeting.participants) ? meeting.participants.length : (meeting.participants || 1);
+                const max = meeting.maxParticipants ? `/${meeting.maxParticipants}` : '';
+                return `${count}${max}`;
               })()}
             </Text>
           </View>
         </View>
 
-        {/* 거리/페이스 통계 (ScheduleCard 스타일) */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{meeting.distance}km</Text>
@@ -140,7 +100,6 @@ const MeetingCard = ({ meeting, onClose, onJoin }) => {
           </View>
         </View>
 
-        {/* 해시태그 (ScheduleCard 스타일) */}
         {meeting.hashtags && parseHashtags(meeting.hashtags).length > 0 && (
           <View style={styles.tagsContainer}>
             {parseHashtags(meeting.hashtags).map((tag, index) => (
@@ -155,9 +114,9 @@ const MeetingCard = ({ meeting, onClose, onJoin }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     margin: 16,
     borderRadius: 12,
     overflow: 'hidden',
@@ -169,7 +128,7 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.SURFACE,
+    borderBottomColor: colors.SURFACE,
   },
   titleContainer: {
     flexDirection: 'row',
@@ -177,27 +136,17 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 8,
   },
-  locationName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.PRIMARY,
-    marginLeft: 6,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  content: {
-    padding: 16,
-  },
+  closeButton: { padding: 4 },
+  content: { padding: 16 },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
   description: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -208,19 +157,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 12,
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    minWidth: 0,
-  },
-  participantInfoRow: {
-    flex: 0,
-    alignSelf: 'flex-end',
-  },
+  infoRow: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
+  participantInfoRow: { flex: 0, alignSelf: 'flex-end' },
   infoText: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 8,
     flexShrink: 1,
   },
@@ -228,60 +169,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     marginBottom: 16,
     alignSelf: 'stretch',
   },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  statItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   statValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
     textAlign: 'center',
   },
-  dividerContainer: {
-    width: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: '#333333',
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
-  },
+  dividerContainer: { width: 10, alignItems: 'center', justifyContent: 'center' },
+  statDivider: { width: 1, height: 24, backgroundColor: colors.BORDER },
+  tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16 },
   tag: {
-    backgroundColor: '#1C3336',
+    backgroundColor: colors.isDark ? '#1C3336' : colors.SURFACE,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginRight: 8,
     marginBottom: 4,
   },
-  tagText: {
-    fontSize: 14,
-    color: COLORS.PRIMARY,
-    fontWeight: '500',
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  organizerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  tagText: { fontSize: 14, color: colors.PRIMARY, fontWeight: '500' },
   organizerAvatar: {
     width: 28,
     height: 28,
@@ -291,52 +203,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  organizerAvatarImage: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-  },
-  organizerAvatarText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  organizerDetails: {
-    marginRight: 8,
-  },
-  organizerName: {
-    fontSize: 15,
-    color: COLORS.TEXT,
-    fontWeight: '500',
-  },
-  rightSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  participantInfo: {
-    fontSize: 13,
-    color: COLORS.TEXT,
-    fontWeight: '500',
-  },
+  organizerAvatarImage: { width: 28, height: 28, borderRadius: 14 },
+  organizerDetails: { marginRight: 8 },
+  organizerName: { fontSize: 15, color: colors.TEXT, fontWeight: '500' },
   joinButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
-  joinButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.BACKGROUND,
-  },
-  disabledButton: {
-    backgroundColor: COLORS.SECONDARY,
-    opacity: 0.7,
-  },
-  disabledButtonText: {
-    color: COLORS.SECONDARY,
-  },
+  joinButtonText: { fontSize: 15, fontWeight: '600', color: colors.BACKGROUND },
+  disabledButton: { backgroundColor: colors.TEXT_SECONDARY, opacity: 0.7 },
+  disabledButtonText: { color: colors.TEXT_SECONDARY },
 });
 
-export default MeetingCard; 
+export default MeetingCard;

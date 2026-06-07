@@ -1464,6 +1464,8 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
 };
 
 const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCreatedByMe = false, showOrganizerInfo = false, cardIndex, showJoinButton = true, isEnded = false, hasRatingNotification = false, hasMeetingNotification = false, navigation, user, onMeetingCardRef, onMeetingCardMenuRef }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [showActionModal, setShowActionModal] = useState(false);
   const [buttonLayout, setButtonLayout] = useState(null);
   const [cardLayout, setCardLayout] = useState(null);
@@ -2070,6 +2072,8 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
 };
 
 const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, updateUserProfile } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [userProfile, setUserProfile] = useState(null);

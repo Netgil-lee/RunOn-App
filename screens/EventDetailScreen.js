@@ -22,19 +22,12 @@ import evaluationService from '../services/evaluationService';
 import ENV from '../config/environment';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import firestoreService from '../services/firestoreService';
+import { useTheme } from '../contexts/ThemeContext';
 
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-  BORDER: '#374151',
-  ICON_DEFAULT: '#9CA3AF',
-};
 
 const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsChange, embedInExternalScrollView = false }, ref) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { event: rawEvent, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe, returnToScreen, evaluationCompleted = false } = route.params;
   // BottomSheet 내부에서 렌더링되는지 확인 (MapScreen에서 호출될 때)
   const isInBottomSheet = returnToScreen === 'MapScreen';
@@ -866,7 +859,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             {/* 첫 번째 행: 날짜 | 시간 */}
             <View style={styles.infoGridRow}>
               <View style={styles.infoGridItem}>
-                <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="calendar" size={16} color={colors.TEXT_SECONDARY} />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>날짜</Text>
                   <Text style={styles.infoValue}>
@@ -876,7 +869,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
               </View>
               
               <View style={styles.infoGridItem}>
-                <Ionicons name="time" size={16} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="time" size={16} color={colors.TEXT_SECONDARY} />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>시간</Text>
                   <Text style={styles.infoValue}>{event.time}</Text>
@@ -924,7 +917,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
         <View style={styles.participantsSection}>
           <Text style={styles.sectionTitle}>참여자</Text>
           <View style={styles.participantsInfo}>
-            <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
+            <Ionicons name="people" size={20} color={colors.TEXT_SECONDARY} />
             <Text style={styles.participantsText}>
               {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
               {event.maxParticipants ? ` / ${event.maxParticipants}명` : ' (제한 없음)'}
@@ -959,7 +952,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             {/* 첫 번째 행: 날짜 | 시간 */}
             <View style={styles.infoGridRow}>
               <View style={styles.infoGridItem}>
-                <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="calendar" size={16} color={colors.TEXT_SECONDARY} />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>날짜</Text>
                   <Text style={styles.infoValue}>
@@ -969,7 +962,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
               </View>
               
               <View style={styles.infoGridItem}>
-                <Ionicons name="time" size={16} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="time" size={16} color={colors.TEXT_SECONDARY} />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>시간</Text>
                   <Text style={styles.infoValue}>{event.time}</Text>
@@ -1013,7 +1006,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
         <View style={styles.participantsSection}>
           <Text style={styles.sectionTitle}>참여자</Text>
           <View style={styles.participantsInfo}>
-            <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
+            <Ionicons name="people" size={20} color={colors.TEXT_SECONDARY} />
             <Text style={styles.participantsText}>
               {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
               {event.maxParticipants ? ` / ${event.maxParticipants}명` : ' (제한 없음)'}
@@ -1087,7 +1080,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                 {/* 첫 번째 행: 날짜 | 시간 */}
                 <View style={styles.infoGridRow}>
                   <View style={styles.infoGridItem}>
-                    <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+                    <Ionicons name="calendar" size={16} color={colors.TEXT_SECONDARY} />
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>날짜</Text>
                       <Text style={styles.infoValue}>
@@ -1097,7 +1090,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                   </View>
                   
                   <View style={styles.infoGridItem}>
-                    <Ionicons name="time" size={16} color={COLORS.ICON_DEFAULT} />
+                    <Ionicons name="time" size={16} color={colors.TEXT_SECONDARY} />
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>시간</Text>
                       <Text style={styles.infoValue}>{event.time}</Text>
@@ -1145,7 +1138,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             <View style={styles.participantsSection}>
               <Text style={styles.sectionTitle}>참여자</Text>
               <View style={styles.participantsInfo}>
-                <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="people" size={20} color={colors.TEXT_SECONDARY} />
                 <Text style={styles.participantsText}>
                   {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
                   {event.maxParticipants ? ` / ${event.maxParticipants}명` : ' (제한 없음)'}
@@ -1244,7 +1237,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
               </TouchableOpacity>
             ) : isEnded && isEvaluationCompleted ? (
               <View style={[styles.actionButton, styles.completedButton]}>
-                <Ionicons name="checkmark-circle" size={24} color={COLORS.PRIMARY} />
+                <Ionicons name="checkmark-circle" size={24} color={colors.PRIMARY} />
                 <Text style={[styles.actionButtonText, styles.completedButtonText]}>러닝매너 작성완료</Text>
               </View>
             ) : (
@@ -1301,7 +1294,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                     <Ionicons 
                       name={isCreatedByMe ? "checkmark-circle" : (isJoinedState ? "exit" : "add")} 
                       size={24} 
-                      color={isCreatedByMe ? "#000000" : (isJoinedState ? COLORS.TEXT : "#000000")} 
+                      color={isCreatedByMe ? "#000000" : (isJoinedState ? colors.TEXT : "#000000")} 
                     />
                   );
                 })()}
@@ -1332,33 +1325,33 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
   );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     marginTop: -16, // 위로 올리기
   },
   containerInSheet: {
     // BottomSheet 내부: 배경색을 시트와 동일하게
     marginTop: 0,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   bottomSheetContainer: {
     // BottomSheet 내부 컨테이너: flexbox 레이아웃
     flex: 1,
     flexDirection: 'column',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   fixedHeaderSection: {
     // 고정 헤더 영역 (스크롤되지 않음)
     flexShrink: 0,
-    backgroundColor: COLORS.SURFACE, // BottomSheet와 동일
+    backgroundColor: colors.SURFACE, // BottomSheet와 동일
   },
   headerInSheet: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   customLocationContainerInSheet: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   scrollableSection: {
     // 스크롤 가능한 영역 - 하단 버튼 공간 확보
@@ -1380,7 +1373,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8, // 하단 여백 줄임
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   backButton: {
     padding: 4,
@@ -1389,7 +1382,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 12,
     marginRight: 12,
   },
@@ -1397,15 +1390,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 0, // 상단 여백 제거
     paddingBottom: 4, // 하단 여백 줄임
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   customLocationText: {
     fontSize: 15,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     lineHeight: 21,
   },
   descriptionCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 10, // 러닝정보 카드와 동일한 좌우 여백
@@ -1414,7 +1407,7 @@ const styles = StyleSheet.create({
   },
   descriptionText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 24,
   },
   headerRightSection: {
@@ -1425,7 +1418,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 10,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   typeContainer: {
     backgroundColor: '#FF0073CC', // 구독서비스 하단버튼 색상 투명도 80% (CC = 204/255 ≈ 80%)
@@ -1436,10 +1429,10 @@ const styles = StyleSheet.create({
   typeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   infoSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12, // 모든 카드 사이 여백 통일
@@ -1461,7 +1454,7 @@ const styles = StyleSheet.create({
   infoGridHorizontalDivider: {
     height: 1,
     width: '100%',
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     marginVertical: 12,
   },
   infoRow: {
@@ -1475,18 +1468,18 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   infoDetailValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginTop: 4,
   },
   inlineMapContainer: {
@@ -1499,7 +1492,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   runningInfoSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 12, // 모든 카드 사이 여백 통일
@@ -1508,7 +1501,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 12,
   },
   statsContainer: {
@@ -1521,17 +1514,17 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 4,
   },
   statValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   statDivider: {
     width: 1,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     marginHorizontal: 20,
   },
   difficultyBadge: {
@@ -1545,7 +1538,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   participantsSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12, // 모든 카드 사이 여백 통일
@@ -1558,19 +1551,19 @@ const styles = StyleSheet.create({
   },
   participantsText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 8,
   },
   participantsBar: {
     flex: 1,
     height: 4,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     borderRadius: 2,
     marginLeft: 12,
   },
   participantsProgress: {
     height: '100%',
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 2,
   },
   participantsList: {
@@ -1585,7 +1578,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
   },
   participantAvatar: {
@@ -1618,13 +1611,13 @@ const styles = StyleSheet.create({
   },
   participantName: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     marginBottom: 4,
   },
   participantBio: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 16,
   },
   loadingContainer: {
@@ -1635,7 +1628,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   emptyContainer: {
     flex: 1,
@@ -1645,10 +1638,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   hashtagSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -1659,14 +1652,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   hashtagBadge: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   hashtagText: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   bottomActions: {
@@ -1674,7 +1667,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     paddingHorizontal: 10, // 카드와 동일한 좌우 여백
     paddingTop: 12,
     paddingBottom: 22,
@@ -1685,7 +1678,7 @@ const styles = StyleSheet.create({
     // BottomSheet 내부에서는 absolute 제거, flexbox로 자연스럽게 하단 배치
     position: 'relative',
     width: '100%',
-    backgroundColor: COLORS.SURFACE, // BottomSheet와 동일
+    backgroundColor: colors.SURFACE, // BottomSheet와 동일
     // 명시적으로 높이 보장
     minHeight: 70,
     paddingHorizontal: 10, // 카드와 동일한 좌우 여백
@@ -1701,42 +1694,42 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   joinButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   leaveButton: {
     backgroundColor: '#FF4444',
   },
   endButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   actionButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
   },
   completedButton: {
-    backgroundColor: '#1F2937',
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
   },
   completedButtonText: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   joinButtonText: {
     color: '#000000',
   },
   leaveButtonText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   endButtonText: {
     color: '#000000',
   },
   disabledButton: {
     opacity: 0.7,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     paddingVertical: 18, // 기본 16에서 18로 증가 (위아래 여백 추가)
   },
   disabledButtonText: {
-    color: '#CCCCCC', // 더 밝은 회색으로 변경
+    color: colors.TEXT_SECONDARY,
   },
 });
 
@@ -1766,7 +1759,7 @@ export const EventDetailBottomButton = ({
         </TouchableOpacity>
       ) : isEnded && isEvaluationCompleted ? (
         <View style={[componentStyles.actionButton, componentStyles.completedButton]}>
-          <Ionicons name="checkmark-circle" size={24} color={COLORS.PRIMARY} />
+          <Ionicons name="checkmark-circle" size={24} color={colors.PRIMARY} />
           <Text style={[componentStyles.actionButtonText, componentStyles.completedButtonText]}>러닝매너 작성완료</Text>
         </View>
       ) : (
@@ -1805,7 +1798,7 @@ export const EventDetailBottomButton = ({
               <Ionicons 
                 name={isCreatedByMe ? "checkmark-circle" : (isJoinedState ? "exit" : "add")} 
                 size={24} 
-                color={isCreatedByMe ? "#000000" : (isJoinedState ? COLORS.TEXT : "#000000")} 
+                color={isCreatedByMe ? "#000000" : (isJoinedState ? colors.TEXT : "#000000")} 
               />
             );
           })()}
