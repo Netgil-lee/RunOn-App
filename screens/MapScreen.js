@@ -315,6 +315,7 @@ const MapScreen = ({ navigation, route }) => {
   }, [foods, foodSearchQuery]);
 
   const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   // 기본 위치 (서울 중심)
   const DEFAULT_LOCATION = {
@@ -503,7 +504,7 @@ const MapScreen = ({ navigation, route }) => {
       // 지도탭에서만 bottombar 구분선 추가
       navigation.setOptions({
         tabBarStyle: {
-          backgroundColor: '#1F1F24',
+          backgroundColor: colors.SURFACE,
           borderTopWidth: 1,
           borderTopColor: '#333333', // 약간 밝은 구분선 색상
           height: 85,
@@ -604,7 +605,7 @@ const MapScreen = ({ navigation, route }) => {
         // bottombar 구분선 제거 (원래 스타일로 복원)
         navigation.setOptions({
           tabBarStyle: {
-            backgroundColor: '#1F1F24',
+            backgroundColor: colors.SURFACE,
             borderTopWidth: 0,
             height: 85,
             paddingBottom: 36,
@@ -2178,7 +2179,7 @@ const MapScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFDE7',
@@ -2272,7 +2273,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   bottomSheetBackground: {
-    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (colors.SURFACE)
+    backgroundColor: colors.SURFACE, // bottombar 배경색과 동일 (colors.SURFACE)
     // iOS 그림자
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -2285,7 +2286,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (colors.SURFACE)
+    backgroundColor: colors.SURFACE, // bottombar 배경색과 동일 (colors.SURFACE)
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
@@ -2310,7 +2311,7 @@ const styles = StyleSheet.create({
   bottomSheetSearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#171719',
+    backgroundColor: colors.CARD,
     borderRadius: 20,
     paddingHorizontal: 12,
     height: 44,
@@ -2348,7 +2349,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 8,
     marginBottom: 8,
-    backgroundColor: '#1F1F24', // colors.SURFACE
+    backgroundColor: colors.SURFACE, // colors.SURFACE
     borderRadius: 12,
     marginHorizontal: 16,
   },
@@ -2359,13 +2360,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   bottomSheetPlaceholder: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#171719',
+    backgroundColor: colors.CARD,
     borderRadius: 8,
     paddingHorizontal: 12,
     marginHorizontal: 20,
@@ -2387,16 +2388,16 @@ const styles = StyleSheet.create({
   mapEventFeedList: {
     marginBottom: 8,
     marginHorizontal: 20,
-    backgroundColor: '#171719',
+    backgroundColor: colors.CARD,
   },
   mapEventFeedItem: {
-    backgroundColor: '#171719',
+    backgroundColor: colors.CARD,
     paddingVertical: 14,
     paddingHorizontal: 14,
   },
   mapEventFeedItemDivider: {
     borderBottomWidth: 7,
-    borderBottomColor: '#000000',
+    borderBottomColor: colors.BORDER,
   },
   mapEventFeedHeader: {
     flexDirection: 'row',
@@ -2419,19 +2420,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: '#2A2A2E',
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
     borderColor: '#3A3A40',
     maxWidth: '100%',
   },
   mapEventFeedBadgeText: {
     fontSize: 11,
-    color: '#D4D4D8',
+    color: colors.TEXT,
     fontWeight: '600',
   },
   mapEventFeedTime: {
     fontSize: 13,
-    color: '#A7A7AA',
+    color: colors.TEXT_SECONDARY,
   },
   mapEventFeedTitle: {
     fontSize: 16,
@@ -2450,7 +2451,7 @@ const styles = StyleSheet.create({
   },
   mapEventFeedStatLabel: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: colors.TEXT_SECONDARY,
     marginBottom: 4,
   },
   mapEventFeedStatValue: {
@@ -2467,7 +2468,7 @@ const styles = StyleSheet.create({
   mapEventFeedLocationText: {
     flex: 1,
     fontSize: 12,
-    color: '#8E8E93',
+    color: colors.TEXT_SECONDARY,
   },
   emptyContainer: {
     padding: 40,
@@ -2475,7 +2476,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
   cafeCardContainer: {
@@ -2483,7 +2484,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   cafeCard: {
-    backgroundColor: '#171719',
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     overflow: 'hidden',
     flexDirection: 'row',
@@ -2491,7 +2492,7 @@ const styles = StyleSheet.create({
   cafeImage: {
     width: 100,
     height: 100,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   cafeCardContent: {
     flex: 1,
@@ -2505,7 +2506,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cafeDescription: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
     marginBottom: 8,
   },
@@ -2563,7 +2564,7 @@ const styles = StyleSheet.create({
     width: Dimensions.get('window').width - 32,
     height: Dimensions.get('window').width - 32,
     borderRadius: 12,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   cafeDetailImageTouchable: {
     width: Dimensions.get('window').width - 32,
@@ -2634,12 +2635,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   operatingHoursDate: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 16,
     minWidth: 36,
   },
   operatingHoursDay: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 16,
     minWidth: 48,
   },
@@ -2752,7 +2753,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   searchResultSubtitle: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
   },
   searchResultCategory: {
@@ -2767,11 +2768,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#000000',
+    backgroundColor: colors.BACKGROUND,
     zIndex: 300,
   },
   searchModeHeader: {
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.SURFACE,
     paddingBottom: 16,
     paddingHorizontal: 20,
   },
@@ -2830,7 +2831,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   searchModeResultSubtitle: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
   searchModeResultCategory: {
@@ -2844,7 +2845,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchModeEmptyText: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
   searchBackButton: {

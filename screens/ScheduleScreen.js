@@ -3648,7 +3648,7 @@ const createStyles = (colors) => StyleSheet.create({
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   statValue: {
     fontSize: 15,
@@ -3788,7 +3788,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -3864,7 +3864,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   organizerText: {
     fontSize: 13,
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     marginTop: 4,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
@@ -3940,7 +3940,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   eventDetailLabel: {
     fontSize: 12,
-    color: '#888888',
+    color: colors.TEXT_SECONDARY,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
@@ -4095,7 +4095,7 @@ const createStyles = (colors) => StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#cccccc',
+    color: colors.TEXT_SECONDARY,
   },
   nextButton: {
     flex: 1,
@@ -4108,7 +4108,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   nextButtonDisabled: {
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   nextButtonFull: {
     flex: 1,
@@ -4119,7 +4119,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: '#000000',
   },
   nextButtonTextDisabled: {
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   stepIndicator: {
     flexDirection: 'row',
@@ -4164,7 +4164,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.PRIMARY,
   },
   stepLineInactive: {
-    backgroundColor: '#666666',
+    backgroundColor: colors.TEXT_SECONDARY,
   },
   stepContent: {
     gap: 14,
@@ -4178,7 +4178,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   stepSubtitle: {
     fontSize: 16,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -4254,7 +4254,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   inputHint: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 16,
     marginTop: 6,
     paddingBottom: 4,
@@ -4271,7 +4271,7 @@ const createStyles = (colors) => StyleSheet.create({
   paceLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
   },
   paceInput: {
@@ -4293,11 +4293,11 @@ const createStyles = (colors) => StyleSheet.create({
   paceSeparatorText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   paceHint: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 16,
     marginTop: 6,
     textAlign: 'center',
@@ -4327,7 +4327,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   difficultyDescription: {
     fontSize: 14,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   dateTimeButton: {
@@ -4403,7 +4403,7 @@ const createStyles = (colors) => StyleSheet.create({
   datePickerCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   datePickerConfirmText: {
     fontSize: 16,
@@ -4429,7 +4429,7 @@ const createStyles = (colors) => StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   confirmButton: {
     padding: 12,
@@ -4472,7 +4472,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   shareOptionDescription: {
     fontSize: 14,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   
@@ -4542,7 +4542,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   locationTypeDescription: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   
   locationGrid: {
@@ -4578,7 +4578,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   locationDistance: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     marginBottom: 8,
   },
   mapButton: {
@@ -4627,7 +4627,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   selectedLocationDescription: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   
   // 장소 선택 모달 스타일
@@ -4665,7 +4665,7 @@ const createStyles = (colors) => StyleSheet.create({
   locationModalHandleBar: {
     width: 40,
     height: 4,
-    backgroundColor: '#666666',
+    backgroundColor: colors.TEXT_SECONDARY,
     borderRadius: 2,
   },
   locationModalHeader: {
@@ -4685,7 +4685,7 @@ const createStyles = (colors) => StyleSheet.create({
   locationModalCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   locationModalConfirmText: {
     fontSize: 16,
@@ -4693,7 +4693,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.PRIMARY,
   },
   locationModalConfirmTextDisabled: {
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   locationModalContent: {
     flex: 1,
@@ -4857,7 +4857,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   dropdownButtonText: {
     fontSize: 16,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     flex: 1,
   },
   dropdownButtonTextSelected: {
@@ -4897,7 +4897,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   dropdownItemDistance: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   popularBadgeSmall: {
     backgroundColor: colors.PRIMARY,
@@ -5107,7 +5107,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   customLocationHint: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 16,
   },
   
@@ -5238,7 +5238,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   optionSubtitle: {
     fontSize: 14,
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     marginBottom: 8,
   },
@@ -5279,7 +5279,7 @@ const createStyles = (colors) => StyleSheet.create({
   modeToggleButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#A0A0A0',
+    color: colors.TEXT_SECONDARY,
   },
   modeToggleButtonTextActive: {
     color: '#000000',
@@ -5352,7 +5352,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#CCCCCC',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     marginLeft: 8,
     flex: 1,
@@ -5376,7 +5376,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   runningFeedPlaceholderText: {
     fontSize: 14,
-    color: '#B5B5B8',
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -5422,7 +5422,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: '#2A2A2E',
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
     borderColor: '#3A3A40',
   },
@@ -5432,7 +5432,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   runningFeedSourceBadgeText: {
     fontSize: 11,
-    color: '#D4D4D8',
+    color: colors.TEXT,
     fontWeight: '600',
   },
   runningFeedSourceBadgeTextRunOn: {
@@ -5440,7 +5440,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   runningFeedItemTime: {
     fontSize: 13,
-    color: '#A7A7AA',
+    color: colors.TEXT_SECONDARY,
   },
   runningFeedStatRow: {
     flexDirection: 'row',
@@ -5490,7 +5490,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2F2F35',
-    backgroundColor: '#141417',
+    backgroundColor: colors.CARD,
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
@@ -5503,7 +5503,7 @@ const createStyles = (colors) => StyleSheet.create({
   runningFeedEffortTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#D2D2D7',
+    color: colors.TEXT,
   },
   runningFeedEffortValue: {
     fontSize: 12,
@@ -5525,7 +5525,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
   },
   runningFeedEffortBarInactive: {
-    backgroundColor: '#202027',
+    backgroundColor: colors.SURFACE,
     borderColor: '#34343C',
   },
   runningFeedEffortLabels: {
@@ -5535,14 +5535,14 @@ const createStyles = (colors) => StyleSheet.create({
   },
   runningFeedEffortLabelText: {
     fontSize: 11,
-    color: '#8E8E93',
+    color: colors.TEXT_SECONDARY,
   },
   runningFeedMemoContainer: {
     marginTop: 10,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2F2F35',
-    backgroundColor: '#141417',
+    backgroundColor: colors.CARD,
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
@@ -5552,7 +5552,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#303038',
-    backgroundColor: '#1E1E24',
+    backgroundColor: colors.SURFACE,
     paddingHorizontal: 10,
     paddingVertical: 8,
     color: '#FFFFFF',
@@ -5567,7 +5567,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   runningFeedMemoHint: {
     fontSize: 11,
-    color: '#8E8E93',
+    color: colors.TEXT_SECONDARY,
   },
   runningFeedMemoSaveButton: {
     backgroundColor: colors.PRIMARY,
@@ -5589,7 +5589,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   organizerText: {
     fontSize: 12,
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   creatorBadge: {

@@ -673,7 +673,7 @@ const CommunityScreen = ({ navigation, route }) => {
                             <View style={styles.chatRoomFooter}>
                               <View style={styles.participantsInfo}>
                                 <Ionicons name="people" size={14} color={colors.TEXT_SECONDARY} />
-                                <Text style={[styles.participantsCount, { color: '#666666' }]}>
+                                <Text style={[styles.participantsCount, { color: colors.TEXT_SECONDARY }]}>
                                   {(() => {
                                     const participants = chatRoom.participants;
                                     console.log('🔍 참여자수 계산:', {
@@ -756,7 +756,7 @@ const CommunityScreen = ({ navigation, route }) => {
                           <View style={styles.chatRoomFooter}>
                             <View style={styles.participantsInfo}>
                               <Ionicons name="people" size={14} color={colors.TEXT_SECONDARY} />
-                              <Text style={[styles.participantsCount, { color: '#666666' }]}>
+                              <Text style={[styles.participantsCount, { color: colors.TEXT_SECONDARY }]}>
                                 {(() => {
                                   const participants = chatRoom.participants;
                                   console.log('🔍 참여자수 계산 (참여한 일정):', {
