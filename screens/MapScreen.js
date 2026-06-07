@@ -506,7 +506,7 @@ const MapScreen = ({ navigation, route }) => {
         tabBarStyle: {
           backgroundColor: colors.SURFACE,
           borderTopWidth: 1,
-          borderTopColor: '#333333', // 약간 밝은 구분선 색상
+          borderTopColor: colors.BORDER,
           height: 85,
           paddingBottom: 36,
           paddingTop: 0,
@@ -1165,7 +1165,7 @@ const MapScreen = ({ navigation, route }) => {
                 }),
                 borderColor: searchBarBorderColor.interpolate({
                   inputRange: [0, 1],
-                  outputRange: ['transparent', '#FFFFFF'],
+                  outputRange: ['transparent', colors.BORDER],
                 }),
               }
             ]}
@@ -2215,7 +2215,7 @@ const createStyles = (colors) => StyleSheet.create({
     elevation: 5,
   },
   toggleButton: {
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -2306,7 +2306,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   bottomSheetSearchContainer: {
     flexDirection: 'row',
@@ -2317,7 +2317,7 @@ const createStyles = (colors) => StyleSheet.create({
     height: 44,
     width: '100%',
     borderWidth: 0.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.BORDER,
   },
   bottomSheetSearchInput: {
     flex: 1,
@@ -2419,7 +2419,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 3,
     backgroundColor: colors.SURFACE,
     borderWidth: 1,
-    borderColor: '#3A3A40',
+    borderColor: colors.BORDER,
     maxWidth: '100%',
   },
   mapEventFeedBadgeText: {
@@ -2658,7 +2658,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     borderRadius: 26,
     paddingHorizontal: 16,
     height: 52,
@@ -2688,7 +2688,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
     // iOS 그림자
@@ -2717,7 +2717,7 @@ const createStyles = (colors) => StyleSheet.create({
     position: 'absolute',
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     maxHeight: 300,
     zIndex: 199,
@@ -2735,7 +2735,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   searchResultIcon: {
     marginRight: 12,
@@ -2776,13 +2776,13 @@ const createStyles = (colors) => StyleSheet.create({
   searchModeSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     borderRadius: 26,
     paddingHorizontal: 16,
     height: 52,
     marginTop: 10,
     borderWidth: 0.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.BORDER,
   },
   searchModeBackButton: {
     width: 44,
@@ -2813,7 +2813,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: colors.BORDER,
   },
   searchModeResultIcon: {
     marginRight: 12,
