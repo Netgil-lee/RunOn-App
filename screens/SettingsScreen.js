@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   Alert,
   Switch,
   Image,
+  Animated,
 } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
@@ -21,10 +23,43 @@ import TermsPrivacyModal from '../components/TermsPrivacyModal';
 import ThemeToggle from '../components/ThemeToggle';
 
 const SettingsScreen = ({ navigation }) => {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const { settings, toggleSetting, updateSetting } = useNotificationSettings();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  // 테마 전환 크로스페이드 — 현재 화면을 스냅샷으로 덮고 새 테마가 렌더되는 동안 페이드아웃
+  const screenRef = useRef(null);
+  const fadeOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const [fadeSnapshotUri, setFadeSnapshotUri] = useState(null);
+  const isTransitioningRef = useRef(false);
+
+  const handleThemeToggle = async () => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+    try {
+      const uri = await captureRef(screenRef, { format: 'png', quality: 1 });
+      fadeOverlayOpacity.setValue(1);
+      setFadeSnapshotUri(uri); // onLoad에서 테마 전환 + 페이드아웃 시작
+    } catch {
+      // 스냅샷 실패 시 즉시 전환
+      toggleTheme();
+      isTransitioningRef.current = false;
+    }
+  };
+
+  // 스냅샷 오버레이가 화면에 그려진 직후 호출 — 새 테마로 전환하고 스냅샷을 페이드아웃
+  const handleOverlayLoaded = () => {
+    toggleTheme();
+    Animated.timing(fadeOverlayOpacity, {
+      toValue: 0,
+      duration: 350,
+      useNativeDriver: true,
+    }).start(() => {
+      setFadeSnapshotUri(null);
+      isTransitioningRef.current = false;
+    });
+  };
   
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('privacy'); // 'privacy' or 'child-safety'
@@ -342,7 +377,8 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1 }}>
+    <View ref={screenRef} collapsable={false} style={styles.container}>
       {/* 헤더 */}
       <SafeAreaView style={styles.header}>
         <View style={styles.headerContent}>
@@ -457,7 +493,7 @@ const SettingsScreen = ({ navigation }) => {
                 <Text style={styles.settingTitle}>화면 모드</Text>
               </View>
             </View>
-            <ThemeToggle />
+            <ThemeToggle onToggle={handleThemeToggle} />
           </View>
           <SettingItem
             icon="heart-outline"
@@ -579,6 +615,17 @@ const SettingsScreen = ({ navigation }) => {
         onClose={closeModal}
         type={modalType}
       />
+    </View>
+      {/* 테마 전환 크로스페이드 오버레이 (스냅샷이 새 테마 위에서 페이드아웃) */}
+      {fadeSnapshotUri && (
+        <Animated.Image
+          source={{ uri: fadeSnapshotUri }}
+          style={[StyleSheet.absoluteFill, { opacity: fadeOverlayOpacity }]}
+          pointerEvents="none"
+          resizeMode="cover"
+          onLoad={handleOverlayLoaded}
+        />
+      )}
     </View>
   );
 };

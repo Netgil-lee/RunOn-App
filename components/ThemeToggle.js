@@ -12,9 +12,10 @@ const KNOB = 27;
 const PAD = 2;
 const TRAVEL = TRACK_W - KNOB - PAD * 2;
 
-const ThemeToggle = () => {
+const ThemeToggle = ({ onToggle }) => {
   const { isDark, toggleTheme, colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const handlePress = onToggle || toggleTheme;
 
   // isDark=true → 0(왼쪽), false → 1(오른쪽)
   const anim = useRef(new Animated.Value(isDark ? 0 : 1)).current;
@@ -50,7 +51,7 @@ const ThemeToggle = () => {
   const sunOpacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
   return (
-    <Pressable onPress={toggleTheme} hitSlop={8}>
+    <Pressable onPress={handlePress} hitSlop={8}>
       <Animated.View style={[styles.track, { backgroundColor: trackColor }]}>
         {/* 트랙 양끝 보조 아이콘 */}
         <Animated.View style={[styles.sideIcon, styles.sideLeft, { opacity: moonOpacity }]}>
