@@ -1,21 +1,10 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-} from 'react-native';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 
 const RecommendationCard = ({ user, weather }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   if (!user) return null;
 
   // 날씨 컨디션 결정 (새로운 태그 시스템)
@@ -386,13 +375,10 @@ const RecommendationCard = ({ user, weather }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
-    marginHorizontal: 0,
-    marginTop: 12,
-    borderRadius: 12,
-    overflow: 'hidden',
+    borderBottomWidth: 8,
+    borderBottomColor: colors.BORDER,
   },
   header: {
     padding: 16,
@@ -404,7 +390,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   tagsContainer: {
@@ -421,14 +407,15 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.BACKGROUND,
+    color: colors.BACKGROUND,
   },
   content: {
     padding: 16,
+    paddingTop: 0,
   },
   detailsGrid: {
     flexDirection: 'row',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     padding: 4,
     alignItems: 'center',
@@ -441,19 +428,19 @@ const styles = StyleSheet.create({
   detailDivider: {
     width: 1,
     height: 40,
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.BORDER,
     marginHorizontal: 8,
   },
   detailLabel: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 4,
     fontFamily: 'Pretendard',
   },
   detailValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
 });

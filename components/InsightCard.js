@@ -138,7 +138,7 @@ const InsightCard = ({ user, weather }) => {
 
 const createStyles = (colors) => StyleSheet.create({
   container: {
-    borderBottomWidth: 1,
+    borderBottomWidth: 8,
     borderBottomColor: colors.BORDER,
   },
   header: {

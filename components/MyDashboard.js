@@ -286,7 +286,7 @@ const MyDashboard = ({ navigation }) => {
 const createStyles = (colors) => StyleSheet.create({
   container: {
     padding: 16,
-    borderBottomWidth: 1,
+    borderBottomWidth: 8,
     borderBottomColor: colors.BORDER,
   },
   loadingContainer: {

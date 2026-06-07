@@ -94,7 +94,7 @@ const MainTabNavigator = () => {
           <TabIconWithBadge route={route} focused={focused} color={color} size={size} />
         ),
         tabBarActiveTintColor: colors.PRIMARY,
-        tabBarInactiveTintColor: '#cccccc',
+        tabBarInactiveTintColor: colors.TEXT_SECONDARY,
         tabBarStyle: {
           backgroundColor: colors.SURFACE,
           borderTopWidth: 0,

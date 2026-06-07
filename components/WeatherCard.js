@@ -524,7 +524,7 @@ const createStyles = (colors) => StyleSheet.create({
   container: {
     padding: 16,
     paddingBottom: 12,
-    borderBottomWidth: 1,
+    borderBottomWidth: 8,
     borderBottomColor: colors.BORDER,
   },
   header: {

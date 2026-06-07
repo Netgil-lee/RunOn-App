@@ -40,7 +40,7 @@ export const DARK_THEME = {
 
 export const LIGHT_THEME = {
   // 브랜드
-  PRIMARY: '#3AF8FF',
+  PRIMARY: '#30DEE4',       // 라이트모드 전용 — 흰 배경에서 가독성 높은 진한 시안
 
   // 배경
   BACKGROUND: '#F2F2F7',   // iOS 표준 라이트 배경
