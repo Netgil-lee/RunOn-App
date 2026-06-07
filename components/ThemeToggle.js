@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { Pressable, Animated, StyleSheet, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { DARK_THEME, LIGHT_THEME } from '../constants/colors';
 
 // 슬라이딩 노브 다크/라이트 토글
 // 다크 = 노브 왼쪽(달) / 라이트 = 노브 오른쪽(해)
@@ -44,10 +45,10 @@ const ThemeToggle = ({ onToggle }) => {
   const moonOpacity = animNative.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
   const sunOpacity = animNative.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
-  // 트랙 배경: 다크(어두운 남색) → 라이트(하늘색)
+  // 트랙 배경: 각 모드의 PRIMARY (다크 #3AF8FF → 라이트 #30DEE4)
   const trackColor = animColor.interpolate({
     inputRange: [0, 1],
-    outputRange: ['#3A3A40', '#7EC8FF'],
+    outputRange: [DARK_THEME.PRIMARY, LIGHT_THEME.PRIMARY],
   });
 
   return (
