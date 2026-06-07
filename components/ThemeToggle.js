@@ -5,10 +5,11 @@ import { useTheme } from '../contexts/ThemeContext';
 
 // 슬라이딩 노브 다크/라이트 토글
 // 다크 = 노브 왼쪽(달) / 라이트 = 노브 오른쪽(해)
-const TRACK_W = 64;
-const TRACK_H = 34;
-const KNOB = 28;
-const PAD = 3;
+// iOS 네이티브 Switch 규격에 맞춤 (트랙 51×31, 노브 지름 27)
+const TRACK_W = 51;
+const TRACK_H = 31;
+const KNOB = 27;
+const PAD = 2;
 const TRAVEL = TRACK_W - KNOB - PAD * 2;
 
 const ThemeToggle = () => {
