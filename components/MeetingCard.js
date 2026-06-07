@@ -186,7 +186,7 @@ const createStyles = (colors) => StyleSheet.create({
   statDivider: { width: 1, height: 24, backgroundColor: colors.BORDER },
   tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16 },
   tag: {
-    backgroundColor: colors.isDark ? '#1C3336' : colors.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,

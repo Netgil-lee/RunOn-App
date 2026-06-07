@@ -1,23 +1,11 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Platform,
-} from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { getCourseName, TIME_OPTIONS } from '../constants/onboardingOptions';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const InsightCard = ({ user, weather }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   if (!user) return null;
 
   // 현재 시간에 따른 인사말
@@ -148,13 +136,10 @@ const InsightCard = ({ user, weather }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
-    marginHorizontal: 0,
-    marginTop: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
   },
   header: {
     flexDirection: 'row',
@@ -163,82 +148,48 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.SURFACE,
+    borderBottomColor: colors.BORDER,
   },
-
-
-  content: {
-    padding: 16,
-  },
+  content: { padding: 16 },
   greetingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.TEXT,
-    fontFamily: 'Pretendard',
+    fontSize: 18, fontWeight: '600',
+    color: colors.TEXT, fontFamily: 'Pretendard',
   },
-  progressSection: {
-    marginBottom: 20,
-  },
+  progressSection: { marginBottom: 20 },
   progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 8,
   },
   progressLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.TEXT,
-    fontFamily: 'Pretendard-SemiBold',
+    fontSize: 18, fontWeight: '600',
+    color: colors.TEXT, fontFamily: 'Pretendard-SemiBold',
   },
   progressText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.TEXT,
-    fontFamily: 'Pretendard-Medium',
+    fontSize: 14, fontWeight: '600',
+    color: colors.TEXT, fontFamily: 'Pretendard-Medium',
   },
   progressBar: {
-    height: 6,
-    backgroundColor: COLORS.SURFACE,
-    borderRadius: 3,
-    overflow: 'hidden',
+    height: 6, backgroundColor: colors.SURFACE,
+    borderRadius: 3, overflow: 'hidden',
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 3,
-  },
+  progressFill: { height: '100%', backgroundColor: colors.PRIMARY, borderRadius: 3 },
   infoGrid: {
-    flexDirection: 'row',
-    backgroundColor: '#2a2a2a',
-    borderRadius: 8,
-    padding: 4,
-    alignItems: 'center',
+    flexDirection: 'row', backgroundColor: colors.SURFACE,
+    borderRadius: 8, padding: 4, alignItems: 'center',
   },
-  infoItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
+  infoItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
   infoDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#1F1F24',
-    marginHorizontal: 8,
+    width: 1, height: 40,
+    backgroundColor: colors.BORDER, marginHorizontal: 8,
   },
   infoLabel: {
-    fontSize: 14,
-    color: COLORS.TEXT,
-    marginBottom: 4,
-    fontFamily: 'Pretendard',
+    fontSize: 14, color: colors.TEXT_SECONDARY,
+    marginBottom: 4, fontFamily: 'Pretendard',
   },
   infoValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.TEXT,
-    fontFamily: 'Pretendard-Bold',
+    fontSize: 16, fontWeight: '700',
+    color: colors.TEXT, fontFamily: 'Pretendard-Bold',
   },
-
 });
 
 export default InsightCard; 

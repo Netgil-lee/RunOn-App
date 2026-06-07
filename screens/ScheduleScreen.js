@@ -3606,7 +3606,7 @@ const createStyles = (colors) => StyleSheet.create({
   eventTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
     flex: 1,
     fontFamily: 'Pretendard-SemiBold',
   },
@@ -3625,7 +3625,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   infoText: {
     fontSize: 15,
-    color: '#ffffff',
+    color: colors.TEXT,
     marginLeft: 8,
     flexShrink: 1,
     fontFamily: 'Pretendard-Regular',
@@ -3657,7 +3657,7 @@ const createStyles = (colors) => StyleSheet.create({
   statValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
     marginBottom: 2,
     textAlign: 'center',
     fontFamily: 'Pretendard-SemiBold',
@@ -3713,7 +3713,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   organizerName: {
     fontSize: 15,
-    color: '#ffffff',
+    color: colors.TEXT,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
   },
@@ -3724,7 +3724,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   participantInfo: {
     fontSize: 16,
-    color: '#ffffff',
+    color: colors.TEXT,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
@@ -3955,7 +3955,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   eventDetailText: {
     fontSize: 17,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontWeight: '600',
     flex: 1,
     lineHeight: 22,
@@ -5462,7 +5462,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   runningFeedStatLabel: {
     fontSize: 13,
-    color: '#ffffff',
+    color: colors.TEXT,
     marginBottom: 4,
   },
   runningFeedStatValue: {
@@ -5559,7 +5559,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.SURFACE,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 13,
     textAlignVertical: 'top',
   },

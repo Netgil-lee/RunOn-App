@@ -1699,7 +1699,7 @@ const createStyles = (colors) => StyleSheet.create({
   tagTextOutline: {
     fontSize: 15,
     fontWeight: '200',
-    color: '#fff',
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Light',
   },
   negativeTagOutline: {

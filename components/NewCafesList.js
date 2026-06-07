@@ -5,7 +5,7 @@
  * - 클릭 시 지도탭의 해당 카페로 이동
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,17 +23,11 @@ import firestoreService from '../services/firestoreService';
 const { width: screenWidth } = Dimensions.get('window');
 
 // 디자인 시스템 색상 (HomeScreen과 동일)
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#FFFFFF',
-  SECONDARY: '#666666',
-  GRAY: '#888888',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const NewCafesList = ({ navigation }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [newCafes, setNewCafes] = useState([]);
   const [newFoods, setNewFoods] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -131,7 +125,7 @@ const NewCafesList = ({ navigation }) => {
         />
       ) : (
         <View style={styles.cafeImagePlaceholder}>
-          <Ionicons name={activeType === 'cafes' ? 'cafe-outline' : 'restaurant-outline'} size={48} color={COLORS.SECONDARY} />
+          <Ionicons name={activeType === 'cafes' ? 'cafe-outline' : 'restaurant-outline'} size={48} color={colors.TEXT_SECONDARY} />
         </View>
       )}
       
@@ -147,7 +141,7 @@ const NewCafesList = ({ navigation }) => {
           {item.location}
         </Text>
         <View style={styles.dateContainer}>
-          <Ionicons name="calendar-outline" size={12} color={COLORS.PRIMARY} />
+          <Ionicons name="calendar-outline" size={12} color={colors.PRIMARY} />
           <Text style={styles.cafeDate}>
             {activeType === 'cafes' ? formatDate(item.createdAt) : `신규 등록 · ${formatDate(item.createdAt)}`}
           </Text>
@@ -177,11 +171,11 @@ const NewCafesList = ({ navigation }) => {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Ionicons name="sparkles" size={18} color={COLORS.PRIMARY} />
+          <Ionicons name="sparkles" size={18} color={colors.PRIMARY} />
           <Text style={styles.sectionTitle}>신규 입점</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="small" color={colors.PRIMARY} />
         </View>
       </View>
     );
@@ -192,7 +186,7 @@ const NewCafesList = ({ navigation }) => {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Ionicons name="sparkles" size={18} color={COLORS.PRIMARY} />
+          <Ionicons name="sparkles" size={18} color={colors.PRIMARY} />
           <Text style={styles.sectionTitle}>신규 입점</Text>
         </View>
         <View style={styles.typeTabs}>
@@ -216,7 +210,7 @@ const NewCafesList = ({ navigation }) => {
           </TouchableOpacity>
         </View>
         <View style={styles.emptyContainer}>
-          <Ionicons name={activeType === 'cafes' ? 'cafe-outline' : 'restaurant-outline'} size={32} color={COLORS.SECONDARY} />
+          <Ionicons name={activeType === 'cafes' ? 'cafe-outline' : 'restaurant-outline'} size={32} color={colors.TEXT_SECONDARY} />
           <Text style={styles.emptyText}>
             {activeType === 'cafes'
               ? '최근 1개월 내 신규 입점 카페가 없습니다'
@@ -231,7 +225,7 @@ const NewCafesList = ({ navigation }) => {
     <View style={styles.container}>
       {/* 헤더 */}
       <View style={styles.header}>
-        <Ionicons name="sparkles" size={18} color={COLORS.PRIMARY} />
+        <Ionicons name="sparkles" size={18} color={colors.PRIMARY} />
         <Text style={styles.sectionTitle}>신규 입점</Text>
         <Text style={styles.subtitle}>최근 1개월</Text>
       </View>
@@ -280,14 +274,11 @@ const NewCafesList = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
-    borderRadius: 12,
-    marginHorizontal: 0,
-    marginTop: 16,
-    marginBottom: 8,
     paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
   },
   header: {
     flexDirection: 'row',
@@ -308,30 +299,30 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#333333',
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
   },
   typeTabActive: {
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     backgroundColor: 'rgba(58, 248, 255, 0.15)',
   },
   typeTabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   typeTabTextActive: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   subtitle: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 'auto',
   },
   loadingContainer: {
@@ -347,7 +338,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
   },
   carouselContent: {
@@ -359,7 +350,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     marginRight: 12,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   cafeImage: {
     width: '100%',
@@ -371,7 +362,7 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -389,12 +380,12 @@ const styles = StyleSheet.create({
   cafeName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   cafeLocation: {
     fontSize: 13,
-    color: COLORS.GRAY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 6,
   },
   dateContainer: {
@@ -404,13 +395,13 @@ const styles = StyleSheet.create({
   },
   cafeDate: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   newBadge: {
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -431,13 +422,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: COLORS.SECONDARY,
+    backgroundColor: colors.TEXT_SECONDARY,
   },
   paginationDotActive: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
 });
 

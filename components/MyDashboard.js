@@ -4,7 +4,7 @@
  * - 자주 개설하는 모임장소 (모임 생성 횟수 기준)
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,18 +19,11 @@ import { getFrequentCafes, getFrequentFoods, getFrequentMeetingLocations } from 
 import { Ionicons } from '@expo/vector-icons';
 
 // 디자인 시스템 색상 (HomeScreen과 동일)
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',        // 카드 배경색
-  CARD_INNER: '#1F1F24',  // 카드 내부 요소 배경색
-  TEXT: '#FFFFFF',
-  SECONDARY: '#666666',
-  GRAY: '#888888',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const MyDashboard = ({ navigation }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const [frequentCafes, setFrequentCafes] = useState([]);
   const [frequentFoods, setFrequentFoods] = useState([]);
@@ -114,7 +107,7 @@ const MyDashboard = ({ navigation }) => {
         />
       ) : (
         <View style={styles.cafeImagePlaceholder}>
-          <Ionicons name="cafe-outline" size={32} color={COLORS.SECONDARY} />
+          <Ionicons name="cafe-outline" size={32} color={colors.TEXT_SECONDARY} />
         </View>
       )}
       
@@ -159,7 +152,7 @@ const MyDashboard = ({ navigation }) => {
         />
       ) : (
         <View style={styles.cafeImagePlaceholder}>
-          <Ionicons name="restaurant-outline" size={32} color={COLORS.SECONDARY} />
+          <Ionicons name="restaurant-outline" size={32} color={colors.TEXT_SECONDARY} />
         </View>
       )}
 
@@ -210,7 +203,7 @@ const MyDashboard = ({ navigation }) => {
   // 빈 상태 카드 렌더링 (카페)
   const renderEmptyCafeState = () => (
     <View style={styles.emptyStateCard}>
-      <Ionicons name="cafe-outline" size={32} color={COLORS.SECONDARY} />
+      <Ionicons name="cafe-outline" size={32} color={colors.TEXT_SECONDARY} />
       <Text style={styles.emptyStateText}>방문한 카페가 없어요</Text>
       <Text style={styles.emptyStateSubtext}>지도에서 러닝카페를 찾아보세요!</Text>
     </View>
@@ -218,7 +211,7 @@ const MyDashboard = ({ navigation }) => {
 
   const renderEmptyFoodState = () => (
     <View style={styles.emptyStateCard}>
-      <Ionicons name="restaurant-outline" size={32} color={COLORS.SECONDARY} />
+      <Ionicons name="restaurant-outline" size={32} color={colors.TEXT_SECONDARY} />
       <Text style={styles.emptyStateText}>방문한 러닝푸드가 없어요</Text>
       <Text style={styles.emptyStateSubtext}>지도에서 러닝푸드를 찾아보세요!</Text>
     </View>
@@ -227,7 +220,7 @@ const MyDashboard = ({ navigation }) => {
   // 빈 상태 카드 렌더링 (장소)
   const renderEmptyLocationState = () => (
     <View style={styles.emptyStateCard}>
-      <Ionicons name="location-outline" size={32} color={COLORS.SECONDARY} />
+      <Ionicons name="location-outline" size={32} color={colors.TEXT_SECONDARY} />
       <Text style={styles.emptyStateText}>개설한 장소가 없어요</Text>
       <Text style={styles.emptyStateSubtext}>러닝 모임을 만들어보세요!</Text>
     </View>
@@ -237,7 +230,7 @@ const MyDashboard = ({ navigation }) => {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="small" color={colors.PRIMARY} />
         </View>
       </View>
     );
@@ -290,14 +283,11 @@ const MyDashboard = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,  // 다른 섹션 카드와 동일한 배경색
-    borderRadius: 12,              // 다른 섹션 카드와 동일한 borderRadius
     padding: 16,
-    marginHorizontal: 0,           // 다른 섹션 카드와 동일한 너비
-    marginTop: 16,
-    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
   },
   loadingContainer: {
     height: 200,
@@ -307,7 +297,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 16,
   },
   subSection: {
@@ -316,12 +306,12 @@ const styles = StyleSheet.create({
   subSectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 12,
   },
   subSectionSubtitle: {
     fontSize: 11,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 12,
   },
   cardsRow: {
@@ -336,7 +326,7 @@ const styles = StyleSheet.create({
   cafeCard: {
     width: '100%',
     height: 100,
-    backgroundColor: '#2A2A2A',  // 미세먼지 카드와 동일한 색상
+    backgroundColor: colors.SURFACE,
     borderRadius: 10,
     overflow: 'hidden',
     flexDirection: 'row',
@@ -348,7 +338,7 @@ const styles = StyleSheet.create({
   cafeImagePlaceholder: {
     width: 120,  // 크기 증가 (100 → 120)
     height: '100%',
-    backgroundColor: COLORS.CARD,  // 플레이스홀더는 더 어두운 색상
+    backgroundColor: colors.CARD,  // 플레이스홀더는 더 어두운 색상
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -366,21 +356,21 @@ const styles = StyleSheet.create({
   cafeName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flexShrink: 1,
   },
   cafeBenefit: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     flexShrink: 1,
   },
   cafeAddress: {
     fontSize: 13,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flexShrink: 1,
   },
   visitBadge: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -394,7 +384,7 @@ const styles = StyleSheet.create({
   locationCard: {
     width: 100,
     height: 80,
-    backgroundColor: COLORS.CARD_INNER,  // 내부 카드는 약간 밝은 색상
+    backgroundColor: colors.SURFACE,
     borderRadius: 10,
     padding: 10,
     justifyContent: 'center',
@@ -403,18 +393,18 @@ const styles = StyleSheet.create({
   locationName: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
     marginBottom: 2,
   },
   locationDetail: {
     fontSize: 10,
-    color: COLORS.GRAY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     marginBottom: 6,
   },
   countBadge: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -427,10 +417,10 @@ const styles = StyleSheet.create({
   // 빈 상태 스타일
   emptyStateCard: {
     flex: 1,
-    backgroundColor: COLORS.CARD_INNER,  // 내부 카드는 약간 밝은 색상
+    backgroundColor: colors.SURFACE,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.SECONDARY,
+    borderColor: colors.TEXT_SECONDARY,
     borderStyle: 'dashed',
     padding: 20,
     justifyContent: 'center',
@@ -439,13 +429,13 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 8,
     textAlign: 'center',
   },
   emptyStateSubtext: {
     fontSize: 10,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 4,
     textAlign: 'center',
   },

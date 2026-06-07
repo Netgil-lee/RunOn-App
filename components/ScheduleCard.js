@@ -1,118 +1,72 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-} from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#181818',
-  CARD: '#171719',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasNotification = false, id, onMenuPress }) => {
-  
-  // 참여자수 계산
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const participantCount = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
   const maxParticipantText = event.maxParticipants ? ` / ${event.maxParticipants}명` : '';
   const finalParticipantText = `참여자 ${participantCount}명${maxParticipantText}`;
 
-  // 연도를 제거하고 요일을 추가하는 함수
+  const isFull = (() => {
+    const max = Number(event.maxParticipants);
+    return Number.isFinite(max) && max > 0 && participantCount >= max;
+  })();
+
   const formatDateWithoutYear = (dateString) => {
     if (!dateString) return '';
-    
-    // 이미 요일이 포함된 형식인 경우 (예: "1월 18일 (목)") 그대로 반환
-    if (dateString.includes('(') && dateString.includes(')')) {
-      return dateString;
-    }
-    
-    // "2024년 1월 18일" 또는 ISO 형식을 "1월 18일 (요일)" 형식으로 변환
+    if (dateString.includes('(') && dateString.includes(')')) return dateString;
     try {
       let date;
       if (dateString.includes('년')) {
-        // 한국어 형식: "2024년 1월 18일"
         const cleaned = dateString.replace(/^\d{4}년\s*/, '');
         const match = cleaned.match(/(\d{1,2})월\s*(\d{1,2})일/);
-        if (match) {
-          const month = parseInt(match[1]);
-          const day = parseInt(match[2]);
-          date = new Date(new Date().getFullYear(), month - 1, day);
-        }
+        if (match) date = new Date(new Date().getFullYear(), parseInt(match[1]) - 1, parseInt(match[2]));
       } else {
-        // ISO 형식: "2024-01-18"
         date = new Date(dateString);
       }
-      
       if (date && !isNaN(date.getTime())) {
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
         const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
-        return `${month}월 ${day}일 (${dayOfWeek})`;
+        return `${date.getMonth() + 1}월 ${date.getDate()}일 (${dayOfWeek})`;
       }
-    } catch (error) {
-
-    }
-    
-    // 파싱 실패 시 연도만 제거하여 반환
+    } catch {}
     return dateString.replace(/^\d{4}년\s*/, '');
   };
 
-  // 해시태그 파싱 함수
   const parseHashtags = (hashtagString) => {
-    if (!hashtagString || !hashtagString.trim()) return [];
-    
-    return hashtagString
-      .split(/\s+/)
-      .filter(tag => tag.startsWith('#') && tag.length > 1)
-      .map(tag => tag.replace(/[^#\w가-힣]/g, ''))
-      .slice(0, 5); // 최대 5개까지만 표시
+    if (!hashtagString?.trim()) return [];
+    return hashtagString.split(/\s+/).filter(t => t.startsWith('#') && t.length > 1)
+      .map(t => t.replace(/[^#\w가-힣]/g, '')).slice(0, 5);
   };
 
   return (
-    <TouchableOpacity 
-      style={styles.container}
-      onPress={() => onPress && onPress(event)}
-      activeOpacity={0.8}
-    >
-      {/* 제목과 알림표시 */}
+    <TouchableOpacity style={styles.container} onPress={() => onPress?.(event)} activeOpacity={0.7}>
       <View style={styles.titleRow}>
         <Text style={styles.title}>{event.title}</Text>
-        {hasNotification && (
-          <View style={styles.notificationBadge} />
-        )}
+        {hasNotification && <View style={styles.notificationBadge} />}
       </View>
-      
 
-
-      {/* 위치와 날짜/시간을 한 줄로 배치 */}
       <View style={styles.locationDateTimeRow}>
-        {/* 위치 */}
         <View style={styles.infoRow}>
-          <Ionicons name="location-outline" size={16} color={COLORS.PRIMARY} />
+          <Ionicons name="location-outline" size={15} color={colors.PRIMARY} />
           <Text style={styles.infoText}>{event.location}</Text>
         </View>
-
-                  {/* 날짜/시간 */}
-          <View style={styles.infoRow}>
-            <Ionicons name="time-outline" size={16} color={COLORS.PRIMARY} />
-            <Text style={styles.infoText}>
-              {event.date ? formatDateWithoutYear(event.date) : '날짜 없음'} {event.time || '시간 없음'}
-            </Text>
-          </View>
+        <View style={styles.infoRow}>
+          <Ionicons name="time-outline" size={15} color={colors.PRIMARY} />
+          <Text style={styles.infoText}>
+            {event.date ? formatDateWithoutYear(event.date) : '날짜 없음'} {event.time || ''}
+          </Text>
+        </View>
       </View>
 
-      {/* 거리/페이스 통계 */}
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{event.distance ? `${event.distance}km` : '5km'}</Text>
         </View>
-        <View style={styles.dividerContainer}>
+        <View style={styles.statDividerWrap}>
           <View style={styles.statDivider} />
         </View>
         <View style={styles.statItem}>
@@ -120,85 +74,44 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
         </View>
       </View>
 
-      {/* 태그들 */}
       {event.hashtags && parseHashtags(event.hashtags).length > 0 && (
         <View style={styles.tagsContainer}>
-          {parseHashtags(event.hashtags).map((tag, index) => (
-            <View key={index} style={styles.tag}>
+          {parseHashtags(event.hashtags).map((tag, i) => (
+            <View key={i} style={styles.tag}>
               <Text style={styles.tagText}>{tag}</Text>
             </View>
           ))}
         </View>
       )}
 
-      {/* 하단 정보 */}
       <View style={styles.footer}>
         <View style={styles.organizerInfo}>
           <View style={styles.organizerAvatar}>
             {event.organizerImage && !event.organizerImage.startsWith('file://') ? (
-              <Image 
-                source={{ uri: event.organizerImage }} 
-                style={styles.organizerAvatarImage}
-              />
+              <Image source={{ uri: event.organizerImage }} style={styles.organizerAvatarImage} />
             ) : (
               <Ionicons name="person" size={14} color="#ffffff" />
             )}
           </View>
           <Text style={styles.organizerName}>{event.organizer}</Text>
         </View>
-
         <View style={styles.rightSection}>
-          <Text style={[styles.participantInfo, { color: '#ffffff', fontSize: 15 }]}>
-            {finalParticipantText}
-          </Text>
+          <Text style={styles.participantInfo}>{finalParticipantText}</Text>
           <View style={styles.buttonContainer}>
             {showJoinButton && (
-              <TouchableOpacity 
-                style={[
-                  styles.joinButton,
-                  // 참여 마감된 경우 버튼 비활성화
-                  (() => {
-                    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                    const maxParticipants = Number(event.maxParticipants);
-                    const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
-                    return hasParticipantLimit && currentParticipants >= maxParticipants ? styles.disabledButton : {};
-                  })()
-                ]} 
+              <TouchableOpacity
+                style={[styles.joinButton, isFull && styles.disabledButton]}
                 onPress={() => onJoinPress(event)}
-                // 참여 마감된 경우 버튼 비활성화
-                disabled={(() => {
-                  const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                  const maxParticipants = Number(event.maxParticipants);
-                  const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
-                  return hasParticipantLimit && currentParticipants >= maxParticipants;
-                })()}
+                disabled={isFull}
               >
-                <Text style={[
-                  styles.joinButtonText,
-                  // 참여 마감된 경우 텍스트 스타일 변경
-                  (() => {
-                    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                    const maxParticipants = Number(event.maxParticipants);
-                    const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
-                    return hasParticipantLimit && currentParticipants >= maxParticipants ? styles.disabledButtonText : {};
-                  })()
-                ]}>
-                  {(() => {
-                    const currentParticipants = Array.isArray(event.participants) ? event.participants.length : 1;
-                    const maxParticipants = Number(event.maxParticipants);
-                    const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
-                    return hasParticipantLimit && currentParticipants >= maxParticipants ? '마감되었습니다' : '참여하기';
-                  })()}
+                <Text style={[styles.joinButtonText, isFull && styles.disabledButtonText]}>
+                  {isFull ? '마감' : '참여하기'}
                 </Text>
               </TouchableOpacity>
             )}
             {onMenuPress && (
-              <TouchableOpacity 
-                style={styles.menuButton}
-                onPress={() => onMenuPress(event)}
-                id={id === 'meetingCard' ? 'meetingCardMenu' : undefined}
-              >
-                <Ionicons name="ellipsis-horizontal" size={20} color="#ffffff" />
+              <TouchableOpacity style={styles.menuButton} onPress={() => onMenuPress(event)}>
+                <Ionicons name="ellipsis-horizontal" size={20} color={colors.TEXT_SECONDARY} />
               </TouchableOpacity>
             )}
           </View>
@@ -208,179 +121,62 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
-    marginHorizontal: 0,
-    marginVertical: 8,
-    borderRadius: 12,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
+    backgroundColor: colors.BACKGROUND,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    flex: 1,
-  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  title: { fontSize: 17, fontWeight: '600', color: colors.TEXT, flex: 1 },
   notificationBadge: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FF0022',
-    marginLeft: 8,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: '#FF0022', marginLeft: 8,
   },
   locationDateTimeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 12,
-    flexWrap: 'wrap',
+    flexDirection: 'row', alignItems: 'center',
+    marginBottom: 12, gap: 12, flexWrap: 'wrap',
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    minWidth: 0,
-  },
-  infoText: {
-    fontSize: 15,
-    color: '#ffffff',
-    marginLeft: 8,
-    flexShrink: 1,
-  },
+  infoRow: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
+  infoText: { fontSize: 14, color: colors.TEXT_SECONDARY, marginLeft: 6, flexShrink: 1 },
   statsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    backgroundColor: '#1F1F24',
-    borderRadius: 8,
-    marginBottom: 16,
-    alignSelf: 'stretch',
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 8, backgroundColor: colors.SURFACE,
+    borderRadius: 8, marginBottom: 12, alignSelf: 'stretch',
   },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  dividerContainer: {
-    width: 10, // 중간 공간 너비
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: '#333333',
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
-  },
+  statItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 15, fontWeight: '600', color: colors.TEXT, textAlign: 'center' },
+  statDividerWrap: { width: 10, alignItems: 'center', justifyContent: 'center' },
+  statDivider: { width: 1, height: 22, backgroundColor: colors.BORDER },
+  tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
   tag: {
-    backgroundColor: '#1C3336',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
-    marginBottom: 4,
+    backgroundColor: colors.SURFACE,
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+    marginRight: 6, marginBottom: 4,
   },
-  tagText: {
-    fontSize: 14,
-    color: COLORS.PRIMARY,
-    fontWeight: '500',
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  organizerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1, // 왼쪽 공간 차지
-  },
+  tagText: { fontSize: 13, color: colors.PRIMARY, fontWeight: '500' },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  organizerInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   organizerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#6B7280', // 회색톤
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-    overflow: 'hidden',
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: '#6B7280', alignItems: 'center',
+    justifyContent: 'center', marginRight: 8, overflow: 'hidden',
   },
-  organizerAvatarImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  organizerAvatarText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  organizerName: {
-    fontSize: 15,
-    color: '#ffffff',
-    fontWeight: '500',
-  },
-  rightSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    minWidth: 80, // 최소 너비 설정
-    justifyContent: 'flex-end', // 오른쪽 정렬
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  menuButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  participantInfo: {
-    fontSize: 13,
-    color: '#ffffff',
-    fontWeight: '500',
-  },
+  organizerAvatarImage: { width: 30, height: 30, borderRadius: 15 },
+  organizerName: { fontSize: 14, color: colors.TEXT, fontWeight: '500' },
+  rightSection: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'flex-end' },
+  buttonContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  menuButton: { padding: 6 },
+  participantInfo: { fontSize: 13, color: colors.TEXT_SECONDARY, fontWeight: '500' },
   joinButton: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    backgroundColor: colors.PRIMARY,
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
   },
-  joinButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  disabledButton: {
-    backgroundColor: '#666666', // 비활성화된 버튼의 색상
-    opacity: 0.7, // 비활성화된 버튼의 투명도
-  },
-  disabledButtonText: {
-    color: '#999999', // 비활성화된 텍스트의 색상
-  },
+  joinButtonText: { fontSize: 14, fontWeight: '600', color: '#000000' },
+  disabledButton: { backgroundColor: colors.BORDER, opacity: 0.7 },
+  disabledButtonText: { color: colors.TEXT_SECONDARY },
 });
 
-export default ScheduleCard; 
+export default ScheduleCard;

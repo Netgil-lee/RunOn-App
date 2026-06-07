@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,16 +14,11 @@ import weatherAlertService from '../services/weatherAlertService';
 import airQualityService from '../services/airQualityService';
 
 // NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [weather, setWeather] = useState(null);
   const [forecast, setForecast] = useState([]);
   const [airQuality, setAirQuality] = useState(null);
@@ -342,7 +337,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="small" color={colors.PRIMARY} />
           <Text style={styles.loadingText}>날씨 정보 로딩 중...</Text>
         </View>
       </View>
@@ -353,7 +348,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
     return (
       <View style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="cloud-offline" size={24} color={COLORS.SECONDARY} />
+          <Ionicons name="cloud-offline" size={24} color={colors.TEXT_SECONDARY} />
           <Text style={styles.errorText}>
             {error === 'API 키가 설정되지 않았습니다.' 
               ? 'API 키를 설정해주세요' 
@@ -367,7 +362,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="location" size={16} color={COLORS.TEXT} />
+        <Ionicons name="location" size={16} color={colors.TEXT} />
         <Text style={styles.locationText}>{location.name}</Text>
       </View>
       
@@ -379,7 +374,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
               <Ionicons 
                 name={weather.icon} 
                 size={32} 
-                color={COLORS.PRIMARY} 
+                color={colors.PRIMARY} 
               />
               <View style={styles.temperatureContainer}>
                 <Text style={styles.temperature}>{weather.temperature}°C</Text>
@@ -404,7 +399,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
                   <Ionicons 
                     name={item.icon} 
                     size={20} 
-                    color={item.rainVolume > 0 ? COLORS.PRIMARY : COLORS.SECONDARY} 
+                    color={item.rainVolume > 0 ? colors.PRIMARY : colors.TEXT_SECONDARY} 
                   />
                   <Text style={styles.forecastRain}>
                     {item.rainProbability}%
@@ -449,7 +444,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
                           styles.progressBarFill, 
                           { 
                             width: `${Math.min((airQuality.aqi / 500) * 100, 100)}%`,
-                            backgroundColor: COLORS.PRIMARY
+                            backgroundColor: colors.PRIMARY
                           }
                         ]} 
                       />
@@ -508,7 +503,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
           /* 네트워크 오류 시 표시할 화면 */
           <View style={styles.airQualityErrorContainer}>
             <View style={styles.errorIconContainer}>
-              <Ionicons name="cloud-offline-outline" size={32} color={COLORS.SECONDARY} />
+              <Ionicons name="cloud-offline-outline" size={32} color={colors.TEXT_SECONDARY} />
             </View>
             <Text style={styles.errorTitle}>대기질 정보를 불러올 수 없습니다</Text>
             <Text style={styles.errorMessage}>
@@ -525,15 +520,12 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
-    borderRadius: 12,
     padding: 16,
     paddingBottom: 12,
-    marginHorizontal: 0,
-    marginTop: 16,
-    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
   },
   header: {
     flexDirection: 'row',
@@ -542,7 +534,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 6,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
@@ -564,12 +556,12 @@ const styles = StyleSheet.create({
   temperature: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
   description: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
     fontFamily: 'Pretendard',
   },
@@ -587,24 +579,24 @@ const styles = StyleSheet.create({
   },
   forecastTime: {
     fontSize: 12,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 6,
   },
   forecastRain: {
     fontSize: 12,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 4,
     fontWeight: '500',
   },
   forecastVolume: {
     fontSize: 10,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 2,
   },
 
   detailText: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 12,
     fontFamily: 'Pretendard',
   },
@@ -616,7 +608,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 8,
   },
   errorContainer: {
@@ -627,7 +619,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 8,
   },
   // 날씨 섹션 스타일
@@ -640,7 +632,7 @@ const styles = StyleSheet.create({
   },
   sectionDivider: {
     height: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     marginVertical: 12,
   },
   airQualityHeader: {
@@ -650,7 +642,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 6,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
@@ -674,7 +666,7 @@ const styles = StyleSheet.create({
   },
   aqiLabel: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard',
   },
   aqiValueRow: {
@@ -687,7 +679,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'Pretendard-Bold',
     marginRight: 12,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   aqiLevel: {
     fontSize: 16,
@@ -703,7 +695,7 @@ const styles = StyleSheet.create({
   progressBarBackground: {
     width: '100%',
     height: 8,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 4,
@@ -714,14 +706,14 @@ const styles = StyleSheet.create({
   },
   progressBarLabel: {
     fontSize: 10,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
   },
   // 3x1 그리드 스타일
   airQualityGrid: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2A2A2A',
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     padding: 4,
   },
@@ -735,11 +727,11 @@ const styles = StyleSheet.create({
   gridDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#3A3A3A',
+    backgroundColor: colors.BORDER,
   },
   gridItemLabel: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '400',
     fontFamily: 'Pretendard',
     marginBottom: 6,
@@ -756,14 +748,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-Bold',
     marginBottom: 0,
     textAlign: 'center',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   healthImpactValue: {
     textAlign: 'center',
   },
   gridItemUnit: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
     textAlign: 'center',
     marginLeft: 4,
@@ -774,14 +766,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tag: {
-    backgroundColor: '#1C3336',
+    backgroundColor: colors.SURFACE,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   tagText: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
   },
@@ -793,7 +785,7 @@ const styles = StyleSheet.create({
   },
   sourceText: {
     fontSize: 11,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
     fontWeight: '400',
   },
@@ -808,7 +800,7 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
     fontWeight: '600',
     textAlign: 'center',
@@ -816,7 +808,7 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     fontSize: 13,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
     fontWeight: '400',
     textAlign: 'center',
@@ -826,13 +818,13 @@ const styles = StyleSheet.create({
   errorSourceContainer: {
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.SURFACE,
+    borderTopColor: colors.SURFACE,
     width: '100%',
     alignItems: 'center',
   },
   errorSourceText: {
     fontSize: 11,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
     fontWeight: '400',
   },
