@@ -19,6 +19,7 @@ import { NotificationSettingsProvider } from './contexts/NotificationSettingsCon
 import { GuideProvider } from './contexts/GuideContext';
 import { PremiumProvider } from './contexts/PremiumContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import ThemedStatusBar from './components/ThemedStatusBar';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -251,11 +252,6 @@ export default function App() {
 
   return (
     <>
-      <StatusBar 
-        barStyle="light-content" 
-        backgroundColor="#000000" 
-        translucent={false}
-      />
       <NavigationContainer
         ref={navigationRef}
         onReady={() => {
@@ -265,6 +261,7 @@ export default function App() {
         onStateChange={tryNavigateToDeepLinkedEvent}
       >
         <ThemeProvider>
+          <ThemedStatusBar />
           <NetworkProvider>
             <AuthProvider isDemoMode={isDemoMode}>
               <PremiumProvider>
