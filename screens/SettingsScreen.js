@@ -38,27 +38,26 @@ const SettingsScreen = ({ navigation }) => {
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
     try {
-      const uri = await captureRef(screenRef, { format: 'png', quality: 1 });
+      const uri = await captureRef(screenRef, { format: 'jpg', quality: 0.8 });
       fadeOverlayOpacity.setValue(1);
-      setFadeSnapshotUri(uri); // onLoad에서 테마 전환 + 페이드아웃 시작
+      setFadeSnapshotUri(uri);
+      // 스냅샷이 덮인 다음 프레임에 즉시 테마 전환(노브 이동) + 빠른 페이드아웃
+      requestAnimationFrame(() => {
+        toggleTheme();
+        Animated.timing(fadeOverlayOpacity, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: true,
+        }).start(() => {
+          setFadeSnapshotUri(null);
+          isTransitioningRef.current = false;
+        });
+      });
     } catch {
       // 스냅샷 실패 시 즉시 전환
       toggleTheme();
       isTransitioningRef.current = false;
     }
-  };
-
-  // 스냅샷 오버레이가 화면에 그려진 직후 호출 — 새 테마로 전환하고 스냅샷을 페이드아웃
-  const handleOverlayLoaded = () => {
-    toggleTheme();
-    Animated.timing(fadeOverlayOpacity, {
-      toValue: 0,
-      duration: 350,
-      useNativeDriver: true,
-    }).start(() => {
-      setFadeSnapshotUri(null);
-      isTransitioningRef.current = false;
-    });
   };
   
   const [modalVisible, setModalVisible] = useState(false);
@@ -623,7 +622,6 @@ const SettingsScreen = ({ navigation }) => {
           style={[StyleSheet.absoluteFill, { opacity: fadeOverlayOpacity }]}
           pointerEvents="none"
           resizeMode="cover"
-          onLoad={handleOverlayLoaded}
         />
       )}
     </View>
