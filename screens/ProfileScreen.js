@@ -1377,7 +1377,7 @@ const ProfileScreen = ({ navigation }) => {
 const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: colors.BACKGROUND,
   },
   scrollView: {
     flex: 1,
