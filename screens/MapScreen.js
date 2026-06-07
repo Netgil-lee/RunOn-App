@@ -314,7 +314,7 @@ const MapScreen = ({ navigation, route }) => {
     return foods.filter(food => food.name?.toLowerCase().includes(query));
   }, [foods, foodSearchQuery]);
 
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   // 기본 위치 (서울 중심)
@@ -498,8 +498,8 @@ const MapScreen = ({ navigation, route }) => {
     React.useCallback(() => {
       didInitialCenterOnFocusRef.current = false;
 
-      // StatusBar 설정 (iOS) - 한 번만 설정
-      StatusBar.setBarStyle('dark-content', true);
+      // StatusBar 설정 (iOS) - 테마에 따라 분기
+      StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
       
       // 지도탭에서만 bottombar 구분선 추가
       navigation.setOptions({
@@ -601,7 +601,7 @@ const MapScreen = ({ navigation, route }) => {
         locationWatchSubRef.current = null;
 
         // 화면을 벗어날 때 원래 설정으로 복원
-        StatusBar.setBarStyle('light-content', true);
+        StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
         // bottombar 구분선 제거 (원래 스타일로 복원)
         navigation.setOptions({
           tabBarStyle: {
@@ -613,7 +613,7 @@ const MapScreen = ({ navigation, route }) => {
           },
         });
       };
-    }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, syncUserLocation])
+    }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, syncUserLocation, colors])
   );
 
   // 검색 결과 선택 후 pendingSearchResult 처리
