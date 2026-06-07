@@ -18,9 +18,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import blacklistService from '../services/blacklistService';
 import appleFitnessService from '../services/appleFitnessService';
 import TermsPrivacyModal from '../components/TermsPrivacyModal';
+import ThemeToggle from '../components/ThemeToggle';
 
 const SettingsScreen = ({ navigation }) => {
-  const { colors, isDark, setTheme } = useTheme();
+  const { colors, isDark } = useTheme();
   const { user, logout } = useAuth();
   const { settings, toggleSetting, updateSetting } = useNotificationSettings();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -456,20 +457,7 @@ const SettingsScreen = ({ navigation }) => {
                 <Text style={styles.settingTitle}>화면 모드</Text>
               </View>
             </View>
-            <View style={styles.themeSegment}>
-              <TouchableOpacity
-                style={[styles.themeSegmentBtn, isDark && styles.themeSegmentBtnActive]}
-                onPress={() => setTheme('dark')}
-              >
-                <Text style={[styles.themeSegmentText, isDark && styles.themeSegmentTextActive]}>다크</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.themeSegmentBtn, !isDark && styles.themeSegmentBtnActive]}
-                onPress={() => setTheme('light')}
-              >
-                <Text style={[styles.themeSegmentText, !isDark && styles.themeSegmentTextActive]}>라이트</Text>
-              </TouchableOpacity>
-            </View>
+            <ThemeToggle />
           </View>
           <SettingItem
             icon="heart-outline"
@@ -758,31 +746,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   bottomSpacing: {
     height: 100,
-  },
-  // 화면 모드 세그먼트
-  themeSegment: {
-    flexDirection: 'row',
-    backgroundColor: colors.BORDER,
-    borderRadius: 8,
-    padding: 2,
-  },
-  themeSegmentBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  themeSegmentBtnActive: {
-    backgroundColor: colors.SURFACE,
-  },
-  themeSegmentText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: colors.TEXT_SECONDARY,
-    fontFamily: 'Pretendard-Medium',
-  },
-  themeSegmentTextActive: {
-    color: colors.TEXT,
-    fontWeight: '700',
   },
 });
 
