@@ -10,8 +10,11 @@ import {
   Switch,
   Image,
   Animated,
+  Dimensions,
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
@@ -38,26 +41,33 @@ const SettingsScreen = ({ navigation }) => {
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
     try {
-      const uri = await captureRef(screenRef, { format: 'jpg', quality: 0.8 });
-      fadeOverlayOpacity.setValue(1);
-      setFadeSnapshotUri(uri);
-      // 스냅샷이 덮인 다음 프레임에 즉시 테마 전환(노브 이동) + 빠른 페이드아웃
-      requestAnimationFrame(() => {
-        toggleTheme();
-        Animated.timing(fadeOverlayOpacity, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }).start(() => {
-          setFadeSnapshotUri(null);
-          isTransitioningRef.current = false;
-        });
+      // 절반 해상도로 빠르게 캡처 (크로스페이드용이라 화질 영향 없음)
+      const uri = await captureRef(screenRef, {
+        format: 'jpg',
+        quality: 0.6,
+        width: Math.round(SCREEN_W / 2),
+        height: Math.round(SCREEN_H / 2),
       });
+      fadeOverlayOpacity.setValue(1);
+      setFadeSnapshotUri(uri); // 스냅샷이 실제로 그려진 뒤 onLoad에서 전환
     } catch {
       // 스냅샷 실패 시 즉시 전환
       toggleTheme();
       isTransitioningRef.current = false;
     }
+  };
+
+  // 스냅샷이 화면을 덮어 그려진 직후 — 테마 전환(노브 슬라이드 시작) + 스냅샷 페이드아웃
+  const handleOverlayLoaded = () => {
+    toggleTheme();
+    Animated.timing(fadeOverlayOpacity, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setFadeSnapshotUri(null);
+      isTransitioningRef.current = false;
+    });
   };
   
   const [modalVisible, setModalVisible] = useState(false);
@@ -622,6 +632,7 @@ const SettingsScreen = ({ navigation }) => {
           style={[StyleSheet.absoluteFill, { opacity: fadeOverlayOpacity }]}
           pointerEvents="none"
           resizeMode="cover"
+          onLoad={handleOverlayLoaded}
         />
       )}
     </View>

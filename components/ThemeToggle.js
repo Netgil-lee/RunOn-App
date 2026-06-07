@@ -18,37 +18,37 @@ const ThemeToggle = ({ onToggle }) => {
   const handlePress = onToggle || toggleTheme;
 
   // isDark=true → 0(왼쪽), false → 1(오른쪽)
-  const anim = useRef(new Animated.Value(isDark ? 0 : 1)).current;
+  // 노브 이동/회전/투명도는 네이티브 드라이버(UI 스레드) → 테마 리렌더 중에도 버벅임 없음
+  const animNative = useRef(new Animated.Value(isDark ? 0 : 1)).current;
+  // 배경색만 JS 드라이버(색 보간은 네이티브 미지원)
+  const animColor = useRef(new Animated.Value(isDark ? 0 : 1)).current;
 
   useEffect(() => {
-    Animated.spring(anim, {
-      toValue: isDark ? 0 : 1,
-      useNativeDriver: false,
-      friction: 7,
-      tension: 70,
+    const to = isDark ? 0 : 1;
+    Animated.spring(animNative, {
+      toValue: to, useNativeDriver: true, friction: 7, tension: 70,
     }).start();
-  }, [isDark, anim]);
+    Animated.spring(animColor, {
+      toValue: to, useNativeDriver: false, friction: 7, tension: 70,
+    }).start();
+  }, [isDark, animNative, animColor]);
 
-  const translateX = anim.interpolate({
+  const translateX = animNative.interpolate({
     inputRange: [0, 1],
     outputRange: [PAD, PAD + TRAVEL],
   });
-
-  // 트랙 배경: 다크(어두운 남색) → 라이트(하늘색)
-  const trackColor = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#3A3A40', '#7EC8FF'],
-  });
-
-  // 아이콘 회전(해/달 전환 느낌)
-  const knobRotate = anim.interpolate({
+  const knobRotate = animNative.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
+  const moonOpacity = animNative.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const sunOpacity = animNative.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
-  // 달 아이콘은 다크일 때, 해 아이콘은 라이트일 때 선명
-  const moonOpacity = anim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
-  const sunOpacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  // 트랙 배경: 다크(어두운 남색) → 라이트(하늘색)
+  const trackColor = animColor.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#3A3A40', '#7EC8FF'],
+  });
 
   return (
     <Pressable onPress={handlePress} hitSlop={8}>
