@@ -1275,7 +1275,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                             <Ionicons
                               name={effortLevel !== null ? 'heart' : 'heart-outline'}
                               size={22}
-                              color="#FFFFFF"
+                              color={colors.TEXT}
                             />
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -1285,14 +1285,14 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                             <Ionicons
                               name={savedMemo ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'}
                               size={22}
-                              color="#FFFFFF"
+                              color={colors.TEXT}
                             />
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={styles.runningFeedIconButton}
                             onPress={() => handleFeedSharePress(workout)}
                           >
-                            <Ionicons name="share-social-outline" size={22} color="#FFFFFF" />
+                            <Ionicons name="share-social-outline" size={22} color={colors.TEXT} />
                           </TouchableOpacity>
                         </View>
                       </View>

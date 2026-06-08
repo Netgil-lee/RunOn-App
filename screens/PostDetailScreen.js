@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,24 +23,14 @@ import { formatRelativeTime } from '../utils/timestampUtils';
 import reportService from '../services/reportService';
 import contentFilterService from '../services/contentFilterService';
 import blacklistService from '../services/blacklistService';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  TEXT_SECONDARY: '#666666',
-  BORDER: '#333333',
-  ERROR: '#FF4444',
-  SUCCESS: '#00FF88',
-};
-
 const PostDetailScreen = ({ route, navigation }) => {
   const { post } = route.params;
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const { toggleLike, addComment, updateComment, deleteComment, updatePost, deletePost } = useCommunity();
   
@@ -794,14 +784,14 @@ const PostDetailScreen = ({ route, navigation }) => {
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+          <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>게시글</Text>
         </View>
         {!isAuthor ? (
           <TouchableOpacity style={styles.shareButton} onPress={handlePostReport}>
-            <Ionicons name="alert-circle-outline" size={24} color={COLORS.TEXT} />
+            <Ionicons name="alert-circle-outline" size={24} color={colors.TEXT} />
           </TouchableOpacity>
         ) : (
           <View style={styles.shareButton} />
@@ -828,15 +818,15 @@ const PostDetailScreen = ({ route, navigation }) => {
             <View style={styles.authorSection}>
               <View style={styles.authorAvatar}>
                 {currentPost.isAnonymous ? (
-                  <Ionicons name="person" size={20} color="#ffffff" />
+                  <Ionicons name="person" size={20} color={colors.TEXT} />
                 ) : authorProfile?.profileImage ? (
-                  <Image 
-                    source={{ uri: authorProfile.profileImage }} 
+                  <Image
+                    source={{ uri: authorProfile.profileImage }}
                     style={styles.authorProfileImage}
                     resizeMode="cover"
                   />
                 ) : (
-                  <Ionicons name="person" size={20} color="#ffffff" />
+                  <Ionicons name="person" size={20} color={colors.TEXT} />
                 )}
               </View>
               <View style={styles.authorDetails}>
@@ -851,7 +841,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 style={styles.moreButton}
                 onPress={() => setShowMenuModal(true)}
               >
-                <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.TEXT_SECONDARY} />
+                <Ionicons name="ellipsis-horizontal" size={20} color={colors.TEXT_SECONDARY} />
               </TouchableOpacity>
             )}
           </View>
@@ -894,7 +884,7 @@ const PostDetailScreen = ({ route, navigation }) => {
           {currentPost.location && (
             <View style={styles.locationSection}>
               <View style={styles.locationContainer}>
-                <Ionicons name="location" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="location" size={16} color={colors.PRIMARY} />
                 <Text style={styles.locationText}>{currentPost.location}</Text>
               </View>
             </View>
@@ -907,18 +897,18 @@ const PostDetailScreen = ({ route, navigation }) => {
                 <Ionicons 
                   name={isLiked ? "heart" : "heart-outline"} 
                   size={24} 
-                  color={isLiked ? COLORS.ERROR : COLORS.TEXT_SECONDARY} 
+                  color={isLiked ? colors.ERROR : colors.TEXT_SECONDARY} 
                 />
                 <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
                   {currentPost.likes?.length || 0}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="chatbubble-outline" size={24} color={COLORS.TEXT_SECONDARY} />
+                <Ionicons name="chatbubble-outline" size={24} color={colors.TEXT_SECONDARY} />
                 <Text style={styles.actionText}>{Array.isArray(currentPost.comments) ? currentPost.comments.length : 0}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="bookmark-outline" size={24} color={COLORS.TEXT_SECONDARY} />
+                <Ionicons name="bookmark-outline" size={24} color={colors.TEXT_SECONDARY} />
               </TouchableOpacity>
             </View>
             
@@ -971,7 +961,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                           style={styles.commentMenuButton}
                           onPress={() => handleCommentMenu(comment)}
                         >
-                          <Ionicons name="ellipsis-horizontal" size={16} color={COLORS.TEXT_SECONDARY} />
+                          <Ionicons name="ellipsis-horizontal" size={16} color={colors.TEXT_SECONDARY} />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -981,7 +971,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                     </View>
                   ) : (
                     <View style={styles.emptyComments}>
-                      <Ionicons name="chatbubble-outline" size={48} color={COLORS.TEXT_SECONDARY} />
+                      <Ionicons name="chatbubble-outline" size={48} color={colors.TEXT_SECONDARY} />
                       <Text style={styles.emptyCommentsText}>아직 댓글이 없습니다</Text>
                       <Text style={styles.emptyCommentsSubtext}>첫 번째 댓글을 남겨보세요!</Text>
                     </View>
@@ -1001,7 +991,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             <TextInput
               style={styles.commentInput}
               placeholder="댓글을 입력하세요..."
-              placeholderTextColor={COLORS.TEXT_SECONDARY}
+              placeholderTextColor={colors.TEXT_SECONDARY}
               value={commentInput}
               onChangeText={setCommentInput}
               multiline
@@ -1015,7 +1005,7 @@ const PostDetailScreen = ({ route, navigation }) => {
               <Ionicons 
                 name="send" 
                 size={20} 
-                color={commentInput.trim() ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} 
+                color={commentInput.trim() ? colors.PRIMARY : colors.TEXT_SECONDARY} 
               />
             </TouchableOpacity>
           </View>
@@ -1141,7 +1131,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             <TextInput
               style={styles.editCommentInput}
               placeholder="댓글을 입력하세요..."
-              placeholderTextColor={COLORS.TEXT_SECONDARY}
+              placeholderTextColor={colors.TEXT_SECONDARY}
               value={editCommentText}
               onChangeText={setEditCommentText}
               multiline
@@ -1196,7 +1186,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 <View style={styles.reportModalHeader}>
                   <Text style={styles.reportModalTitle}>신고하기</Text>
                   <TouchableOpacity onPress={() => setShowPostReportModal(false)}>
-                    <Ionicons name="close" size={24} color={COLORS.TEXT} />
+                    <Ionicons name="close" size={24} color={colors.TEXT} />
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
@@ -1217,7 +1207,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                         {reason.label}
                       </Text>
                       {selectedReportReason === reason.id && (
-                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                        <Ionicons name="checkmark-circle" size={20} color={colors.PRIMARY} />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -1225,7 +1215,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                   <TextInput
                     style={styles.reportDescriptionInput}
                     placeholder="신고 사유에 대한 추가 설명을 입력해주세요"
-                    placeholderTextColor={COLORS.TEXT_SECONDARY}
+                    placeholderTextColor={colors.TEXT_SECONDARY}
                     value={reportDescription}
                     onChangeText={setReportDescription}
                     multiline
@@ -1239,7 +1229,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                     >
                       <View style={styles.blockOptionCheckbox}>
                         {shouldBlockPostAuthor && (
-                          <Ionicons name="checkmark" size={18} color={COLORS.PRIMARY} />
+                          <Ionicons name="checkmark" size={18} color={colors.PRIMARY} />
                         )}
                       </View>
                       <Text style={styles.blockOptionText}>이 사용자 차단하기</Text>
@@ -1295,7 +1285,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 <View style={styles.reportModalHeader}>
                   <Text style={styles.reportModalTitle}>댓글 신고하기</Text>
                   <TouchableOpacity onPress={() => setShowCommentReportModal(false)}>
-                    <Ionicons name="close" size={24} color={COLORS.TEXT} />
+                    <Ionicons name="close" size={24} color={colors.TEXT} />
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
@@ -1316,7 +1306,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                         {reason.label}
                       </Text>
                       {selectedReportReason === reason.id && (
-                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                        <Ionicons name="checkmark-circle" size={20} color={colors.PRIMARY} />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -1324,7 +1314,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                   <TextInput
                     style={styles.reportDescriptionInput}
                     placeholder="신고 사유에 대한 추가 설명을 입력해주세요"
-                    placeholderTextColor={COLORS.TEXT_SECONDARY}
+                    placeholderTextColor={colors.TEXT_SECONDARY}
                     value={reportDescription}
                     onChangeText={setReportDescription}
                     multiline
@@ -1338,7 +1328,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                     >
                       <View style={styles.blockOptionCheckbox}>
                         {shouldBlockCommentAuthor && (
-                          <Ionicons name="checkmark" size={18} color={COLORS.PRIMARY} />
+                          <Ionicons name="checkmark" size={18} color={colors.PRIMARY} />
                         )}
                       </View>
                       <Text style={styles.blockOptionText}>이 사용자 차단하기</Text>
@@ -1370,10 +1360,10 @@ const PostDetailScreen = ({ route, navigation }) => {
     );
   };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -1382,7 +1372,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 0.25,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
     position: 'relative',
   },
   backButton: {
@@ -1402,7 +1392,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   shareButton: {
     width: 44,
@@ -1423,20 +1413,20 @@ const styles = StyleSheet.create({
   },
   categoryBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   categoryText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginHorizontal: 16,
     marginBottom: 20,
     lineHeight: 32,
@@ -1457,7 +1447,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1472,13 +1462,13 @@ const styles = StyleSheet.create({
   },
   authorText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     marginBottom: 2,
   },
   dateText: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   moreButton: {
     width: 44,
@@ -1492,7 +1482,7 @@ const styles = StyleSheet.create({
   },
   contentText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 24,
   },
   imagesSection: {
@@ -1519,14 +1509,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   hashtagBadge: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   hashtagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   locationSection: {
@@ -1536,14 +1526,14 @@ const styles = StyleSheet.create({
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   locationText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 8,
   },
   actionSection: {
@@ -1551,7 +1541,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingTop: 16,
     borderTopWidth: 0.25,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -1565,11 +1555,11 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',
   },
   actionTextActive: {
-    color: COLORS.ERROR,
+    color: colors.ERROR,
   },
 
   commentsSection: {
@@ -1579,14 +1569,14 @@ const styles = StyleSheet.create({
   commentsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 16,
   },
   commentsList: {
     gap: 16,
   },
   commentItem: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
   },
@@ -1598,18 +1588,18 @@ const styles = StyleSheet.create({
   },
   commentAuthor: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   commentDate: {
     fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
     opacity: 0.8,
   },
   commentText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 20,
   },
   emptyComments: {
@@ -1618,26 +1608,26 @@ const styles = StyleSheet.create({
   },
   emptyCommentsText: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 12,
     fontWeight: '500',
   },
   emptyCommentsSubtext: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 4,
   },
   commentInputContainer: {
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderTopWidth: 0.25,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   commentInputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -1646,7 +1636,7 @@ const styles = StyleSheet.create({
   commentInput: {
     flex: 1,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     maxHeight: 100,
     paddingVertical: 8,
   },
@@ -1679,7 +1669,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomModal: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 34, // 하단 안전 영역 고려
@@ -1691,15 +1681,15 @@ const styles = StyleSheet.create({
   },
   bottomMenuItemText: {
     fontSize: 18,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   bottomMenuItemTextDelete: {
-    color: COLORS.ERROR,
+    color: colors.ERROR,
   },
   bottomModalSeparator: {
     height: 8,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   commentAuthorSection: {
     flex: 1,
@@ -1713,7 +1703,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editCommentModal: {
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     marginTop: 100,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -1725,16 +1715,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 0.25,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   editCommentTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   editCommentInput: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     paddingHorizontal: 20,
     paddingVertical: 16,
     minHeight: 120,
@@ -1751,35 +1741,35 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   updateButton: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     alignItems: 'center',
   },
   updateButtonDisabled: {
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
   },
   updateButtonText: {
     fontSize: 16,
-    color: COLORS.BACKGROUND,
+    color: '#000000',
     fontWeight: '600',
   },
   updateButtonTextDisabled: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   // 신고 모달 스타일
   reportModal: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
@@ -1792,12 +1782,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 0.25,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   reportModalTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   reportModalContent: {
     paddingHorizontal: 20,
@@ -1806,7 +1796,7 @@ const styles = StyleSheet.create({
   },
   reportModalSubtitle: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 16,
   },
   reportReasonItem: {
@@ -1816,42 +1806,42 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
   },
   reportReasonItemSelected: {
-    backgroundColor: COLORS.PRIMARY + '20',
-    borderColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
   },
   reportReasonText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   reportReasonTextSelected: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
   },
   reportDescriptionLabel: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     marginTop: 16,
     marginBottom: 12,
   },
   reportDescriptionInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     minHeight: 100,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
   },
   blockOptionContainer: {
     flexDirection: 'row',
@@ -1859,25 +1849,25 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
   },
   blockOptionCheckbox: {
     width: 24,
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.CARD,
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.CARD,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   blockOptionText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     flex: 1,
   },
@@ -1887,41 +1877,41 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 12,
     borderTopWidth: 0.25,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
   },
   reportCancelButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     alignItems: 'center',
     justifyContent: 'center',
   },
   reportCancelButtonText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   reportSubmitButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
   },
   reportSubmitButtonDisabled: {
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     opacity: 0.5,
   },
   reportSubmitButtonText: {
     fontSize: 16,
-    color: COLORS.BACKGROUND,
+    color: '#000000',
     fontWeight: '600',
   },
   reportSubmitButtonTextDisabled: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
 });
 

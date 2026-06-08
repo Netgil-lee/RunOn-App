@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,25 +19,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { HAN_RIVER_PARKS, RIVER_SIDES } from '../constants/onboardingOptions';
 import { useCommunity } from '../contexts/CommunityContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import contentFilterService from '../services/contentFilterService';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  TEXT_SECONDARY: '#666666',
-  ERROR: '#FF4444',
-  SUCCESS: '#00FF88',
-  BORDER: '#333333',
-  BORDER_LIGHT: '#444444',
-};
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const PostCreateScreen = ({ navigation, route }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { addPost, updatePost } = useCommunity();
   const { user } = useAuth();
   
@@ -400,7 +389,7 @@ const PostCreateScreen = ({ navigation, route }) => {
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+          <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isEditMode ? '게시글 수정' : '새 글 작성'}</Text>
         <View style={styles.headerSpacer} />
@@ -455,7 +444,7 @@ const PostCreateScreen = ({ navigation, route }) => {
                 ref={titleInputRef}
                 style={styles.titleInput}
                 placeholder="제목을 입력해주세요"
-                placeholderTextColor={COLORS.TEXT_SECONDARY}
+                placeholderTextColor={colors.TEXT_SECONDARY}
                 value={postData.title}
                 onChangeText={handleTitleChange}
                 onFocus={handleTitleFocus}
@@ -477,7 +466,7 @@ const PostCreateScreen = ({ navigation, route }) => {
                 ref={contentInputRef}
                 style={styles.contentInput}
                 placeholder="러닝 경험, 팁, 질문 등을 자유롭게 작성해주세요"
-                placeholderTextColor={COLORS.TEXT_SECONDARY}
+                placeholderTextColor={colors.TEXT_SECONDARY}
                 value={postData.content}
                 onChangeText={handleContentChange}
                 multiline
@@ -499,14 +488,14 @@ const PostCreateScreen = ({ navigation, route }) => {
                   style={styles.imageButton}
                   onPress={() => handleImagePicker('camera')}
                 >
-                  <Ionicons name="camera" size={24} color={COLORS.PRIMARY} />
+                  <Ionicons name="camera" size={24} color={colors.PRIMARY} />
                   <Text style={styles.imageButtonText}>촬영</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={styles.imageButton}
                   onPress={() => handleImagePicker('gallery')}
                 >
-                  <Ionicons name="images" size={24} color={COLORS.PRIMARY} />
+                  <Ionicons name="images" size={24} color={colors.PRIMARY} />
                   <Text style={styles.imageButtonText}>갤러리</Text>
                 </TouchableOpacity>
               </View>
@@ -524,7 +513,7 @@ const PostCreateScreen = ({ navigation, route }) => {
                         style={styles.removeImageButton}
                         onPress={() => handleImageRemove(index)}
                       >
-                        <Ionicons name="close-circle" size={20} color={COLORS.ERROR} />
+                        <Ionicons name="close-circle" size={20} color={colors.ERROR} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -541,7 +530,7 @@ const PostCreateScreen = ({ navigation, route }) => {
                 ref={hashtagInputRef}
                 style={styles.hashtagInput}
                 placeholder="해시태그를 입력하세요 (엔터로 추가)"
-                placeholderTextColor={COLORS.TEXT_SECONDARY}
+                placeholderTextColor={colors.TEXT_SECONDARY}
                 value={hashtagInput}
                 onChangeText={setHashtagInput}
                 onSubmitEditing={() => addHashtag(hashtagInput.trim())}
@@ -560,7 +549,7 @@ const PostCreateScreen = ({ navigation, route }) => {
                       style={styles.removeTagButton}
                       onPress={() => removeHashtag(tag)}
                     >
-                      <Ionicons name="close" size={16} color={COLORS.TEXT} />
+                      <Ionicons name="close" size={16} color={colors.TEXT} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -575,11 +564,11 @@ const PostCreateScreen = ({ navigation, route }) => {
               style={styles.locationButton}
               onPress={handleLocationPickerOpen}
             >
-              <Ionicons name="location" size={20} color={COLORS.PRIMARY} />
+              <Ionicons name="location" size={20} color={colors.PRIMARY} />
               <Text style={styles.locationButtonText}>
                 {postData.location || '위치를 선택하세요'}
               </Text>
-              <Ionicons name="chevron-down" size={20} color={COLORS.TEXT_SECONDARY} />
+              <Ionicons name="chevron-down" size={20} color={colors.TEXT_SECONDARY} />
             </TouchableOpacity>
             
             {/* 위치 선택 액티브탭 */}
@@ -640,7 +629,7 @@ const PostCreateScreen = ({ navigation, route }) => {
                 <Ionicons 
                   name={postData.isAnonymous ? "eye-off" : "eye"} 
                   size={20} 
-                  color={COLORS.TEXT_SECONDARY} 
+                  color={colors.TEXT_SECONDARY} 
                 />
                 <View style={styles.optionText}>
                   <Text style={styles.optionTitle}>익명 작성</Text>
@@ -674,7 +663,7 @@ const PostCreateScreen = ({ navigation, route }) => {
           onPress={handleSubmit}
           disabled={!isPostValid()}
         >
-          <Ionicons name="send" size={24} color={!isPostValid() ? COLORS.TEXT_SECONDARY : '#000000'} />
+          <Ionicons name="send" size={24} color={!isPostValid() ? colors.TEXT_SECONDARY : '#000000'} />
           <Text style={[styles.submitButtonText, !isPostValid() && styles.submitButtonTextDisabled]}>
             {isEditMode ? '게시글 수정' : '게시글 작성'}
           </Text>
@@ -686,10 +675,10 @@ const PostCreateScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -697,7 +686,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   backButton: {
     width: 44,
@@ -708,7 +697,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   headerSpacer: {
     width: 44,
@@ -729,11 +718,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 12,
   },
   required: {
-    color: COLORS.ERROR,
+    color: colors.ERROR,
   },
   categoryGrid: {
     flexDirection: 'row',
@@ -744,10 +733,10 @@ const styles = StyleSheet.create({
     width: (screenWidth - 64) / 2,
     paddingVertical: 16,
     paddingHorizontal: 12,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -757,8 +746,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   categoryItemSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.CARD,
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.CARD,
   },
   categoryIcon: {
     fontSize: 20,
@@ -766,34 +755,34 @@ const styles = StyleSheet.create({
   },
   categoryName: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   categoryNameSelected: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   inputContainer: {
     position: 'relative',
   },
   titleInput: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   contentInput: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     minHeight: 120,
   },
   charCount: {
@@ -801,14 +790,14 @@ const styles = StyleSheet.create({
     bottom: 8,
     right: 12,
     fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   imageSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
   },
   imageButtons: {
     flexDirection: 'row',
@@ -822,19 +811,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: 8,
     borderStyle: 'dashed',
   },
   imageButtonText: {
     marginLeft: 8,
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   imageHelper: {
     fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
   },
   imageList: {
@@ -855,7 +844,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -6,
     right: -6,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderRadius: 10,
   },
   hashtagContainer: {
@@ -864,14 +853,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   hashtagInput: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
   selectedTags: {
@@ -890,7 +879,7 @@ const styles = StyleSheet.create({
   },
   selectedTagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
     marginRight: 6,
   },
@@ -900,9 +889,9 @@ const styles = StyleSheet.create({
   locationButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
@@ -910,40 +899,40 @@ const styles = StyleSheet.create({
   locationButtonText: {
     flex: 1,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 12,
   },
   locationPickerContainer: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     marginTop: 12,
     overflow: 'hidden',
   },
   locationTabs: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   locationTab: {
     flex: 1,
     paddingVertical: 16,
     alignItems: 'center',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   locationTabActive: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderBottomWidth: 2,
-    borderBottomColor: COLORS.PRIMARY,
+    borderBottomColor: colors.PRIMARY,
   },
   locationTabText: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',
   },
   locationTabTextActive: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
   },
   locationGrid: {
@@ -957,14 +946,14 @@ const styles = StyleSheet.create({
     width: (screenWidth - 96) / 2,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   locationGridItemText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     textAlign: 'center',
   },
@@ -972,12 +961,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
   },
   optionInfo: {
     flexDirection: 'row',
@@ -990,28 +979,28 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   optionDescription: {
     fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   toggleSwitch: {
     width: 44,
     height: 24,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     borderRadius: 12,
     padding: 2,
   },
   toggleSwitchActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   toggleThumb: {
     width: 20,
     height: 20,
-    backgroundColor: COLORS.TEXT,
+    backgroundColor: colors.TEXT,
     borderRadius: 10,
   },
   toggleThumbActive: {
@@ -1025,24 +1014,24 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 22,
     borderTopWidth: 0.25,
-    borderTopColor: '#333333',
+    borderTopColor: colors.BORDER,
   },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 12,
     paddingVertical: 16,
     gap: 10,
   },
   submitButtonDisabled: {
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
   },
   submitButtonText: {
     fontSize: 18,
@@ -1050,7 +1039,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   submitButtonTextDisabled: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
 
 });

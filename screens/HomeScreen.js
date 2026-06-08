@@ -394,7 +394,7 @@ const HomeScreen = ({ navigation }) => {
             fetchUserProfile();
           }}
         >
-          <Text style={{ color: colors.BACKGROUND }}>다시 시도</Text>
+          <Text style={{ color: '#000000' }}>다시 시도</Text>
         </TouchableOpacity>
       </View>
     );

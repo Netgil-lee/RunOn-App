@@ -3,18 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Dim
 import { Ionicons } from '@expo/vector-icons';
 import appleFitnessService from '../services/appleFitnessService';
 import RouteMap from '../components/RouteMap';
+import { useTheme } from '../contexts/ThemeContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  TEXT: '#ffffff',
-  SECONDARY: '#9A9AA0',
-};
-
 const RunningResultScreen = ({ navigation, route }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const result = route?.params?.result || {};
   const workoutPayload = route?.params?.workoutPayload || null;
   const [saveStatus, setSaveStatus] = useState(route?.params?.saveStatus || 'unknown');
@@ -100,25 +96,25 @@ const RunningResultScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     paddingHorizontal: 20,
     paddingTop: 72,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
     marginBottom: 24,
   },
   card: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#2D2D34',
+    borderColor: colors.BORDER,
     padding: 16,
     gap: 14,
   },
@@ -128,11 +124,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
   value: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 20,
     fontWeight: '700',
   },
@@ -148,12 +144,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 13,
   },
   retryButton: {
     marginTop: 16,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -167,7 +163,7 @@ const styles = StyleSheet.create({
   confirmButton: {
     marginTop: 'auto',
     marginBottom: 30,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,21 +22,12 @@ import { useCommunity } from '../contexts/CommunityContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import firestoreService from '../services/firestoreService';
 import pushNotificationService from '../services/pushNotificationService';
-
-// NetGill 디자인 시스템 색상
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-  MESSAGE_SENT: '#3AF8FF',
-  MESSAGE_RECEIVED: '#1F1F24',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const ChatScreen = ({ route, navigation }) => {
   const { chatRoom: initialChatRoom, returnToCommunity } = route.params;
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const { 
     addChatMessage, 
@@ -453,10 +444,10 @@ const ChatScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.SURFACE }]}>
-      <StatusBar 
-        backgroundColor={COLORS.SURFACE}
-        barStyle="light-content"
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.SURFACE }]}>
+      <StatusBar
+        backgroundColor={colors.SURFACE}
+        barStyle={isDark ? 'light-content' : 'dark-content'}
       />
       <KeyboardAvoidingView 
         style={styles.container} 
@@ -480,7 +471,7 @@ const ChatScreen = ({ route, navigation }) => {
               }
             }}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <View style={styles.chatInfo}>
             <Text style={styles.chatTitle}>{chatRoom.title}</Text>
@@ -491,7 +482,7 @@ const ChatScreen = ({ route, navigation }) => {
               style={styles.infoButton}
               onPress={() => setShowParticipantsModal(true)}
             >
-              <Ionicons name="menu" size={28} color={COLORS.TEXT} />
+              <Ionicons name="menu" size={28} color={colors.TEXT} />
             </TouchableOpacity>
           </View>
         </View>
@@ -521,7 +512,7 @@ const ChatScreen = ({ route, navigation }) => {
             value={newMessage}
             onChangeText={setNewMessage}
             placeholder="메시지를 입력하세요..."
-            placeholderTextColor={COLORS.SECONDARY}
+            placeholderTextColor={colors.TEXT_SECONDARY}
             multiline
             maxLength={500}
           />
@@ -533,7 +524,7 @@ const ChatScreen = ({ route, navigation }) => {
             <Ionicons 
               name="send" 
               size={20} 
-              color={newMessage.trim() ? '#000000' : COLORS.SECONDARY} 
+              color={newMessage.trim() ? '#000000' : colors.TEXT_SECONDARY} 
             />
           </TouchableOpacity>
         </View>
@@ -562,7 +553,7 @@ const ChatScreen = ({ route, navigation }) => {
                 style={styles.closeButton}
                 onPress={() => setShowParticipantsModal(false)}
               >
-                <Ionicons name="close" size={24} color={COLORS.TEXT} />
+                <Ionicons name="close" size={24} color={colors.TEXT} />
               </TouchableOpacity>
             </View>
             
@@ -618,10 +609,10 @@ const ChatScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   chatHeader: {
     flexDirection: 'row',
@@ -629,7 +620,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 4,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   headerBackButton: {
     padding: 8,
@@ -641,7 +632,7 @@ const styles = StyleSheet.create({
   chatTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   headerRight: {
     flexDirection: 'row',
@@ -649,7 +640,7 @@ const styles = StyleSheet.create({
   },
   participantsCount: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginRight: 6,
   },
   infoButton: {
@@ -669,9 +660,9 @@ const styles = StyleSheet.create({
   },
   systemMessageText: {
     fontSize: 13,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     backgroundColor: 'rgba(58, 248, 255, 0.1)',
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     borderWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -699,7 +690,7 @@ const styles = StyleSheet.create({
   },
   senderName: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 4,
   },
   messageBubble: {
@@ -708,10 +699,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   myMessageBubble: {
-    backgroundColor: COLORS.MESSAGE_SENT,
+    backgroundColor: colors.PRIMARY,
   },
   otherMessageBubble: {
-    backgroundColor: COLORS.MESSAGE_RECEIVED,
+    backgroundColor: colors.SURFACE,
   },
   messageText: {
     fontSize: 16,
@@ -721,18 +712,18 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   otherMessageText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   messageTime: {
     fontSize: 11,
     marginTop: 4,
   },
   myMessageTime: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'right',
   },
   otherMessageTime: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'left',
   },
   inputContainer: {
@@ -740,16 +731,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingVertical: 6,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   textInput: {
     flex: 1,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginRight: 8,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 16,
     maxHeight: 100,
   },
@@ -762,10 +753,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendButtonActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   sendButtonInactive: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   // 모달 스타일
   modalOverlay: {
@@ -782,7 +773,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 16,
     width: '90%',
     maxHeight: '80%',
@@ -795,12 +786,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '500',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   closeButton: {
     padding: 4,
@@ -815,7 +806,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   participantInfo: {
     flexDirection: 'row',
@@ -856,7 +847,7 @@ const styles = StyleSheet.create({
   participantName: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
   },
   hostNameRow: {
@@ -878,15 +869,15 @@ const styles = StyleSheet.create({
   },
   participantStatus: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   participantJoinDate: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   hostBadge: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   loadingContainer: {
@@ -897,7 +888,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   emptyContainer: {
     flex: 1,
@@ -907,7 +898,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   senderProfileContainer: {
     flexDirection: 'row',
@@ -924,7 +915,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: COLORS.SECONDARY,
+    backgroundColor: colors.TEXT_SECONDARY,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -955,7 +946,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.SECONDARY,
+    backgroundColor: colors.TEXT_SECONDARY,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -965,7 +956,7 @@ const styles = StyleSheet.create({
   },
   senderNameKakao: {
     fontSize: 13,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
     fontWeight: '500',
   },
@@ -975,7 +966,7 @@ const styles = StyleSheet.create({
   },
   otherMessageTimeKakao: {
     fontSize: 11,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 8,
     marginBottom: 2,
   },

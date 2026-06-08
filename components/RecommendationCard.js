@@ -312,10 +312,10 @@ const RecommendationCard = ({ user, weather }) => {
 
   // 러닝 레벨 색상 결정
   const getRunningLevelColor = (level) => {
-    if (level >= 1 && level <= 3) return '#3AF8FF'; // 파란색 (저강도)
+    if (level >= 1 && level <= 3) return colors.PRIMARY; // 시안 (저강도) — 테마 PRIMARY
     if (level >= 4 && level <= 7) return '#FFB800'; // 노란색 (중강도)
     if (level >= 8 && level <= 10) return '#FF6B6B'; // 빨간색 (고강도)
-    return '#3AF8FF';
+    return colors.PRIMARY;
   };
 
   // 날씨 컨디션 색상 결정
@@ -324,7 +324,7 @@ const RecommendationCard = ({ user, weather }) => {
       case 'PERFECT': return '#00FF88'; // 초록색
       case 'GOOD': return '#FFB800'; // 노란색
       case 'HOT': return '#FF6B6B'; // 빨간색
-      case 'COLD': return '#3AF8FF'; // 파란색
+      case 'COLD': return colors.PRIMARY; // 시안 — 테마 PRIMARY
       case 'RAINY': return '#666666'; // 회색
       default: return '#FFB800';
     }
@@ -407,7 +407,7 @@ const createStyles = (colors) => StyleSheet.create({
   tagText: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.BACKGROUND,
+    color: '#000000', // 배지 배경이 항상 밝은 액센트색이라 검정 고정
   },
   content: {
     padding: 16,

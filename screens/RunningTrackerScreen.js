@@ -9,16 +9,7 @@ import runOnRunningService from '../services/runOnRunningService';
 import nativeRunningService from '../services/nativeRunningService';
 import runningTrackingSessionService from '../services/runningTrackingSessionService';
 import RouteMap from '../components/RouteMap';
-
-
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  TEXT: '#ffffff',
-  SECONDARY: '#9A9AA0',
-  DANGER: '#FF4D4F',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const GPS_START_CACHE_MAX_AGE_MS = 15000;
 const START_COUNTDOWN_INTERVAL_MS = 700;
@@ -85,6 +76,9 @@ const toMapCoords = (coords = []) => (
 const GPS_READY_BEEP_URI_1S = 'data:audio/wav;base64,UklGRmQfAABXQVZFZm10IBAAAAABAAEAoA8AAEAfAAACABAAZGF0YUAfAAAAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00w==';
 
 const RunningTrackerScreen = ({ navigation }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [hasStartedRun, setHasStartedRun] = useState(false);
   const [isStartingRun, setIsStartingRun] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -798,7 +792,7 @@ const RunningTrackerScreen = ({ navigation }) => {
                         }],
                         backgroundColor: value.interpolate({
                           inputRange: [0, 1],
-                          outputRange: ['#FFFFFF', COLORS.PRIMARY],
+                          outputRange: ['#FFFFFF', colors.PRIMARY],
                         }),
                       },
                     ]}
@@ -808,7 +802,7 @@ const RunningTrackerScreen = ({ navigation }) => {
             </View>
           ) : (
             <View style={styles.gpsReadyFeedbackWrap}>
-              <Ionicons name="checkmark-circle" size={42} color={COLORS.PRIMARY} />
+              <Ionicons name="checkmark-circle" size={42} color={colors.PRIMARY} />
               <Text style={styles.gpsReadyFeedbackText}>GPS 수신 완료</Text>
             </View>
           )}
@@ -989,14 +983,14 @@ const RunningTrackerScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   fullMapWrap: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#101014',
+    backgroundColor: '#101014', // intentional: map tile placeholder, immersive dark — keep
   },
   bottomModal: {
     position: 'absolute',
@@ -1005,8 +999,8 @@ const styles = StyleSheet.create({
     bottom: 24,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#2D2D34',
-    backgroundColor: 'rgba(20,20,24,0.94)',
+    borderColor: colors.BORDER,
+    backgroundColor: 'rgba(20,20,24,0.94)', // intentional: glass HUD overlay on fullscreen map — keep dark
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 12,
@@ -1023,12 +1017,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metricLabel: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 11,
     marginBottom: 6,
   },
   metricValue: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 19,
     fontWeight: '700',
   },
@@ -1045,7 +1039,7 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#3AF8FF',
+    backgroundColor: '#3AF8FF', // intentional: GPS map marker accent color — keep
     borderWidth: 2.5,
     borderColor: '#fff',
   },
@@ -1053,7 +1047,7 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#00C853',
+    backgroundColor: '#00C853', // intentional: map start marker green — keep
     borderWidth: 2,
     borderColor: '#fff',
   },
@@ -1061,14 +1055,14 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#FF3B30', // intentional: map end marker red — keep
     borderWidth: 2,
     borderColor: '#fff',
   },
   runningMapWebView: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#101014',
+    backgroundColor: '#101014', // intentional: map tile placeholder, immersive dark — keep
   },
   mapLoadingOverlay: {
     position: 'absolute',
@@ -1078,15 +1072,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(16,16,20,0.5)',
+    backgroundColor: 'rgba(16,16,20,0.5)', // intentional: fullscreen dim overlay on map — keep
     zIndex: 7,
     paddingHorizontal: 18,
   },
   mapErrorOverlay: {
-    backgroundColor: 'rgba(16,16,20,0.18)',
+    backgroundColor: 'rgba(16,16,20,0.18)', // intentional: immersive map overlay — keep
   },
   mapPlaceholderText: {
-    color: '#C8C8CF',
+    color: colors.TEXT_SECONDARY,
     fontSize: 13,
     textAlign: 'center',
   },
@@ -1096,12 +1090,12 @@ const styles = StyleSheet.create({
     width: 190,
     minHeight: 76,
     borderRadius: 20,
-    backgroundColor: 'rgba(20,20,24,0.45)',
+    backgroundColor: 'rgba(20,20,24,0.45)', // intentional: dark glass card over map — keep
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    shadowColor: '#000000',
+    shadowColor: '#000',
     shadowOpacity: 0.28,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -1109,7 +1103,7 @@ const styles = StyleSheet.create({
   gpsPreparingText: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#ECFCFF',
+    color: '#ECFCFF', // intentional: light text on immersive dark glass overlay — keep
     marginBottom: 10,
   },
   gpsLoadingDotsRow: {
@@ -1122,7 +1116,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFFFF', // intentional: dot on immersive overlay — keep (animated to PRIMARY in JSX)
   },
   gpsReadyFeedbackWrap: {
     alignItems: 'center',
@@ -1130,14 +1124,14 @@ const styles = StyleSheet.create({
   },
   gpsReadyFeedbackText: {
     marginTop: 6,
-    color: '#D8FCFF',
+    color: '#D8FCFF', // intentional: light text on immersive map overlay — keep
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
   },
   pauseButton: {
     flex: 1,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1147,7 +1141,7 @@ const styles = StyleSheet.create({
   },
   startButton: {
     flex: 1,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1156,18 +1150,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   startButtonText: {
-    color: '#000000',
+    color: '#000000', // intentional: black text on PRIMARY (cyan) button — keep
     fontSize: 16,
     fontWeight: '800',
   },
   pauseButtonText: {
-    color: '#000000',
+    color: '#000000', // intentional: black text on PRIMARY (cyan) button — keep
     fontSize: 16,
     fontWeight: '700',
   },
   endButton: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFFFF', // intentional: always-white stop/end button by design — keep
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1176,7 +1170,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   endButtonText: {
-    color: '#000000',
+    color: '#000000', // intentional: black text on white stop button — keep
     fontSize: 16,
     fontWeight: '700',
   },
@@ -1190,9 +1184,9 @@ const styles = StyleSheet.create({
     bottom: 170,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(40,32,0,0.92)',
+    backgroundColor: 'rgba(40,32,0,0.92)', // intentional: semantic amber warning — keep
     borderWidth: 1,
-    borderColor: '#FF9F0A',
+    borderColor: '#FF9F0A', // intentional: amber warning border — keep
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 9,
@@ -1200,7 +1194,7 @@ const styles = StyleSheet.create({
   },
   bgPermissionWarningText: {
     flex: 1,
-    color: '#FFD966',
+    color: '#FFD966', // intentional: amber warning text — keep
     fontSize: 11.5,
     lineHeight: 16,
   },
@@ -1209,13 +1203,13 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#3A3A40',
+    borderColor: '#3A3A40', // intentional: button inside immersive map area — keep dark
     backgroundColor: '#222229',
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   mapRetryButtonText: {
-    color: '#E7E7EC',
+    color: '#E7E7EC', // intentional: light text on dark map area button — keep
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1227,7 +1221,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(8,8,12,0.42)',
+    backgroundColor: 'rgba(8,8,12,0.42)', // intentional: fullscreen countdown dim — keep
     zIndex: 11,
   },
   startCountdownCard: {
@@ -1236,19 +1230,19 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(20,20,24,0.72)',
+    backgroundColor: 'rgba(20,20,24,0.72)', // intentional: dark glass card over map — keep
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
   },
   startCountdownNumber: {
-    color: '#FFFFFF',
+    color: '#FFFFFF', // intentional: white number on dark glass overlay — keep
     fontSize: 52,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   finishModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.58)',
+    backgroundColor: 'rgba(0,0,0,0.58)', // intentional: standard modal dim — keep
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
@@ -1258,13 +1252,13 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#303038',
-    backgroundColor: '#17171C',
+    borderColor: colors.BORDER,
+    backgroundColor: colors.SURFACE,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
   finishModalTitle: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 12,
@@ -1280,20 +1274,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   finishMetricLabel: {
-    color: '#9A9AA0',
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
     marginBottom: 4,
   },
   finishMetricValue: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 20,
     fontWeight: '700',
   },
   finishRouteWrap: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2E2E35',
-    backgroundColor: '#101014',
+    borderColor: colors.BORDER,
+    backgroundColor: '#101014', // intentional: map preview container, always dark — keep
     height: 172,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1301,7 +1295,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   finishRoutePlaceholder: {
-    color: '#8A8A90',
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
     textAlign: 'center',
   },
@@ -1317,20 +1311,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   finishDeleteButton: {
-    backgroundColor: '#2A2A31',
+    backgroundColor: colors.CARD,
     borderWidth: 1,
-    borderColor: '#3A3A43',
+    borderColor: colors.BORDER,
   },
   finishDeleteButtonText: {
-    color: '#D8D8DE',
+    color: colors.TEXT,
     fontSize: 14,
     fontWeight: '700',
   },
   finishSaveButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   finishSaveButtonText: {
-    color: '#000000',
+    color: '#000000', // intentional: black text on PRIMARY (cyan) button — keep
     fontSize: 14,
     fontWeight: '800',
   },

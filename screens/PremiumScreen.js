@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,30 +15,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { usePremium } from '../contexts/PremiumContext';
+import { useTheme } from '../contexts/ThemeContext';
 import paymentService, { PRODUCT_IDS } from '../services/paymentService';
 
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  WHITE: '#ffffff',
-  GRAY_100: '#f3f4f6',
-  GRAY_200: '#e5e7eb',
-  GRAY_300: '#d1d5db',
-  GRAY_400: '#9ca3af',
-  GRAY_500: '#6b7280',
-  GRAY_600: '#4b5563',
-  GRAY_700: '#374151',
-  GRAY_800: '#1f2937',
-  GRAY_900: '#111827',
-  GOLD: '#FFD700',
-  SILVER: '#C0C0C0',
-  BRONZE: '#CD7F32',
-};
-
 const PremiumScreen = ({ navigation }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   // 인증 및 프리미엄 컨텍스트
   const { user } = useAuth();
   const { updatePremiumStatus } = usePremium();
@@ -382,7 +365,7 @@ const PremiumScreen = ({ navigation }) => {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.WHITE} />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>구독 서비스</Text>
           <View style={styles.headerSpacer} />
@@ -422,7 +405,7 @@ const PremiumScreen = ({ navigation }) => {
           
           {/* 블랙리스트 기능 */}
           <View style={styles.featureItem}>
-            <Ionicons name="shield-checkmark" size={24} color={COLORS.WHITE} />
+            <Ionicons name="shield-checkmark" size={24} color={colors.TEXT} />
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>블랙리스트 관리</Text>
               <Text style={styles.featureDescription}>
@@ -433,7 +416,7 @@ const PremiumScreen = ({ navigation }) => {
           
           {/* 가맹점 할인 */}
           <View style={styles.featureItem}>
-            <Ionicons name="storefront" size={24} color={COLORS.WHITE} />
+            <Ionicons name="storefront" size={24} color={colors.TEXT} />
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>가맹점 할인 혜택</Text>
               <Text style={styles.featureDescription}>
@@ -444,7 +427,7 @@ const PremiumScreen = ({ navigation }) => {
           
           {/* 러닝 이벤트 참여 기회 */}
           <View style={styles.featureItem}>
-            <Ionicons name="trophy" size={24} color={COLORS.WHITE} />
+            <Ionicons name="trophy" size={24} color={colors.TEXT} />
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>러논맴버스를 위한 러닝 이벤트</Text>
               <Text style={styles.featureDescription}>
@@ -690,13 +673,13 @@ const PremiumScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   headerContent: {
     height: 56,
@@ -714,7 +697,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   headerSpacer: {
@@ -734,13 +717,13 @@ const styles = StyleSheet.create({
   introTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     marginBottom: 8,
     textAlign: 'center',
   },
   introSubtitle: {
     fontSize: 16,
-    color: COLORS.GRAY_400,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -751,13 +734,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     marginBottom: 20,
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     padding: 20,
     borderRadius: 12,
     marginBottom: 16,
@@ -774,7 +757,7 @@ const styles = StyleSheet.create({
   },
   featureDescription: {
     fontSize: 14,
-    color: '#ffffff',
+    color: colors.TEXT,
     lineHeight: 20,
   },
   bottomSpacing: {
@@ -813,7 +796,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   bottomButtonContainer: {
     paddingHorizontal: 20,
@@ -828,7 +811,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bottomButtonText: {
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
@@ -866,7 +849,7 @@ const styles = StyleSheet.create({
     // 월간 플랜만 표시
   },
   modalContent: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -879,14 +862,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalTitle: {
     fontSize: 22,
     fontWeight: 'Regular',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     marginBottom: 20,
     textAlign: 'center',
     fontFamily: 'Pretendard-Regular',
@@ -894,7 +877,7 @@ const styles = StyleSheet.create({
   },
   modalSubtitle: {
     fontSize: 16,
-    color: COLORS.GRAY_400,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 20,
     textAlign: 'center',
     fontFamily: 'Pretendard-Regular',
@@ -943,12 +926,12 @@ const styles = StyleSheet.create({
   modalOptionTextPrimary: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   modalDisclaimer: {
     fontSize: 12,
-    color: COLORS.GRAY_500,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     fontFamily: 'Pretendard-Regular',
     lineHeight: 16,
@@ -960,7 +943,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   planCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginBottom: 0,
@@ -969,7 +952,7 @@ const styles = StyleSheet.create({
   },
   planCardSelected: {
     borderColor: '#FF0073',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   planCardContent: {
     flexDirection: 'row',
@@ -1001,7 +984,7 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: 16,
     fontWeight: '400',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Regular',
   },
   radioButton: {
@@ -1009,7 +992,7 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.GRAY_500,
+    borderColor: colors.TEXT_SECONDARY,
   },
   radioButtonSelected: {
     width: 24,
@@ -1025,11 +1008,11 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.TEXT,
   },
   planPriceMain: {
     fontSize: 12,
-    color: COLORS.GRAY_400,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-Regular',
   },
   planPriceContainer: {
@@ -1039,18 +1022,18 @@ const styles = StyleSheet.create({
   planPrice: {
     fontSize: 20,
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   planPeriod: {
     fontSize: 14,
-    color: COLORS.GRAY_400,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 4,
     fontFamily: 'Pretendard-Regular',
   },
   planPriceSub: {
     fontSize: 12,
-    color: COLORS.GRAY_500,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-Regular',
   },
   freeTrialBadge: {
@@ -1060,19 +1043,19 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   freeTrialBadgeText: {
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     fontSize: 12,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
   discountBadge: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   discountBadgeText: {
-    color: COLORS.BACKGROUND,
+    color: '#000000',
     fontSize: 11,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
@@ -1088,12 +1071,12 @@ const styles = StyleSheet.create({
   planSelectButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   planDisclaimer: {
     fontSize: 12,
-    color: COLORS.GRAY_500,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     fontFamily: 'Pretendard-Regular',
     lineHeight: 18,

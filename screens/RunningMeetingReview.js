@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,23 +12,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import evaluationService from '../services/evaluationService';
 
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-  BORDER: '#374151',
-  ICON_DEFAULT: '#9CA3AF',
-  SUCCESS: '#10B981',
-  WARNING: '#F59E0B',
-  ERROR: '#EF4444',
-};
-
 const RunningMeetingReview = ({ route, navigation }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const { event: rawEvent, participants: eventParticipants, onEvaluationComplete } = route.params;
   const { user } = useAuth();
 
@@ -332,7 +322,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
               <Ionicons
                 name="heart"
                 size={36}
-                color={score <= currentScore ? "#FF0073" : COLORS.BORDER}
+                color={score <= currentScore ? "#FF0073" : colors.BORDER}
               />
             </TouchableOpacity>
           ))}
@@ -370,7 +360,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
                 {tag}
               </Text>
               {selectedTags.includes(tag) && (
-                <Ionicons name="checkmark" size={16} color={COLORS.PRIMARY} style={styles.tagCheck} />
+                <Ionicons name="checkmark" size={16} color={colors.PRIMARY} style={styles.tagCheck} />
               )}
             </TouchableOpacity>
           ))}
@@ -494,14 +484,14 @@ const RunningMeetingReview = ({ route, navigation }) => {
           <View style={styles.participantStatus}>
             {isComplete && (
               <View style={styles.completeBadge}>
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
                 <Text style={styles.completeText}>완료</Text>
               </View>
             )}
             <Ionicons
               name={isExpanded ? "chevron-up" : "chevron-down"}
               size={20}
-              color={COLORS.ICON_DEFAULT}
+              color={colors.TEXT_SECONDARY}
             />
           </View>
         </TouchableOpacity>
@@ -551,7 +541,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#ffffff" />
+          <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>러닝매너 작성</Text>
@@ -572,22 +562,22 @@ const RunningMeetingReview = ({ route, navigation }) => {
           <Text style={styles.eventTitle}>{event.title}</Text>
           <View style={styles.eventInfo}>
             <View style={styles.eventInfoRow}>
-              <Ionicons name="location" size={16} color={COLORS.ICON_DEFAULT} />
+              <Ionicons name="location" size={16} color={colors.TEXT_SECONDARY} />
               <Text style={styles.eventInfoText}>{event.location}</Text>
             </View>
             <View style={styles.eventInfoRow}>
-              <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+              <Ionicons name="calendar" size={16} color={colors.TEXT_SECONDARY} />
               <Text style={styles.eventInfoText}>
                 {event.date ? (event.date instanceof Date ? event.date.toLocaleDateString('ko-KR') : event.date) : '날짜 없음'} {event.time || '시간 없음'}
               </Text>
             </View>
             <View style={styles.eventInfoRow}>
-              <Ionicons name="people" size={16} color={COLORS.ICON_DEFAULT} />
+              <Ionicons name="people" size={16} color={colors.TEXT_SECONDARY} />
               <Text style={styles.eventInfoText}>참여자 {participants.length}명</Text>
             </View>
           </View>
           <View style={styles.anonymousNotice}>
-            <Ionicons name="shield-checkmark" size={16} color={COLORS.PRIMARY} />
+            <Ionicons name="shield-checkmark" size={16} color={colors.PRIMARY} />
             <Text style={styles.anonymousText}>익명으로 평가됩니다</Text>
           </View>
         </View>
@@ -613,7 +603,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
         {/* 참여자 목록 */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
+            <Ionicons name="people" size={20} color={colors.TEXT_SECONDARY} />
             <Text style={styles.sectionTitle}>참여자 평가</Text>
           </View>
           {participants.map(participant => (
@@ -635,7 +625,7 @@ const RunningMeetingReview = ({ route, navigation }) => {
           <Ionicons 
             name="checkmark-circle" 
             size={24} 
-            color={isAllComplete() ? "#000000" : COLORS.SECONDARY} 
+            color={isAllComplete() ? "#000000" : colors.TEXT_SECONDARY}
           />
           <Text style={[
             styles.submitButtonText,
@@ -654,10 +644,10 @@ const RunningMeetingReview = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -676,12 +666,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   headerSpacer: {
     width: 32,
@@ -694,7 +684,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100, // 하단 버튼을 위한 여백
   },
   eventCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -702,7 +692,7 @@ const styles = StyleSheet.create({
   eventTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 16,
   },
   eventInfo: {
@@ -716,7 +706,7 @@ const styles = StyleSheet.create({
   },
   eventInfoText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   anonymousNotice: {
     flexDirection: 'row',
@@ -724,14 +714,14 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
   },
   anonymousText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   progressSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -745,22 +735,22 @@ const styles = StyleSheet.create({
   progressTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   progressCount: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: 'bold',
   },
   progressBar: {
     height: 8,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     borderRadius: 4,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 4,
   },
   section: {
@@ -775,10 +765,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   participantCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     marginBottom: 12,
     overflow: 'hidden',
@@ -808,7 +798,7 @@ const styles = StyleSheet.create({
   participantImagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -824,7 +814,7 @@ const styles = StyleSheet.create({
   participantName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   hostBadge: {
     flexDirection: 'row',
@@ -837,7 +827,7 @@ const styles = StyleSheet.create({
   },
   participantBio: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 18,
   },
   participantStatus: {
@@ -852,13 +842,13 @@ const styles = StyleSheet.create({
   },
   completeText: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: 'bold',
   },
   evaluationForm: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
     gap: 24,
   },
   evaluationSection: {
@@ -867,7 +857,7 @@ const styles = StyleSheet.create({
   evaluationTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   heartContainer: {
     alignItems: 'center',
@@ -890,14 +880,14 @@ const styles = StyleSheet.create({
   },
   heartText: {
     fontSize: 18,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   tagContainer: {
     gap: 12,
   },
   tagTitle: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   tagGrid: {
     flexDirection: 'row',
@@ -912,21 +902,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    backgroundColor: COLORS.SURFACE,
+    borderColor: colors.BORDER,
+    backgroundColor: colors.SURFACE,
     minWidth: '48%',
   },
   tagButtonSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
   },
   tagText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
   tagTextSelected: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: 'bold',
   },
   tagCheck: {
@@ -935,7 +925,7 @@ const styles = StyleSheet.create({
   },
   tagCount: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
 
   bottomActions: {
@@ -947,9 +937,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingTop: 12,
     paddingBottom: 22,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderTopWidth: 0.25,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
     gap: 8,
   },
   submitButton: {
@@ -961,10 +951,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   submitButtonActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   submitButtonInactive: {
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
   },
   submitButtonText: {
     fontSize: 18,
@@ -974,11 +964,11 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   submitButtonTextInactive: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   submitNotice: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
   },
 
@@ -991,8 +981,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    backgroundColor: COLORS.SURFACE,
+    borderColor: colors.BORDER,
+    backgroundColor: colors.SURFACE,
     minWidth: '48%',
   },
   negativeTagButtonSelected: {
@@ -1001,7 +991,7 @@ const styles = StyleSheet.create({
   },
   negativeTagText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
   negativeTagTextSelected: {
@@ -1018,8 +1008,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    backgroundColor: COLORS.SURFACE,
+    borderColor: colors.BORDER,
+    backgroundColor: colors.SURFACE,
     minWidth: '48%',
   },
   specialSituationButtonSelected: {
@@ -1028,7 +1018,7 @@ const styles = StyleSheet.create({
   },
   specialSituationText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
   specialSituationTextSelected: {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,22 +13,13 @@ import { useNotificationSettings } from '../contexts/NotificationSettingsContext
 import { useAuth } from '../contexts/AuthContext'; // AuthContext 추가
 import * as Notifications from 'expo-notifications';
 import appleFitnessService from '../services/appleFitnessService';
-
-// Runon 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  TEXT_SECONDARY: '#666666',
-  SUCCESS: '#00FF88',
-  WARNING: '#FFD700',
-  ERROR: '#FF4444',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 
 const AppIntroScreen = ({ navigation }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [notificationPermission, setNotificationPermission] = useState(false);
   const [healthKitStatus, setHealthKitStatus] = useState({
     isChecking: false,
@@ -367,10 +358,10 @@ const AppIntroScreen = ({ navigation }) => {
       {/* 알림 권한 상태 */}
       <View style={styles.permissionSection}>
         <View style={styles.permissionHeader}>
-          <Ionicons 
-            name={notificationPermission ? "checkmark-circle" : "alert-circle"} 
-            size={24} 
-            color={notificationPermission ? COLORS.SUCCESS : COLORS.PRIMARY} 
+          <Ionicons
+            name={notificationPermission ? "checkmark-circle" : "alert-circle"}
+            size={24}
+            color={notificationPermission ? colors.SUCCESS : colors.PRIMARY}
           />
           <Text style={styles.permissionTitle}>
             {notificationPermission ? '알림 권한 허용됨' : '알림 권한 필요'}
@@ -465,9 +456,9 @@ const AppIntroScreen = ({ navigation }) => {
           </View>
           <View style={styles.healthItemRight}>
             <Ionicons 
-              name={healthKitStatus.hasPermissions ? "checkmark-circle" : "chevron-forward"} 
-              size={20} 
-              color={healthKitStatus.hasPermissions ? COLORS.SUCCESS : COLORS.TEXT_SECONDARY} 
+              name={healthKitStatus.hasPermissions ? "checkmark-circle" : "chevron-forward"}
+              size={20}
+              color={healthKitStatus.hasPermissions ? colors.SUCCESS : colors.TEXT_SECONDARY}
             />
           </View>
         </TouchableOpacity>
@@ -502,10 +493,10 @@ const AppIntroScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
 
   scrollView: {
@@ -524,18 +515,18 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
     fontFamily: 'Pretendard-Bold',
   },
   stepSubtitle: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 24,
     fontFamily: 'Pretendard-Regular',
   },
   permissionSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 30,
@@ -548,19 +539,19 @@ const styles = StyleSheet.create({
   permissionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 12,
     fontFamily: 'Pretendard-Bold',
   },
   permissionDescription: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     marginBottom: 2,
     fontFamily: 'Pretendard-Regular',
   },
   permissionButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -578,7 +569,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 16,
     fontFamily: 'Pretendard-Bold',
   },
@@ -586,7 +577,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -609,13 +600,13 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
     fontFamily: 'Pretendard-Bold',
   },
   notificationDescription: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 18,
     fontFamily: 'Pretendard-Regular',
   },
@@ -625,12 +616,12 @@ const styles = StyleSheet.create({
   toggleSwitch: {
     width: 44,
     height: 24,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 2,
   },
   toggleSwitchActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   toggleSwitchDisabled: {
     opacity: 0.5,
@@ -638,7 +629,7 @@ const styles = StyleSheet.create({
   toggleThumb: {
     width: 20,
     height: 20,
-    backgroundColor: COLORS.TEXT_SECONDARY,
+    backgroundColor: colors.TEXT_SECONDARY,
     borderRadius: 10,
   },
   toggleThumbActive: {
@@ -647,7 +638,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 20,
     fontFamily: 'Pretendard-Regular',
     textAlign: 'center',
@@ -660,7 +651,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
   },
@@ -682,13 +673,13 @@ const styles = StyleSheet.create({
   healthTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
     fontFamily: 'Pretendard-Bold',
   },
   healthDescription: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 18,
     fontFamily: 'Pretendard-Regular',
   },
@@ -705,11 +696,11 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 22,
     borderTopWidth: 0.25,
-    borderTopColor: COLORS.SURFACE,
-    backgroundColor: COLORS.BACKGROUND,
+    borderTopColor: colors.SURFACE,
+    backgroundColor: colors.BACKGROUND,
   },
   nextButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 12,
     paddingVertical: 16,
     flexDirection: 'row',

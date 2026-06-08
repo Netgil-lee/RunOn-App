@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,31 +11,22 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import blacklistService from '../services/blacklistService';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#FF0073',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  TEXT_SECONDARY: '#666666',
-  BORDER: '#1F2937',
-  RED: '#FF6B6B',
-};
 
 const BlacklistManagementScreen = ({ navigation, route }) => {
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { onRefresh } = route.params || {};
-  
+
   const [blacklist, setBlacklist] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // 블랙리스트 조회
   const fetchBlacklist = async () => {
     if (!user?.uid) return;
-    
+
     try {
       setLoading(true);
       const blacklistData = await blacklistService.getBlacklist(user.uid);
@@ -83,7 +74,7 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
   // 날짜 포맷팅
   const formatDate = (date) => {
     if (!date) return '날짜 없음';
-    
+
     try {
       const dateObj = date instanceof Date ? date : new Date(date);
       return dateObj.toLocaleDateString('ko-KR', {
@@ -107,7 +98,7 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
       <SafeAreaView style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>블랙리스트</Text>
           <View style={styles.headerSpacer} />
@@ -118,7 +109,7 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
         {/* 안내 메시지 */}
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
-            <Ionicons name="information-circle" size={20} color={COLORS.PRIMARY} />
+            <Ionicons name="information-circle" size={20} color={colors.PINK} />
             <Text style={styles.infoTitle}>차단 기능 안내</Text>
           </View>
           <Text style={styles.infoText}>
@@ -136,7 +127,7 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
           </View>
         ) : blacklist.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="people-outline" size={64} color={COLORS.TEXT_SECONDARY} />
+            <Ionicons name="people-outline" size={64} color={colors.TEXT_SECONDARY} />
             <Text style={styles.emptyTitle}>차단된 사용자가 없습니다</Text>
             <Text style={styles.emptySubtitle}>
               다른 사용자의 프로필에서 차단 기능을 사용할 수 있습니다
@@ -152,13 +143,13 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
                 <View style={styles.userInfo}>
                   <View style={styles.profileImageContainer}>
                     {blockedUser.blockedUserProfileImage ? (
-                      <Image 
-                        source={{ uri: blockedUser.blockedUserProfileImage }} 
+                      <Image
+                        source={{ uri: blockedUser.blockedUserProfileImage }}
                         style={styles.profileImage}
                       />
                     ) : (
                       <View style={styles.profileImagePlaceholder}>
-                        <Ionicons name="person" size={24} color={COLORS.TEXT_SECONDARY} />
+                        <Ionicons name="person" size={24} color="#6B7280" />
                       </View>
                     )}
                   </View>
@@ -169,11 +160,11 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.unblockButton}
                   onPress={() => handleUnblockUser(blockedUser)}
                 >
-                  <Ionicons name="checkmark-circle-outline" size={20} color={COLORS.PRIMARY} />
+                  <Ionicons name="checkmark-circle-outline" size={20} color={colors.PINK} />
                   <Text style={styles.unblockButtonText}>해제</Text>
                 </TouchableOpacity>
               </View>
@@ -185,13 +176,13 @@ const BlacklistManagementScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   headerContent: {
     height: 56,
@@ -209,7 +200,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   headerSpacer: {
@@ -221,12 +212,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   infoCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + '30',
+    borderColor: colors.PINK + '30',
   },
   infoHeader: {
     flexDirection: 'row',
@@ -236,13 +227,13 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PINK,
     marginLeft: 8,
     fontFamily: 'Pretendard-SemiBold',
   },
   infoText: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     fontFamily: 'Pretendard-Regular',
   },
@@ -254,7 +245,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-Regular',
   },
   emptyContainer: {
@@ -266,14 +257,14 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 16,
     marginBottom: 8,
     fontFamily: 'Pretendard-SemiBold',
   },
   emptySubtitle: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 20,
     fontFamily: 'Pretendard-Regular',
@@ -284,12 +275,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 16,
     fontFamily: 'Pretendard-SemiBold',
   },
   blockedUserCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -314,7 +305,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -324,13 +315,13 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
     fontFamily: 'Pretendard-SemiBold',
   },
   blockDate: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-Regular',
   },
   unblockButton: {
@@ -338,7 +329,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PINK,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -346,12 +337,10 @@ const styles = StyleSheet.create({
   unblockButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.PRIMARY,
+    color: colors.PINK,
     marginLeft: 4,
     fontFamily: 'Pretendard-Medium',
   },
 });
 
 export default BlacklistManagementScreen;
-
-

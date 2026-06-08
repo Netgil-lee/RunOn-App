@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,18 +18,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import MeetingCard from '../components/MeetingCard';
 import blacklistService from '../services/blacklistService';
-
-// NetGill 디자인 시스템 - 홈화면과 동일한 색상 팔레트
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const SearchScreen = ({ navigation }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const { userCreatedEvents, userJoinedEvents, endedEvents } = useEvents();
   const { posts: communityPosts } = useCommunity(); // 실제 커뮤니티 데이터 사용
@@ -370,9 +363,9 @@ const SearchScreen = ({ navigation }) => {
 
           <View style={styles.resultRightSection}>
             <View style={styles.postStats}>
-              <Ionicons name="heart-outline" size={14} color={COLORS.SECONDARY} />
+              <Ionicons name="heart-outline" size={14} color={colors.TEXT_SECONDARY} />
               <Text style={styles.postStatsText}>{post.likes}</Text>
-              <Ionicons name="chatbubble-outline" size={14} color={COLORS.SECONDARY} style={{ marginLeft: 8 }} />
+              <Ionicons name="chatbubble-outline" size={14} color={colors.TEXT_SECONDARY} style={{ marginLeft: 8 }} />
               <Text style={styles.postStatsText}>{post.comments}</Text>
             </View>
           </View>
@@ -504,11 +497,11 @@ const SearchScreen = ({ navigation }) => {
         {/* 위치와 날짜/시간 */}
         <View style={styles.resultInfoRow}>
           <View style={styles.resultInfoItem}>
-            <Ionicons name="location-outline" size={14} color={COLORS.PRIMARY} />
+            <Ionicons name="location-outline" size={14} color={colors.PRIMARY} />
             <Text style={styles.resultInfoText}>{event.location}</Text>
           </View>
           <View style={styles.resultInfoItem}>
-            <Ionicons name="time-outline" size={14} color={COLORS.PRIMARY} />
+            <Ionicons name="time-outline" size={14} color={colors.PRIMARY} />
             <Text style={styles.resultInfoText}>
               {event.date ? formatDateWithoutYear(event.date) : '날짜 없음'} {event.time || '시간 없음'}
             </Text>
@@ -595,13 +588,13 @@ const SearchScreen = ({ navigation }) => {
             onPress={() => navigation.goBack()} 
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           
           {/* 검색바 */}
           <View style={styles.searchContainer}>
             <View style={styles.searchInputContainer}>
-              <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+              <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} style={styles.searchIcon} />
               <TextInput
                 ref={searchInputRef}
                 style={styles.searchInput}
@@ -609,14 +602,14 @@ const SearchScreen = ({ navigation }) => {
                 onChangeText={setSearchQuery}
                 onSubmitEditing={handleSearchSubmit}
                 placeholder="태그, 한강공원, 강변, 후기, 코스추천으로 검색"
-                placeholderTextColor={COLORS.SECONDARY}
+                placeholderTextColor={colors.TEXT_SECONDARY}
                 returnKeyType="search"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
-                  <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                  <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
                 </TouchableOpacity>
               )}
             </View>
@@ -643,7 +636,7 @@ const SearchScreen = ({ navigation }) => {
                         style={styles.recentSearchItem}
                         onPress={() => handleRecentSearchClick(search)}
                       >
-                        <Ionicons name="time-outline" size={16} color={COLORS.SECONDARY} />
+                        <Ionicons name="time-outline" size={16} color={colors.TEXT_SECONDARY} />
                         <Text style={styles.recentSearchText}>{search}</Text>
                       </TouchableOpacity>
                     ))}
@@ -726,7 +719,7 @@ const SearchScreen = ({ navigation }) => {
                     </View>
                   ) : (
                     <View style={styles.noResultsContainer}>
-                      <Ionicons name="search-outline" size={64} color={COLORS.SECONDARY} />
+                      <Ionicons name="search-outline" size={64} color={colors.TEXT_SECONDARY} />
                       <Text style={styles.noResultsTitle}>검색 결과가 없습니다</Text>
                       <Text style={styles.noResultsSubtitle}>
                         다른 키워드로 검색해보세요
@@ -743,17 +736,17 @@ const SearchScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   backButton: {
     padding: 8,
@@ -765,11 +758,11 @@ const styles = StyleSheet.create({
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
   },
   searchIcon: {
     marginRight: 8,
@@ -777,7 +770,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     paddingVertical: 4,
   },
   clearButton: {
@@ -795,7 +788,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 12,
   },
   recentSearchesContainer: {
@@ -806,13 +799,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     gap: 12,
   },
   recentSearchText: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   suggestedSearchesContainer: {
     flexDirection: 'row',
@@ -824,10 +817,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + '40',
+    borderColor: colors.PRIMARY + '40',
     gap: 6,
   },
   suggestedSearchIcon: {
@@ -835,7 +828,7 @@ const styles = StyleSheet.create({
   },
   suggestedSearchText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   resultsContainer: {
@@ -849,33 +842,33 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   resultsHeader: {
     padding: 16,
     paddingTop: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   resultsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   resultsCount: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   resultsList: {
     padding: 16,
     gap: 16,
   },
   searchResultCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
   },
   resultTitleRow: {
     flexDirection: 'row',
@@ -891,7 +884,7 @@ const styles = StyleSheet.create({
   resultTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
   difficultyBadge: {
@@ -904,16 +897,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   resultTypeBadge: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + '40',
+    borderColor: colors.PRIMARY + '40',
   },
   resultTypeText: {
     fontSize: 11,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
   },
   resultInfoRow: {
@@ -931,7 +924,7 @@ const styles = StyleSheet.create({
   },
   resultInfoText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 6,
     flexShrink: 1,
   },
@@ -939,7 +932,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     marginBottom: 12,
   },
@@ -951,12 +944,12 @@ const styles = StyleSheet.create({
   resultStatDivider: {
     width: 1,
     height: 20,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   resultStatValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   resultTagsContainer: {
     flexDirection: 'row',
@@ -966,14 +959,14 @@ const styles = StyleSheet.create({
   },
   resultTag: {
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   resultTagText: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   resultFooter: {
@@ -1003,11 +996,11 @@ const styles = StyleSheet.create({
   resultOrganizerAvatarText: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   resultOrganizerName: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   resultRightSection: {
@@ -1016,7 +1009,7 @@ const styles = StyleSheet.create({
   },
   resultParticipantInfo: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   noResultsContainer: {
@@ -1028,37 +1021,37 @@ const styles = StyleSheet.create({
   noResultsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 16,
     marginBottom: 8,
   },
   noResultsSubtitle: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
   },
   postCategoryBadge: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + '40',
+    borderColor: colors.PRIMARY + '40',
   },
   postCategoryText: {
     fontSize: 11,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
   },
   postContentPreview: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 12,
     lineHeight: 20,
   },
   postDateText: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 8,
   },
   postStats: {
@@ -1068,17 +1061,17 @@ const styles = StyleSheet.create({
   },
   postStatsText: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   tabContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     paddingVertical: 4,
     marginHorizontal: 16,
     marginBottom: 8,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
   },
   tabButton: {
     flex: 1,
@@ -1086,18 +1079,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   activeTabButton: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + '40',
+    borderColor: colors.PRIMARY + '40',
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   activeTabText: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
 });
 
