@@ -687,7 +687,7 @@ const MapScreen = ({ navigation, route }) => {
     >
       <View style={styles.bottomSheetIndicator} />
     </TouchableOpacity>
-  ), [handleHeaderPress]);
+  ), [handleHeaderPress, styles]);
 
   // 지도 클릭/드래그 시 Bottom Sheet 축소
   const handleMapInteraction = useCallback(() => {
@@ -1999,40 +1999,41 @@ const MapScreen = ({ navigation, route }) => {
                   <View style={styles.listContent}>
                         {filteredCafes.length > 0 ? (
                           <>
-                            {(showAllCafes ? filteredCafes : filteredCafes.slice(0, 5)).map((cafe, index) => (
+                            {(showAllCafes ? filteredCafes : filteredCafes.slice(0, 5)).map((cafe, index, arr) => {
+                              const isLastItem = index === arr.length - 1;
+                              return (
                               <TouchableOpacity
                                 key={cafe.id || index}
                                 onPress={() => handleCafeClick(cafe)}
-                                style={styles.cafeCardContainer}
+                                style={[styles.mapPlaceItem, !isLastItem && styles.mapEventFeedItemDivider]}
+                                activeOpacity={0.85}
                               >
-                                <View style={styles.cafeCard}>
-                                  {/* 카페 이미지 */}
-                                  {cafe.images && cafe.images.length > 0 && (
-                                    <Image
-                                      source={{ uri: cafe.images[0] }}
-                                      style={styles.cafeImage}
-                                      resizeMode="cover"
-                                    />
+                                {cafe.images && cafe.images.length > 0 && (
+                                  <Image
+                                    source={{ uri: cafe.images[0] }}
+                                    style={styles.mapPlaceImage}
+                                    resizeMode="cover"
+                                  />
+                                )}
+                                <View style={styles.mapPlaceContent}>
+                                  <Text style={styles.cafeName}>{cafe.name || '카페'}</Text>
+                                  {cafe.description && (
+                                    <Text style={styles.cafeDescription} numberOfLines={2}>
+                                      {cafe.description}
+                                    </Text>
                                   )}
-                                  <View style={styles.cafeCardContent}>
-                                    <Text style={styles.cafeName}>{cafe.name || '카페'}</Text>
-                                    {cafe.description && (
-                                      <Text style={styles.cafeDescription} numberOfLines={2}>
-                                        {cafe.description}
+                                  {cafe.runningCertificationBenefit && (
+                                    <View style={styles.cafeBenefit}>
+                                      <Ionicons name="gift" size={14} color={colors.PRIMARY} />
+                                      <Text style={styles.cafeBenefitText}>
+                                        {cafe.runningCertificationBenefit}
                                       </Text>
-                                    )}
-                                    {cafe.runningCertificationBenefit && (
-                                      <View style={styles.cafeBenefit}>
-                                        <Ionicons name="gift" size={14} color={colors.PRIMARY} />
-                                        <Text style={styles.cafeBenefitText}>
-                                          {cafe.runningCertificationBenefit}
-                                        </Text>
-                                      </View>
-                                    )}
-                                  </View>
+                                    </View>
+                                  )}
                                 </View>
                               </TouchableOpacity>
-                            ))}
+                              );
+                            })}
                             {!showAllCafes && filteredCafes.length > 5 && (
                               <TouchableOpacity
                                 onPress={handleShowAllCafes}
@@ -2058,39 +2059,41 @@ const MapScreen = ({ navigation, route }) => {
                   <View style={styles.listContent}>
                         {filteredFoods.length > 0 ? (
                           <>
-                            {(showAllFoods ? filteredFoods : filteredFoods.slice(0, 5)).map((food, index) => (
+                            {(showAllFoods ? filteredFoods : filteredFoods.slice(0, 5)).map((food, index, arr) => {
+                              const isLastItem = index === arr.length - 1;
+                              return (
                               <TouchableOpacity
                                 key={food.id || index}
                                 onPress={() => handleFoodClick(food)}
-                                style={styles.cafeCardContainer}
+                                style={[styles.mapPlaceItem, !isLastItem && styles.mapEventFeedItemDivider]}
+                                activeOpacity={0.85}
                               >
-                                <View style={styles.cafeCard}>
-                                  {food.images && food.images.length > 0 && (
-                                    <Image
-                                      source={{ uri: food.images[0] }}
-                                      style={styles.cafeImage}
-                                      resizeMode="cover"
-                                    />
+                                {food.images && food.images.length > 0 && (
+                                  <Image
+                                    source={{ uri: food.images[0] }}
+                                    style={styles.mapPlaceImage}
+                                    resizeMode="cover"
+                                  />
+                                )}
+                                <View style={styles.mapPlaceContent}>
+                                  <Text style={styles.cafeName}>{food.name || '러닝푸드'}</Text>
+                                  {food.description && (
+                                    <Text style={styles.cafeDescription} numberOfLines={2}>
+                                      {food.description}
+                                    </Text>
                                   )}
-                                  <View style={styles.cafeCardContent}>
-                                    <Text style={styles.cafeName}>{food.name || '러닝푸드'}</Text>
-                                    {food.description && (
-                                      <Text style={styles.cafeDescription} numberOfLines={2}>
-                                        {food.description}
+                                  {food.runningCertificationBenefit && (
+                                    <View style={styles.cafeBenefit}>
+                                      <Ionicons name="gift" size={14} color={colors.PRIMARY} />
+                                      <Text style={styles.cafeBenefitText}>
+                                        {food.runningCertificationBenefit}
                                       </Text>
-                                    )}
-                                    {food.runningCertificationBenefit && (
-                                      <View style={styles.cafeBenefit}>
-                                        <Ionicons name="gift" size={14} color={colors.PRIMARY} />
-                                        <Text style={styles.cafeBenefitText}>
-                                          {food.runningCertificationBenefit}
-                                        </Text>
-                                      </View>
-                                    )}
-                                  </View>
+                                    </View>
+                                  )}
                                 </View>
                               </TouchableOpacity>
-                            ))}
+                              );
+                            })}
                             {!showAllFoods && filteredFoods.length > 5 && (
                               <TouchableOpacity
                                 onPress={handleShowAllFoods}
@@ -2273,7 +2276,7 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
   },
   bottomSheetBackground: {
-    backgroundColor: colors.SURFACE, // bottombar 배경색과 동일 (colors.SURFACE)
+    backgroundColor: colors.BACKGROUND, // 바텀시트 배경 = BACKGROUND
     // iOS 그림자
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -2286,7 +2289,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: colors.SURFACE, // bottombar 배경색과 동일 (colors.SURFACE)
+    backgroundColor: colors.BACKGROUND, // 바텀시트 배경 = BACKGROUND
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
@@ -2393,7 +2396,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 20,
   },
   mapEventFeedItemDivider: {
-    borderBottomWidth: 7,
+    borderBottomWidth: 1,
     borderBottomColor: colors.BORDER,
   },
   mapEventFeedHeader: {
@@ -2476,25 +2479,23 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
-  cafeCardContainer: {
-    marginBottom: 12,
-    marginHorizontal: 20,
-  },
-  cafeCard: {
-    backgroundColor: colors.CARD,
-    borderRadius: 12,
-    overflow: 'hidden',
+  // 지도 바텀시트 카페/푸드 목록을 모임 목록과 동일한 평평한 구분선 행으로 통일
+  mapPlaceItem: {
     flexDirection: 'row',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 12,
   },
-  cafeImage: {
-    width: 100,
-    height: 100,
+  mapPlaceImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
     backgroundColor: colors.BORDER,
   },
-  cafeCardContent: {
+  mapPlaceContent: {
     flex: 1,
-    padding: 12,
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 4,
   },
   cafeName: {
     color: colors.TEXT,

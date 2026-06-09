@@ -10,9 +10,9 @@ import { Ionicons } from '@expo/vector-icons';
 // NetGill 디자인 시스템
 const COLORS = {
   PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#181818',
-  CARD: '#171719',
+  BACKGROUND: '#0F1115',
+  SURFACE: '#20242B',
+  CARD: '#181B20',
 };
 
 const ProfileCard = ({ user }) => {

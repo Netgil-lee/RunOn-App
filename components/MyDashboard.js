@@ -286,8 +286,8 @@ const MyDashboard = ({ navigation }) => {
 const createStyles = (colors) => StyleSheet.create({
   container: {
     padding: 16,
-    borderBottomWidth: 8,
-    borderBottomColor: colors.BORDER,
+    borderBottomWidth: 6,
+    borderBottomColor: colors.DIVIDER,
   },
   loadingContainer: {
     height: 200,
@@ -326,8 +326,8 @@ const createStyles = (colors) => StyleSheet.create({
   cafeCard: {
     width: '100%',
     height: 100,
-    backgroundColor: colors.SURFACE,
-    borderRadius: 10,
+    backgroundColor: colors.BACKGROUND,
+    borderRadius: 3,
     overflow: 'hidden',
     flexDirection: 'row',
   },
@@ -347,6 +347,8 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 12,
     justifyContent: 'center',
     gap: 4,
+    borderWidth: 1,
+    borderColor: colors.BORDER,
   },
   cafeInfoRow: {
     flexDirection: 'row',
@@ -384,11 +386,13 @@ const createStyles = (colors) => StyleSheet.create({
   locationCard: {
     width: 100,
     height: 80,
-    backgroundColor: colors.SURFACE,
-    borderRadius: 10,
+    backgroundColor: colors.BACKGROUND,
+    borderRadius: 3,
     padding: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.BORDER,
   },
   locationName: {
     fontSize: 12,

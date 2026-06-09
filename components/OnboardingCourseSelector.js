@@ -8,7 +8,7 @@ const OnboardingCourseSelector = ({
   colors = {
     TEXT: '#fff',
     PRIMARY: '#3AF8FF',
-    CARD: '#171719',
+    CARD: '#181B20',
     TEXT_SECONDARY: '#666',
   },
 }) => {
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   courseCard: {
     width: '48%',
-    backgroundColor: '#171719',
+    backgroundColor: '#181B20',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,

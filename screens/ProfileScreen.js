@@ -1410,16 +1410,10 @@ const createStyles = (colors) => StyleSheet.create({
   },
   // 러닝 프로필 항목 카드 스타일
   runningProfileCard: {
-    backgroundColor: colors.CARD,
-    borderRadius: 18,
-    marginHorizontal: 0,
-    marginTop: 0, // 러닝 프로필 카드들만의 상단 여백
-    marginBottom: 2, // 러닝 프로필 카드들 사이의 여백
-    padding: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
   },
   profileCardContentRow: {
     flexDirection: 'row',
@@ -2004,30 +1998,18 @@ const createStyles = (colors) => StyleSheet.create({
   },
   // 매너거리 카드 스타일
   mannerDistanceCard: {
-    backgroundColor: colors.CARD,
-    borderRadius: 18,
-    marginHorizontal: 0,
-    marginTop: 0,
-    marginBottom: 2,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
   },
 
   // 매너 태그 카드 전용 스타일 (불투명)
   mannerTagsCard: {
-    backgroundColor: colors.CARD,
-    borderRadius: 18,
-    marginHorizontal: 0,
-    marginTop: 10,
-    marginBottom: 0,
-    padding: 18,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
   },
   // 통계 카드 스타일
   statsGrid: {

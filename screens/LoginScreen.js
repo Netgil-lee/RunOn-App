@@ -769,7 +769,7 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#0F1115',
   },
   backgroundContainer: {
     position: 'absolute',

@@ -6,9 +6,9 @@ const { width: screenWidth } = Dimensions.get('window');
 // NetGill 디자인 시스템
 const COLORS = {
   PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
+  BACKGROUND: '#0F1115',
+  SURFACE: '#20242B',
+  CARD: '#181B20',
   TEXT: '#ffffff',
   TEXT_SECONDARY: '#666666',
   ERROR: '#FF4444',

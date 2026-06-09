@@ -524,8 +524,8 @@ const createStyles = (colors) => StyleSheet.create({
   container: {
     padding: 16,
     paddingBottom: 12,
-    borderBottomWidth: 8,
-    borderBottomColor: colors.BORDER,
+    borderBottomWidth: 6,
+    borderBottomColor: colors.DIVIDER,
   },
   header: {
     flexDirection: 'row',
@@ -713,9 +713,11 @@ const createStyles = (colors) => StyleSheet.create({
   airQualityGrid: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.SURFACE,
-    borderRadius: 8,
+    backgroundColor: colors.BACKGROUND,
+    borderRadius: 3,
     padding: 4,
+    borderWidth: 1,
+    borderColor: colors.BORDER,
   },
   gridItem: {
     flex: 1,

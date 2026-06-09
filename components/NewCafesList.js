@@ -277,8 +277,8 @@ const NewCafesList = ({ navigation }) => {
 const createStyles = (colors) => StyleSheet.create({
   container: {
     paddingVertical: 16,
-    borderBottomWidth: 8,
-    borderBottomColor: colors.BORDER,
+    borderBottomWidth: 6,
+    borderBottomColor: colors.DIVIDER,
   },
   header: {
     flexDirection: 'row',

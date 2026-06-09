@@ -991,7 +991,8 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
   // 메인 모임 화면 (3개 옵션)
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
+      <ScrollView
+        stickyHeaderIndices={[0]}
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -1039,16 +1040,18 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               style={styles.mainOptionCard}
               onPress={handleCreateEvent}
             >
-              <View style={styles.optionIconContainer}>
-                <Ionicons name="add-circle" size={48} color={colors.PRIMARY} />
+              <View style={[styles.optionIconContainer, { backgroundColor: colors.PRIMARY }]}>
+                <Ionicons name="add-circle" size={30} color="#0F1115" />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>새 모임 만들기</Text>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>새 모임 만들기</Text>
+                </View>
                 <Text style={styles.optionSubtitle}>
                   새로운 러닝 모임을 생성하고 다른 사람들과 함께 달려보세요
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#666666" />
+              <Ionicons name="chevron-forward" size={24} color="#666666" style={styles.optionChevron} />
             </TouchableOpacity>
 
             {/* 내가 참여한 모임 */}
@@ -1056,19 +1059,21 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               {hasMeetingNotification && (
                 <View style={styles.cardTopNotificationBadge} />
               )}
-              <View style={styles.optionIconContainer}>
-                <Ionicons name="people" size={48} color={colors.TEXT_SECONDARY} />
+              <View style={[styles.optionIconContainer, { backgroundColor: 'rgba(137, 175, 181, 0.9)' }]}>
+                <Ionicons name="people" size={30} color="#0F1115" />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>내가 참여한 모임</Text>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>내가 참여한 모임</Text>
+                  <View style={styles.optionBadge}>
+                    <Text style={styles.optionBadgeText}>{userJoinedEvents.filter(event => event.status !== 'ended').length}개</Text>
+                  </View>
+                </View>
                 <Text style={styles.optionSubtitle}>
                   참여 신청한 러닝 모임들을 확인하고 관리하세요
                 </Text>
-                <View style={styles.optionBadge}>
-                  <Text style={styles.optionBadgeText}>{userJoinedEvents.filter(event => event.status !== 'ended').length}개</Text>
-                </View>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#666666" />
+              <Ionicons name="chevron-forward" size={24} color="#666666" style={styles.optionChevron} />
             </TouchableOpacity>
 
             {/* 내가 만든 모임 */}
@@ -1078,19 +1083,21 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               style={styles.mainOptionCard}
               onPress={handleViewMyCreated}
             >
-              <View style={styles.optionIconContainer}>
-                <Ionicons name="create" size={48} color={colors.TEXT_SECONDARY} />
+              <View style={[styles.optionIconContainer, { backgroundColor: 'rgba(137, 175, 181, 0.9)' }]}>
+                <Ionicons name="create" size={30} color="#0F1115" />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>내가 만든 모임</Text>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>내가 만든 모임</Text>
+                  <View style={styles.optionBadge}>
+                    <Text style={styles.optionBadgeText}>{userCreatedEvents.filter(event => event.status !== 'ended').length}개</Text>
+                  </View>
+                </View>
                 <Text style={styles.optionSubtitle}>
                   내가 만든 러닝 모임들을 관리하고 참여자를 확인하세요
                 </Text>
-                <View style={styles.optionBadge}>
-                  <Text style={styles.optionBadgeText}>{userCreatedEvents.filter(event => event.status !== 'ended').length}개</Text>
-                </View>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#666666" />
+              <Ionicons name="chevron-forward" size={24} color="#666666" style={styles.optionChevron} />
             </TouchableOpacity>
 
             {/* 종료된 모임 */}
@@ -1098,24 +1105,24 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               {hasRatingNotificationForEndedEventsOption() && (
                 <View style={styles.cardTopNotificationBadge} />
               )}
-              <View style={styles.optionIconContainer}>
-                <Ionicons name="checkmark-circle" size={48} color="#FFEA00" />
+              <View style={[styles.optionIconContainer, { backgroundColor: colors.PRIMARY }]}>
+                <Ionicons name="checkmark-circle" size={30} color="#0F1115" />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>종료된 모임</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  <Text style={styles.optionSubtitle}>종료된 모임을 확인하고 </Text>
-                  <Text style={[styles.optionSubtitle, { color: colors.PRIMARY }]}>러닝매너</Text>
-                  <Text style={styles.optionSubtitle}>를 작성하세요</Text>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>종료된 모임</Text>
+                  <View style={styles.optionBadge}>
+                    <Text style={styles.optionBadgeText}>{endedEvents.filter(event =>
+                      event.organizerId === user?.uid ||
+                      (event.participants && event.participants.includes(user?.uid))
+                    ).length}개</Text>
+                  </View>
                 </View>
-                <View style={styles.optionBadge}>
-                  <Text style={styles.optionBadgeText}>{endedEvents.filter(event =>
-                    event.organizerId === user?.uid ||
-                    (event.participants && event.participants.includes(user?.uid))
-                  ).length}개</Text>
-                </View>
+                <Text style={styles.optionSubtitle}>
+                  종료된 모임을 확인하고 <Text style={{ color: colors.PRIMARY }}>러닝매너</Text>를 작성하세요
+                </Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#666666" />
+              <Ionicons name="chevron-forward" size={24} color="#666666" style={styles.optionChevron} />
             </TouchableOpacity>
 
             {/* 추가 정보 섹션 */}
@@ -2093,10 +2100,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     if (editingEvent?.date) {
       return editingEvent.date;
     }
-    // 기본값: 내일 날짜를 ISO 문자열로 설정
+    // 기본값: 내일 날짜 (로컬 시간대 기준 YYYY-MM-DD — UTC 변환 시 하루 밀리는 문제 방지)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    const y = tomorrow.getFullYear();
+    const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const d = String(tomorrow.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   });
   const [time, setTime] = useState(() => {
     if (editingEvent?.time) {
@@ -2155,9 +2165,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [isLocationInitialized, setIsLocationInitialized] = useState(false);
   const [isLocationLoading, setIsLocationLoading] = useState(true);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false); // 드롭다운 표시 상태
-  // 검색 관련 state
-  const [locationSearchQuery, setLocationSearchQuery] = useState('');
-  
+
   // 모달 오버레이 페이드 애니메이션
   const datePickerModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   const timePickerModalBackdropOpacity = useRef(new Animated.Value(0)).current;
@@ -2672,41 +2680,65 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     }
   };
 
+  // 로컬 시간대 기준 YYYY-MM-DD (toISOString의 UTC 변환으로 날짜가 하루 밀리는 문제 방지)
+  const toLocalDateString = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const toDisplayTimeString = (d) => {
+    const hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? '오후' : '오전';
+    const displayHours = hours % 12 || 12;
+    return `${ampm} ${displayHours}:${minutes.toString().padStart(2, '0')}`;
+  };
+
+  // 스크롤 중에는 작업용 값(date/time)만 갱신하고, 확정은 '확인'에서 처리 → '취소' 시 되돌릴 수 있게
   const handleDateChange = React.useCallback((event, selectedDate) => {
     if (selectedDate) {
       setDate(selectedDate);
-      const dateStr = selectedDate.toISOString().split('T')[0];
-      setDateString(dateStr);
     }
   }, []);
 
   const handleDatePickerConfirm = React.useCallback(() => {
+    setDateString(toLocalDateString(date));
     setShowDatePicker(false);
-  }, []);
+  }, [date]);
 
   const handleDatePickerCancel = React.useCallback(() => {
+    // 작업용 값을 마지막 확정값으로 되돌림
+    setDate(new Date(`${dateString}T00:00:00`));
     setShowDatePicker(false);
-  }, []);
+  }, [dateString]);
 
   const handleTimeChange = React.useCallback((event, selectedTime) => {
     if (selectedTime) {
       setTime(selectedTime);
-      const hours = selectedTime.getHours();
-      const minutes = selectedTime.getMinutes();
-      const ampm = hours >= 12 ? '오후' : '오전';
-      const displayHours = hours % 12 || 12;
-      const formattedTime = `${ampm} ${displayHours}:${minutes.toString().padStart(2, '0')}`;
-      setTimeString(formattedTime);
     }
   }, []);
 
   const handleTimePickerConfirm = React.useCallback(() => {
+    setTimeString(toDisplayTimeString(time));
     setShowTimePicker(false);
-  }, []);
+  }, [time]);
 
   const handleTimePickerCancel = React.useCallback(() => {
+    // 작업용 값을 마지막 확정 문자열로부터 되돌림
+    const m = timeString.match(/(오전|오후)\s*(\d+):(\d+)/);
+    if (m) {
+      let h = parseInt(m[2], 10);
+      const min = parseInt(m[3], 10);
+      if (m[1] === '오후' && h !== 12) h += 12;
+      if (m[1] === '오전' && h === 12) h = 0;
+      const reverted = new Date();
+      reverted.setHours(h, min, 0, 0);
+      setTime(reverted);
+    }
     setShowTimePicker(false);
-  }, []);
+  }, [timeString]);
 
   const formatTime = (timeString) => {
     return timeString || '시간 선택';
@@ -2835,30 +2867,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>장소 선택</Text>
       
-      {/* 1단계: 장소 유형 선택 */}
-      {/* 장소 검색바 */}
-      <View style={styles.locationSearchContainer}>
-        <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} style={styles.locationSearchIcon} />
-        <TextInput
-          style={styles.locationSearchInput}
-          placeholder="장소 키워드 입력 (예: 여의도, 해운대, 석촌호수 등)"
-          placeholderTextColor={colors.TEXT_SECONDARY}
-          value={locationSearchQuery}
-          onChangeText={setLocationSearchQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {locationSearchQuery.length > 0 && (
-          <TouchableOpacity
-            onPress={() => setLocationSearchQuery('')}
-            style={styles.locationSearchClearButton}
-          >
-            <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* 3단계: 선택된 장소 정보 및 지도 */}
+      {/* 선택된 장소 정보 및 지도 */}
       <View style={styles.selectedLocationSection}>
         
         {/* 카카오맵 표시 - 상태 변경 격리 */}
@@ -3211,7 +3220,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                 display="spinner"
                 onChange={handleDateChange}
                 minimumDate={new Date()}
-                textColor="#ffffff"
+                textColor={colors.TEXT}
                 style={styles.dateTimePicker}
                 locale="ko-KR"
               />
@@ -3247,7 +3256,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                 mode="time"
                 display="spinner"
                 onChange={handleTimeChange}
-                textColor="#ffffff"
+                textColor={colors.TEXT}
                 style={styles.dateTimePicker}
                 locale="ko-KR"
                 minuteInterval={15}
@@ -3484,13 +3493,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     <View style={styles.flowContainer}>
       <View style={styles.flowHeader}>
         <TouchableOpacity onPress={handleBack} style={styles.headerButton}>
-          <Ionicons name="arrow-back" size={24} color="#ffffff" />
+          <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
         </TouchableOpacity>
         <Text style={styles.flowTitle}>
           {editingEvent ? '모임 수정' : '새 모임 만들기'}
         </Text>
         <TouchableOpacity onPress={onClose} style={styles.headerButton}>
-          <Ionicons name="close" size={24} color="#ffffff" />
+          <Ionicons name="close" size={24} color={colors.TEXT} />
         </TouchableOpacity>
       </View>
 
@@ -4339,7 +4348,7 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -4357,7 +4366,7 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -4397,7 +4406,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   datePickerTitle: {
     fontSize: 18,
@@ -5211,47 +5220,52 @@ const createStyles = (colors) => StyleSheet.create({
   // 메인 옵션 카드 스타일
   mainOptionCard: {
     backgroundColor: colors.CARD,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
     flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    minHeight: 104,
+    alignItems: 'stretch',
+    height: 104,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
+    overflow: 'hidden',
     position: 'relative',
   },
   optionIconContainer: {
-    marginRight: 16,
+    width: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1.5,
+    borderRightColor: colors.BORDER,
   },
   optionContent: {
     flex: 1,
-    marginRight: 12,
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  optionChevron: {
+    alignSelf: 'center',
+    marginRight: 16,
   },
   optionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.TEXT,
+  },
+  optionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
   },
   optionSubtitle: {
     fontSize: 14,
     color: colors.TEXT_SECONDARY,
     lineHeight: 20,
-    marginBottom: 8,
   },
   optionBadge: {
     backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: 'flex-start',
+    marginLeft: 8,
   },
   optionBadgeText: {
     fontSize: 12,
@@ -5263,6 +5277,8 @@ const createStyles = (colors) => StyleSheet.create({
   modeToggleWrap: {
     paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: colors.BACKGROUND,
   },
   modeToggleContainer: {
     flexDirection: 'row',
@@ -5338,10 +5354,9 @@ const createStyles = (colors) => StyleSheet.create({
 
   // 정보 섹션 스타일
   infoSection: {
-    backgroundColor: colors.CARD,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
   infoTitle: {
     fontSize: 16,
@@ -5398,16 +5413,16 @@ const createStyles = (colors) => StyleSheet.create({
   },
   runningFeedList: {
     marginBottom: 16,
-    backgroundColor: colors.CARD,
+    backgroundColor: colors.BACKGROUND,
   },
   runningFeedItemCard: {
-    backgroundColor: colors.CARD,
+    backgroundColor: colors.BACKGROUND,
     paddingVertical: 14,
     paddingHorizontal: 14,
   },
   runningFeedItemDivider: {
-    borderBottomWidth: 4,
-    borderBottomColor: '#000000',
+    borderBottomWidth: 3,
+    borderBottomColor: colors.DIVIDER,
   },
   runningFeedItemHeader: {
     flexDirection: 'row',

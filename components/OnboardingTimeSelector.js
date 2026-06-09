@@ -8,7 +8,7 @@ const OnboardingTimeSelector = ({
   colors = {
     TEXT: '#fff',
     PRIMARY: '#3AF8FF',
-    CARD: '#171719',
+    CARD: '#181B20',
     TEXT_SECONDARY: '#666',
   },
 }) => {
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   timeCard: {
-    backgroundColor: '#171719',
+    backgroundColor: '#181B20',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,

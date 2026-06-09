@@ -13,7 +13,7 @@ const OnboardingBioInput = ({
   colors = {
     TEXT: '#fff',
     PRIMARY: '#3AF8FF',
-    CARD: '#171719',
+    CARD: '#181B20',
     TEXT_SECONDARY: '#666',
     ERROR: '#FF4444',
     SUCCESS: '#00FF88',

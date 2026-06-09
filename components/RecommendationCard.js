@@ -377,8 +377,8 @@ const RecommendationCard = ({ user, weather }) => {
 
 const createStyles = (colors) => StyleSheet.create({
   container: {
-    borderBottomWidth: 8,
-    borderBottomColor: colors.BORDER,
+    borderBottomWidth: 6,
+    borderBottomColor: colors.DIVIDER,
   },
   header: {
     padding: 16,
@@ -415,10 +415,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   detailsGrid: {
     flexDirection: 'row',
-    backgroundColor: colors.SURFACE,
-    borderRadius: 8,
+    backgroundColor: colors.BACKGROUND,
+    borderRadius: 3,
     padding: 4,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.BORDER,
   },
   detailItem: {
     flex: 1,

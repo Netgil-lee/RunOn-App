@@ -138,8 +138,8 @@ const InsightCard = ({ user, weather }) => {
 
 const createStyles = (colors) => StyleSheet.create({
   container: {
-    borderBottomWidth: 8,
-    borderBottomColor: colors.BORDER,
+    borderBottomWidth: 6,
+    borderBottomColor: colors.DIVIDER,
   },
   header: {
     flexDirection: 'row',
@@ -174,8 +174,9 @@ const createStyles = (colors) => StyleSheet.create({
   },
   progressFill: { height: '100%', backgroundColor: colors.PRIMARY, borderRadius: 3 },
   infoGrid: {
-    flexDirection: 'row', backgroundColor: colors.SURFACE,
-    borderRadius: 8, padding: 4, alignItems: 'center',
+    flexDirection: 'row', backgroundColor: colors.BACKGROUND,
+    borderRadius: 3, padding: 4, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.BORDER,
   },
   infoItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
   infoDivider: {

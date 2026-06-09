@@ -7,7 +7,7 @@ const OnboardingLevelSelector = ({
   colors = {
     TEXT: '#fff',
     PRIMARY: '#3AF8FF',
-    CARD: '#171719',
+    CARD: '#181B20',
     TEXT_SECONDARY: '#666',
   },
   levels = [
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   levelCard: {
-    backgroundColor: '#171719',
+    backgroundColor: '#181B20',
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
