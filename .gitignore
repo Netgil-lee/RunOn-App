@@ -68,3 +68,6 @@ android/.gradle/
 android/app/.cxx/
 android/app/build/
 android/build/
+
+# 로컬 전체 백업 스냅샷 (저장소에 포함하지 않음)
+backups/
