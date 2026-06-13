@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,23 +13,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
-// RunOn 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  TEXT_SECONDARY: '#666666',
-  SUCCESS: '#00FF88',
-  WARNING: '#FFD700',
-  ERROR: '#FF4444',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const AppGuideScreen = ({ navigation }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const statusBarHeight = Platform.OS === 'android' ? insets.top : 0;
   const [selectedFeature, setSelectedFeature] = useState('map');
@@ -38,68 +28,68 @@ const AppGuideScreen = ({ navigation }) => {
   // 앱 기능별 이미지 데이터 (AppIntroScreen과 동일)
   const featureImages = {
     map: [
-      { 
-        id: 1, 
-        title: '한강 러닝 코스 지도', 
-        description: '실시간 지도로 코스 확인', 
+      {
+        id: 1,
+        title: '한강 러닝 코스 지도',
+        description: '실시간 지도로 코스 확인',
         imagePath: require('../assets/images/guide/map-1.png')
       },
-      { 
-        id: 2, 
-        title: '코스 상세 정보', 
-        description: '거리, 난이도, 시설 정보', 
+      {
+        id: 2,
+        title: '코스 상세 정보',
+        description: '거리, 난이도, 시설 정보',
         imagePath: require('../assets/images/guide/map-2.png')
       },
-      { 
-        id: 3, 
-        title: '현재 위치 추적', 
-        description: '실시간 러닝 경로 기록', 
+      {
+        id: 3,
+        title: '현재 위치 추적',
+        description: '실시간 러닝 경로 기록',
         imagePath: require('../assets/images/guide/map-3.png')
       },
     ],
     meeting: [
-      { 
-        id: 1, 
-        title: '러닝 모임 참여', 
-        description: '다양한 러닝 모임 찾기', 
+      {
+        id: 1,
+        title: '러닝 모임 참여',
+        description: '다양한 러닝 모임 찾기',
         imagePath: require('../assets/images/guide/meeting-1.png')
       },
-      { 
-        id: 2, 
-        title: '모임 상세 정보', 
-        description: '참여자, 일정, 장소 확인', 
+      {
+        id: 2,
+        title: '모임 상세 정보',
+        description: '참여자, 일정, 장소 확인',
         imagePath: require('../assets/images/guide/meeting-2.png')
       },
-      { 
-        id: 3, 
-        title: '러닝매너점수', 
-        description: '함께하는 러닝 문화', 
+      {
+        id: 3,
+        title: '러닝매너점수',
+        description: '함께하는 러닝 문화',
         imagePath: require('../assets/images/guide/meeting-3.png')
       },
-      { 
-        id: 4, 
-        title: '모임 후기', 
-        description: '함께한 러닝 경험 공유', 
+      {
+        id: 4,
+        title: '모임 후기',
+        description: '함께한 러닝 경험 공유',
         imagePath: require('../assets/images/guide/meeting-4.png')
       },
     ],
     community: [
-      { 
-        id: 1, 
-        title: '커뮤니티 활동', 
-        description: '러닝 후기와 팁 공유', 
+      {
+        id: 1,
+        title: '커뮤니티 활동',
+        description: '러닝 후기와 팁 공유',
         imagePath: require('../assets/images/guide/community-1.png')
       },
-      { 
-        id: 2, 
-        title: '게시글 작성', 
-        description: '나만의 러닝 스토리', 
+      {
+        id: 2,
+        title: '게시글 작성',
+        description: '나만의 러닝 스토리',
         imagePath: require('../assets/images/guide/community-2.png')
       },
-      { 
-        id: 3, 
-        title: '소통과 응원', 
-        description: '다른 러너들과 소통', 
+      {
+        id: 3,
+        title: '소통과 응원',
+        description: '다른 러너들과 소통',
         imagePath: require('../assets/images/guide/community-3.png')
       },
     ]
@@ -114,7 +104,7 @@ const AppGuideScreen = ({ navigation }) => {
   // 이미지 슬라이더 렌더링
   const renderImageSlider = () => {
     const images = featureImages[selectedFeature];
-    
+
     return (
       <View style={styles.imageSliderContainer}>
         <FlatList
@@ -135,14 +125,14 @@ const AppGuideScreen = ({ navigation }) => {
             <View style={styles.imageSlide}>
               <View style={styles.guideImageContainer}>
                 {item.imagePath ? (
-                  <Image 
-                    source={item.imagePath} 
+                  <Image
+                    source={item.imagePath}
                     style={styles.guideImage}
                     resizeMode="contain"
                   />
                 ) : (
                   <View style={styles.guideImagePlaceholder}>
-                    <Ionicons name="phone-portrait" size={80} color={COLORS.TEXT_SECONDARY} />
+                    <Ionicons name="phone-portrait" size={80} color={colors.TEXT_SECONDARY} />
                     <Text style={styles.guideImageText}>{item.title}</Text>
                     <Text style={styles.guideImageSubtext}>{item.description}</Text>
                   </View>
@@ -152,7 +142,7 @@ const AppGuideScreen = ({ navigation }) => {
           )}
           keyExtractor={(item) => item.id.toString()}
         />
-        
+
         {/* 이미지 인디케이터 */}
         <View style={styles.imageIndicators}>
           {images.map((_, index) => (
@@ -180,14 +170,14 @@ const AppGuideScreen = ({ navigation }) => {
         onPress={() => handleFeatureSelect('map')}
         activeOpacity={0.7}
       >
-        <Ionicons 
-          name="map-outline" 
-          size={24} 
-          color={selectedFeature === 'map' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} 
+        <Ionicons
+          name="map-outline"
+          size={24}
+          color={selectedFeature === 'map' ? colors.PRIMARY : colors.TEXT_SECONDARY}
         />
         <Text style={styles.featureButtonText}>한강 지도 사용법</Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[
           styles.featureButton,
@@ -196,14 +186,14 @@ const AppGuideScreen = ({ navigation }) => {
         onPress={() => handleFeatureSelect('meeting')}
         activeOpacity={0.7}
       >
-        <Ionicons 
-          name="people-outline" 
-          size={24} 
-          color={selectedFeature === 'meeting' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} 
+        <Ionicons
+          name="people-outline"
+          size={24}
+          color={selectedFeature === 'meeting' ? colors.PRIMARY : colors.TEXT_SECONDARY}
         />
         <Text style={styles.featureButtonText}>러닝 모임 사용법</Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[
           styles.featureButton,
@@ -212,10 +202,10 @@ const AppGuideScreen = ({ navigation }) => {
         onPress={() => handleFeatureSelect('community')}
         activeOpacity={0.7}
       >
-        <Ionicons 
-          name="chatbubbles-outline" 
-          size={24} 
-          color={selectedFeature === 'community' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} 
+        <Ionicons
+          name="chatbubbles-outline"
+          size={24}
+          color={selectedFeature === 'community' ? colors.PRIMARY : colors.TEXT_SECONDARY}
         />
         <Text style={styles.featureButtonText}>커뮤니티 활용법</Text>
       </TouchableOpacity>
@@ -227,11 +217,11 @@ const AppGuideScreen = ({ navigation }) => {
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: statusBarHeight }]}>
         <View style={styles.headerContent}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>앱 사용 가이드</Text>
           <View style={styles.headerSpacer} />
@@ -242,9 +232,9 @@ const AppGuideScreen = ({ navigation }) => {
       <View style={styles.content}>
         {/* 이미지 슬라이더 */}
         {renderImageSlider()}
-        
+
         {/* 기능 선택 버튼들 */}
-        <ScrollView 
+        <ScrollView
           style={styles.scrollableContent}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
@@ -256,13 +246,13 @@ const AppGuideScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   headerContent: {
     height: 56,
@@ -280,7 +270,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   headerSpacer: {
@@ -288,7 +278,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   scrollableContent: {
     flex: 1,
@@ -319,19 +309,19 @@ const styles = StyleSheet.create({
   guideImagePlaceholder: {
     width: screenWidth,
     height: '100%',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     alignItems: 'center',
     justifyContent: 'center',
   },
   guideImageText: {
     fontSize: 18,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 16,
     fontFamily: 'Pretendard-Regular',
   },
   guideImageSubtext: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 6,
     fontFamily: 'Pretendard-Regular',
   },
@@ -348,11 +338,11 @@ const styles = StyleSheet.create({
     width: 6,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.TEXT_SECONDARY,
+    backgroundColor: colors.TEXT_SECONDARY,
     marginHorizontal: 4,
   },
   imageIndicatorActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     width: 24,
   },
   featureButtons: {
@@ -362,7 +352,7 @@ const styles = StyleSheet.create({
   featureButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -370,15 +360,15 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   featureButtonActive: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.SURFACE,
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.SURFACE,
   },
   featureButtonText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 12,
     fontFamily: 'Pretendard-Regular',
   },
 });
 
-export default AppGuideScreen; 
+export default AppGuideScreen;

@@ -1,21 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
 } from 'react-native';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const RecommendationCard = ({ user, weather }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (!user) return null;
 
   // 날씨 컨디션 결정 (새로운 태그 시스템)
@@ -25,12 +19,12 @@ const RecommendationCard = ({ user, weather }) => {
     }
 
     const temp = weather.temperature;
-    
+
     // 강수확률 40% 이상이면 RAINY (최우선)
     if (weather.precipitationProbability >= 40) {
       return 'RAINY';
     }
-    
+
     // 온도 기반 날씨 컨디션
     if (temp >= 29) {
       return 'HOT';
@@ -53,7 +47,7 @@ const RecommendationCard = ({ user, weather }) => {
     const year = koreaTime.getFullYear();
     const month = koreaTime.getMonth() + 1;
     const day = koreaTime.getDate();
-    
+
     // YYYYMMDD 형식으로 날짜 문자열 생성
     const dateString = `${year}${month.toString().padStart(2, '0')}${day.toString().padStart(2, '0')}`;
     return parseInt(dateString);
@@ -69,9 +63,9 @@ const RecommendationCard = ({ user, weather }) => {
   const getRunningLevel = () => {
     const level = user.level || 'beginner';
     const goal = user.goal || 'habit';
-    
+
     let intensity = 'LOW';
-    
+
     // 목표와 레벨에 따른 강도 결정
     switch (goal) {
       case 'habit':
@@ -149,7 +143,7 @@ const RecommendationCard = ({ user, weather }) => {
       default:
         intensity = 'MED';
     }
-    
+
     // 날씨별 조정
     if (weather) {
       if (weather.temperature < 5) {
@@ -158,12 +152,12 @@ const RecommendationCard = ({ user, weather }) => {
         intensity = 'MED';
       }
     }
-    
+
     // 날짜 기반 시드값 생성
     const dateSeed = getDateBasedSeed();
     const userSeed = (user.uid || 'default').charCodeAt(0); // 사용자별 고유값
     const combinedSeed = dateSeed + userSeed;
-    
+
     // LOW/MED/HIGH를 Lv 1-10으로 변환 (날짜 기반 랜덤)
     switch (intensity) {
       case 'LOW':
@@ -182,9 +176,9 @@ const RecommendationCard = ({ user, weather }) => {
     const level = user.level || 'beginner';
     const goal = user.goal || 'habit';
     const course = user.course || 'banpo';
-    
+
     let distance = '';
-    
+
     switch (goal) {
       case 'habit':
         distance = level === 'beginner' ? '2-3km' : level === 'intermediate' ? '3-5km' : '5-7km';
@@ -213,14 +207,14 @@ const RecommendationCard = ({ user, weather }) => {
       default:
         distance = level === 'beginner' ? '3-5km' : level === 'intermediate' ? '5-7km' : '8-10km';
     }
-    
+
     // 코스별 조정
     if (course === 'mangwon' || course === 'ttukseom') {
       distance = level === 'beginner' ? '2-3km' : level === 'intermediate' ? '3-5km' : '5-7km';
     } else if (course === 'banpo' || course === 'jamsil' || course === 'yeouido') {
       distance = level === 'beginner' ? '3-5km' : level === 'intermediate' ? '5-7km' : '8-10km';
     }
-    
+
     return distance;
   };
 
@@ -229,9 +223,9 @@ const RecommendationCard = ({ user, weather }) => {
     const level = user.level || 'beginner';
     const goal = user.goal || 'habit';
     const course = user.course || 'banpo';
-    
+
     let duration = '';
-    
+
     switch (goal) {
       case 'habit':
         duration = level === 'beginner' ? '20-30분' : level === 'intermediate' ? '30-40분' : '40-50분';
@@ -260,14 +254,14 @@ const RecommendationCard = ({ user, weather }) => {
       default:
         duration = level === 'beginner' ? '25-35분' : level === 'intermediate' ? '35-50분' : '45-70분';
     }
-    
+
     // 코스별 조정
     if (course === 'mangwon' || course === 'ttukseom') {
       duration = level === 'beginner' ? '30-45분' : level === 'intermediate' ? '45-60분' : '60-90분';
     } else if (course === 'banpo' || course === 'jamsil' || course === 'yeouido') {
       duration = level === 'beginner' ? '25-40분' : level === 'intermediate' ? '35-55분' : '45-75분';
     }
-    
+
     return duration;
   };
 
@@ -276,9 +270,9 @@ const RecommendationCard = ({ user, weather }) => {
     const level = user.level || 'beginner';
     const goal = user.goal || 'habit';
     const course = user.course || 'banpo';
-    
+
     let pace = '';
-    
+
     switch (goal) {
       case 'habit':
         pace = level === 'beginner' ? '7:00/km' : level === 'intermediate' ? '6:30/km' : '6:00/km';
@@ -307,14 +301,14 @@ const RecommendationCard = ({ user, weather }) => {
       default:
         pace = level === 'beginner' ? '7:00/km' : level === 'intermediate' ? '6:30/km' : '6:00/km';
     }
-    
+
     // 코스별 조정
     if (course === 'mangwon' || course === 'ttukseom') {
       pace = level === 'beginner' ? '8:00/km' : level === 'intermediate' ? '7:30/km' : '7:00/km';
     } else if (course === 'banpo' || course === 'jamsil' || course === 'yeouido') {
       pace = level === 'beginner' ? '6:00/km' : level === 'intermediate' ? '5:30/km' : '5:00/km';
     }
-    
+
     return pace;
   };
 
@@ -323,10 +317,10 @@ const RecommendationCard = ({ user, weather }) => {
 
   // 러닝 레벨 색상 결정
   const getRunningLevelColor = (level) => {
-    if (level >= 1 && level <= 3) return '#3AF8FF'; // 파란색 (저강도)
+    if (level >= 1 && level <= 3) return colors.PRIMARY; // 시안 (저강도)
     if (level >= 4 && level <= 7) return '#FFB800'; // 노란색 (중강도)
     if (level >= 8 && level <= 10) return '#FF6B6B'; // 빨간색 (고강도)
-    return '#3AF8FF';
+    return colors.PRIMARY;
   };
 
   // 날씨 컨디션 색상 결정
@@ -335,7 +329,7 @@ const RecommendationCard = ({ user, weather }) => {
       case 'PERFECT': return '#00FF88'; // 초록색
       case 'GOOD': return '#FFB800'; // 노란색
       case 'HOT': return '#FF6B6B'; // 빨간색
-      case 'COLD': return '#3AF8FF'; // 파란색
+      case 'COLD': return colors.PRIMARY; // 시안
       case 'RAINY': return '#666666'; // 회색
       default: return '#FFB800';
     }
@@ -348,13 +342,13 @@ const RecommendationCard = ({ user, weather }) => {
           <Text style={styles.title}>러닝 추천</Text>
           <View style={styles.tagsContainer}>
             <View style={[
-              styles.tagBadge, 
+              styles.tagBadge,
               { backgroundColor: getRunningLevelColor(runningLevel) }
             ]}>
               <Text style={styles.tagText}>RUNNING: Lv {runningLevel}</Text>
             </View>
             <View style={[
-              styles.tagBadge, 
+              styles.tagBadge,
               { backgroundColor: getWeatherConditionColor(weatherCondition) }
             ]}>
               <Text style={styles.tagText}>WEATHER: {weatherCondition}</Text>
@@ -362,7 +356,7 @@ const RecommendationCard = ({ user, weather }) => {
           </View>
         </View>
       </View>
-      
+
       <View style={styles.content}>
         {/* 상세 정보 */}
         <View style={styles.detailsGrid}>
@@ -386,9 +380,9 @@ const RecommendationCard = ({ user, weather }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     marginHorizontal: 0,
     marginTop: 12,
     borderRadius: 12,
@@ -404,7 +398,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   tagsContainer: {
@@ -421,14 +415,14 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.BACKGROUND,
+    color: '#000000', // 배지 배경이 항상 밝은 액센트색이라 검정 고정
   },
   content: {
     padding: 16,
   },
   detailsGrid: {
     flexDirection: 'row',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     padding: 4,
     alignItems: 'center',
@@ -441,21 +435,21 @@ const styles = StyleSheet.create({
   detailDivider: {
     width: 1,
     height: 40,
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.BORDER,
     marginHorizontal: 8,
   },
   detailLabel: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
     fontFamily: 'Pretendard',
   },
   detailValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
 });
 
-export default RecommendationCard; 
+export default RecommendationCard;

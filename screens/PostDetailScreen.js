@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,30 +23,20 @@ import { formatRelativeTime } from '../utils/timestampUtils';
 import reportService from '../services/reportService';
 import contentFilterService from '../services/contentFilterService';
 import blacklistService from '../services/blacklistService';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  TEXT_SECONDARY: '#666666',
-  BORDER: '#333333',
-  ERROR: '#FF4444',
-  SUCCESS: '#00FF88',
-};
-
 const PostDetailScreen = ({ route, navigation }) => {
   const { post } = route.params;
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const { toggleLike, addComment, updateComment, deleteComment, updatePost, deletePost } = useCommunity();
-  
+
   // 안전한 데이터 처리 - post가 없거나 잘못된 경우 처리
   const safePost = post || {};
-  
+
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(safePost.likes?.length || 0);
   const [commentInput, setCommentInput] = useState('');
@@ -58,7 +48,7 @@ const PostDetailScreen = ({ route, navigation }) => {
   const [editCommentText, setEditCommentText] = useState('');
   const [showPostReportModal, setShowPostReportModal] = useState(false);
   const [showCommentReportModal, setShowCommentReportModal] = useState(false);
-  
+
   // 모달 오버레이 페이드 애니메이션
   const menuModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   const commentMenuModalBackdropOpacity = useRef(new Animated.Value(0)).current;
@@ -88,7 +78,7 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   // 작성자 프로필 정보 상태
   const [authorProfile, setAuthorProfile] = useState(null);
-  
+
   // 차단된 사용자 목록 상태
   const [blacklist, setBlacklist] = useState([]);
 
@@ -226,7 +216,7 @@ const PostDetailScreen = ({ route, navigation }) => {
       try {
         const firestoreService = require('../services/firestoreService').default;
         const userProfile = await firestoreService.getUserProfile(currentPost.authorId);
-        
+
         if (userProfile) {
           setAuthorProfile({
             displayName: userProfile.displayName || userProfile.profile?.nickname || '사용자',
@@ -243,19 +233,19 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    
+
     try {
       // Firebase Timestamp 객체인 경우
       if (dateString && typeof dateString === 'object' && dateString.seconds) {
         return formatRelativeTime(dateString);
       }
-      
+
       // 일반 날짜 문자열인 경우
       const date = new Date(dateString);
       if (isNaN(date.getTime())) {
         return dateString; // 유효하지 않은 날짜인 경우 원본 반환
       }
-      
+
       return formatRelativeTime(date);
     } catch (error) {
       console.warn('날짜 변환 오류:', error);
@@ -267,26 +257,26 @@ const PostDetailScreen = ({ route, navigation }) => {
   const parseHashtags = (hashtagString) => {
     // undefined, null, 빈 문자열 체크
     if (!hashtagString) return [];
-    
+
     // 이미 배열인 경우 그대로 반환
     if (Array.isArray(hashtagString)) {
       return hashtagString;
     }
-    
+
     // 문자열이 아닌 경우 빈 배열 반환
     if (typeof hashtagString !== 'string') {
       console.warn('⚠️ hashtagString이 문자열이 아님:', hashtagString);
       return [];
     }
-    
+
     // trim() 함수가 없는 경우 처리
     if (typeof hashtagString.trim !== 'function') {
       console.warn('⚠️ hashtagString.trim이 함수가 아님:', hashtagString);
       return [];
     }
-    
+
     if (!hashtagString.trim()) return [];
-    
+
     // 문자열인 경우 파싱
     const hashtags = hashtagString
       .split(/\s+/)
@@ -296,7 +286,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         const tagWithoutHash = cleanTag.replace(/^#+/, '');
         return tagWithoutHash;
       });
-    
+
     return hashtags;
   };
 
@@ -347,16 +337,16 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const handleLike = async () => {
     if (!user?.uid) return;
-    
+
     try {
       await toggleLike(currentPost.id, user.uid);
       setIsLiked(!isLiked);
       setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
-      
+
       // 현재 포스트 상태 업데이트
       setCurrentPost(prev => ({
         ...prev,
-        likes: isLiked 
+        likes: isLiked
           ? (prev.likes || []).filter(id => id !== user.uid)
           : [...(prev.likes || []), user.uid]
       }));
@@ -372,7 +362,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     if (commentInput.trim() && user?.uid) {
       // 콘텐츠 필터링 검사
       const filterResult = contentFilterService.checkComment(commentInput.trim());
-      
+
       // Level 1 (심각) - 즉시 차단
       if (filterResult.blocked) {
         // 차단 시도 기록 (로그)
@@ -383,7 +373,7 @@ const PostDetailScreen = ({ route, navigation }) => {
           keywords: filterResult.keywords,
           timestamp: new Date().toISOString(),
         });
-        
+
         Alert.alert(
           '차단됨',
           filterResult.warning || '부적절한 콘텐츠가 포함되어 있어 게시할 수 없습니다.',
@@ -393,7 +383,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         );
         return;
       }
-      
+
       // Level 2 (경미) - 경고 후 선택 허용
       if (filterResult.hasProfanity && filterResult.severity === 'warning') {
         Alert.alert(
@@ -401,8 +391,8 @@ const PostDetailScreen = ({ route, navigation }) => {
           filterResult.warning,
           [
             { text: '취소', style: 'cancel' },
-            { 
-              text: '계속 작성', 
+            {
+              text: '계속 작성',
               onPress: async () => {
                 await submitComment();
               }
@@ -411,7 +401,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         );
         return;
       }
-      
+
       // 필터링 통과 시 바로 제출
       await submitComment();
     }
@@ -426,7 +416,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         const db = getFirestore();
         const userRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userRef);
-        
+
         let authorName = '사용자';
         if (userDoc.exists()) {
           const userData = userDoc.data();
@@ -434,9 +424,9 @@ const PostDetailScreen = ({ route, navigation }) => {
         } else {
           authorName = user?.email?.split('@')[0] || '사용자';
         }
-        
 
-        
+
+
                 const newComment = {
           id: Date.now().toString(),
           text: commentInput.trim(),
@@ -444,18 +434,18 @@ const PostDetailScreen = ({ route, navigation }) => {
           authorId: user.uid,
           createdAt: new Date().toISOString(),
         };
-        
+
         await addComment(currentPost.id, newComment);
-        
+
         // 현재 포스트 상태도 즉시 업데이트
         setCurrentPost(prev => ({
           ...prev,
           comments: [newComment, ...(Array.isArray(prev.comments) ? prev.comments : [])]
         }));
-        
+
         // 서버에서 푸시 알림을 전송하므로 클라이언트에서는 알림을 생성하지 않음
         // Firestore에 댓글이 추가되면 Cloud Function이 자동으로 알림을 전송합니다.
-        
+
         setCommentInput('');
         Keyboard.dismiss(); // 키보드 숨기기
       } catch (error) {
@@ -488,8 +478,8 @@ const PostDetailScreen = ({ route, navigation }) => {
       '정말로 이 게시글을 삭제하시겠습니까?',
       [
         { text: '취소', style: 'cancel' },
-        { 
-          text: '삭제', 
+        {
+          text: '삭제',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -534,7 +524,7 @@ const PostDetailScreen = ({ route, navigation }) => {
       // 로컬 상태 업데이트
       setCurrentPost(prev => ({
         ...prev,
-        comments: prev.comments.map(comment => 
+        comments: prev.comments.map(comment =>
           comment.id === selectedComment.id ? updatedComment : comment
         )
       }));
@@ -557,8 +547,8 @@ const PostDetailScreen = ({ route, navigation }) => {
       '정말로 이 댓글을 삭제하시겠습니까?',
       [
         { text: '취소', style: 'cancel' },
-        { 
-          text: '삭제', 
+        {
+          text: '삭제',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -600,7 +590,7 @@ const PostDetailScreen = ({ route, navigation }) => {
       // Firestore에서 사용자 프로필 정보 가져오기
       const firestoreService = require('../services/firestoreService').default;
       const userProfile = await firestoreService.getUserProfile(comment.authorId);
-      
+
       if (userProfile) {
         const participant = {
           id: comment.authorId,
@@ -613,7 +603,7 @@ const PostDetailScreen = ({ route, navigation }) => {
           bio: userProfile.bio || null,
           runningProfile: userProfile.runningProfile || null,
         };
-        
+
         navigation.navigate('Participant', { participant });
       } else {
         // 프로필 정보가 없는 경우 기본 정보로 이동
@@ -624,7 +614,7 @@ const PostDetailScreen = ({ route, navigation }) => {
           level: 'beginner',
           joinDate: new Date(),
         };
-        
+
         navigation.navigate('Participant', { participant });
       }
     } catch (error) {
@@ -637,7 +627,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         level: 'beginner',
         joinDate: new Date(),
       };
-      
+
       navigation.navigate('Participant', { participant });
     }
   };
@@ -672,21 +662,21 @@ const PostDetailScreen = ({ route, navigation }) => {
         if (shouldBlockPostAuthor && currentPost.authorId && user?.uid && currentPost.authorId !== user.uid) {
           try {
             setIsBlocking(true);
-            
+
             // Firestore에서 작성자 프로필 정보 가져오기
             const firestoreService = require('../services/firestoreService').default;
             const authorProfile = await firestoreService.getUserProfile(currentPost.authorId);
-            
+
             const authorName = authorProfile?.displayName || currentPost.author || '사용자';
             const authorProfileImage = authorProfile?.photoURL || authorProfile?.profileImage || null;
-            
+
             await blacklistService.blockUser(
               user.uid,
               currentPost.authorId,
               authorName,
               authorProfileImage
             );
-            
+
             Alert.alert(
               '신고 및 차단 완료',
               '신고가 접수되었고 해당 사용자를 차단했습니다.',
@@ -705,7 +695,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         } else {
           Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
         }
-        
+
         setShowPostReportModal(false);
         setSelectedReportReason('');
         setReportDescription('');
@@ -741,21 +731,21 @@ const PostDetailScreen = ({ route, navigation }) => {
         if (shouldBlockCommentAuthor && selectedComment.authorId && user?.uid && selectedComment.authorId !== user.uid) {
           try {
             setIsBlocking(true);
-            
+
             // Firestore에서 댓글 작성자 프로필 정보 가져오기
             const firestoreService = require('../services/firestoreService').default;
             const commentAuthorProfile = await firestoreService.getUserProfile(selectedComment.authorId);
-            
+
             const commentAuthorName = commentAuthorProfile?.displayName || selectedComment.author || '사용자';
             const commentAuthorProfileImage = commentAuthorProfile?.photoURL || commentAuthorProfile?.profileImage || null;
-            
+
             await blacklistService.blockUser(
               user.uid,
               selectedComment.authorId,
               commentAuthorName,
               commentAuthorProfileImage
             );
-            
+
             Alert.alert(
               '신고 및 차단 완료',
               '신고가 접수되었고 해당 사용자를 차단했습니다.',
@@ -774,7 +764,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         } else {
           Alert.alert('신고 완료', '신고가 접수되었습니다. 검토 후 조치하겠습니다.');
         }
-        
+
         setShowCommentReportModal(false);
         setSelectedComment(null);
         setSelectedReportReason('');
@@ -794,21 +784,21 @@ const PostDetailScreen = ({ route, navigation }) => {
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+          <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>게시글</Text>
         </View>
         {!isAuthor ? (
           <TouchableOpacity style={styles.shareButton} onPress={handlePostReport}>
-            <Ionicons name="alert-circle-outline" size={24} color={COLORS.TEXT} />
+            <Ionicons name="alert-circle-outline" size={24} color={colors.TEXT} />
           </TouchableOpacity>
         ) : (
           <View style={styles.shareButton} />
         )}
       </View>
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
@@ -828,15 +818,15 @@ const PostDetailScreen = ({ route, navigation }) => {
             <View style={styles.authorSection}>
               <View style={styles.authorAvatar}>
                 {currentPost.isAnonymous ? (
-                  <Ionicons name="person" size={20} color="#ffffff" />
+                  <Ionicons name="person" size={20} color={colors.TEXT} />
                 ) : authorProfile?.profileImage ? (
-                  <Image 
-                    source={{ uri: authorProfile.profileImage }} 
+                  <Image
+                    source={{ uri: authorProfile.profileImage }}
                     style={styles.authorProfileImage}
                     resizeMode="cover"
                   />
                 ) : (
-                  <Ionicons name="person" size={20} color="#ffffff" />
+                  <Ionicons name="person" size={20} color={colors.TEXT} />
                 )}
               </View>
               <View style={styles.authorDetails}>
@@ -847,11 +837,11 @@ const PostDetailScreen = ({ route, navigation }) => {
               </View>
             </View>
             {isAuthor && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.moreButton}
                 onPress={() => setShowMenuModal(true)}
               >
-                <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.TEXT_SECONDARY} />
+                <Ionicons name="ellipsis-horizontal" size={20} color={colors.TEXT_SECONDARY} />
               </TouchableOpacity>
             )}
           </View>
@@ -866,9 +856,9 @@ const PostDetailScreen = ({ route, navigation }) => {
             <View style={styles.imagesSection}>
               <View style={styles.imageGrid}>
                 {currentPost.images.map((image, index) => (
-                  <Image 
-                    key={index} 
-                    source={{ uri: image }} 
+                  <Image
+                    key={index}
+                    source={{ uri: image }}
                     style={styles.postImage}
                     resizeMode="cover"
                   />
@@ -894,7 +884,7 @@ const PostDetailScreen = ({ route, navigation }) => {
           {currentPost.location && (
             <View style={styles.locationSection}>
               <View style={styles.locationContainer}>
-                <Ionicons name="location" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="location" size={16} color={colors.PRIMARY} />
                 <Text style={styles.locationText}>{currentPost.location}</Text>
               </View>
             </View>
@@ -904,24 +894,24 @@ const PostDetailScreen = ({ route, navigation }) => {
           <View style={styles.actionSection}>
             <View style={styles.actionButtons}>
               <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
-                <Ionicons 
-                  name={isLiked ? "heart" : "heart-outline"} 
-                  size={24} 
-                  color={isLiked ? COLORS.ERROR : COLORS.TEXT_SECONDARY} 
+                <Ionicons
+                  name={isLiked ? "heart" : "heart-outline"}
+                  size={24}
+                  color={isLiked ? colors.ERROR : colors.TEXT_SECONDARY}
                 />
                 <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
                   {currentPost.likes?.length || 0}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="chatbubble-outline" size={24} color={COLORS.TEXT_SECONDARY} />
+                <Ionicons name="chatbubble-outline" size={24} color={colors.TEXT_SECONDARY} />
                 <Text style={styles.actionText}>{Array.isArray(currentPost.comments) ? currentPost.comments.length : 0}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="bookmark-outline" size={24} color={COLORS.TEXT_SECONDARY} />
+                <Ionicons name="bookmark-outline" size={24} color={colors.TEXT_SECONDARY} />
               </TouchableOpacity>
             </View>
-            
+
 
           </View>
 
@@ -936,11 +926,11 @@ const PostDetailScreen = ({ route, navigation }) => {
                 }
                 return true;
               });
-              
+
               return (
                 <>
                   <Text style={styles.commentsTitle}>댓글 {filteredComments.length}개</Text>
-                  
+
                   {filteredComments.length > 0 ? (
                     <View style={styles.commentsList}>
                       {filteredComments.map((comment) => (
@@ -967,11 +957,11 @@ const PostDetailScreen = ({ route, navigation }) => {
                         </Text>
                       </View>
                       {comment.authorId === user?.uid && (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                           style={styles.commentMenuButton}
                           onPress={() => handleCommentMenu(comment)}
                         >
-                          <Ionicons name="ellipsis-horizontal" size={16} color={COLORS.TEXT_SECONDARY} />
+                          <Ionicons name="ellipsis-horizontal" size={16} color={colors.TEXT_SECONDARY} />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -981,7 +971,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                     </View>
                   ) : (
                     <View style={styles.emptyComments}>
-                      <Ionicons name="chatbubble-outline" size={48} color={COLORS.TEXT_SECONDARY} />
+                      <Ionicons name="chatbubble-outline" size={48} color={colors.TEXT_SECONDARY} />
                       <Text style={styles.emptyCommentsText}>아직 댓글이 없습니다</Text>
                       <Text style={styles.emptyCommentsSubtext}>첫 번째 댓글을 남겨보세요!</Text>
                     </View>
@@ -1001,21 +991,21 @@ const PostDetailScreen = ({ route, navigation }) => {
             <TextInput
               style={styles.commentInput}
               placeholder="댓글을 입력하세요..."
-              placeholderTextColor={COLORS.TEXT_SECONDARY}
+              placeholderTextColor={colors.TEXT_SECONDARY}
               value={commentInput}
               onChangeText={setCommentInput}
               multiline
               maxLength={500}
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.commentButton, !commentInput.trim() && styles.commentButtonDisabled]}
               onPress={handleComment}
               disabled={!commentInput.trim()}
             >
-              <Ionicons 
-                name="send" 
-                size={20} 
-                color={commentInput.trim() ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} 
+              <Ionicons
+                name="send"
+                size={20}
+                color={commentInput.trim() ? colors.PRIMARY : colors.TEXT_SECONDARY}
               />
             </TouchableOpacity>
           </View>
@@ -1038,7 +1028,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 },
               ]}
             >
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={StyleSheet.absoluteFill}
                 activeOpacity={1}
                 onPress={() => setShowMenuModal(false)}
@@ -1046,20 +1036,20 @@ const PostDetailScreen = ({ route, navigation }) => {
             </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.bottomModal}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.bottomMenuItem}
                   onPress={handleEditPost}
                 >
                   <Text style={styles.bottomMenuItemText}>수정</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.bottomMenuItem}
                   onPress={handleDeletePost}
                 >
                   <Text style={[styles.bottomMenuItemText, styles.bottomMenuItemTextDelete]}>삭제</Text>
                 </TouchableOpacity>
                 <View style={styles.bottomModalSeparator} />
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.bottomMenuItem}
                   onPress={() => setShowMenuModal(false)}
                 >
@@ -1086,7 +1076,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 },
               ]}
             >
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={StyleSheet.absoluteFill}
                 activeOpacity={1}
                 onPress={() => setShowCommentMenuModal(false)}
@@ -1094,20 +1084,20 @@ const PostDetailScreen = ({ route, navigation }) => {
             </Animated.View>
             <View style={styles.bottomModalContainer}>
               <View style={styles.bottomModal}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.bottomMenuItem}
                   onPress={handleEditComment}
                 >
                   <Text style={styles.bottomMenuItemText}>수정</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.bottomMenuItem}
                   onPress={handleDeleteComment}
                 >
                   <Text style={[styles.bottomMenuItemText, styles.bottomMenuItemTextDelete]}>삭제</Text>
                 </TouchableOpacity>
                 <View style={styles.bottomModalSeparator} />
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.bottomMenuItem}
                   onPress={() => setShowCommentMenuModal(false)}
                 >
@@ -1141,7 +1131,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             <TextInput
               style={styles.editCommentInput}
               placeholder="댓글을 입력하세요..."
-              placeholderTextColor={COLORS.TEXT_SECONDARY}
+              placeholderTextColor={colors.TEXT_SECONDARY}
               value={editCommentText}
               onChangeText={setEditCommentText}
               multiline
@@ -1149,13 +1139,13 @@ const PostDetailScreen = ({ route, navigation }) => {
               autoFocus
             />
             <View style={styles.editCommentActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setShowCommentEditModal(false)}
               >
                 <Text style={styles.cancelButtonText}>취소</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.updateButton, !editCommentText.trim() && styles.updateButtonDisabled]}
                 onPress={handleUpdateComment}
                 disabled={!editCommentText.trim()}
@@ -1185,7 +1175,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 },
               ]}
             >
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={StyleSheet.absoluteFill}
                 activeOpacity={1}
                 onPress={() => setShowPostReportModal(false)}
@@ -1196,7 +1186,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 <View style={styles.reportModalHeader}>
                   <Text style={styles.reportModalTitle}>신고하기</Text>
                   <TouchableOpacity onPress={() => setShowPostReportModal(false)}>
-                    <Ionicons name="close" size={24} color={COLORS.TEXT} />
+                    <Ionicons name="close" size={24} color={colors.TEXT} />
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
@@ -1217,7 +1207,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                         {reason.label}
                       </Text>
                       {selectedReportReason === reason.id && (
-                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                        <Ionicons name="checkmark-circle" size={20} color={colors.PRIMARY} />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -1225,7 +1215,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                   <TextInput
                     style={styles.reportDescriptionInput}
                     placeholder="신고 사유에 대한 추가 설명을 입력해주세요"
-                    placeholderTextColor={COLORS.TEXT_SECONDARY}
+                    placeholderTextColor={colors.TEXT_SECONDARY}
                     value={reportDescription}
                     onChangeText={setReportDescription}
                     multiline
@@ -1239,7 +1229,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                     >
                       <View style={styles.blockOptionCheckbox}>
                         {shouldBlockPostAuthor && (
-                          <Ionicons name="checkmark" size={18} color={COLORS.PRIMARY} />
+                          <Ionicons name="checkmark" size={18} color={colors.PRIMARY} />
                         )}
                       </View>
                       <Text style={styles.blockOptionText}>이 사용자 차단하기</Text>
@@ -1247,13 +1237,13 @@ const PostDetailScreen = ({ route, navigation }) => {
                   )}
                 </ScrollView>
                 <View style={styles.reportModalActions}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.reportCancelButton}
                     onPress={() => setShowPostReportModal(false)}
                   >
                     <Text style={styles.reportCancelButtonText}>취소</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.reportSubmitButton, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonDisabled]}
                     onPress={handleSubmitPostReport}
                     disabled={!selectedReportReason || isBlocking}
@@ -1284,7 +1274,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 },
               ]}
             >
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={StyleSheet.absoluteFill}
                 activeOpacity={1}
                 onPress={() => setShowCommentReportModal(false)}
@@ -1295,7 +1285,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 <View style={styles.reportModalHeader}>
                   <Text style={styles.reportModalTitle}>댓글 신고하기</Text>
                   <TouchableOpacity onPress={() => setShowCommentReportModal(false)}>
-                    <Ionicons name="close" size={24} color={COLORS.TEXT} />
+                    <Ionicons name="close" size={24} color={colors.TEXT} />
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.reportModalContent} showsVerticalScrollIndicator={false}>
@@ -1316,7 +1306,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                         {reason.label}
                       </Text>
                       {selectedReportReason === reason.id && (
-                        <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                        <Ionicons name="checkmark-circle" size={20} color={colors.PRIMARY} />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -1324,7 +1314,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                   <TextInput
                     style={styles.reportDescriptionInput}
                     placeholder="신고 사유에 대한 추가 설명을 입력해주세요"
-                    placeholderTextColor={COLORS.TEXT_SECONDARY}
+                    placeholderTextColor={colors.TEXT_SECONDARY}
                     value={reportDescription}
                     onChangeText={setReportDescription}
                     multiline
@@ -1338,7 +1328,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                     >
                       <View style={styles.blockOptionCheckbox}>
                         {shouldBlockCommentAuthor && (
-                          <Ionicons name="checkmark" size={18} color={COLORS.PRIMARY} />
+                          <Ionicons name="checkmark" size={18} color={colors.PRIMARY} />
                         )}
                       </View>
                       <Text style={styles.blockOptionText}>이 사용자 차단하기</Text>
@@ -1346,13 +1336,13 @@ const PostDetailScreen = ({ route, navigation }) => {
                   )}
                 </ScrollView>
                 <View style={styles.reportModalActions}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.reportCancelButton}
                     onPress={() => setShowCommentReportModal(false)}
                   >
                     <Text style={styles.reportCancelButtonText}>취소</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.reportSubmitButton, (!selectedReportReason || isBlocking) && styles.reportSubmitButtonDisabled]}
                     onPress={handleSubmitCommentReport}
                     disabled={!selectedReportReason || isBlocking}
@@ -1370,10 +1360,10 @@ const PostDetailScreen = ({ route, navigation }) => {
     );
   };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -1382,7 +1372,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 0.25,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
     position: 'relative',
   },
   backButton: {
@@ -1402,7 +1392,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   shareButton: {
     width: 44,
@@ -1423,20 +1413,20 @@ const styles = StyleSheet.create({
   },
   categoryBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   categoryText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginHorizontal: 16,
     marginBottom: 20,
     lineHeight: 32,
@@ -1457,7 +1447,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1472,13 +1462,13 @@ const styles = StyleSheet.create({
   },
   authorText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     marginBottom: 2,
   },
   dateText: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   moreButton: {
     width: 44,
@@ -1492,7 +1482,7 @@ const styles = StyleSheet.create({
   },
   contentText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 24,
   },
   imagesSection: {
@@ -1519,14 +1509,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   hashtagBadge: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   hashtagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   locationSection: {
@@ -1536,14 +1526,14 @@ const styles = StyleSheet.create({
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   locationText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 8,
   },
   actionSection: {
@@ -1551,7 +1541,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingTop: 16,
     borderTopWidth: 0.25,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -1565,11 +1555,11 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',
   },
   actionTextActive: {
-    color: COLORS.ERROR,
+    color: colors.ERROR,
   },
 
   commentsSection: {
@@ -1579,14 +1569,14 @@ const styles = StyleSheet.create({
   commentsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 16,
   },
   commentsList: {
     gap: 16,
   },
   commentItem: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
   },
@@ -1598,18 +1588,18 @@ const styles = StyleSheet.create({
   },
   commentAuthor: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   commentDate: {
     fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
     opacity: 0.8,
   },
   commentText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 20,
   },
   emptyComments: {
@@ -1618,26 +1608,26 @@ const styles = StyleSheet.create({
   },
   emptyCommentsText: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 12,
     fontWeight: '500',
   },
   emptyCommentsSubtext: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 4,
   },
   commentInputContainer: {
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderTopWidth: 0.25,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   commentInputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -1646,7 +1636,7 @@ const styles = StyleSheet.create({
   commentInput: {
     flex: 1,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     maxHeight: 100,
     paddingVertical: 8,
   },
@@ -1679,7 +1669,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomModal: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 34, // 하단 안전 영역 고려
@@ -1691,15 +1681,15 @@ const styles = StyleSheet.create({
   },
   bottomMenuItemText: {
     fontSize: 18,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   bottomMenuItemTextDelete: {
-    color: COLORS.ERROR,
+    color: colors.ERROR,
   },
   bottomModalSeparator: {
     height: 8,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   commentAuthorSection: {
     flex: 1,
@@ -1713,7 +1703,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editCommentModal: {
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     marginTop: 100,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -1725,16 +1715,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 0.25,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   editCommentTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   editCommentInput: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     paddingHorizontal: 20,
     paddingVertical: 16,
     minHeight: 120,
@@ -1751,35 +1741,35 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   updateButton: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     alignItems: 'center',
   },
   updateButtonDisabled: {
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
   },
   updateButtonText: {
     fontSize: 16,
-    color: COLORS.BACKGROUND,
+    color: colors.BACKGROUND,
     fontWeight: '600',
   },
   updateButtonTextDisabled: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   // 신고 모달 스타일
   reportModal: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
@@ -1792,12 +1782,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 0.25,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   reportModalTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   reportModalContent: {
     paddingHorizontal: 20,
@@ -1806,7 +1796,7 @@ const styles = StyleSheet.create({
   },
   reportModalSubtitle: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 16,
   },
   reportReasonItem: {
@@ -1816,42 +1806,42 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
   },
   reportReasonItemSelected: {
-    backgroundColor: COLORS.PRIMARY + '20',
-    borderColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
   },
   reportReasonText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   reportReasonTextSelected: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
   },
   reportDescriptionLabel: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     marginTop: 16,
     marginBottom: 12,
   },
   reportDescriptionInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     minHeight: 100,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
   },
   blockOptionContainer: {
     flexDirection: 'row',
@@ -1859,25 +1849,25 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
   },
   blockOptionCheckbox: {
     width: 24,
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.CARD,
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.CARD,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   blockOptionText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     flex: 1,
   },
@@ -1887,42 +1877,42 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 12,
     borderTopWidth: 0.25,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
   },
   reportCancelButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     alignItems: 'center',
     justifyContent: 'center',
   },
   reportCancelButtonText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   reportSubmitButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
   },
   reportSubmitButtonDisabled: {
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     opacity: 0.5,
   },
   reportSubmitButtonText: {
     fontSize: 16,
-    color: COLORS.BACKGROUND,
+    color: colors.BACKGROUND,
     fontWeight: '600',
   },
   reportSubmitButtonTextDisabled: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
 });
 
-export default PostDetailScreen; 
+export default PostDetailScreen;

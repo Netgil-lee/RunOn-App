@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import weatherAlertService from '../services/weatherAlertService';
@@ -25,20 +26,9 @@ import Animated, {
   useAnimatedStyle,
 } from 'react-native-reanimated';
 
-// NetGill 디자인 시스템 - 기존 색상 팔레트 유지
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-  SUCCESS: '#10B981',
-  WARNING: '#F59E0B',
-  ERROR: '#FF0022',
-};
-
 const NotificationScreen = () => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const navigation = useNavigation();
   const { isTabEnabled, isNotificationTypeEnabled, settings } = useNotificationSettings();
   const { meetingNotifications, setMeetingNotifications, chatRooms, addChatMessage, setUpdateNotification: setEventUpdateNotification, clearUpdateNotification, checkUpdateNotificationStatus, checkMeetingNotifications } = useEvents();
@@ -526,7 +516,7 @@ const NotificationScreen = () => {
             <Ionicons 
               name={getIcon(notification.type)} 
               size={28} 
-              color={notification.isRead ? COLORS.SECONDARY : COLORS.PRIMARY} 
+              color={notification.isRead ? colors.TEXT_SECONDARY : colors.PRIMARY}
             />
           </View>
           <View style={styles.notificationContent}>
@@ -559,7 +549,7 @@ const NotificationScreen = () => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+          <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
           <Text style={styles.title}>알림</Text>
@@ -612,7 +602,7 @@ const NotificationScreen = () => {
         ) : (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
-              <Ionicons name="notifications-off" size={48} color={COLORS.SECONDARY} />
+              <Ionicons name="notifications-off" size={48} color={colors.TEXT_SECONDARY} />
             </View>
             <Text style={styles.emptyTitle}>
               {isTabEnabled(activeTab) ? '알림이 없습니다' : '알림이 비활성화되어 있습니다'}
@@ -633,10 +623,10 @@ const NotificationScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -660,10 +650,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   unreadBadge: {
-    backgroundColor: COLORS.ERROR,
+    backgroundColor: colors.ERROR,
     borderRadius: 12,
     minWidth: 24,
     height: 24,
@@ -681,7 +671,7 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderRadius: 12,
     position: 'relative',
   },
@@ -699,14 +689,14 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   activeTabText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '700',
   },
   tabUnreadBadge: {
-    backgroundColor: '#FF0022',
+    backgroundColor: colors.ERROR,
     borderRadius: 8,
     minWidth: 16,
     height: 16,
@@ -725,7 +715,7 @@ const styles = StyleSheet.create({
     left: 0,
     width: 127,
     height: 2,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     zIndex: 1,
   },
   notificationList: {
@@ -733,19 +723,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   notificationItem: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
   },
   readNotification: {
-    borderLeftColor: COLORS.SURFACE,
-    backgroundColor: COLORS.CARD,
+    borderLeftColor: colors.SURFACE,
+    backgroundColor: colors.CARD,
     opacity: 0.85,  // 0.6에서 0.85로 증가하여 더 밝게
   },
   unreadNotification: {
-    borderLeftColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.SURFACE,
+    borderLeftColor: colors.PRIMARY,
+    backgroundColor: colors.SURFACE,
     opacity: 1,
   },
   notificationHeader: {
@@ -757,7 +747,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -771,16 +761,16 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   readTitle: {
-    color: '#AAAAAA',  // COLORS.SECONDARY(#666666)에서 더 밝은 회색으로 변경
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',  // 400에서 500으로 증가하여 더 굵게
   },
   unreadTitle: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '600',
   },
   notificationTime: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   notificationMessage: {
     fontSize: 16,
@@ -788,11 +778,11 @@ const styles = StyleSheet.create({
     fontWeight: '250',
   },
   readMessage: {
-    color: '#AAAAAA',  // COLORS.SECONDARY(#666666)에서 더 밝은 회색으로 변경
+    color: colors.TEXT_SECONDARY,
     fontWeight: '400',  // 300에서 400으로 증가하여 더 굵게
   },
   unreadMessage: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '400',
   },
   emptyState: {
@@ -804,7 +794,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -812,13 +802,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 20,
   },

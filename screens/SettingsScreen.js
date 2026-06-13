@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,32 +17,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import blacklistService from '../services/blacklistService';
 import { getAppleFitnessService } from '../services/getAppleFitnessService';
 import TermsPrivacyModal from '../components/TermsPrivacyModal';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  WHITE: '#ffffff',
-  GRAY_100: '#f3f4f6',
-  GRAY_200: '#e5e7eb',
-  GRAY_300: '#d1d5db',
-  GRAY_400: '#9ca3af',
-  GRAY_500: '#6b7280',
-  GRAY_600: '#4b5563',
-  GRAY_700: '#1F2937',
-  GRAY_800: '#1f2937',
-  GRAY_900: '#111827',
-  BLUE_50: '#eff6ff',
-  BLUE_600: '#2563eb',
-  RED_600: '#dc2626',
-};
+import { useTheme } from '../contexts/ThemeContext';
+import ThemeToggle from '../components/ThemeToggle';
 
 const SettingsScreen = ({ navigation }) => {
+  const { colors, isDark, toggleTheme } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, logout } = useAuth();
   const { settings, toggleSetting, updateSetting } = useNotificationSettings();
-  
+
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('privacy'); // 'privacy' or 'child-safety'
   
@@ -334,7 +317,7 @@ const SettingsScreen = ({ navigation }) => {
       </View>
       <View style={styles.settingItemRight}>
         {children}
-        {showArrow && <Ionicons name="chevron-forward" size={16} color={COLORS.GRAY_400} />}
+        {showArrow && <Ionicons name="chevron-forward" size={16} color={colors.TEXT_SECONDARY} />}
       </View>
     </TouchableOpacity>
   );
@@ -343,9 +326,9 @@ const SettingsScreen = ({ navigation }) => {
     <Switch
       value={enabled}
       onValueChange={onToggle}
-      trackColor={{ false: COLORS.GRAY_600, true: COLORS.PRIMARY }}
-      thumbColor={enabled ? COLORS.WHITE : COLORS.GRAY_300}
-      ios_backgroundColor={COLORS.GRAY_600}
+      trackColor={{ false: colors.TEXT_SECONDARY, true: colors.PRIMARY }}
+      thumbColor={enabled ? colors.TEXT : colors.BORDER}
+      ios_backgroundColor={colors.TEXT_SECONDARY}
     />
   );
 
@@ -373,7 +356,7 @@ const SettingsScreen = ({ navigation }) => {
             style={styles.backButton} 
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.WHITE} />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>설정</Text>
           <View style={styles.headerSpacer} />
@@ -387,6 +370,20 @@ const SettingsScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
       >
 
+
+        {/* 화면 설정 */}
+        <SectionTitle title="화면" />
+        <View style={styles.section}>
+          <SettingItem
+            icon={isDark ? 'moon-outline' : 'sunny-outline'}
+            title="다크 모드"
+            subtitle={isDark ? '어두운 테마를 사용 중입니다.' : '밝은 테마를 사용 중입니다.'}
+            showArrow={false}
+            onPress={toggleTheme}
+          >
+            <ThemeToggle />
+          </SettingItem>
+        </View>
 
         {/* 알림 설정 */}
         <SectionTitle title="알림 설정" />
@@ -594,13 +591,13 @@ const SettingsScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   headerContent: {
     height: 56,
@@ -618,7 +615,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   headerSpacer: {
@@ -637,13 +634,13 @@ const styles = StyleSheet.create({
   sectionTitleText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.GRAY_400,
+    color: colors.TEXT_SECONDARY,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     fontFamily: 'Pretendard-SemiBold',
   },
   section: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
@@ -654,7 +651,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   settingItemLeft: {
     flexDirection: 'row',
@@ -736,13 +733,13 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.WHITE,
+    color: colors.TEXT,
     marginBottom: 2,
     fontFamily: 'Pretendard-Medium',
   },
   settingSubtitle: {
     fontSize: 14,
-    color: COLORS.GRAY_400,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-Regular',
   },
   settingItemRight: {
@@ -750,7 +747,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deleteText: {
-    color: COLORS.RED_600,
+    color: colors.ERROR,
     fontSize: 16,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',

@@ -25,16 +25,11 @@ import NewCafesList from '../components/NewCafesList';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import updateService from '../services/updateService';
 import storageService from '../services/storageService';
-
-// Runon 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719', // 카드 컴포넌트용 더 짙은 색상
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const HomeScreen = ({ navigation }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   // Safe Area insets 가져오기
   const insets = useSafeAreaInsets();
   
@@ -381,7 +376,7 @@ const HomeScreen = ({ navigation }) => {
   if (isLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: COLORS.TEXT, fontSize: 16 }}>홈 화면을 불러오는 중...</Text>
+        <Text style={{ color: colors.TEXT, fontSize: 16 }}>홈 화면을 불러오는 중...</Text>
       </View>
     );
   }
@@ -389,9 +384,9 @@ const HomeScreen = ({ navigation }) => {
   if (hasError) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: COLORS.ERROR, fontSize: 16 }}>데이터를 불러오는데 실패했습니다.</Text>
-        <TouchableOpacity 
-          style={{ marginTop: 20, padding: 10, backgroundColor: COLORS.PRIMARY, borderRadius: 8 }}
+        <Text style={{ color: colors.ERROR, fontSize: 16 }}>데이터를 불러오는데 실패했습니다.</Text>
+        <TouchableOpacity
+          style={{ marginTop: 20, padding: 10, backgroundColor: colors.PRIMARY, borderRadius: 8 }}
           onPress={() => {
             setIsLoading(true);
             setHasError(false);
@@ -399,7 +394,7 @@ const HomeScreen = ({ navigation }) => {
             fetchUserProfile();
           }}
         >
-          <Text style={{ color: COLORS.BACKGROUND }}>다시 시도</Text>
+          <Text style={{ color: '#FFFFFF' }}>다시 시도</Text>
         </TouchableOpacity>
       </View>
     );
@@ -445,8 +440,8 @@ const HomeScreen = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[COLORS.PRIMARY]}
-            tintColor={COLORS.PRIMARY}
+            colors={[colors.PRIMARY]}
+            tintColor={colors.PRIMARY}
           />
         }
       >
@@ -484,10 +479,10 @@ const HomeScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   scrollView: {
     flex: 1,
@@ -523,11 +518,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
   },
   viewAllText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   bottomSpacing: {
@@ -544,9 +539,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   devToolbarButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     borderRadius: 4,
     paddingVertical: 4,
     paddingHorizontal: 8,
@@ -559,7 +554,7 @@ const styles = StyleSheet.create({
   },
   devToolbarButtonText: {
     fontSize: 10,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
 });

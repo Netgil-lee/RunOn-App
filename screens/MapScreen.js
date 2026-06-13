@@ -3,14 +3,14 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { View, StyleSheet, ActivityIndicator, Alert, Linking, StatusBar, TouchableOpacity, Text, TextInput, FlatList, ScrollView, Image, Animated, Dimensions, Modal, Platform } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import Svg, { Path, Circle } from 'react-native-svg';
 import * as Location from 'expo-location';
 import BottomSheet, { BottomSheetFooter, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import MeetingCard from '../components/MeetingCard';
 import EventDetailScreen, { EventDetailBottomButton } from './EventDetailScreen';
-import ENV from '../config/environment';
 import firestoreService from '../services/firestoreService';
 import { unifiedSearch } from '../services/searchService';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,7 @@ import evaluationService from '../services/evaluationService';
 import { recordCafeVisit, recordFoodVisit } from '../services/userActivityService';
 import { getTabBarInsetsStyle } from '../constants/tabBarInsets';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { useTheme } from '../contexts/ThemeContext';
 
 // 현재 위치 마커는 SVG로 직접 생성 (이미지 파일 사용 안 함)
 
@@ -95,6 +96,22 @@ function getInstagramUrl(entity) {
   return `https://${trimmed}`;
 }
 
+// 지도 마커 핀 (모임=시안, 카페/푸드=핑크).
+// Android react-native-maps는 커스텀 View 마커를 비트맵으로 래스터화하는데,
+// CSS 보더 삼각형(투명 보더)이 검은 사각형으로 깨지는 고질 버그가 있어 SVG로 그린다.
+// Marker anchor={{x:0.5,y:1}}로 핀 끝점이 좌표를 가리키게 함.
+const PinMarker = React.memo(({ color }) => (
+  <Svg width={30} height={38} viewBox="0 0 30 38">
+    <Path
+      d="M15 1C7.27 1 1 7.27 1 15c0 9.5 14 21.5 14 21.5S29 24.5 29 15C29 7.27 22.73 1 15 1z"
+      fill={color}
+      stroke="#FFFFFF"
+      strokeWidth={2}
+    />
+    <Circle cx={15} cy={15} r={5.5} fill="#FFFFFF" />
+  </Svg>
+));
+
 const MapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const nav = useNavigation();
@@ -136,35 +153,34 @@ const MapScreen = ({ navigation, route }) => {
   const [showSearchResults, setShowSearchResults] = useState(false); // 검색 결과 표시 여부
   const [isSearchMode, setIsSearchMode] = useState(false); // 검색 전용 화면 모드
   const [pendingSearchResult, setPendingSearchResult] = useState(null); // 검색 모드 종료 후 처리할 검색 결과
-  const webViewRef = useRef(null);
+  const mapRef = useRef(null);
   const locationWatchSubRef = useRef(null);
-  const mapLoadCompleteRef = useRef(false);
   /** 탭 포커스마다 최초 1회만 내 위치로 지도 패닝 */
   const didInitialCenterOnFocusRef = useRef(false);
   const currentLocationForMapRef = useRef(null);
+  // react-native-maps에서 Marker.onPress 발화 후 MapView.onPress도 연달아 발화됨
+  // 마커 클릭 시 선택 상태가 즉시 리셋되는 것을 막기 위한 플래그
+  const suppressMapPressRef = useRef(false);
 
-  const syncUserDotToWebView = useCallback((lat, lng, tryInitialPan) => {
+  const animateToLocation = useCallback((lat, lng, delta = 0.02, aboveSheet = false) => {
+    // aboveSheet=true 시 바텀시트(50%)가 마커를 가리지 않도록 중심을 마커 아래로 오프셋
+    const latCenter = aboveSheet ? lat - delta * 0.28 : lat;
+    mapRef.current?.animateToRegion({
+      latitude: latCenter,
+      longitude: lng,
+      latitudeDelta: delta,
+      longitudeDelta: delta,
+    }, 400);
+  }, []);
+
+  const syncUserLocation = useCallback((lat, lng, tryInitialPan) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     currentLocationForMapRef.current = { latitude: lat, longitude: lng };
-    if (!webViewRef.current) return;
-    webViewRef.current.postMessage(
-      JSON.stringify({
-        type: 'updateCurrentLocation',
-        latitude: lat,
-        longitude: lng,
-      })
-    );
-    if (tryInitialPan && !didInitialCenterOnFocusRef.current && mapLoadCompleteRef.current) {
+    if (tryInitialPan && !didInitialCenterOnFocusRef.current) {
       didInitialCenterOnFocusRef.current = true;
-      webViewRef.current.postMessage(
-        JSON.stringify({
-          type: 'moveToCurrentLocation',
-          latitude: lat,
-          longitude: lng,
-        })
-      );
+      animateToLocation(lat, lng, 0.05);
     }
-  }, []);
+  }, [animateToLocation]);
 
   const bottomSheetRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -173,6 +189,8 @@ const MapScreen = ({ navigation, route }) => {
   const { user } = useAuth();
   const { endEvent, joinEvent, leaveEvent, chatRooms } = useEvents();
   const firestore = getFirestore();
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   
   // footerComponent를 위한 render 함수
   const renderFooter = useCallback((props) => {
@@ -292,1018 +310,51 @@ const MapScreen = ({ navigation, route }) => {
     });
   }, [foods, clusterData, foodSearchQuery]);
 
-  // Runon 색상 시스템
-  const COLORS = {
-    PRIMARY: '#3AF8FF',
-    BACKGROUND: '#000000',
-    SURFACE: '#1F1F24',
-    SECONDARY: '#666666',
-  };
-
   // 기본 위치 (서울 중심)
   const DEFAULT_LOCATION = {
     latitude: 37.5665,
     longitude: 126.9780,
   };
 
-  // 카카오맵 HTML 생성 (HanRiverMap.js의 createKakaoMapHTML을 그대로 사용, 높이만 화면 전체로 조정)
-  const createKakaoMapHTML = (javascriptKey, initialLat, initialLng) => {
-    // 화면 전체 높이를 계산 (WebView에서 사용 가능한 최대 높이)
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-        <meta http-equiv="Pragma" content="no-cache">
-        <meta http-equiv="Expires" content="0">
-        <title>러논 지도</title>
-        <!-- 카카오맵 SDK 로딩 -->
-        <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${javascriptKey}&libraries=services,clusterer,drawing"></script>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { 
-            background: #FFFDE7; 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow: hidden;
-            height: 100vh;
-            width: 100vw;
-          }
-          #map { 
-            width: 100vw; 
-            height: 100vh; 
-            border: none;
-          }
-          
-          /* 카카오맵 기본 InfoWindow 완전히 숨기기 */
-          div[style*="background"] {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-          }
-          
-          /* 모든 InfoWindow 관련 기본 스타일 제거 */
-          .infowindow,
-          .info-window-container,
-          [class*="infowindow"],
-          [class*="InfoWindow"] {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-          }
-          
-          .info-window {
-            background: #1a1a1a !important;
-            color: #ffffff !important;
-            padding: 8px 12px !important;
-            border-radius: 12px !important;
-            border: 1px solid #333333 !important;
-            font-size: 14px !important;
-            font-weight: 500 !important;
-            text-align: center !important;
-            margin: 0 !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-            display: inline-block !important;
-            margin-top: -15px !important; /* 마커와 더 가깝게 배치 */
-            min-width: 80px !important;
-            max-width: 200px !important;
-          }
-        </style>
-      </head>
-      <body>
-        <div id="map"></div>
-        
-        <script>
-          var map;
-          var currentLocationMarker = null;
-          var eventMarkers = [];
-          var cafeMarkers = [];
-          var foodMarkers = [];
-          var eventInfoWindows = []; // 모임 마커 정보창 배열
-          var cafeInfoWindows = []; // 카페 마커 정보창 배열
-          var foodInfoWindows = []; // 러닝푸드 마커 정보창 배열
-          var currentToggle = 'events'; // 'events' | 'cafes' | 'foods'
-          var clusterer = null; // MarkerClusterer 인스턴스
-          var currentEventsData = []; // 현재 표시된 모임 데이터
-          var currentCafesData = []; // 현재 표시된 카페 데이터
-          var currentFoodsData = []; // 현재 표시된 러닝푸드 데이터
-          var searchPlaceMarker = null; // 검색한 장소 마커
-          var isProgrammaticMove = false; // 프로그래밍 방식 지도 이동 중 플래그
-          var currentMapLevel = 9; // 현재 지도 레벨
-          var openEventInfoWindowId = null; // 현재 열려있는 모임 인포윈도우의 이벤트 ID
-          var openCafeInfoWindowId = null; // 현재 열려있는 카페 인포윈도우의 카페 ID
-          var openFoodInfoWindowId = null; // 현재 열려있는 러닝푸드 인포윈도우의 ID
-          
-          function log(message, type = 'info') {
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage('LOG: ' + type.toUpperCase() + ' - ' + message);
-            }
-          }
-          
-          // 클러스터 업데이트 함수
-          function updateClusterer() {
-            if (!clusterer || !map) return;
-            
-            var activeMarkers = [];
-            if (currentToggle === 'events') {
-              activeMarkers = eventMarkers;
-            } else if (currentToggle === 'cafes') {
-              activeMarkers = cafeMarkers;
-            } else if (currentToggle === 'foods') {
-              activeMarkers = foodMarkers;
-            }
-            
-            // 클러스터에 마커 업데이트
-            clusterer.clear();
-            if (activeMarkers.length > 0) {
-              clusterer.addMarkers(activeMarkers);
-            }
-            
-            log('🔄 클러스터 업데이트: ' + activeMarkers.length + '개 마커', 'info');
-          }
-          
-          // 마커 표시/숨김 함수
-          function showMarkersForToggle(toggle) {
-            currentToggle = toggle;
-            
-            // 모든 인포윈도우 닫기 (토글 변경 시)
-            eventInfoWindows.forEach(function(iw) {
-              iw.close();
-            });
-            cafeInfoWindows.forEach(function(iw) {
-              iw.close();
-            });
-            foodInfoWindows.forEach(function(iw) {
-              iw.close();
-            });
-            openEventInfoWindowId = null;
-            openCafeInfoWindowId = null;
-            openFoodInfoWindowId = null;
-            
-            if (toggle === 'events') {
-              // 모임 마커 표시, 카페·푸드 마커 숨김
-              eventMarkers.forEach(function(marker) {
-                marker.setMap(map);
-              });
-              cafeMarkers.forEach(function(marker) {
-                marker.setMap(null);
-              });
-              foodMarkers.forEach(function(marker) {
-                marker.setMap(null);
-              });
-            } else if (toggle === 'cafes') {
-              // 카페 마커 표시, 모임 마커 숨김
-              cafeMarkers.forEach(function(marker) {
-                marker.setMap(map);
-              });
-              eventMarkers.forEach(function(marker) {
-                marker.setMap(null);
-              });
-              foodMarkers.forEach(function(marker) {
-                marker.setMap(null);
-              });
-            } else if (toggle === 'foods') {
-              // 러닝푸드 마커 표시, 모임/카페 마커 숨김
-              foodMarkers.forEach(function(marker) {
-                marker.setMap(map);
-              });
-              eventMarkers.forEach(function(marker) {
-                marker.setMap(null);
-              });
-              cafeMarkers.forEach(function(marker) {
-                marker.setMap(null);
-              });
-            }
-            
-            // 클러스터 업데이트
-            updateClusterer();
-            
-            log('🔄 토글 변경: ' + toggle, 'info');
-          }
-          
-          // 모임 마커 생성 함수
-          function createEventMarkers(eventsData) {
-            // 지도가 없으면 마커 생성하지 않음
-            if (!map) {
-              log('⚠️ 지도가 초기화되지 않음, 마커 생성 스킵', 'warning');
-              return;
-            }
-            
-            // 열려있던 인포윈도우 ID 저장 (마커 재생성 후 복원용)
-            var previouslyOpenEventId = openEventInfoWindowId;
-            
-            // 기존 마커 및 정보창 제거
-            eventMarkers.forEach(function(marker) {
-              marker.setMap(null);
-            });
-            eventInfoWindows.forEach(function(infoWindow) {
-              infoWindow.close();
-            });
-            eventMarkers = [];
-            eventInfoWindows = [];
-            currentEventsData = eventsData || [];
-            
-            if (!eventsData || eventsData.length === 0) {
-              log('📍 모임 데이터 없음', 'info');
-              updateClusterer();
-              return;
-            }
-            
-            eventsData.forEach(function(event) {
-              try {
-                // 좌표 추출 (하위 호환성 고려)
-                var lat, lng;
-                if (event.coordinates) {
-                  lat = event.coordinates.latitude || event.coordinates._lat;
-                  lng = event.coordinates.longitude || event.coordinates._long;
-                } else if (event.customMarkerCoords) {
-                  lat = event.customMarkerCoords.latitude || event.customMarkerCoords.lat;
-                  lng = event.customMarkerCoords.longitude || event.customMarkerCoords.lng;
-                } else {
-                  return; // 좌표가 없으면 스킵
-                }
-                
-                var markerPosition = new kakao.maps.LatLng(lat, lng);
-                
-                // 지도 레벨에 따라 마커 크기 결정 (level 5 이상: 24x30, level 4 이하: 32x40)
-                var markerSize = currentMapLevel >= 5 ? { width: 24, height: 30, offsetX: 12, offsetY: 30 } : { width: 32, height: 40, offsetX: 16, offsetY: 40 };
-                
-                // 모임 마커 SVG (청록색)
-                var eventSvg = '<svg width="' + markerSize.width + '" height="' + markerSize.height + '" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
-                  '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#3AF8FF"/>' +
-                  '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
-                  '<circle cx="12" cy="12" r="3" fill="#3AF8FF"/>' +
-                  '</svg>';
-                
-                var eventImageSrc = 'data:image/svg+xml;base64,' + btoa(eventSvg);
-                var eventImageSize = new kakao.maps.Size(markerSize.width, markerSize.height);
-                var eventImageOffset = new kakao.maps.Point(markerSize.offsetX, markerSize.offsetY);
-                
-                var eventImage = new kakao.maps.MarkerImage(
-                  eventImageSrc,
-                  eventImageSize,
-                  { offset: eventImageOffset }
-                );
-                
-                var marker = new kakao.maps.Marker({
-                  position: markerPosition,
-                  image: eventImage,
-                  map: currentToggle === 'events' ? map : null,
-                  zIndex: 100
-                });
-                
-                // 정보창 생성 (모임 제목 표시용)
-                var infoWindowContent = '<div class="info-window">' + (event.title || '러닝모임') + '</div>';
-                var infoWindow = new kakao.maps.InfoWindow({
-                  content: infoWindowContent,
-                  removable: false,
-                  yAnchor: 0.1 // 마커와 매우 가깝게 배치 (0.0에 가까울수록 마커에 가까움)
-                });
-                
-                eventMarkers.push(marker);
-                eventInfoWindows.push(infoWindow);
-                
-                // 마커 클릭 이벤트
-                (function(currentEvent, currentMarker, currentInfoWindow, currentIndex) {
-                  kakao.maps.event.addListener(currentMarker, 'click', function(mouseEvent) {
-                    // 이벤트 전파 중지 (지도 클릭 이벤트로 버블링 방지)
-                    if (mouseEvent) {
-                      if (mouseEvent.stopPropagation) {
-                        mouseEvent.stopPropagation();
-                      }
-                      if (mouseEvent.preventDefault) {
-                        mouseEvent.preventDefault();
-                      }
-                    }
-                    
-                    // 다른 정보창들 닫기
-                    eventInfoWindows.forEach(function(iw, i) {
-                      if (i !== currentIndex) {
-                        iw.close();
-                      }
-                    });
-                    
-                    // 현재 정보창 항상 열기 (필수 동작 실행 시 인포윈도우가 열려있어야 함)
-                    if (!currentInfoWindow.getMap()) {
-                      currentInfoWindow.open(map, currentMarker);
-                    }
-                    openEventInfoWindowId = currentEvent.id; // 열린 인포윈도우 ID 저장
-                    
-                    // 마커 클릭 플래그 설정 (지도 클릭 이벤트 무시용)
-                    window.isMarkerClick = true;
-                    setTimeout(function() {
-                      window.isMarkerClick = false;
-                    }, 100);
-                    
-                    if (window.ReactNativeWebView) {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({
-                        type: 'eventMarkerClick',
-                        eventId: currentEvent.id,
-                        event: currentEvent
-                      }));
-                    }
-                    log('📍 모임 마커 클릭: ' + (currentEvent.title || currentEvent.id), 'info');
-                  });
-                })(event, marker, infoWindow, eventMarkers.length - 1);
-                
-              } catch (error) {
-                log('❌ 모임 마커 생성 실패: ' + error.message, 'error');
-              }
-            });
-            
-            // 클러스터 업데이트
-            updateClusterer();
-            
-            // 이전에 열려있던 인포윈도우 복원 (마커 클릭 시 필수 동작 실행 중이면 유지)
-            if (previouslyOpenEventId) {
-              setTimeout(function() {
-                eventsData.forEach(function(event, index) {
-                  if (event.id === previouslyOpenEventId && eventMarkers[index] && eventInfoWindows[index]) {
-                    eventInfoWindows[index].open(map, eventMarkers[index]);
-                    openEventInfoWindowId = previouslyOpenEventId;
-                    log('📍 인포윈도우 복원: ' + (event.title || event.id), 'info');
-                  }
-                });
-              }, 100);
-            }
-            
-            log('✅ 모임 마커 생성 완료: ' + eventMarkers.length + '개', 'success');
-          }
-          
-          // 카페 마커 생성 함수
-          function createCafeMarkers(cafesData) {
-            // 열려있던 인포윈도우 ID 저장 (마커 재생성 후 복원용)
-            var previouslyOpenCafeId = openCafeInfoWindowId;
-            
-            // 기존 마커 및 정보창 제거
-            cafeMarkers.forEach(function(marker) {
-              marker.setMap(null);
-            });
-            cafeInfoWindows.forEach(function(infoWindow) {
-              infoWindow.close();
-            });
-            cafeMarkers = [];
-            cafeInfoWindows = [];
-            currentCafesData = cafesData || [];
-            
-            if (!cafesData || cafesData.length === 0) {
-              log('📍 카페 데이터 없음', 'info');
-              updateClusterer();
-              return;
-            }
-            
-            cafesData.forEach(function(cafe) {
-              try {
-                // 좌표 추출
-                var lat, lng;
-                if (cafe.coordinates) {
-                  lat = cafe.coordinates.latitude || cafe.coordinates._lat;
-                  lng = cafe.coordinates.longitude || cafe.coordinates._long;
-                } else {
-                  return; // 좌표가 없으면 스킵
-                }
-                
-                var markerPosition = new kakao.maps.LatLng(lat, lng);
-                
-                // 지도 레벨에 따라 마커 크기 결정 (level 5 이상: 24x30, level 4 이하: 32x40)
-                var markerSize = currentMapLevel >= 5 ? { width: 24, height: 30, offsetX: 12, offsetY: 30 } : { width: 32, height: 40, offsetX: 16, offsetY: 40 };
-                
-                // 카페 마커 SVG (프리미엄 색상 - 러논멤버스 핑크)
-                var cafeSvg = '<svg width="' + markerSize.width + '" height="' + markerSize.height + '" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
-                  '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#FF0073"/>' +
-                  '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
-                  '<circle cx="12" cy="12" r="3" fill="#FF0073"/>' +
-                  '</svg>';
-                
-                var cafeImageSrc = 'data:image/svg+xml;base64,' + btoa(cafeSvg);
-                var cafeImageSize = new kakao.maps.Size(markerSize.width, markerSize.height);
-                var cafeImageOffset = new kakao.maps.Point(markerSize.offsetX, markerSize.offsetY);
-                
-                var cafeImage = new kakao.maps.MarkerImage(
-                  cafeImageSrc,
-                  cafeImageSize,
-                  { offset: cafeImageOffset }
-                );
-                
-                var marker = new kakao.maps.Marker({
-                  position: markerPosition,
-                  image: cafeImage,
-                  map: currentToggle === 'cafes' ? map : null,
-                  zIndex: 100
-                });
-                
-                // 정보창 생성 (카페 상호명 + 러닝인증 대표 혜택 텍스트)
-                var cafeName = cafe.name || '러닝카페';
-                var benefitText = cafe.runningCertificationBenefit || '';
-                var infoWindowContent = '<div class="info-window">' + 
-                  '<div style="font-weight: 600; margin-bottom: 4px; white-space: nowrap;">' + cafeName + '</div>' +
-                  (benefitText ? '<div style="font-size: 11px; color: #3AF8FF; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + benefitText + '</div>' : '') +
-                  '</div>';
-                var infoWindow = new kakao.maps.InfoWindow({
-                  content: infoWindowContent,
-                  removable: false,
-                  yAnchor: 0.1 // 마커와 매우 가깝게 배치 (0.0에 가까울수록 마커에 가까움)
-                });
-                
-                cafeMarkers.push(marker);
-                cafeInfoWindows.push(infoWindow);
-                
-                // 마커 클릭 이벤트
-                (function(currentCafe, currentMarker, currentInfoWindow, currentIndex) {
-                  kakao.maps.event.addListener(currentMarker, 'click', function(mouseEvent) {
-                    // 이벤트 전파 중지 (지도 클릭 이벤트로 버블링 방지)
-                    if (mouseEvent) {
-                      if (mouseEvent.stopPropagation) {
-                        mouseEvent.stopPropagation();
-                      }
-                      if (mouseEvent.preventDefault) {
-                        mouseEvent.preventDefault();
-                      }
-                    }
-                    
-                    // 다른 정보창들 닫기
-                    cafeInfoWindows.forEach(function(iw, i) {
-                      if (i !== currentIndex) {
-                        iw.close();
-                      }
-                    });
-                    
-                    // 현재 정보창 항상 열기 (필수 동작 실행 시 인포윈도우가 열려있어야 함)
-                    if (!currentInfoWindow.getMap()) {
-                      currentInfoWindow.open(map, currentMarker);
-                    }
-                    openCafeInfoWindowId = currentCafe.id; // 열린 인포윈도우 ID 저장
-                    
-                    // 마커 클릭 플래그 설정 (지도 클릭 이벤트 무시용)
-                    window.isMarkerClick = true;
-                    setTimeout(function() {
-                      window.isMarkerClick = false;
-                    }, 100);
-                    
-                    if (window.ReactNativeWebView) {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({
-                        type: 'cafeMarkerClick',
-                        cafeId: currentCafe.id,
-                        cafe: currentCafe
-                      }));
-                    }
-                    log('📍 카페 마커 클릭: ' + (currentCafe.name || currentCafe.id), 'info');
-                  });
-                })(cafe, marker, infoWindow, cafeMarkers.length - 1);
-                
-              } catch (error) {
-                log('❌ 카페 마커 생성 실패: ' + error.message, 'error');
-              }
-            });
-            
-            // 클러스터 업데이트
-            updateClusterer();
-            
-            // 이전에 열려있던 인포윈도우 복원 (마커 클릭 시 필수 동작 실행 중이면 유지)
-            if (previouslyOpenCafeId) {
-              setTimeout(function() {
-                cafesData.forEach(function(cafe, index) {
-                  if (cafe.id === previouslyOpenCafeId && cafeMarkers[index] && cafeInfoWindows[index]) {
-                    cafeInfoWindows[index].open(map, cafeMarkers[index]);
-                    openCafeInfoWindowId = previouslyOpenCafeId;
-                    log('📍 인포윈도우 복원: ' + (cafe.name || cafe.id), 'info');
-                  }
-                });
-              }, 100);
-            }
-            
-            log('✅ 카페 마커 생성 완료: ' + cafeMarkers.length + '개', 'success');
-          }
+  // 마커 좌표 추출 헬퍼 (이벤트/카페/음식 공통)
+  const getMarkerCoords = useCallback((item) => {
+    if (!item) return null;
+    if (item.coordinates) {
+      const lat = item.coordinates.latitude ?? item.coordinates._lat;
+      const lng = item.coordinates.longitude ?? item.coordinates._long;
+      if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+        return { latitude: Number(lat), longitude: Number(lng) };
+      }
+    }
+    if (item.customMarkerCoords) {
+      const lat = item.customMarkerCoords.latitude ?? item.customMarkerCoords.lat;
+      const lng = item.customMarkerCoords.longitude ?? item.customMarkerCoords.lng;
+      if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+        return { latitude: Number(lat), longitude: Number(lng) };
+      }
+    }
+    if (Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))) {
+      return { latitude: Number(item.latitude), longitude: Number(item.longitude) };
+    }
+    return null;
+  }, []);
 
-          // 러닝푸드 마커 생성 함수
-          function createFoodMarkers(foodsData) {
-            var previouslyOpenFoodId = openFoodInfoWindowId;
+  // 초기 지도 영역 (서울 중심, 한 번만 계산)
+  const initialRegion = useMemo(() => ({
+    latitude: DEFAULT_LOCATION.latitude,
+    longitude: DEFAULT_LOCATION.longitude,
+    latitudeDelta: 0.1,
+    longitudeDelta: 0.1,
+  }), []);
 
-            foodMarkers.forEach(function(marker) {
-              marker.setMap(null);
-            });
-            foodInfoWindows.forEach(function(infoWindow) {
-              infoWindow.close();
-            });
-            foodMarkers = [];
-            foodInfoWindows = [];
-            currentFoodsData = foodsData || [];
-
-            if (!foodsData || foodsData.length === 0) {
-              log('📍 러닝푸드 데이터 없음', 'info');
-              updateClusterer();
-              return;
-            }
-
-            foodsData.forEach(function(food) {
-              try {
-                var lat, lng;
-                if (food.coordinates) {
-                  lat = food.coordinates.latitude || food.coordinates._lat;
-                  lng = food.coordinates.longitude || food.coordinates._long;
-                } else {
-                  return;
-                }
-
-                var markerPosition = new kakao.maps.LatLng(lat, lng);
-                var markerSize = currentMapLevel >= 5 ? { width: 24, height: 30, offsetX: 12, offsetY: 30 } : { width: 32, height: 40, offsetX: 16, offsetY: 40 };
-
-                // 요청사항: 러닝푸드 마커색은 러닝카페와 동일
-                var foodSvg = '<svg width="' + markerSize.width + '" height="' + markerSize.height + '" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
-                  '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#FF0073"/>' +
-                  '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
-                  '<circle cx="12" cy="12" r="3" fill="#FF0073"/>' +
-                  '</svg>';
-
-                var foodImageSrc = 'data:image/svg+xml;base64,' + btoa(foodSvg);
-                var foodImageSize = new kakao.maps.Size(markerSize.width, markerSize.height);
-                var foodImageOffset = new kakao.maps.Point(markerSize.offsetX, markerSize.offsetY);
-
-                var foodImage = new kakao.maps.MarkerImage(
-                  foodImageSrc,
-                  foodImageSize,
-                  { offset: foodImageOffset }
-                );
-
-                var marker = new kakao.maps.Marker({
-                  position: markerPosition,
-                  image: foodImage,
-                  map: currentToggle === 'foods' ? map : null,
-                  zIndex: 100
-                });
-
-                var foodName = food.name || '러닝푸드';
-                var benefitText = food.runningCertificationBenefit || '';
-                var infoWindowContent = '<div class="info-window">' +
-                  '<div style="font-weight: 600; margin-bottom: 4px; white-space: nowrap;">' + foodName + '</div>' +
-                  (benefitText ? '<div style="font-size: 11px; color: #3AF8FF; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + benefitText + '</div>' : '') +
-                  '</div>';
-                var infoWindow = new kakao.maps.InfoWindow({
-                  content: infoWindowContent,
-                  removable: false,
-                  yAnchor: 0.1
-                });
-
-                foodMarkers.push(marker);
-                foodInfoWindows.push(infoWindow);
-
-                (function(currentFood, currentMarker, currentInfoWindow, currentIndex) {
-                  kakao.maps.event.addListener(currentMarker, 'click', function(mouseEvent) {
-                    if (mouseEvent) {
-                      if (mouseEvent.stopPropagation) {
-                        mouseEvent.stopPropagation();
-                      }
-                      if (mouseEvent.preventDefault) {
-                        mouseEvent.preventDefault();
-                      }
-                    }
-
-                    foodInfoWindows.forEach(function(iw, i) {
-                      if (i !== currentIndex) {
-                        iw.close();
-                      }
-                    });
-
-                    if (!currentInfoWindow.getMap()) {
-                      currentInfoWindow.open(map, currentMarker);
-                    }
-                    openFoodInfoWindowId = currentFood.id;
-
-                    window.isMarkerClick = true;
-                    setTimeout(function() {
-                      window.isMarkerClick = false;
-                    }, 100);
-
-                    if (window.ReactNativeWebView) {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({
-                        type: 'foodMarkerClick',
-                        foodId: currentFood.id,
-                        food: currentFood
-                      }));
-                    }
-                    log('📍 러닝푸드 마커 클릭: ' + (currentFood.name || currentFood.id), 'info');
-                  });
-                })(food, marker, infoWindow, foodMarkers.length - 1);
-              } catch (error) {
-                log('❌ 러닝푸드 마커 생성 실패: ' + error.message, 'error');
-              }
-            });
-
-            updateClusterer();
-
-            if (previouslyOpenFoodId) {
-              setTimeout(function() {
-                foodsData.forEach(function(food, index) {
-                  if (food.id === previouslyOpenFoodId && foodMarkers[index] && foodInfoWindows[index]) {
-                    foodInfoWindows[index].open(map, foodMarkers[index]);
-                    openFoodInfoWindowId = previouslyOpenFoodId;
-                    log('📍 인포윈도우 복원: ' + (food.name || food.id), 'info');
-                  }
-                });
-              }, 100);
-            }
-
-            log('✅ 러닝푸드 마커 생성 완료: ' + foodMarkers.length + '개', 'success');
-          }
-          
-          // 현재 위치 마커 생성 함수 (SVG만 사용)
-          function createCurrentLocationMarker(lat, lng) {
-            if (currentLocationMarker) {
-              currentLocationMarker.setMap(null);
-            }
-            
-            var currentPosition = new kakao.maps.LatLng(lat, lng);
-            
-            // SVG 사용 (넓은 반경의 파란색 원 + 투명도 40%)
-            var currentLocationSvg = '<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">' +
-              '<circle cx="25" cy="25" r="25" fill="#2294FF" fill-opacity="0.4"/>' +
-              '<circle cx="25" cy="25" r="10" fill="#ffffff"/>' +
-              '<circle cx="25" cy="25" r="6" fill="#2294FF"/>' +
-              '</svg>';
-            
-            var currentLocationImageSrc = 'data:image/svg+xml;base64,' + btoa(currentLocationSvg);
-            var currentLocationImageSize = new kakao.maps.Size(50, 50);
-            var currentLocationImageOffset = new kakao.maps.Point(25, 50);
-            
-            var currentLocationImage = new kakao.maps.MarkerImage(
-              currentLocationImageSrc,
-              currentLocationImageSize,
-              { offset: currentLocationImageOffset }
-            );
-            
-            currentLocationMarker = new kakao.maps.Marker({
-              position: currentPosition,
-              image: currentLocationImage,
-              map: map,
-              zIndex: 1000
-            });
-            
-            log('📍 현재 위치 마커 생성: ' + lat + ', ' + lng, 'success');
-          }
-          
-          // React Native에서 메시지 수신
-          // Android: postMessage가 document에 전달되는 경우가 많음 → window + document 둘 다 등록
-          function handleReactNativeMessage(event) {
-            try {
-              var raw = event && event.data;
-              if (raw == null || raw === '') return;
-              var data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-              if (data.type === 'updateCurrentLocation') {
-                if (!map) {
-                  log('⚠️ 지도 미준비로 현재 위치 마커 업데이트 스킵', 'info');
-                  return;
-                }
-                createCurrentLocationMarker(data.latitude, data.longitude);
-              } else if (data.type === 'moveToCurrentLocation') {
-                if (map) {
-                  var currentPosition = new kakao.maps.LatLng(data.latitude, data.longitude);
-                  // 레벨을 먼저 설정하고, 그 다음 중심 이동 (순서 중요)
-                  map.setLevel(5);
-                  // 레벨 변경 후 약간의 지연을 두고 중심 이동 (레벨 변경 애니메이션 완료 대기)
-                  setTimeout(function() {
-                    map.setCenter(currentPosition);
-                    log('📍 현재 위치로 지도 이동: ' + data.latitude + ', ' + data.longitude, 'info');
-                  }, 100);
-                }
-              } else if (data.type === 'updateEvents') {
-                createEventMarkers(data.events);
-              } else if (data.type === 'updateCafes') {
-                createCafeMarkers(data.cafes);
-              } else if (data.type === 'updateFoods') {
-                createFoodMarkers(data.foods);
-              } else if (data.type === 'switchToggle') {
-                showMarkersForToggle(data.toggle);
-                // 지도 초기화가 요청된 경우
-                if (data.resetMap && map) {
-                  var resetPosition = new kakao.maps.LatLng(data.latitude, data.longitude);
-                  map.setCenter(resetPosition);
-                  map.setLevel(data.level || 9);
-                  currentMapLevel = data.level || 9;
-                  log('📍 토글 변경으로 지도 초기화: ' + data.latitude + ', ' + data.longitude, 'info');
-                }
-              } else if (data.type === 'moveToCafe') {
-                if (map) {
-                  var cafePosition = new kakao.maps.LatLng(data.latitude, data.longitude);
-                  map.setCenter(cafePosition);
-                  map.setLevel(5);
-                  log('📍 카페 위치로 지도 이동', 'info');
-                }
-              } else if (data.type === 'setMapLevel') {
-                if (map) {
-                  map.setLevel(data.level);
-                  currentMapLevel = data.level;
-                  // 레벨 변경 시 마커 크기 업데이트
-                  if (currentEventsData.length > 0) {
-                    createEventMarkers(currentEventsData);
-                  }
-                  if (currentCafesData.length > 0) {
-                    createCafeMarkers(currentCafesData);
-                  }
-                  if (currentFoodsData.length > 0) {
-                    createFoodMarkers(currentFoodsData);
-                  }
-                  log('📍 지도 레벨 변경: ' + data.level, 'info');
-                }
-              } else if (data.type === 'moveToMarkerAndZoom') {
-                if (map) {
-                  var markerPosition = new kakao.maps.LatLng(data.latitude, data.longitude);
-                  // 먼저 마커 위치로 지도 중심 이동
-                  map.setCenter(markerPosition);
-                  // 그 다음 레벨 변경 (마커 위치를 기준으로 확대)
-                  var targetLevel = data.level || 4;
-                  map.setLevel(targetLevel);
-                  currentMapLevel = targetLevel;
-                  // 레벨 변경 시 마커 크기 업데이트
-                  if (currentEventsData.length > 0) {
-                    createEventMarkers(currentEventsData);
-                  }
-                  if (currentCafesData.length > 0) {
-                    createCafeMarkers(currentCafesData);
-                  }
-                  if (currentFoodsData.length > 0) {
-                    createFoodMarkers(currentFoodsData);
-                  }
-                  log('📍 마커 위치로 이동 및 확대: ' + data.latitude + ', ' + data.longitude + ' (레벨: ' + targetLevel + ')', 'info');
-                }
-              } else if (data.type === 'moveToPlace') {
-                if (map) {
-                  var placePosition = new kakao.maps.LatLng(data.latitude, data.longitude);
-                  map.setCenter(placePosition);
-                  map.setLevel(3); // 더 확대 (숫자가 작을수록 확대)
-                  
-                  // 기존 검색 장소 마커 제거
-                  if (searchPlaceMarker) {
-                    searchPlaceMarker.setMap(null);
-                    searchPlaceMarker = null;
-                  }
-                  
-                  // 검색한 장소에 마커 표시 (금색 마커)
-                  var searchPlaceSvg = '<svg width="28" height="35" viewBox="0 0 28 35" xmlns="http://www.w3.org/2000/svg">' +
-                    '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="#FFD700"/>' +
-                    '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="none" stroke="#ffffff" stroke-width="2"/>' +
-                    '<circle cx="14" cy="14" r="7" fill="#ffffff"/>' +
-                    '<circle cx="14" cy="14" r="4" fill="#FFD700"/>' +
-                    '</svg>';
-                  
-                  var searchPlaceImageSrc = 'data:image/svg+xml;base64,' + btoa(searchPlaceSvg);
-                  var searchPlaceImageSize = new kakao.maps.Size(28, 35);
-                  var searchPlaceImageOffset = new kakao.maps.Point(14, 35);
-                  
-                  var searchPlaceImage = new kakao.maps.MarkerImage(
-                    searchPlaceImageSrc,
-                    searchPlaceImageSize,
-                    { offset: searchPlaceImageOffset }
-                  );
-                  
-                  searchPlaceMarker = new kakao.maps.Marker({
-                    position: placePosition,
-                    image: searchPlaceImage,
-                    map: map,
-                    zIndex: 200
-                  });
-                  
-                  log('📍 장소 위치로 지도 이동 및 마커 표시', 'info');
-                }
-              } else if (data.type === 'mapClick' || data.type === 'mapDrag') {
-                // 지도 클릭/드래그 시 React Native로 메시지 전송 (지도는 자동으로 움직임)
-                if (window.ReactNativeWebView) {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: data.type
-                  }));
-                }
-              }
-            } catch (parseError) {
-              console.error('❌ WebView 메시지 파싱 오류:', parseError, '원본 데이터:', event && event.data);
-            }
-          }
-          window.addEventListener('message', handleReactNativeMessage);
-          document.addEventListener('message', handleReactNativeMessage);
-
-          try {
-            log('🗺️ 카카오맵 초기화 시작', 'info');
-            
-            function checkKakaoSDK() {
-              if (typeof kakao === 'undefined') {
-                log('❌ Kakao SDK 로딩 실패 - kakao 객체 없음', 'error');
-                return false;
-              }
-              
-              if (typeof kakao.maps === 'undefined') {
-                log('❌ Kakao Maps API 로딩 실패', 'error');
-                return false;
-              }
-              
-              log('✅ Kakao SDK 로딩 성공!', 'success');
-              return true;
-            }
-            
-            let attempts = 0;
-            const maxAttempts = 100;
-            
-            function waitForKakaoSDK() {
-              attempts++;
-              
-              if (checkKakaoSDK()) {
-                initializeMap();
-              } else if (attempts >= maxAttempts) {
-                if (window.ReactNativeWebView) {
-                  window.ReactNativeWebView.postMessage('kakaoMapError: SDK 로딩 타임아웃 - API 키 또는 도메인 설정 확인 필요');
-                }
-                return;
-              } else {
-                setTimeout(waitForKakaoSDK, 100);
-              }
-            }
-
-            function initializeMap() {
-              try {
-                log('🗺️ 지도 초기화 시작', 'info');
-                
-                if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
-                  throw new Error('Kakao Maps API가 로드되지 않음');
-                }
-                
-                if (typeof kakao.maps.LatLng !== 'function') {
-                  throw new Error('kakao.maps.LatLng 생성자를 찾을 수 없음');
-                }
-                
-                var mapContainer = document.getElementById('map');
-                if (!mapContainer) {
-                  throw new Error('지도 컨테이너를 찾을 수 없음');
-                }
-                
-                var mapOption = {
-                  center: new kakao.maps.LatLng(${initialLat}, ${initialLng}),
-                  level: 9,
-                  disableDoubleClick: true,
-                  disableDoubleClickZoom: true
-                };
-                
-                window.map = new kakao.maps.Map(mapContainer, mapOption);
-                map = window.map;
-                map.setMapTypeId(kakao.maps.MapTypeId.ROADMAP);
-                currentMapLevel = map.getLevel(); // 초기 레벨 설정
-                
-                // MarkerClusterer 초기화
-                clusterer = new kakao.maps.MarkerClusterer({
-                  map: map,
-                  markers: [],
-                  gridSize: 60,
-                  minClusterSize: 5,
-                  averageCenter: true,
-                  styles: [{
-                    width: '50px',
-                    height: '50px',
-                    background: 'rgba(58, 248, 255, 0.5)',
-                    borderRadius: '50%',
-                    textAlign: 'center',
-                    lineHeight: '50px',
-                    color: '#ffffff',
-                    fontSize: '14px',
-                    fontWeight: 'bold'
-                  }]
-                });
-                
-                // 클러스터 클릭 이벤트
-                kakao.maps.event.addListener(clusterer, 'clusterclick', function(cluster) {
-                  var markers = cluster.getMarkers();
-                  var clusterData = [];
-                  
-                  markers.forEach(function(marker) {
-                    // 마커가 eventMarkers에 속하는지 확인
-                    var eventIndex = eventMarkers.indexOf(marker);
-                    if (eventIndex !== -1 && currentEventsData[eventIndex]) {
-                      clusterData.push({
-                        type: 'event',
-                        data: currentEventsData[eventIndex]
-                      });
-                    }
-                    
-                    // 마커가 cafeMarkers에 속하는지 확인
-                    var cafeIndex = cafeMarkers.indexOf(marker);
-                    if (cafeIndex !== -1 && currentCafesData[cafeIndex]) {
-                      clusterData.push({
-                        type: 'cafe',
-                        data: currentCafesData[cafeIndex]
-                      });
-                    }
-
-                    // 마커가 foodMarkers에 속하는지 확인
-                    var foodIndex = foodMarkers.indexOf(marker);
-                    if (foodIndex !== -1 && currentFoodsData[foodIndex]) {
-                      clusterData.push({
-                        type: 'food',
-                        data: currentFoodsData[foodIndex]
-                      });
-                    }
-                  });
-                  
-                  if (window.ReactNativeWebView && clusterData.length > 0) {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'clusterClick',
-                      clusterData: clusterData,
-                      markerCount: markers.length
-                    }));
-                    log('📍 클러스터 클릭: ' + markers.length + '개 마커', 'info');
-                  }
-                });
-                
-                // 지도 클릭 이벤트 리스너 추가 (bottom sheet만 닫고, 지도는 자동으로 움직임)
-                // 마커 클릭은 별도로 처리되므로 여기서는 지도 영역 클릭만 처리
-                kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
-                  // 마커 클릭 플래그 확인
-                  if (window.isMarkerClick) {
-                    return; // 마커 클릭 중이면 무시
-                  }
-                  
-                  // 마커 클릭이 아닐 때만 처리
-                  var target = mouseEvent && mouseEvent.target;
-                  if (target && (target.tagName === 'IMG' || target.closest('.kakao-marker'))) {
-                    // 마커 클릭이면 무시
-                    return;
-                  }
-                  
-                  // 인포윈도우는 유지 (닫지 않음)
-                  
-                  if (window.ReactNativeWebView) {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'mapClick'
-                    }));
-                  }
-                });
-                
-                // 지도 드래그 이벤트 리스너 추가 (bottom sheet만 닫고, 지도는 자동으로 움직임)
-                kakao.maps.event.addListener(map, 'dragend', function() {
-                  // 프로그래밍 방식 이동 중이면 무시
-                  if (isProgrammaticMove) {
-                    log('⚠️ 프로그래밍 방식 이동 중이므로 dragend 이벤트 무시', 'info');
-                    return;
-                  }
-                  log('🔄 사용자 드래그 이벤트 발생', 'info');
-                  if (window.ReactNativeWebView) {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'mapDrag'
-                    }));
-                  }
-                });
-                
-                // 지도 레벨 변경 이벤트 리스너 추가
-                kakao.maps.event.addListener(map, 'zoom_changed', function() {
-                  var newLevel = map.getLevel();
-                  if (newLevel !== currentMapLevel) {
-                    currentMapLevel = newLevel;
-                    // 레벨 변경 시 마커 크기 업데이트
-                    if (currentEventsData.length > 0) {
-                      createEventMarkers(currentEventsData);
-                    }
-                    if (currentCafesData.length > 0) {
-                      createCafeMarkers(currentCafesData);
-                    }
-                    if (currentFoodsData.length > 0) {
-                      createFoodMarkers(currentFoodsData);
-                    }
-                    log('📍 지도 레벨 변경 감지: ' + newLevel, 'info');
-                  }
-                });
-                
-                // 지도 크기 재계산 (타일 로딩을 위해 필수)
-                setTimeout(function() {
-                  if (map) {
-                    map.relayout();
-                    log('🔄 지도 크기 재계산 완료', 'info');
-                  }
-                }, 100);
-                
-                log('✅ 지도 초기화 완료', 'success');
-                
-                if (window.ReactNativeWebView) {
-                  window.ReactNativeWebView.postMessage('mapLoaded');
-                }
-                
-              } catch (initError) {
-                log('❌ 지도 초기화 실패: ' + initError.message, 'error');
-                if (window.ReactNativeWebView) {
-                  window.ReactNativeWebView.postMessage('kakaoMapError: ' + initError.message);
-                }
-              }
-            }
-            
-            waitForKakaoSDK();
-            
-          } catch (error) {
-            log('❌ 전체 스크립트 오류: ' + error.message, 'error');
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage('kakaoMapError: ' + error.message);
-            }
-          }
-        </script>
-      </body>
-      </html>
-    `;
-  };
+  // Android: 커스텀 View 마커는 tracksViewChanges가 true일 때만 비트맵으로 래스터화됨.
+  // 처음부터 false면 핀이 빈 채로 렌더되므로, 데이터/토글 변경 시 잠시 true로 켰다가 끔.
+  const [markersTrackViewChanges, setMarkersTrackViewChanges] = useState(true);
+  useEffect(() => {
+    setMarkersTrackViewChanges(true);
+    const timer = setTimeout(() => setMarkersTrackViewChanges(false), 1200);
+    return () => clearTimeout(timer);
+  }, [activeToggle, events, cafes, foods]);
 
   // 현재 위치 가져오기 함수
   const getCurrentLocation = async () => {
@@ -1340,7 +391,7 @@ const MapScreen = ({ navigation, route }) => {
       
       setCurrentLocation(locationData);
       setIsLocationLoading(false);
-      syncUserDotToWebView(locationData.latitude, locationData.longitude, false);
+      syncUserLocation(locationData.latitude, locationData.longitude, false);
 
       return locationData;
     } catch (error) {
@@ -1372,15 +423,6 @@ const MapScreen = ({ navigation, route }) => {
       }
       
       setEvents(allEvents);
-      
-      // WebView에 마커 업데이트 전송
-      if (webViewRef.current) {
-        const message = JSON.stringify({
-          type: 'updateEvents',
-          events: allEvents
-        });
-        webViewRef.current?.postMessage(message);
-      }
     } catch (error) {
       console.error('❌ 모임 데이터 로드 실패:', error);
     }
@@ -1393,18 +435,7 @@ const MapScreen = ({ navigation, route }) => {
       const nearbyEvents = await firestoreService.getEventsNearbyHybrid(latitude, longitude, 3);
       console.log('✅ 현재 위치 기준 모임 필터링 완료:', nearbyEvents.length, '개');
       
-      // 필터링된 모임만 표시 (기존 events는 유지하되, 표시만 필터링)
-      // 실제로는 events state를 업데이트하고 WebView에도 전송
       setEvents(nearbyEvents);
-      
-      // WebView에 마커 업데이트 전송
-      if (webViewRef.current) {
-        const message = JSON.stringify({
-          type: 'updateEvents',
-          events: nearbyEvents
-        });
-        webViewRef.current?.postMessage(message);
-      }
     } catch (error) {
       console.error('❌ 모임 필터링 실패:', error);
     }
@@ -1417,15 +448,6 @@ const MapScreen = ({ navigation, route }) => {
       const allCafes = await firestoreService.getAllCafes();
       console.log('✅ 카페 데이터 로드 완료:', allCafes.length, '개');
       setCafes(allCafes);
-      
-      // WebView에 마커 업데이트 전송
-      if (webViewRef.current) {
-        const message = JSON.stringify({
-          type: 'updateCafes',
-          cafes: allCafes
-        });
-        webViewRef.current?.postMessage(message);
-      }
     } catch (error) {
       console.error('❌ 카페 데이터 로드 실패:', error);
     }
@@ -1438,14 +460,6 @@ const MapScreen = ({ navigation, route }) => {
       const allFoods = await firestoreService.getAllFoods();
       console.log('✅ 러닝푸드 데이터 로드 완료:', allFoods.length, '개');
       setFoods(allFoods);
-
-      if (webViewRef.current) {
-        const message = JSON.stringify({
-          type: 'updateFoods',
-          foods: allFoods
-        });
-        webViewRef.current?.postMessage(message);
-      }
     } catch (error) {
       console.error('❌ 러닝푸드 데이터 로드 실패:', error);
     }
@@ -1520,7 +534,7 @@ const MapScreen = ({ navigation, route }) => {
                 const lat = watchLoc.coords.latitude;
                 const lng = watchLoc.coords.longitude;
                 setCurrentLocation({ latitude: lat, longitude: lng });
-                syncUserDotToWebView(lat, lng, true);
+                syncUserLocation(lat, lng, true);
               }
             );
             locationWatchSubRef.current = sub;
@@ -1588,174 +602,24 @@ const MapScreen = ({ navigation, route }) => {
           tabBarStyle: getTabBarInsetsStyle(insets, { withTopBorder: false }),
         });
       };
-    }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, syncUserDotToWebView, insets])
+    }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, syncUserLocation, insets])
   );
 
-  // WebView 메시지 핸들러 (HanRiverMap.js의 handleWebViewMessage 기반)
-  const handleWebViewMessage = (event) => {
-    const { data } = event.nativeEvent;
-    
-    if (data.includes('LOG:')) {
-      console.log(data);
-      return;
+  // 검색 결과 선택 후 pendingSearchResult 처리 (지도 이동/상세 표시)
+  useEffect(() => {
+    if (!pendingSearchResult) return;
+    const result = pendingSearchResult;
+    setPendingSearchResult(null);
+    if (result.searchType === "event") {
+      handleEventClick(result);
+    } else if (result.searchType === "cafe") {
+      handleCafeClick(result);
+    } else if (result.searchType === "food") {
+      handleFoodClick(result);
+    } else if (result.searchType === "place" && result.x && result.y) {
+      animateToLocation(parseFloat(result.y), parseFloat(result.x), 0.01);
     }
-    
-    if (data === 'mapLoaded') {
-      console.log('✅ mapLoaded 메시지 수신');
-      mapLoadCompleteRef.current = true;
-      setIsLoading(false);
-
-      // 지도 로드 직후 캐시된 좌표로 마커·(필요 시) 최초 패닝 (위치가 먼저 온 경우 대비)
-      const loc = currentLocationForMapRef.current;
-      if (loc && webViewRef.current) {
-        setTimeout(() => {
-          syncUserDotToWebView(loc.latitude, loc.longitude, true);
-          console.log('🗺️ 지도 로드 후 현재 위치 동기화:', loc);
-        }, 400);
-      } else {
-        console.log('🗺️ 지도 로드 완료, 아직 좌표 없음 — 위치 수신 후 동기화');
-      }
-      
-      // 지도 로드 완료 후 마커 데이터 전송
-      if (webViewRef.current) {
-        setTimeout(() => {
-          if (events.length > 0) {
-            const eventsMessage = JSON.stringify({
-              type: 'updateEvents',
-              events: events
-            });
-            webViewRef.current?.postMessage(eventsMessage);
-          }
-          if (cafes.length > 0) {
-            const cafesMessage = JSON.stringify({
-              type: 'updateCafes',
-              cafes: cafes
-            });
-            webViewRef.current?.postMessage(cafesMessage);
-          }
-          if (foods.length > 0) {
-            const foodsMessage = JSON.stringify({
-              type: 'updateFoods',
-              foods: foods
-            });
-            webViewRef.current?.postMessage(foodsMessage);
-          }
-          // 기본 토글 설정
-          const toggleMessage = JSON.stringify({
-            type: 'switchToggle',
-            toggle: activeToggle
-          });
-          webViewRef.current?.postMessage(toggleMessage);
-        }, 1000);
-      }
-    } else if (data.startsWith('kakaoMapError')) {
-      const errorMessage = data.substring(14);
-      console.error('❌ 카카오맵 로딩 실패:', errorMessage);
-      Alert.alert('지도 로딩 실패', '지도를 불러올 수 없습니다. 네트워크 연결을 확인해주세요.');
-      setIsLoading(false);
-    } else {
-      try {
-        const parsedData = JSON.parse(data);
-        console.log('📨 WebView 메시지:', parsedData);
-        
-        // 마커 클릭 이벤트 처리 (지도 클릭 이벤트보다 먼저 처리)
-        if (parsedData.type === 'eventMarkerClick') {
-          const { event } = parsedData;
-          if (event) {
-            handleEventClick(event);
-          }
-          return; // 마커 클릭 시 지도 클릭 이벤트 무시
-        }
-        
-        // 카페 마커 클릭 이벤트 처리
-        if (parsedData.type === 'cafeMarkerClick') {
-          const { cafe } = parsedData;
-          if (cafe) {
-            handleCafeClick(cafe);
-          }
-          return; // 마커 클릭 시 지도 클릭 이벤트 무시
-        }
-
-        // 러닝푸드 마커 클릭 이벤트 처리
-        if (parsedData.type === 'foodMarkerClick') {
-          const { food } = parsedData;
-          if (food) {
-            handleFoodClick(food);
-          }
-          return; // 마커 클릭 시 지도 클릭 이벤트 무시
-        }
-        
-        // 지도 클릭/드래그 시 Bottom Sheet 축소
-        if (parsedData.type === 'mapClick' || parsedData.type === 'mapDrag') {
-          handleMapInteraction();
-        }
-        
-        // 클러스터 클릭 시 Bottom Sheet 확장 및 목록 표시
-        if (parsedData.type === 'clusterClick') {
-          const { clusterData: clickedClusterData, markerCount } = parsedData;
-          console.log('📍 클러스터 클릭:', markerCount, '개 마커');
-          
-          // 클러스터 데이터를 상태에 저장
-          setClusterData(clickedClusterData);
-          
-          // Bottom Sheet 확장
-          if (bottomSheetRef.current) {
-            bottomSheetRef.current.snapToIndex(1); // 전체 확장
-          }
-        }
-      } catch (parseError) {
-        // 문자열 메시지 처리 (collapseBottomSheet)
-        if (data === 'collapseBottomSheet') {
-          handleMapInteraction();
-        } else {
-          console.error('메시지 파싱 오류:', parseError);
-        }
-      }
-    }
-  };
-
-  // WebView 로드 완료 핸들러 (HanRiverMap.js와 동일)
-  const handleLoadEnd = () => {
-    // 검색 모드 종료 후 대기 중인 검색 결과가 있으면 처리
-    if (pendingSearchResult && webViewRef.current) {
-      const result = pendingSearchResult;
-      
-      setTimeout(() => {
-        if (result.searchType === 'event') {
-          // 모임 선택 시
-          handleEventClick(result);
-        } else if (result.searchType === 'cafe') {
-          // 카페 선택 시
-          handleCafeClick(result);
-        } else if (result.searchType === 'food') {
-          // 러닝푸드 선택 시
-          handleFoodClick(result);
-        } else if (result.searchType === 'place') {
-          // 장소 선택 시 - 지도 이동 및 마커 표시
-          if (webViewRef.current && result.x && result.y) {
-            const message = JSON.stringify({
-              type: 'moveToPlace',
-              latitude: parseFloat(result.y),
-              longitude: parseFloat(result.x),
-              name: result.name || result.place_name // 마커에 표시할 이름
-            });
-            webViewRef.current?.postMessage(message);
-          }
-        }
-        
-        // 처리 완료 후 pendingSearchResult 초기화
-        setPendingSearchResult(null);
-      }, 300); // WebView가 완전히 준비될 시간을 주기 위한 지연
-    }
-    // HTML 로드 완료 (지도 초기화는 mapLoaded 메시지로 처리)
-  };
-
-  // WebView 에러 핸들러 (HanRiverMap.js와 동일)
-  const handleError = (syntheticEvent) => {
-    const { nativeEvent } = syntheticEvent;
-    console.error('❌ WebView 오류:', nativeEvent);
-    setIsLoading(false);
-  };
+  }, [pendingSearchResult]);
 
   // 한국 지역인지 확인하는 함수
   const isInKorea = (lat, lng) => {
@@ -1764,14 +628,6 @@ const MapScreen = ({ navigation, route }) => {
     // 경도: 124.5 ~ 132.0 (서해 ~ 동해)
     return lat >= 33.0 && lat <= 38.6 && lng >= 124.5 && lng <= 132.0;
   };
-
-  // 초기 위치 결정 (현재 위치가 한국 지역이면 사용, 아니면 기본 위치)
-  // WebView 재생성 방지를 위해 initialLocation을 메모이제이션
-  const initialLocation = useMemo(() => {
-    return (currentLocation && isInKorea(currentLocation.latitude, currentLocation.longitude)) 
-      ? currentLocation 
-      : DEFAULT_LOCATION;
-  }, []); // 한 번만 계산하고 이후 변경하지 않음
 
   // 토글 변경 핸들러
   const handleToggleChange = (toggle) => {
@@ -1783,29 +639,17 @@ const MapScreen = ({ navigation, route }) => {
     setSelectedCafe(null); // 선택된 카페 초기화
     setSelectedFood(null); // 선택된 러닝푸드 초기화
     setClusterData(null); // 클러스터 데이터 초기화
-    
+
     // Bottom Sheet 축소
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(0);
     }
-    
+
     // 지도 초기화 (현재 위치 또는 기본 위치로 이동)
-    if (webViewRef.current) {
-      const targetLocation = (currentLocation && isInKorea(currentLocation.latitude, currentLocation.longitude)) 
-        ? currentLocation 
-        : DEFAULT_LOCATION;
-      
-      const message = JSON.stringify({
-        type: 'switchToggle',
-        toggle: toggle,
-        // 지도 초기화를 위한 위치 정보 추가
-        resetMap: true,
-        latitude: targetLocation.latitude,
-        longitude: targetLocation.longitude,
-        level: 9 // 기본 줌 레벨
-      });
-      webViewRef.current?.postMessage(message);
-    }
+    const targetLocation = (currentLocation && isInKorea(currentLocation.latitude, currentLocation.longitude))
+      ? currentLocation
+      : DEFAULT_LOCATION;
+    animateToLocation(targetLocation.latitude, targetLocation.longitude, 0.1);
   };
 
   // Bottom Sheet 핸들러
@@ -1844,6 +688,8 @@ const MapScreen = ({ navigation, route }) => {
 
   // 지도 클릭/드래그 시 Bottom Sheet 축소
   const handleMapInteraction = useCallback(() => {
+    // 마커 클릭 직후 발화되는 MapView.onPress는 무시
+    if (suppressMapPressRef.current) return;
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(0); // 부분 확장으로 복귀
     }
@@ -1858,38 +704,21 @@ const MapScreen = ({ navigation, route }) => {
   
   // 모임 클릭 핸들러
   const handleEventClick = useCallback((event) => {
+    suppressMapPressRef.current = true;
+    setTimeout(() => { suppressMapPressRef.current = false; }, 300);
     setSelectedEvent(event);
     setSelectedCafe(null);
     setSelectedFood(null);
     setShowAllEvents(false); // 전체 보기 모드 해제 (상세 화면으로 전환)
-    
-    // Bottom Sheet 전체 확장 (60%)
+
+    // Bottom Sheet 전체 확장 (50%)
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(1);
     }
-    
-    // 마커 위치를 기준으로 지도 중심 이동 및 확대
-    if (webViewRef.current && event) {
-      let lat, lng;
-      if (event.coordinates) {
-        lat = event.coordinates.latitude || event.coordinates._lat;
-        lng = event.coordinates.longitude || event.coordinates._long;
-      } else if (event.customMarkerCoords) {
-        lat = event.customMarkerCoords.latitude || event.customMarkerCoords.lat;
-        lng = event.customMarkerCoords.longitude || event.customMarkerCoords.lng;
-      }
-      
-      if (lat && lng) {
-        const message = JSON.stringify({
-          type: 'moveToMarkerAndZoom',
-          latitude: lat,
-          longitude: lng,
-          level: 4
-        });
-        webViewRef.current?.postMessage(message);
-      }
-    }
-  }, []);
+
+    const coords = getMarkerCoords(event);
+    if (coords) animateToLocation(coords.latitude, coords.longitude, 0.01, true);
+  }, [animateToLocation, getMarkerCoords]);
 
   const fetchEventById = useCallback(async (eventId) => {
     try {
@@ -1933,26 +762,11 @@ const MapScreen = ({ navigation, route }) => {
         })();
 
         setEvents(mergedEvents);
-
-        if (webViewRef.current) {
-          const updateMessage = JSON.stringify({
-            type: 'updateEvents',
-            events: mergedEvents
-          });
-          webViewRef.current?.postMessage(updateMessage);
-        }
       }
 
       if (cancelled || !targetEvent) return;
 
       setActiveToggle('events');
-      if (webViewRef.current) {
-        const toggleMessage = JSON.stringify({
-          type: 'switchToggle',
-          toggle: 'events'
-        });
-        webViewRef.current?.postMessage(toggleMessage);
-      }
 
       setTimeout(() => {
         if (!cancelled) {
@@ -2020,6 +834,8 @@ const MapScreen = ({ navigation, route }) => {
   
   // 카페 클릭 핸들러
   const handleCafeClick = useCallback(async (cafe) => {
+    suppressMapPressRef.current = true;
+    setTimeout(() => { suppressMapPressRef.current = false; }, 300);
     // 먼저 기존 데이터로 표시 (로딩 느림 방지)
     setSelectedCafe(cafe);
     setSelectedEvent(null);
@@ -2064,27 +880,9 @@ const MapScreen = ({ navigation, route }) => {
     }
     
     // 마커 위치를 기준으로 지도 중심 이동 및 확대 - 러닝모임과 동일
-    if (webViewRef.current && cafe) {
-      let lat, lng;
-      if (cafe.coordinates) {
-        lat = cafe.coordinates.latitude || cafe.coordinates._lat;
-        lng = cafe.coordinates.longitude || cafe.coordinates._long;
-      } else if (cafe.latitude && cafe.longitude) {
-        lat = cafe.latitude;
-        lng = cafe.longitude;
-      }
-      
-      if (lat && lng) {
-        const message = JSON.stringify({
-          type: 'moveToMarkerAndZoom',
-          latitude: lat,
-          longitude: lng,
-          level: 4
-        });
-        webViewRef.current?.postMessage(message);
-      }
-    }
-  }, [user]);
+    const coords = getMarkerCoords(cafe);
+    if (coords) animateToLocation(coords.latitude, coords.longitude, 0.01, true);
+  }, [user, animateToLocation, getMarkerCoords]);
 
   // handleCafeClick / handleFoodClick ref 최신화
   // useFocusEffect 의존성에서 제외하기 위해 ref로 접근
@@ -2103,6 +901,8 @@ const MapScreen = ({ navigation, route }) => {
 
   // 러닝푸드 클릭 핸들러
   const handleFoodClick = useCallback(async (food) => {
+    suppressMapPressRef.current = true;
+    setTimeout(() => { suppressMapPressRef.current = false; }, 300);
     setSelectedFood(food);
     setSelectedEvent(null);
     setSelectedCafe(null);
@@ -2135,27 +935,9 @@ const MapScreen = ({ navigation, route }) => {
       });
     }
 
-    if (webViewRef.current && food) {
-      let lat, lng;
-      if (food.coordinates) {
-        lat = food.coordinates.latitude || food.coordinates._lat;
-        lng = food.coordinates.longitude || food.coordinates._long;
-      } else if (food.latitude && food.longitude) {
-        lat = food.latitude;
-        lng = food.longitude;
-      }
-
-      if (lat && lng) {
-        const message = JSON.stringify({
-          type: 'moveToMarkerAndZoom',
-          latitude: lat,
-          longitude: lng,
-          level: 4
-        });
-        webViewRef.current?.postMessage(message);
-      }
-    }
-  }, [user]);
+    const coords = getMarkerCoords(food);
+    if (coords) animateToLocation(coords.latitude, coords.longitude, 0.01, true);
+  }, [user, animateToLocation, getMarkerCoords]);
 
   // 러닝푸드 상세 화면 닫기
   const handleCloseFoodDetail = useCallback(() => {
@@ -2380,7 +1162,7 @@ const MapScreen = ({ navigation, route }) => {
       <View style={styles.container}>
         {isLoading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+            <ActivityIndicator size="large" color={colors.PRIMARY} />
           </View>
         )}
         
@@ -2407,15 +1189,15 @@ const MapScreen = ({ navigation, route }) => {
                 onPress={handleSearchBack}
                 style={styles.searchBackButton}
               >
-                <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
+                <Ionicons name="arrow-back" size={24} color={colors.PRIMARY} />
               </TouchableOpacity>
             ) : (
-              <Ionicons name="search" size={24} color={COLORS.SECONDARY} style={styles.mapSearchIcon} />
+              <Ionicons name="search" size={24} color={colors.TEXT_SECONDARY} style={styles.mapSearchIcon} />
             )}
             <TextInput
               style={styles.mapSearchInput}
               placeholder="모임, 카페, 푸드, 장소 검색..."
-              placeholderTextColor={COLORS.SECONDARY}
+              placeholderTextColor={colors.TEXT_SECONDARY}
               value={mapSearchQuery}
               onChangeText={handleMapSearchInput}
               onSubmitEditing={handleSearchSubmit}
@@ -2430,7 +1212,7 @@ const MapScreen = ({ navigation, route }) => {
               }}
             />
             {isSearching && (
-              <ActivityIndicator size="small" color={COLORS.PRIMARY} style={styles.mapSearchLoading} />
+              <ActivityIndicator size="small" color={colors.PRIMARY} style={styles.mapSearchLoading} />
             )}
             {mapSearchQuery.length > 0 && !isSearching && (
               <TouchableOpacity
@@ -2441,7 +1223,7 @@ const MapScreen = ({ navigation, route }) => {
                 }}
                 style={styles.mapSearchClearButton}
               >
-                <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
               </TouchableOpacity>
             )}
           </Animated.View>
@@ -2468,15 +1250,8 @@ const MapScreen = ({ navigation, route }) => {
               onPress={async () => {
                 // 먼저 최신 위치를 가져옴
                 const location = await getCurrentLocation();
-                if (location && webViewRef.current) {
-                  webViewRef.current.postMessage(
-                    JSON.stringify({
-                      type: 'moveToCurrentLocation',
-                      latitude: location.latitude,
-                      longitude: location.longitude,
-                    })
-                  );
-                  
+                if (location) {
+                  animateToLocation(location.latitude, location.longitude, 0.05);
                   // 현재 위치 기준 3km 내 모임만 필터링
                   await filterEventsByLocation(location.latitude, location.longitude);
                 }
@@ -2500,13 +1275,13 @@ const MapScreen = ({ navigation, route }) => {
                   onPress={handleSearchBack}
                   style={styles.searchModeBackButton}
                 >
-                  <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
+                  <Ionicons name="arrow-back" size={24} color={colors.PRIMARY} />
                 </TouchableOpacity>
                 <TextInput
                   ref={searchInputRef}
                   style={styles.searchModeInput}
                   placeholder="모임, 카페, 푸드, 장소 검색..."
-                  placeholderTextColor={COLORS.SECONDARY}
+                  placeholderTextColor={colors.TEXT_SECONDARY}
                   value={mapSearchQuery}
                   onChangeText={handleMapSearchInput}
                   onSubmitEditing={handleSearchSubmit}
@@ -2516,7 +1291,7 @@ const MapScreen = ({ navigation, route }) => {
                   autoFocus={true}
                 />
                 {isSearching && (
-                  <ActivityIndicator size="small" color={COLORS.PRIMARY} style={styles.searchModeLoading} />
+                  <ActivityIndicator size="small" color={colors.PRIMARY} style={styles.searchModeLoading} />
                 )}
                 {mapSearchQuery.length > 0 && !isSearching && (
                   <TouchableOpacity
@@ -2526,7 +1301,7 @@ const MapScreen = ({ navigation, route }) => {
                     }}
                     style={styles.searchModeClearButton}
                   >
-                    <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                    <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -2549,7 +1324,7 @@ const MapScreen = ({ navigation, route }) => {
                         'location'
                       }
                       size={20}
-                      color={COLORS.PRIMARY}
+                      color={colors.PRIMARY}
                       style={styles.searchModeResultIcon}
                     />
                     <View style={styles.searchModeResultContent}>
@@ -2604,7 +1379,7 @@ const MapScreen = ({ navigation, route }) => {
                       'location'
                     }
                     size={20}
-                    color={COLORS.PRIMARY}
+                    color={colors.PRIMARY}
                     style={styles.searchResultIcon}
                   />
                   <View style={styles.searchResultContent}>
@@ -2695,26 +1470,68 @@ const MapScreen = ({ navigation, route }) => {
         )}
         
         {!isSearchMode && (
-          <WebView
-          ref={webViewRef}
-          key="main-map" // 고정 key로 변경하여 WebView 재생성 방지
-          source={{ html: createKakaoMapHTML(ENV.kakaoMapApiKey, initialLocation.latitude, initialLocation.longitude) }}
-          style={styles.webview}
-          onMessage={handleWebViewMessage}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={false}
-          scalesPageToFit={false}
-          scrollEnabled={false}
-          bounces={false}
-          pointerEvents="auto"
-          showsHorizontalScrollIndicator={false}
-          showsVerticalScrollIndicator={false}
-          cacheEnabled={true} // 캐시 활성화하여 성능 개선
-          incognito={false} // incognito 모드 비활성화
-          onLoadEnd={handleLoadEnd}
-          onError={handleError}
-          />
+          <MapView
+            ref={mapRef}
+            provider={PROVIDER_GOOGLE}
+            style={styles.webview}
+            initialRegion={initialRegion}
+            showsUserLocation={true}
+            showsMyLocationButton={false}
+            showsCompass={false}
+            showsScale={false}
+            showsTraffic={false}
+            toolbarEnabled={false}
+            mapType="standard"
+            onPress={handleMapInteraction}
+            onPanDrag={handleMapInteraction}
+            onMapReady={() => setIsLoading(false)}
+          >
+            {activeToggle === 'events' && events.map((event) => {
+              const coords = getMarkerCoords(event);
+              if (!coords) return null;
+              return (
+                <Marker
+                  key={event.id}
+                  coordinate={coords}
+                  onPress={() => handleEventClick(event)}
+                  tracksViewChanges={markersTrackViewChanges}
+                  anchor={{ x: 0.5, y: 1 }}
+                >
+                  <PinMarker color="#3AF8FF" />
+                </Marker>
+              );
+            })}
+            {activeToggle === 'cafes' && cafes.map((cafe) => {
+              const coords = getMarkerCoords(cafe);
+              if (!coords) return null;
+              return (
+                <Marker
+                  key={cafe.id}
+                  coordinate={coords}
+                  onPress={() => handleCafeClick(cafe)}
+                  tracksViewChanges={markersTrackViewChanges}
+                  anchor={{ x: 0.5, y: 1 }}
+                >
+                  <PinMarker color="#FF0073" />
+                </Marker>
+              );
+            })}
+            {activeToggle === 'foods' && foods.map((food) => {
+              const coords = getMarkerCoords(food);
+              if (!coords) return null;
+              return (
+                <Marker
+                  key={food.id}
+                  coordinate={coords}
+                  onPress={() => handleFoodClick(food)}
+                  tracksViewChanges={markersTrackViewChanges}
+                  anchor={{ x: 0.5, y: 1 }}
+                >
+                  <PinMarker color="#FF0073" />
+                </Marker>
+              );
+            })}
+          </MapView>
         )}
         
         {/* Bottom Sheet */}
@@ -2785,7 +1602,7 @@ const MapScreen = ({ navigation, route }) => {
                       onPress={handleCloseCafeDetail}
                       style={styles.cafeDetailCloseButton}
                     >
-                      <Ionicons name="close" size={24} color={COLORS.SECONDARY} />
+                      <Ionicons name="close" size={24} color={colors.TEXT_SECONDARY} />
                     </TouchableOpacity>
                   </View>
                   
@@ -2868,7 +1685,7 @@ const MapScreen = ({ navigation, route }) => {
                   {selectedCafe.runningCertificationBenefit && (
                     <View style={styles.cafeDetailSection}>
                       <View style={styles.cafeDetailSectionTitleRow}>
-                        <Ionicons name="gift-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Ionicons name="gift-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                         <Text style={styles.cafeDetailSectionTitle}>러닝인증 혜택</Text>
                       </View>
                       <View style={[styles.cafeDetailSectionContent, styles.cafeBenefit]}>
@@ -2884,7 +1701,7 @@ const MapScreen = ({ navigation, route }) => {
                     <View style={styles.cafeDetailSection}>
                       <View style={styles.cafeDetailAddressRow}>
                         <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 0, marginRight: 8 }]}>
-                          <Ionicons name="location-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                          <Ionicons name="location-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                           <Text style={[styles.cafeDetailSectionTitle, { marginBottom: 0 }]}>주소</Text>
                         </View>
                         <Text style={styles.cafeDetailText}>{selectedCafe.address}</Text>
@@ -2896,7 +1713,7 @@ const MapScreen = ({ navigation, route }) => {
                   {selectedCafe.operatingHours && (
                     <View style={styles.cafeDetailSection}>
                       <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 8 }]}>
-                        <Ionicons name="time-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Ionicons name="time-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                         <Text style={styles.cafeDetailSectionTitle}>운영시간</Text>
                       </View>
                       <View style={styles.cafeDetailSectionContent}>
@@ -2944,7 +1761,7 @@ const MapScreen = ({ navigation, route }) => {
                       onPress={handleCloseFoodDetail}
                       style={styles.cafeDetailCloseButton}
                     >
-                      <Ionicons name="close" size={24} color={COLORS.SECONDARY} />
+                      <Ionicons name="close" size={24} color={colors.TEXT_SECONDARY} />
                     </TouchableOpacity>
                   </View>
                   
@@ -3021,7 +1838,7 @@ const MapScreen = ({ navigation, route }) => {
                   {selectedFood.runningCertificationBenefit && (
                     <View style={styles.cafeDetailSection}>
                       <View style={styles.cafeDetailSectionTitleRow}>
-                        <Ionicons name="gift-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Ionicons name="gift-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                         <Text style={styles.cafeDetailSectionTitle}>러닝인증 혜택</Text>
                       </View>
                       <View style={[styles.cafeDetailSectionContent, styles.cafeBenefit]}>
@@ -3036,7 +1853,7 @@ const MapScreen = ({ navigation, route }) => {
                     <View style={styles.cafeDetailSection}>
                       <View style={styles.cafeDetailAddressRow}>
                         <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 0, marginRight: 8 }]}>
-                          <Ionicons name="location-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                          <Ionicons name="location-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                           <Text style={[styles.cafeDetailSectionTitle, { marginBottom: 0 }]}>주소</Text>
                         </View>
                         <Text style={styles.cafeDetailText}>{selectedFood.address}</Text>
@@ -3047,7 +1864,7 @@ const MapScreen = ({ navigation, route }) => {
                   {selectedFood.operatingHours && (
                     <View style={styles.cafeDetailSection}>
                       <View style={[styles.cafeDetailSectionTitleRow, { marginBottom: 8 }]}>
-                        <Ionicons name="time-outline" size={18} color="#FFFFFF" style={styles.cafeDetailSectionTitleIcon} />
+                        <Ionicons name="time-outline" size={18} color={colors.TEXT} style={styles.cafeDetailSectionTitleIcon} />
                         <Text style={styles.cafeDetailSectionTitle}>운영시간</Text>
                       </View>
                       <View style={styles.cafeDetailSectionContent}>
@@ -3077,11 +1894,11 @@ const MapScreen = ({ navigation, route }) => {
                 <View style={styles.bottomSheetHeader}>
                   {activeToggle === 'events' && (
                     <View style={styles.bottomSheetSearchContainer}>
-                      <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+                      <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} style={styles.searchIcon} />
                       <TextInput
                         style={styles.bottomSheetSearchInput}
                         placeholder="모임 제목, 태그로 검색..."
-                        placeholderTextColor={COLORS.SECONDARY}
+                        placeholderTextColor={colors.TEXT_SECONDARY}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         autoCapitalize="none"
@@ -3092,18 +1909,18 @@ const MapScreen = ({ navigation, route }) => {
                           onPress={() => setSearchQuery('')}
                           style={styles.clearButton}
                         >
-                          <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                          <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
                         </TouchableOpacity>
                       )}
                     </View>
                   )}
                   {activeToggle === 'cafes' && (
                     <View style={styles.bottomSheetSearchContainer}>
-                      <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+                      <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} style={styles.searchIcon} />
                       <TextInput
                         style={styles.bottomSheetSearchInput}
                         placeholder="카페 상호명으로 검색..."
-                        placeholderTextColor={COLORS.SECONDARY}
+                        placeholderTextColor={colors.TEXT_SECONDARY}
                         value={cafeSearchQuery}
                         onChangeText={setCafeSearchQuery}
                         autoCapitalize="none"
@@ -3114,18 +1931,18 @@ const MapScreen = ({ navigation, route }) => {
                           onPress={() => setCafeSearchQuery('')}
                           style={styles.clearButton}
                         >
-                          <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                          <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
                         </TouchableOpacity>
                       )}
                     </View>
                   )}
                   {activeToggle === 'foods' && (
                     <View style={styles.bottomSheetSearchContainer}>
-                      <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.searchIcon} />
+                      <Ionicons name="search" size={20} color={colors.TEXT_SECONDARY} style={styles.searchIcon} />
                       <TextInput
                         style={styles.bottomSheetSearchInput}
                         placeholder="러닝푸드 상호명으로 검색..."
-                        placeholderTextColor={COLORS.SECONDARY}
+                        placeholderTextColor={colors.TEXT_SECONDARY}
                         value={foodSearchQuery}
                         onChangeText={setFoodSearchQuery}
                         autoCapitalize="none"
@@ -3136,7 +1953,7 @@ const MapScreen = ({ navigation, route }) => {
                           onPress={() => setFoodSearchQuery('')}
                           style={styles.clearButton}
                         >
-                          <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
+                          <Ionicons name="close-circle" size={20} color={colors.TEXT_SECONDARY} />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -3167,7 +1984,7 @@ const MapScreen = ({ navigation, route }) => {
                                 style={styles.showMoreRow}
                               >
                                 <Text style={styles.showMoreButtonText}>더보기</Text>
-                                <Ionicons name="chevron-down" size={20} color={COLORS.PRIMARY} />
+                                <Ionicons name="chevron-down" size={20} color={colors.PRIMARY} />
                               </TouchableOpacity>
                             )}
                           </>
@@ -3210,7 +2027,7 @@ const MapScreen = ({ navigation, route }) => {
                                     )}
                                     {cafe.runningCertificationBenefit && (
                                       <View style={styles.cafeBenefit}>
-                                        <Ionicons name="gift" size={14} color={COLORS.PRIMARY} />
+                                        <Ionicons name="gift" size={14} color={colors.PRIMARY} />
                                         <Text style={styles.cafeBenefitText}>
                                           {cafe.runningCertificationBenefit}
                                         </Text>
@@ -3226,7 +2043,7 @@ const MapScreen = ({ navigation, route }) => {
                                 style={styles.showMoreButton}
                               >
                                 <Text style={styles.showMoreButtonText}>더보기</Text>
-                                <Ionicons name="chevron-down" size={20} color={COLORS.PRIMARY} />
+                                <Ionicons name="chevron-down" size={20} color={colors.PRIMARY} />
                               </TouchableOpacity>
                             )}
                           </>
@@ -3268,7 +2085,7 @@ const MapScreen = ({ navigation, route }) => {
                                     )}
                                     {food.runningCertificationBenefit && (
                                       <View style={styles.cafeBenefit}>
-                                        <Ionicons name="gift" size={14} color={COLORS.PRIMARY} />
+                                        <Ionicons name="gift" size={14} color={colors.PRIMARY} />
                                         <Text style={styles.cafeBenefitText}>
                                           {food.runningCertificationBenefit}
                                         </Text>
@@ -3284,7 +2101,7 @@ const MapScreen = ({ navigation, route }) => {
                                 style={styles.showMoreButton}
                               >
                                 <Text style={styles.showMoreButtonText}>더보기</Text>
-                                <Ionicons name="chevron-down" size={20} color={COLORS.PRIMARY} />
+                                <Ionicons name="chevron-down" size={20} color={colors.PRIMARY} />
                               </TouchableOpacity>
                             )}
                           </>
@@ -3318,7 +2135,7 @@ const MapScreen = ({ navigation, route }) => {
               accessibilityRole="button"
               accessibilityLabel="이미지 전체보기 닫기"
             >
-              <Ionicons name="close" size={30} color="#FFFFFF" />
+              <Ionicons name="close" size={30} color={colors.TEXT} />
             </TouchableOpacity>
 
             <FlatList
@@ -3366,10 +2183,10 @@ const MapScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDE7',
+    backgroundColor: colors.BACKGROUND,
   },
   webview: {
     flex: 1,
@@ -3389,8 +2206,8 @@ const styles = StyleSheet.create({
   toggleContainer: {
     position: 'absolute',
     left: 20,
-    right: 20,
     flexDirection: 'row',
+    alignSelf: 'flex-start',
     backgroundColor: 'transparent',
     borderRadius: 0,
     padding: 0,
@@ -3400,46 +2217,45 @@ const styles = StyleSheet.create({
     // 그림자는 각 toggleButton에만 둠.
   },
   toggleButton: {
-    flex: 1,
-    borderRadius: 20,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   toggleInactiveIos: {
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
   },
   toggleInactiveAndroid: {
-    backgroundColor: '#1F1F24',
-    elevation: 0,
+    backgroundColor: colors.SURFACE,
+    elevation: 3,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#333339',
+    borderColor: colors.BORDER,
   },
   toggleActiveIos: {
-    backgroundColor: '#3AF8FF',
+    backgroundColor: colors.PRIMARY,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
   },
   toggleActiveAndroid: {
-    backgroundColor: '#3AF8FF',
-    elevation: 0,
+    backgroundColor: colors.PRIMARY,
+    elevation: 4,
     borderWidth: 0,
   },
   toggleText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: colors.TEXT,
+    fontSize: 14,
     fontWeight: '500',
   },
   toggleTextActive: {
     color: '#000000',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
   },
   runningStartFab: {
@@ -3447,7 +2263,7 @@ const styles = StyleSheet.create({
     right: 20,
     bottom: 110,
     zIndex: 220,
-    backgroundColor: '#3AF8FF',
+    backgroundColor: colors.PRIMARY,
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -3466,7 +2282,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   bottomSheetBackground: {
-    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (COLORS.SURFACE)
+    backgroundColor: colors.SURFACE,
     // iOS 그림자
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -3479,12 +2295,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: '#1F1F24', // bottombar 배경색과 동일 (COLORS.SURFACE)
+    backgroundColor: colors.SURFACE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
   bottomSheetIndicator: {
-    backgroundColor: '#666666',
+    backgroundColor: colors.BORDER,
     width: 50,
     height: 4,
     borderRadius: 2,
@@ -3499,22 +2315,22 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   bottomSheetSearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#171719',
+    backgroundColor: colors.CARD,
     borderRadius: 20,
     paddingHorizontal: 12,
     height: 44,
     width: '100%',
     borderWidth: 0.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.BORDER,
   },
   bottomSheetSearchInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 14,
   },
   bottomSheetBody: {
@@ -3551,7 +2367,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'stretch',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#333333',
+    borderTopColor: colors.BORDER,
     marginTop: 0,
     marginBottom: 0,
   },
@@ -3563,24 +2379,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 8,
     marginBottom: 8,
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     marginHorizontal: 16,
   },
   showMoreButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3AF8FF', // COLORS.PRIMARY
+    color: colors.PRIMARY,
     marginRight: 8,
   },
   bottomSheetPlaceholder: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#171719',
+    backgroundColor: colors.CARD,
     borderRadius: 8,
     paddingHorizontal: 12,
     marginHorizontal: 20,
@@ -3592,20 +2408,20 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 14,
   },
   clearButton: {
     marginLeft: 8,
     padding: 4,
   },
-  cafeCardContainer: {
+  emptyContainer: {
     padding: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyText: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
   cafeCardContainer: {
@@ -3613,7 +2429,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   cafeCard: {
-    backgroundColor: '#171719',
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     overflow: 'hidden',
     flexDirection: 'row',
@@ -3621,7 +2437,7 @@ const styles = StyleSheet.create({
   cafeImage: {
     width: 100,
     height: 100,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   cafeCardContent: {
     flex: 1,
@@ -3629,13 +2445,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   cafeName: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
   },
   cafeDescription: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
     marginBottom: 8,
   },
@@ -3645,12 +2461,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cafeBenefitText: {
-    color: '#3AF8FF', // COLORS.PRIMARY
+    color: colors.PRIMARY,
     fontSize: 12,
     marginLeft: 4,
   },
   cafeDetailBenefitText: {
-    color: '#3AF8FF',
+    color: colors.PRIMARY,
     fontSize: 16,
     marginLeft: 0,
   },
@@ -3670,7 +2486,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   cafeDetailName: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 26,
     fontWeight: '700',
     flexShrink: 1,
@@ -3693,7 +2509,7 @@ const styles = StyleSheet.create({
     width: Dimensions.get('window').width - 32,
     height: Dimensions.get('window').width - 32,
     borderRadius: 12,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   cafeDetailImageTouchable: {
     width: Dimensions.get('window').width - 32,
@@ -3710,19 +2526,19 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#666666',
+    backgroundColor: colors.BORDER,
   },
   cafeImagePaginationDotActive: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#3AF8FF', // COLORS.PRIMARY
+    backgroundColor: colors.PRIMARY,
   },
   cafeDetailSection: {
     marginBottom: 20,
   },
   cafeDetailDescription: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
     lineHeight: 22,
     marginBottom: 10,
@@ -3740,13 +2556,13 @@ const styles = StyleSheet.create({
     paddingLeft: 24,
   },
   cafeDetailSectionTitle: {
-    color: '#FFFFFF', // 흰색
+    color: colors.TEXT,
     fontSize: 18,
     fontWeight: '700',
     marginRight: 0, // 주소 타이틀 옆에 내용이 오도록
   },
   cafeDetailText: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
     lineHeight: 22,
   },
@@ -3764,17 +2580,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   operatingHoursDate: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 16,
     minWidth: 36,
   },
   operatingHoursDay: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 16,
     minWidth: 48,
   },
   operatingHoursTime: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
   },
   mapSearchWrapper: {
@@ -3795,24 +2611,24 @@ const styles = StyleSheet.create({
     height: 52,
   },
   mapSearchContainerIos: {
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.7,
     shadowRadius: 3,
   },
   mapSearchContainerAndroid: {
-    backgroundColor: '#1F1F24',
-    elevation: 0,
+    backgroundColor: colors.SURFACE,
+    elevation: 4,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#333339',
+    borderColor: colors.BORDER,
   },
   mapSearchIcon: {
     marginRight: 10,
   },
   mapSearchInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
   },
   currentLocationButton: {
@@ -3829,17 +2645,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   currentLocationButtonInnerIos: {
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.7,
     shadowRadius: 3,
   },
   currentLocationButtonInnerAndroid: {
-    backgroundColor: '#1F1F24',
-    elevation: 0,
+    backgroundColor: colors.SURFACE,
+    elevation: 4,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#333339',
+    borderColor: colors.BORDER,
   },
   currentLocationIcon: {
     width: 23,
@@ -3864,17 +2680,17 @@ const styles = StyleSheet.create({
     zIndex: 199,
   },
   searchResultsDropdownIos: {
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
   searchResultsDropdownAndroid: {
-    backgroundColor: '#1F1F24',
-    elevation: 0,
+    backgroundColor: colors.SURFACE,
+    elevation: 6,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#333339',
+    borderColor: colors.BORDER,
   },
   searchResultsList: {
     maxHeight: 300,
@@ -3884,7 +2700,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   searchResultIcon: {
     marginRight: 12,
@@ -3893,17 +2709,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchResultTitle: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
   },
   searchResultSubtitle: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
   },
   searchResultCategory: {
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     fontSize: 11,
     marginTop: 2,
   },
@@ -3914,24 +2730,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#000000',
+    backgroundColor: colors.BACKGROUND,
     zIndex: 300,
   },
   searchModeHeader: {
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.SURFACE,
     paddingBottom: 16,
     paddingHorizontal: 20,
   },
   searchModeSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(31, 31, 36, 0.95)',
+    backgroundColor: colors.SURFACE,
     borderRadius: 26,
     paddingHorizontal: 16,
     height: 52,
     marginTop: 10,
     borderWidth: 0.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.BORDER,
   },
   searchModeBackButton: {
     width: 44,
@@ -3942,7 +2758,7 @@ const styles = StyleSheet.create({
   },
   searchModeInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
   },
   searchModeLoading: {
@@ -3962,7 +2778,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: colors.BORDER,
   },
   searchModeResultIcon: {
     marginRight: 12,
@@ -3971,17 +2787,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchModeResultTitle: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
   searchModeResultSubtitle: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
   searchModeResultCategory: {
-    color: '#3AF8FF',
+    color: colors.PRIMARY,
     fontSize: 12,
     marginTop: 4,
   },
@@ -3991,7 +2807,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchModeEmptyText: {
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     fontSize: 14,
   },
   searchBackButton: {
@@ -4034,7 +2850,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   imageViewerCounterText: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 13,
     fontWeight: '600',
   },

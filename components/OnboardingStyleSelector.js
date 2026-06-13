@@ -1,23 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  TEXT_SECONDARY: '#666666',
-  ERROR: '#FF4444',
-  SUCCESS: '#00FF88',
-};
 
 import { RUNNING_STYLE_OPTIONS } from '../constants/onboardingOptions';
 
 const OnboardingStyleSelector = ({ value = [], onChange }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const toggleArrayItem = (array, item) => {
     if (array.includes(item)) {
       return array.filter(i => i !== item);
@@ -53,7 +45,7 @@ const OnboardingStyleSelector = ({ value = [], onChange }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     width: '85%',
     alignSelf: 'center',
@@ -62,27 +54,27 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 6,
-    color: '#ffffff',
+    color: colors.TEXT,
   },
   stepSubtitle: {
     fontSize: 15,
     marginBottom: 30,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
 
   optionsContainer: {
     gap: 12,
   },
   styleCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 15,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
   },
   selectedCard: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.SURFACE,
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.SURFACE,
   },
   styleContent: {
     flex: 1,
@@ -90,15 +82,15 @@ const styles = StyleSheet.create({
   styleTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   styleDescription: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'left',
     lineHeight: 22,
   },
 });
 
-export default OnboardingStyleSelector; 
+export default OnboardingStyleSelector;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,26 +25,12 @@ import MannerDistanceDisplay from '../components/MannerDistanceDisplay';
 import blacklistService from '../services/blacklistService';
 import firestoreService from '../services/firestoreService';
 import { useAuth } from '../contexts/AuthContext';
-
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-  BORDER: '#374151',
-  ICON_DEFAULT: '#9CA3AF',
-  TAG_GREEN: '#B6F5C9',
-  TAG_YELLOW: '#FFF6B2',
-  TAG_PURPLE: '#E2D6FF',
-  TAG_PINK: '#FFD6E7',
-  TAG_BLUE: '#B6E6F5',
-  BADGE: '#1EB8C6',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const ParticipantScreen = ({ route, navigation }) => {
   const { participant } = route.params;
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   
   const [communityStats, setCommunityStats] = useState({
@@ -239,7 +225,7 @@ const ParticipantScreen = ({ route, navigation }) => {
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#ffffff" />
+          <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>프로필</Text>
         <View style={styles.headerSpacer} />
@@ -285,7 +271,7 @@ const ParticipantScreen = ({ route, navigation }) => {
                     activeOpacity={0.8}
                   >
                     <View style={styles.socialHandleContainer}>
-                      <Ionicons name="logo-instagram" size={12} color={COLORS.TEXT} style={styles.socialHandleIcon} />
+                      <Ionicons name="logo-instagram" size={12} color={colors.TEXT} style={styles.socialHandleIcon} />
                       <Text style={styles.socialHandleText}>{participantInstagramId.replace(/^@+/, '')}</Text>
                     </View>
                   </TouchableOpacity>
@@ -331,7 +317,7 @@ const ParticipantScreen = ({ route, navigation }) => {
         {participant && (
           <View style={styles.activityCard}>
             <View style={styles.activityHeader}>
-              <Ionicons name="people" size={24} color={COLORS.PRIMARY} style={{ marginRight: 8 }} />
+              <Ionicons name="people" size={24} color={colors.PRIMARY} style={{ marginRight: 8 }} />
               <Text style={styles.activityTitle}>커뮤니티 활동</Text>
             </View>
             <View style={styles.activityRowGrid}>
@@ -358,7 +344,7 @@ const ParticipantScreen = ({ route, navigation }) => {
             {/* 긍정적 태그 */}
             <View style={styles.tagSection}>
               <View style={styles.tagSectionHeader}>
-                <Ionicons name="star" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="star" size={16} color={colors.PRIMARY} />
                 <Text style={styles.tagSectionTitle}>좋았던 점</Text>
                 <Text style={styles.tagCountText}>({communityStats.tags.length}개)</Text>
               </View>
@@ -388,13 +374,13 @@ const ParticipantScreen = ({ route, navigation }) => {
         {/* 러닝 매칭 정보 */}
         <View style={styles.infoCard}>
           <View style={styles.infoCardTitleRow}>
-            <Ionicons name="extension-puzzle" size={22} color={COLORS.PRIMARY} style={{ marginRight: 8 }} />
+            <Ionicons name="extension-puzzle" size={22} color={colors.PRIMARY} style={{ marginRight: 8 }} />
             <Text style={styles.infoCardTitle}>러닝 매칭 정보</Text>
           </View>
           {/* 선호 코스 */}
           <View style={styles.infoRowCol}>
             <View style={styles.infoRowIconTitle}>
-              <Ionicons name="location-outline" size={18} color={'#fff'} style={{ marginRight: 6 }} />
+              <Ionicons name="location-outline" size={18} color={colors.TEXT} style={{ marginRight: 6 }} />
               <Text style={styles.infoLabelWhite}>선호 코스</Text>
             </View>
             <View style={styles.tagRow}>
@@ -408,7 +394,7 @@ const ParticipantScreen = ({ route, navigation }) => {
           {/* 선호 시간 */}
           <View style={styles.infoRowCol}>
             <View style={styles.infoRowIconTitle}>
-              <Ionicons name="time-outline" size={18} color={'#fff'} style={{ marginRight: 6 }} />
+              <Ionicons name="time-outline" size={18} color={colors.TEXT} style={{ marginRight: 6 }} />
               <Text style={styles.infoLabelWhite}>선호 시간</Text>
             </View>
             <View style={styles.tagRow}>
@@ -422,7 +408,7 @@ const ParticipantScreen = ({ route, navigation }) => {
           {/* 러닝 스타일 */}
           <View style={styles.infoRowCol}>
             <View style={styles.infoRowIconTitle}>
-              <Ionicons name="flash-outline" size={18} color={'#fff'} style={{ marginRight: 6 }} />
+              <Ionicons name="flash-outline" size={18} color={colors.TEXT} style={{ marginRight: 6 }} />
               <Text style={styles.infoLabelWhite}>러닝 스타일</Text>
             </View>
             <View style={styles.tagRow}>
@@ -436,7 +422,7 @@ const ParticipantScreen = ({ route, navigation }) => {
           {/* 선호 계절 */}
           <View style={styles.infoRowCol}>
             <View style={styles.infoRowIconTitle}>
-              <Ionicons name="cloud-outline" size={18} color={'#fff'} style={{ marginRight: 6 }} />
+              <Ionicons name="cloud-outline" size={18} color={colors.TEXT} style={{ marginRight: 6 }} />
               <Text style={styles.infoLabelWhite}>선호 계절</Text>
             </View>
             <View style={styles.tagRow}>
@@ -450,7 +436,7 @@ const ParticipantScreen = ({ route, navigation }) => {
           {/* 러닝 목표 */}
           <View style={styles.infoRowCol}>
             <View style={styles.infoRowIconTitle}>
-              <Ionicons name="trophy-outline" size={18} color={'#fff'} style={{ marginRight: 6 }} />
+              <Ionicons name="trophy-outline" size={18} color={colors.TEXT} style={{ marginRight: 6 }} />
               <Text style={styles.infoLabelWhite}>러닝 목표</Text>
             </View>
             <View style={styles.tagRow}>
@@ -474,7 +460,7 @@ const ParticipantScreen = ({ route, navigation }) => {
               <Ionicons 
                 name="ban-outline" 
                 size={20} 
-                color={isBlocking ? COLORS.SECONDARY : "#FF6B6B"} 
+                color={isBlocking ? colors.TEXT_SECONDARY : "#FF6B6B"} 
                 style={{ marginRight: 8 }}
               />
               <Text style={[styles.blockButtonText, isBlocking && styles.blockButtonTextDisabled]}>
@@ -488,15 +474,15 @@ const ParticipantScreen = ({ route, navigation }) => {
         <View style={styles.infoSection}>
           <Text style={styles.infoTitle}>💡 이 사용자와 함께 뛰어보세요!</Text>
           <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+            <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
             <Text style={styles.infoText}>러닝 매너가 좋은 사용자입니다</Text>
           </View>
           <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+            <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
             <Text style={styles.infoText}>활발한 커뮤니티 활동을 보여줍니다</Text>
           </View>
           <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+            <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
             <Text style={styles.infoText}>함께 러닝하면서 새로운 친구를 만들어보세요</Text>
           </View>
         </View>
@@ -505,10 +491,10 @@ const ParticipantScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -523,7 +509,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   headerSpacer: {
     width: 32,
@@ -534,7 +520,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   profileCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -572,11 +558,11 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginRight: 12,
   },
   levelBadge: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -584,11 +570,11 @@ const styles = StyleSheet.create({
   levelText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: '#000000',
   },
   socialHandleText: {
     fontSize: 12,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   profileImageSocialSlot: {
     marginTop: 10,
@@ -609,27 +595,27 @@ const styles = StyleSheet.create({
   },
   joinDate: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 12,
   },
   basicInfo: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 12,
   },
   bio: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 24,
   },
   mannerDistanceCard: {
     marginBottom: 16,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 8,
   },
   activityCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -642,7 +628,7 @@ const styles = StyleSheet.create({
   activityTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -661,22 +647,22 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   statLabel: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
   },
   infoSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
   },
   infoTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 16,
   },
   infoItem: {
@@ -686,13 +672,13 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 12,
     flex: 1,
   },
   // 러닝 매칭 정보 스타일
   infoCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -705,7 +691,7 @@ const styles = StyleSheet.create({
   infoCardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   infoRowCol: {
     marginBottom: 16,
@@ -718,7 +704,7 @@ const styles = StyleSheet.create({
   infoLabelWhite: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   tagRow: {
     flexDirection: 'row',
@@ -740,7 +726,7 @@ const styles = StyleSheet.create({
   tagTextOutline: {
     fontSize: 15,
     fontWeight: '200',
-    color: '#fff',
+    color: colors.TEXT,
   },
   tagSection: {
     marginTop: 16,
@@ -754,17 +740,17 @@ const styles = StyleSheet.create({
   tagSectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   tagCountText: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 4,
   },
   tagCountBadge: {
     fontSize: 10,
-    color: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    color: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 6,
@@ -773,7 +759,7 @@ const styles = StyleSheet.create({
   },
   noTagsText: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontStyle: 'italic',
   },
   negativeTagOutline: {
@@ -809,12 +795,12 @@ const styles = StyleSheet.create({
   activityNumPrimary: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginBottom: 2,
   },
   activityLabel: {
     fontSize: 15,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 2,
   },
   activityRowGrid: {
@@ -834,12 +820,12 @@ const styles = StyleSheet.create({
   activityNumWhite: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.TEXT,
     marginBottom: 2,
   },
   // 차단 버튼 스타일
   blockSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -856,7 +842,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   blockButtonDisabled: {
-    borderColor: COLORS.SECONDARY,
+    borderColor: colors.TEXT_SECONDARY,
     opacity: 0.6,
   },
   blockButtonText: {
@@ -865,7 +851,7 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
   },
   blockButtonTextDisabled: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
 });
 

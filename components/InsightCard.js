@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,18 +6,11 @@ import {
   Platform,
 } from 'react-native';
 import { getCourseName, TIME_OPTIONS } from '../constants/onboardingOptions';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const InsightCard = ({ user, weather }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   if (!user) return null;
 
   // 현재 시간에 따른 인사말
@@ -35,29 +28,29 @@ const InsightCard = ({ user, weather }) => {
   const getWeeklyProgress = () => {
     // 커뮤니티 활동 데이터에서 총참여 횟수 가져오기
     const totalParticipated = user.communityActivity?.totalParticipated || 0;
-    
+
     // 목표 단계별 설정 (5의 배수)
     const goalSteps = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100];
-    
+
     // 현재 참여 횟수에 맞는 다음 목표 찾기
     let targetCount = 5; // 기본 목표
-    
+
     for (let i = 0; i < goalSteps.length; i++) {
       if (totalParticipated < goalSteps[i]) {
         targetCount = goalSteps[i];
         break;
       }
     }
-    
+
     // 100번 이상의 경우 다음 단계 목표 설정 (10의 배수로 증가)
     if (totalParticipated >= 100) {
       const nextGoal = Math.ceil(totalParticipated / 10) * 10;
       targetCount = nextGoal;
     }
-    
-    return { 
-      current: totalParticipated, 
-      total: targetCount 
+
+    return {
+      current: totalParticipated,
+      total: targetCount
     };
   };
 
@@ -65,11 +58,11 @@ const InsightCard = ({ user, weather }) => {
   const getPreferredCourse = () => {
     // 온보딩에서 선택한 코스 배열 가져오기
     const preferredCourses = user.preferredCourses || ['banpo'];
-    
+
     // 배열에서 임의로 하나 선택
     const randomIndex = Math.floor(Math.random() * preferredCourses.length);
     const selectedCourse = preferredCourses[randomIndex];
-    
+
     // getCourseName 함수를 사용하여 코스 이름 반환
     return getCourseName(selectedCourse);
   };
@@ -78,11 +71,11 @@ const InsightCard = ({ user, weather }) => {
   const getOptimalTime = () => {
     const time = user.time || 'morning';
     const goal = user.goal || 'habit';
-    
+
     // TIME_OPTIONS에서 해당 시간 옵션 찾기
     const timeOption = TIME_OPTIONS.find(t => t.id === time);
     if (!timeOption) return '오전 7-9시';
-    
+
     // 시간에 따른 오전/오후 구분
     const timeRange = timeOption.time;
     if (time === 'dawn' || time === 'morning') {
@@ -94,7 +87,7 @@ const InsightCard = ({ user, weather }) => {
 
   // 사용자 이름 표시
   const getUserDisplayName = () => {
-    
+
     // user 객체에서 displayName 확인
     if (user?.displayName) {
       return user.displayName;
@@ -102,7 +95,7 @@ const InsightCard = ({ user, weather }) => {
     if (user?.name) {
       return user.name;
     }
-    
+
     return '사용자';
   };
 
@@ -120,11 +113,11 @@ const InsightCard = ({ user, weather }) => {
             <Text style={styles.progressText}>{progress.current}/{progress.total}</Text>
           </View>
           <View style={styles.progressBar}>
-            <View 
+            <View
               style={[
-                styles.progressFill, 
+                styles.progressFill,
                 { width: `${(progress.current / progress.total) * 100}%` }
-              ]} 
+              ]}
             />
           </View>
         </View>
@@ -141,16 +134,16 @@ const InsightCard = ({ user, weather }) => {
             <Text style={styles.infoValue}>{getOptimalTime()}</Text>
           </View>
         </View>
-        
+
 
       </View>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     marginHorizontal: 0,
     marginTop: 16,
     borderRadius: 12,
@@ -163,7 +156,7 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.SURFACE,
+    borderBottomColor: colors.SURFACE,
   },
 
 
@@ -173,7 +166,7 @@ const styles = StyleSheet.create({
   greetingText: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard',
   },
   progressSection: {
@@ -188,29 +181,29 @@ const styles = StyleSheet.create({
   progressLabel: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   progressText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Medium',
   },
   progressBar: {
     height: 6,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 3,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 3,
   },
   infoGrid: {
     flexDirection: 'row',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     padding: 4,
     alignItems: 'center',
@@ -223,22 +216,22 @@ const styles = StyleSheet.create({
   infoDivider: {
     width: 1,
     height: 40,
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.BORDER,
     marginHorizontal: 8,
   },
   infoLabel: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 4,
     fontFamily: 'Pretendard',
   },
   infoValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
 
 });
 
-export default InsightCard; 
+export default InsightCard;

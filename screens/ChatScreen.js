@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,39 +22,30 @@ import { useCommunity } from '../contexts/CommunityContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import firestoreService from '../services/firestoreService';
 import pushNotificationService from '../services/pushNotificationService';
-
-// NetGill 디자인 시스템 색상
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-  MESSAGE_SENT: '#3AF8FF',
-  MESSAGE_RECEIVED: '#1F1F24',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const ChatScreen = ({ route, navigation }) => {
   const { chatRoom: initialChatRoom, returnToCommunity } = route.params;
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const statusBarPadding = Platform.OS === 'android' ? insets.top : 0;
-  const { 
-    addChatMessage, 
-    handleChatRoomClick, 
-    allEvents, 
+  const {
+    addChatMessage,
+    handleChatRoomClick,
+    allEvents,
     chatRooms,
-    addConsecutiveInfoToMessages 
+    addConsecutiveInfoToMessages
   } = useEvents();
-  
+
   // 실시간 채팅방 데이터 사용
   const chatRoom = chatRooms.find(room => room.id === initialChatRoom.id) || initialChatRoom;
-  
+
   // 모임 데이터에서 실제 참여자 수 가져오기
   const event = allEvents.find(e => e.id === chatRoom.eventId);
-  const actualParticipantCount = event?.participants ? 
-    (Array.isArray(event.participants) ? event.participants.length : event.participants) : 
+  const actualParticipantCount = event?.participants ?
+    (Array.isArray(event.participants) ? event.participants.length : event.participants) :
     (Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 1);
   const { createChatNotification } = useCommunity();
   const { isNotificationTypeEnabled } = useNotificationSettings();
@@ -79,29 +70,29 @@ const ChatScreen = ({ route, navigation }) => {
     }
 
     console.log('🔍 ChatScreen - 메시지 실시간 구독 시작:', chatRoom.id);
-    
+
     const unsubscribe = firestoreService.onChatMessagesSnapshot(chatRoom.id, async (snapshot) => {
       const firestoreMessages = [];
-      
+
       // 각 메시지에 발신자 프로필 정보 추가
       for (const doc of snapshot.docs) {
         const messageData = doc.data();
-        
+
         // 발신자 프로필 정보 가져오기 - '나'인 경우 실제 닉네임으로 교체
         let senderProfileImage = null;
         let senderName = messageData.sender || '익명';
-        
+
         try {
           if (messageData.senderId) {
             const userProfile = await firestoreService.getUserProfile(messageData.senderId);
             if (userProfile) {
               senderProfileImage = userProfile.profileImage || null;
-              
+
               // '나'인 경우 실제 닉네임으로 교체
               if (messageData.sender === '나') {
-                senderName = userProfile.profile?.nickname || 
-                            userProfile.profile?.displayName || 
-                            userProfile.displayName || 
+                senderName = userProfile.profile?.nickname ||
+                            userProfile.profile?.displayName ||
+                            userProfile.displayName ||
                             '사용자';
                 console.log('🔍 ChatScreen - 기존 메시지 sender 교체:', {
                   original: messageData.sender,
@@ -110,9 +101,9 @@ const ChatScreen = ({ route, navigation }) => {
                   messageId: doc.id
                 });
               } else {
-                senderName = userProfile.profile?.nickname || 
-                            userProfile.profile?.displayName || 
-                            messageData.sender || 
+                senderName = userProfile.profile?.nickname ||
+                            userProfile.profile?.displayName ||
+                            messageData.sender ||
                             '익명';
               }
             }
@@ -120,7 +111,7 @@ const ChatScreen = ({ route, navigation }) => {
         } catch (error) {
           console.warn('⚠️ 메시지 발신자 프로필 조회 실패:', messageData.senderId, error);
         }
-        
+
         const processedMessage = {
           id: doc.id,
           text: messageData.text || '',
@@ -130,16 +121,16 @@ const ChatScreen = ({ route, navigation }) => {
           timestamp: messageData.timestamp?.toDate?.() || messageData.timestamp || new Date(),
           type: messageData.senderId === user?.uid ? 'sent' : 'received'
         };
-        
+
         firestoreMessages.push(processedMessage);
       }
-      
+
       // 시간순으로 정렬
       firestoreMessages.sort((a, b) => a.timestamp - b.timestamp);
-      
+
       // 메시지 연속성 정보 추가
       const messagesWithConsecutiveInfo = addConsecutiveInfoToMessages(firestoreMessages);
-      
+
       setMessages(messagesWithConsecutiveInfo);
       setLoadingMessages(false);
       console.log('✅ ChatScreen - 메시지 로드 완료:', {
@@ -205,7 +196,7 @@ const ChatScreen = ({ route, navigation }) => {
             try {
               console.log('🔍 참여자 프로필 조회 중:', participantId);
               const userProfile = await firestoreService.getUserProfile(participantId);
-              
+
               if (userProfile) {
                 const participantInfo = {
                   id: participantId,
@@ -214,14 +205,14 @@ const ChatScreen = ({ route, navigation }) => {
                   joinDate: event.createdAt || new Date(),
                   isHost: event.organizerId === participantId
                 };
-                
+
                 console.log('✅ 참여자 프로필 조회 성공:', {
                   participantId,
                   name: participantInfo.name,
                   isHost: participantInfo.isHost,
                   organizerId: event.organizerId
                 });
-                
+
                 return participantInfo;
               } else {
                 console.warn('⚠️ 참여자 프로필을 찾을 수 없음:', participantId);
@@ -273,19 +264,19 @@ const ChatScreen = ({ route, navigation }) => {
     // 사용자 프로필 정보 가져오기
     let senderName = '사용자';  // 기본값을 '나'에서 '사용자'로 변경
     let senderProfileImage = null;
-    
+
     try {
       console.log('🔍 ChatScreen - sendMessage에서 사용자 프로필 조회 시작:', user.uid);
       const userProfile = await firestoreService.getUserProfile(user.uid);
       if (userProfile) {
         // 온보딩/프로필에서 입력한 닉네임을 우선적으로 사용
-        senderName = userProfile.profile?.nickname || 
+        senderName = userProfile.profile?.nickname ||
                     userProfile.profile?.displayName ||
-                    userProfile.displayName || 
-                    user?.email?.split('@')[0] || 
+                    userProfile.displayName ||
+                    user?.email?.split('@')[0] ||
                     '사용자';
         senderProfileImage = userProfile.profileImage || null;
-        
+
         console.log('✅ ChatScreen - sendMessage에서 senderName 결정:', {
           uid: user.uid,
           profileNickname: userProfile.profile?.nickname,
@@ -310,23 +301,23 @@ const ChatScreen = ({ route, navigation }) => {
 
     try {
       console.log('🔍 ChatScreen - 메시지 전송 시작:', messageData);
-      
+
       // Firestore에 메시지 저장
       await firestoreService.sendMessage(chatRoom.id, messageData);
-      
+
       // 채팅방의 다른 참여자들에게 알림 전송
       if (chatRoom.participants && Array.isArray(chatRoom.participants)) {
-        const otherParticipants = chatRoom.participants.filter(participantId => 
+        const otherParticipants = chatRoom.participants.filter(participantId =>
           participantId !== user.uid
         );
-        
+
         // 서버에서 푸시 알림을 전송하므로 클라이언트에서는 전송하지 않음
         // Firestore에 메시지가 저장되면 Cloud Function이 자동으로 알림을 전송합니다.
       }
-      
+
       console.log('✅ ChatScreen - 메시지 전송 완료');
       setNewMessage('');
-      
+
       // 자동 스크롤
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -341,7 +332,7 @@ const ChatScreen = ({ route, navigation }) => {
     const now = new Date();
     const messageTime = new Date(timestamp);
     const diffInMinutes = Math.floor((now - messageTime) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return '방금 전';
     if (diffInMinutes < 60) return `${diffInMinutes}분 전`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}시간 전`;
@@ -353,11 +344,11 @@ const ChatScreen = ({ route, navigation }) => {
     const displaySender = item.sender;
     const isMyMessage = item.type === 'sent';
     const isSystemMessage = item.isSystemMessage || item.senderId === 'system';
-    
+
     // EventContext의 연속성 정보 사용
     const showAvatarAndName = !isMyMessage && item.isFirstInGroup; // 그룹의 첫 번째 메시지에만 표시
     const showTime = item.showTimestamp; // EventContext에서 결정한 시간 표시 여부
-    
+
     // 시스템 메시지 렌더링
     if (isSystemMessage) {
       return (
@@ -368,7 +359,7 @@ const ChatScreen = ({ route, navigation }) => {
         </View>
       );
     }
-    
+
     if (isMyMessage) {
       // 내 메시지 (기존 스타일 유지)
       return (
@@ -393,8 +384,8 @@ const ChatScreen = ({ route, navigation }) => {
           {showAvatarAndName ? (
             <View style={styles.profileImageContainer}>
               {item.senderProfileImage ? (
-                <Image 
-                  source={{ uri: item.senderProfileImage }} 
+                <Image
+                  source={{ uri: item.senderProfileImage }}
                   style={styles.largeProfileImage}
                   onError={() => console.warn('⚠️ 발신자 프로필 이미지 로딩 실패:', item.senderProfileImage)}
                 />
@@ -407,14 +398,14 @@ const ChatScreen = ({ route, navigation }) => {
           ) : (
             <View style={styles.avatarSpacer} />
           )}
-          
+
           {/* 메시지 콘텐츠 */}
           <View style={styles.messageContentContainer}>
             {/* 발신자 이름 */}
             {showAvatarAndName ? (
               <Text style={styles.senderNameKakao}>{displaySender}</Text>
             ) : null}
-            
+
             {/* 메시지와 시간 */}
             <View style={styles.messageAndTimeRow}>
               <View style={[styles.messageBubble, styles.otherMessageBubble]}>
@@ -435,24 +426,24 @@ const ChatScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.SURFACE }]}>
-      <StatusBar 
-        backgroundColor={COLORS.SURFACE}
-        barStyle="light-content"
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.SURFACE }]}>
+      <StatusBar
+        backgroundColor={colors.SURFACE}
+        barStyle={isDark ? 'light-content' : 'dark-content'}
       />
-      <KeyboardAvoidingView 
-        style={styles.container} 
+      <KeyboardAvoidingView
+        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* 채팅방 정보 헤더 */}
         <View style={[styles.chatHeader, { paddingTop: 4 + statusBarPadding }]}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.headerBackButton}
             onPress={() => {
               if (returnToCommunity) {
                 // CommunityTab으로 이동
-                navigation.navigate('Main', { 
+                navigation.navigate('Main', {
                   screen: 'CommunityTab',
                   params: { activeTab: '채팅' }
                 });
@@ -462,18 +453,18 @@ const ChatScreen = ({ route, navigation }) => {
               }
             }}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT} />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <View style={styles.chatInfo}>
             <Text style={styles.chatTitle}>{chatRoom.title}</Text>
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.participantsCount}>{actualParticipantCount}명 참여 중</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.infoButton}
               onPress={() => setShowParticipantsModal(true)}
             >
-              <Ionicons name="menu" size={28} color={COLORS.TEXT} />
+              <Ionicons name="menu" size={28} color={colors.TEXT} />
             </TouchableOpacity>
           </View>
         </View>
@@ -503,19 +494,19 @@ const ChatScreen = ({ route, navigation }) => {
             value={newMessage}
             onChangeText={setNewMessage}
             placeholder="메시지를 입력하세요..."
-            placeholderTextColor={COLORS.SECONDARY}
+            placeholderTextColor={colors.TEXT_SECONDARY}
             multiline
             maxLength={500}
           />
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.sendButton, newMessage.trim() ? styles.sendButtonActive : styles.sendButtonInactive]}
             onPress={sendMessage}
             disabled={!newMessage.trim()}
           >
-            <Ionicons 
-              name="send" 
-              size={20} 
-              color={newMessage.trim() ? '#000000' : COLORS.SECONDARY} 
+            <Ionicons
+              name="send"
+              size={20}
+              color={newMessage.trim() ? '#000000' : colors.TEXT_SECONDARY}
             />
           </TouchableOpacity>
         </View>
@@ -532,14 +523,14 @@ const ChatScreen = ({ route, navigation }) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>참여자 목록</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.closeButton}
                 onPress={() => setShowParticipantsModal(false)}
               >
-                <Ionicons name="close" size={24} color={COLORS.TEXT} />
+                <Ionicons name="close" size={24} color={colors.TEXT} />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.participantsList}>
               {loadingParticipants ? (
                 <View style={styles.loadingContainer}>
@@ -551,8 +542,8 @@ const ChatScreen = ({ route, navigation }) => {
                     <View style={styles.participantInfo}>
                       <View style={styles.participantAvatar}>
                         {participant.profileImage ? (
-                          <Image 
-                            source={{ uri: participant.profileImage }} 
+                          <Image
+                            source={{ uri: participant.profileImage }}
                             style={styles.participantAvatarImage}
                             resizeMode="cover"
                             onError={() => console.warn('⚠️ 참여자 프로필 이미지 로딩 실패:', participant.profileImage)}
@@ -592,10 +583,10 @@ const ChatScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   chatHeader: {
     flexDirection: 'row',
@@ -603,7 +594,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 4,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   headerBackButton: {
     padding: 8,
@@ -615,7 +606,7 @@ const styles = StyleSheet.create({
   chatTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   headerRight: {
     flexDirection: 'row',
@@ -623,7 +614,7 @@ const styles = StyleSheet.create({
   },
   participantsCount: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginRight: 6,
   },
   infoButton: {
@@ -643,9 +634,9 @@ const styles = StyleSheet.create({
   },
   systemMessageText: {
     fontSize: 13,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     backgroundColor: 'rgba(58, 248, 255, 0.1)',
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     borderWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -673,7 +664,7 @@ const styles = StyleSheet.create({
   },
   senderName: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 4,
   },
   messageBubble: {
@@ -682,10 +673,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   myMessageBubble: {
-    backgroundColor: COLORS.MESSAGE_SENT,
+    backgroundColor: colors.PRIMARY,
   },
   otherMessageBubble: {
-    backgroundColor: COLORS.MESSAGE_RECEIVED,
+    backgroundColor: colors.SURFACE,
   },
   messageText: {
     fontSize: 16,
@@ -695,18 +686,18 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   otherMessageText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   messageTime: {
     fontSize: 11,
     marginTop: 4,
   },
   myMessageTime: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'right',
   },
   otherMessageTime: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'left',
   },
   inputContainer: {
@@ -714,16 +705,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingVertical: 6,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   textInput: {
     flex: 1,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginRight: 8,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 16,
     maxHeight: 100,
   },
@@ -736,10 +727,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendButtonActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   sendButtonInactive: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   // 모달 스타일
   modalOverlay: {
@@ -749,7 +740,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 16,
     width: '90%',
     maxHeight: '80%',
@@ -762,12 +753,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '500',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   closeButton: {
     padding: 4,
@@ -782,7 +773,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   participantInfo: {
     flexDirection: 'row',
@@ -823,7 +814,7 @@ const styles = StyleSheet.create({
   participantName: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
   },
   hostNameRow: {
@@ -845,15 +836,15 @@ const styles = StyleSheet.create({
   },
   participantStatus: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   participantJoinDate: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   hostBadge: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   loadingContainer: {
@@ -864,7 +855,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   emptyContainer: {
     flex: 1,
@@ -874,7 +865,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   senderProfileContainer: {
     flexDirection: 'row',
@@ -891,7 +882,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: COLORS.SECONDARY,
+    backgroundColor: colors.TEXT_SECONDARY,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -922,7 +913,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.SECONDARY,
+    backgroundColor: colors.TEXT_SECONDARY,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -932,7 +923,7 @@ const styles = StyleSheet.create({
   },
   senderNameKakao: {
     fontSize: 13,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
     fontWeight: '500',
   },
@@ -942,10 +933,10 @@ const styles = StyleSheet.create({
   },
   otherMessageTimeKakao: {
     fontSize: 11,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 8,
     marginBottom: 2,
   },
 });
 
-export default ChatScreen; 
+export default ChatScreen;

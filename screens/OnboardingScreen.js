@@ -25,31 +25,23 @@ import OnboardingStyleSelector from '../components/OnboardingStyleSelector';
 import OnboardingSeasonSelector from '../components/OnboardingSeasonSelector';
 import OnboardingGoalSelector from '../components/OnboardingGoalSelector';
 import OnboardingBioInput from '../components/OnboardingBioInput';
-import { 
-  HAN_RIVER_PARKS, 
-  RIVER_SIDES, 
-  RUNNING_LEVELS 
+import {
+  HAN_RIVER_PARKS,
+  RIVER_SIDES,
+  RUNNING_LEVELS
 } from '../constants/onboardingOptions';
 import OnboardingLevelSelector from '../components/OnboardingLevelSelector';
 import OnboardingCourseSelector from '../components/OnboardingCourseSelector';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  TEXT_SECONDARY: '#666666',
-  ERROR: '#FF4444',
-  SUCCESS: '#00FF88',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const OnboardingScreen = ({ onComplete, navigation, route }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const isFromSignup = route?.params?.isFromSignup || false;
   const insets = useSafeAreaInsets();
 
@@ -58,7 +50,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
   const bioInputRef = useRef(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
-  
+
   // 폼 데이터 상태
   const [formData, setFormData] = useState({
     profileImage: null,
@@ -95,7 +87,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
   useEffect(() => {
     const keyboardDidShow = Keyboard.addListener('keyboardDidShow', (event) => {
       setKeyboardVisible(true);
-      
+
       // 키보드가 나타나면 입력칸이 가려지지 않도록 스크롤
       if (scrollViewRef.current && currentStep === 1) {
         setTimeout(() => {
@@ -108,7 +100,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
         }, 100);
       }
     });
-    
+
     const keyboardDidHide = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardVisible(false);
       // 키보드가 사라지면 맨 위로 스크롤
@@ -140,11 +132,10 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
 
 
 
-
   // 프로필 이미지 선택
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
+
     if (status !== 'granted') {
       Alert.alert('권한 필요', '갤러리 접근 권한이 필요합니다.');
       return;
@@ -168,7 +159,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
   // 카메라로 사진 찍기
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
+
     if (status !== 'granted') {
       Alert.alert('권한 필요', '카메라 접근 권한이 필요합니다.');
       return;
@@ -227,18 +218,18 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
       // 6자리가 아닐 때는 로그 출력하지 않음 (입력 중이므로 정상)
       return null;
     }
-    
+
     try {
       const year = parseInt(birthDate.substring(0, 2));
       const month = parseInt(birthDate.substring(2, 4));
       const day = parseInt(birthDate.substring(4, 6));
-      
+
       // 2000년 기준으로 년도 판단 (00-99는 2000년대로, 그 외는 1900년대로)
       // 한국 주민등록번호 기준: 실제 나이 계산을 위한 보정
       let fullYear;
       const currentYear = new Date().getFullYear();
       const currentYearLastTwo = currentYear % 100; // 2024 → 24
-      
+
       // 간단한 규칙: 00-24는 2000년대, 25-99는 1900년대
       if (year >= 0 && year <= currentYearLastTwo) {
         // 00-24: 2000년대로 처리 (2000-2024)
@@ -247,19 +238,19 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
         // 25-99: 1900년대로 처리 (1925-1999)
         fullYear = 1900 + year;
       }
-      
+
       // console.log(`🔍 나이 계산: ${birthDate} → ${year}년 → ${fullYear}년`);
-      
+
       const birth = new Date(fullYear, month - 1, day);
       const today = new Date();
-      
+
       let age = today.getFullYear() - birth.getFullYear();
       const monthDiff = today.getMonth() - birth.getMonth();
-      
+
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
         age--;
       }
-      
+
       // console.log(`🎂 나이 계산 결과: ${fullYear}년 ${month}월 ${day}일 → ${age}세`);
       return age;
     } catch (error) {
@@ -274,14 +265,14 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
       // 6자리가 아닐 때는 로그 출력하지 않음 (입력 중이므로 정상)
       return false;
     }
-    
+
     try {
       const year = parseInt(birthDate.substring(0, 2));
       const month = parseInt(birthDate.substring(2, 4));
       const day = parseInt(birthDate.substring(4, 6));
-      
+
       // console.log('🔍 생년월일 파싱:', { birthDate, year, month, day });
-      
+
       // 월과 일 유효성 검사
       if (month < 1 || month > 12) {
         console.log('❌ 월 유효성 검사 실패:', month);
@@ -291,12 +282,12 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
         console.log('❌ 일 유효성 검사 실패:', day);
         return false;
       }
-      
+
       // 한국 주민등록번호 기준: 실제 나이 계산을 위한 보정
       let fullYear;
       const currentYear = new Date().getFullYear();
       const currentYearLastTwo = currentYear % 100; // 2024 → 24
-      
+
       // 간단한 규칙: 00-24는 2000년대, 25-99는 1900년대
       if (year >= 0 && year <= currentYearLastTwo) {
         // 00-24: 2000년대로 처리 (2000-2024)
@@ -305,23 +296,23 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
         // 25-99: 1900년대로 처리 (1925-1999)
         fullYear = 1900 + year;
       }
-      
+
       // console.log('🔍 년도 계산:', { year, currentYear, currentYearLastTwo, fullYear });
-      
+
       // 현재 년도보다 미래인지 확인
       if (fullYear > new Date().getFullYear()) {
         console.log('❌ 미래 년도:', fullYear);
         return false;
       }
-      
+
       // 실제 날짜인지 확인
       const date = new Date(fullYear, month - 1, day);
-      const isValidDate = date.getFullYear() === fullYear && 
-                          date.getMonth() === month - 1 && 
+      const isValidDate = date.getFullYear() === fullYear &&
+                          date.getMonth() === month - 1 &&
                           date.getDate() === day;
-      
+
       // console.log('🔍 날짜 유효성:', { fullYear, month, day, date, isValidDate });
-      
+
       return isValidDate;
     } catch (error) {
       console.error('❌ 생년월일 유효성 검사 오류:', error);
@@ -336,7 +327,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
         const nicknameValid = formData.nickname.trim().length > 0;
         const genderValid = formData.gender !== '';
         const birthDateValid = isValidBirthDate(formData.birthDate);
-        
+
         // 성능 최적화를 위해 로그 제거
         // console.log('🔍 1단계 검증:', {
         //   nickname: formData.nickname,
@@ -347,7 +338,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
         //   birthDateValid,
         //   canProceed: nicknameValid && genderValid && birthDateValid
         // });
-        
+
         return nicknameValid && genderValid && birthDateValid;
       case 2:
         return formData.runningLevel !== '';
@@ -392,25 +383,25 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
         canProceed: canProceed, // 이미 값이므로 함수 호출 불필요
         message: 'handleComplete 함수 실행됨'
       };
-      
+
       // 온보딩 데이터를 저장 (completeOnboarding에서 Firestore에 업로드할 수 있도록)
       await AsyncStorage.setItem('onboarding_form_data', JSON.stringify(formData));
       await AsyncStorage.setItem('onboarding_debug_log', JSON.stringify(onboardingData));
-      
+
       console.log('🚀 온보딩 완료 버튼 클릭됨');
       console.log('📊 현재 formData:', formData);
       console.log('🎯 선택된 목표들:', formData.currentGoals);
       console.log('✅ 진행 가능 여부:', canProceed);
       console.log('💾 온보딩 데이터 AsyncStorage 저장 완료');
-      
+
       setShowWelcome(true);
-      
+
       // 지연 시간을 단축하고 더 안정적인 네비게이션 사용
       setTimeout(() => {
         console.log('🚀 AppIntroScreen으로 네비게이션 시작');
         console.log('🧭 네비게이션 객체:', navigation);
         console.log('🧭 사용 가능한 라우트:', navigation.getState()?.routes?.map(r => r.name) || []);
-        
+
         try {
           // navigate 대신 replace 사용으로 더 안정적인 화면 전환
           navigation.replace('AppIntro');
@@ -419,7 +410,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
           console.error('❌ AppIntro 네비게이션 실패:', error);
           // 네비게이션 실패 시 대안 처리 - 더 구체적인 에러 메시지
           Alert.alert(
-            '화면 전환 오류', 
+            '화면 전환 오류',
             '앱 인트로 화면으로 이동할 수 없습니다. 앱을 다시 시작해주세요.',
             [{ text: '확인' }]
           );
@@ -455,7 +446,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
             <Image source={{ uri: formData.profileImage }} style={styles.profileImage} />
           ) : (
             <View style={styles.profileImagePlaceholder}>
-              <Ionicons name="camera" size={32} color={COLORS.TEXT_SECONDARY} />
+              <Ionicons name="camera" size={32} color={colors.TEXT_SECONDARY} />
               <Text style={styles.profileImageText}>프로필 사진</Text>
             </View>
           )}
@@ -476,10 +467,10 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
               setFormData(prev => ({ ...prev, gender: 'male' }));
             }}
           >
-            <Ionicons 
-              name="male" 
-              size={20} 
-              color={formData.gender === 'male' ? COLORS.TEXT : COLORS.TEXT_SECONDARY} 
+            <Ionicons
+              name="male"
+              size={20}
+              color={formData.gender === 'male' ? colors.TEXT : colors.TEXT_SECONDARY}
             />
             <Text style={[
               styles.genderText,
@@ -495,10 +486,10 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
               setFormData(prev => ({ ...prev, gender: 'female' }));
             }}
           >
-            <Ionicons 
-              name="female" 
-              size={20} 
-              color={formData.gender === 'female' ? COLORS.TEXT : COLORS.TEXT_SECONDARY} 
+            <Ionicons
+              name="female"
+              size={20}
+              color={formData.gender === 'female' ? colors.TEXT : colors.TEXT_SECONDARY}
             />
             <Text style={[
               styles.genderText,
@@ -519,11 +510,11 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
             // 숫자만 입력받고 최대 6자리로 제한
             const cleaned = text.replace(/[^0-9]/g, '');
             const formatted = cleaned.slice(0, 6);
-            
+
             setFormData(prev => ({ ...prev, birthDate: formatted }));
           }}
           placeholder="YYMMDD (예: 920101)"
-          placeholderTextColor={COLORS.TEXT_SECONDARY}
+          placeholderTextColor={colors.TEXT_SECONDARY}
           keyboardType="numeric"
           maxLength={6}
         />
@@ -541,13 +532,13 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
           setFormData(prev => ({ ...prev, nickname }));
         }}
         onChangeBio={bio => setFormData(prev => ({ ...prev, bio }))}
-        colors={{ 
-          TEXT: COLORS.TEXT, 
-          PRIMARY: COLORS.PRIMARY, 
-          CARD: COLORS.CARD, 
-          TEXT_SECONDARY: COLORS.TEXT_SECONDARY,
-          ERROR: COLORS.ERROR,
-          SUCCESS: COLORS.SUCCESS
+        colors={{
+          TEXT: colors.TEXT,
+          PRIMARY: colors.PRIMARY,
+          CARD: colors.CARD,
+          TEXT_SECONDARY: colors.TEXT_SECONDARY,
+          ERROR: colors.ERROR,
+          SUCCESS: colors.SUCCESS
         }}
       />
     </View>
@@ -558,7 +549,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
     <OnboardingLevelSelector
       value={formData.runningLevel}
       onChange={levelId => setFormData(prev => ({ ...prev, runningLevel: levelId, averagePace: (RUNNING_LEVELS.find(l => l.id === levelId)?.pace || '') }))}
-      colors={{ TEXT: COLORS.TEXT, PRIMARY: COLORS.PRIMARY, CARD: COLORS.CARD, TEXT_SECONDARY: COLORS.TEXT_SECONDARY }}
+      colors={{ TEXT: colors.TEXT, PRIMARY: colors.PRIMARY, CARD: colors.CARD, TEXT_SECONDARY: colors.TEXT_SECONDARY }}
       levels={RUNNING_LEVELS}
     />
   );
@@ -568,23 +559,23 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
     <OnboardingCourseSelector
       value={formData.preferredCourses}
       onChange={courses => setFormData(prev => ({ ...prev, preferredCourses: courses }))}
-      colors={{ TEXT: COLORS.TEXT, PRIMARY: COLORS.PRIMARY, CARD: COLORS.CARD, TEXT_SECONDARY: COLORS.TEXT_SECONDARY }}
+      colors={{ TEXT: colors.TEXT, PRIMARY: colors.PRIMARY, CARD: colors.CARD, TEXT_SECONDARY: colors.TEXT_SECONDARY }}
     />
   );
 
   // 4단계: 선호 시간
   const renderStep4 = () => (
-    <OnboardingTimeSelector 
+    <OnboardingTimeSelector
       value={formData.preferredTimes}
       onChange={(value) => setFormData(prev => ({ ...prev, preferredTimes: value }))}
-      colors={{ TEXT: COLORS.TEXT, PRIMARY: COLORS.PRIMARY, CARD: COLORS.CARD, TEXT_SECONDARY: COLORS.TEXT_SECONDARY }}
+      colors={{ TEXT: colors.TEXT, PRIMARY: colors.PRIMARY, CARD: colors.CARD, TEXT_SECONDARY: colors.TEXT_SECONDARY }}
     />
   );
 
   // 5단계: 러닝 스타일
   const renderStep5 = () => (
     <View style={styles.stepContainer}>
-      <OnboardingStyleSelector 
+      <OnboardingStyleSelector
         value={formData.runningStyles}
         onChange={(value) => setFormData(prev => ({ ...prev, runningStyles: value }))}
       />
@@ -594,7 +585,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
   // 6단계: 선호 계절
   const renderStep6 = () => (
     <View style={styles.stepContainer}>
-      <OnboardingSeasonSelector 
+      <OnboardingSeasonSelector
         value={formData.favoriteSeasons}
         onChange={(value) => setFormData(prev => ({ ...prev, favoriteSeasons: value }))}
       />
@@ -604,7 +595,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
   // 7단계: 현재 목표
   const renderStep7 = () => (
     <View style={styles.stepContainer}>
-      <OnboardingGoalSelector 
+      <OnboardingGoalSelector
         value={formData.currentGoals}
         onChange={(value) => setFormData(prev => ({ ...prev, currentGoals: value }))}
       />
@@ -631,10 +622,10 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
             onPress={handleBack}
             disabled={currentStep === 1}
           >
-            <Ionicons 
-              name="chevron-back" 
-              size={24} 
-              color={currentStep === 1 ? COLORS.TEXT_SECONDARY : COLORS.TEXT} 
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={currentStep === 1 ? colors.TEXT_SECONDARY : colors.TEXT}
             />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>프로필 설정</Text>
@@ -647,7 +638,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
         <View style={styles.progressContainer}>
           <View style={styles.progressBackground}>
             <LinearGradient
-              colors={[COLORS.PRIMARY, '#66FAFF']}
+              colors={[colors.PRIMARY, '#66FAFF']}
               style={[styles.progressBar, { width: `${progress}%` }]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -657,7 +648,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
       </View>
 
       {/* 콘텐츠 */}
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
@@ -690,7 +681,7 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
           disabled={!canProceed}
         >
           <LinearGradient
-            colors={canProceed ? [COLORS.PRIMARY, '#66FAFF'] : ['#333333', '#555555']}
+            colors={canProceed ? [colors.PRIMARY, '#66FAFF'] : ['#333333', '#555555']}
             style={styles.nextButtonGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -708,10 +699,10 @@ const OnboardingScreen = ({ onComplete, navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     paddingHorizontal: 20,
@@ -732,12 +723,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   stepIndicator: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   headerRight: {
     flexDirection: 'row',
@@ -754,7 +745,7 @@ const styles = StyleSheet.create({
   },
   progressBackground: {
     flex: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 2,
   },
   progressBar: {
@@ -777,13 +768,13 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
     textAlign: 'center',
   },
   stepSubtitle: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 32,
     textAlign: 'center',
     lineHeight: 22,
@@ -811,18 +802,18 @@ const styles = StyleSheet.create({
   profileImagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     justifyContent: 'center',
     alignItems: 'center',
   },
   profileImageText: {
     fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 4,
   },
   profileImageHint: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   inputGroup: {
     marginBottom: 24,
@@ -830,17 +821,17 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
   },
   textInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
   },
   textArea: {
     height: 80,
@@ -849,7 +840,7 @@ const styles = StyleSheet.create({
   },
   characterCount: {
     fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'right',
     marginTop: 4,
   },
@@ -859,8 +850,8 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   selectedCard: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
   },
 
   // 성별 및 나이 입력 스타일
@@ -878,43 +869,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     gap: 8,
   },
   genderButtonActive: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
   },
   genderText: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   genderTextActive: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '600',
   },
   birthDateInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 10,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
   },
   inputHint: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 0,
     marginBottom: 8,
   },
   ageText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginTop: 4,
     fontWeight: '600',
   },
@@ -925,7 +916,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     paddingHorizontal: 20,
     paddingVertical: 16,
     // paddingBottom은 JSX에서 insets.bottom과 함께 지정(StyleSheet에서 Platform 사용 금지)
@@ -950,13 +941,13 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   nextButtonTextDisabled: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   welcomeContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   welcomeEmoji: {
     fontSize: 64,
@@ -965,14 +956,14 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginBottom: 12,
   },
   welcomeSubtitle: {
     fontSize: 18,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
   },
 });
 
-export default OnboardingScreen; 
+export default OnboardingScreen;

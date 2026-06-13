@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -35,7 +35,8 @@ import storageService from '../services/storageService';
 import updateService from '../services/updateService';
 import mannerDistanceService from '../services/mannerDistanceService';
 import MannerDistanceDisplay from '../components/MannerDistanceDisplay';
-import { 
+import { useTheme } from '../contexts/ThemeContext';
+import {
   HAN_RIVER_PARKS, 
   RIVER_SIDES, 
   RUNNING_LEVELS, 
@@ -47,21 +48,6 @@ import {
   getStyleTitle
 } from '../constants/onboardingOptions';
 
-// Runon 디자인 시스템 - 홈화면과 동일한 색상 팔레트
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  TEXT_SECONDARY: '#666666',
-  TAG_GREEN: '#B6F5C9',
-  TAG_YELLOW: '#FFF6B2',
-  TAG_PURPLE: '#E2D6FF',
-  TAG_PINK: '#FFD6E7',
-  TAG_BLUE: '#B6E6F5',
-  BADGE: '#1EB8C6',
-};
 
 
 
@@ -155,6 +141,8 @@ const normalizeInstagramId = (value = '') => {
 
 
 const ProfileScreen = ({ navigation }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, logout, updateUserProfile } = useAuth();
   const { isTabEnabled, isNotificationTypeEnabled } = useNotificationSettings();
   const { hasMeetingNotification, hasUpdateNotification } = useEvents();
@@ -821,7 +809,7 @@ const ProfileScreen = ({ navigation }) => {
     // console.log('⏳ ProfileScreen: 로딩 중...');
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color={COLORS.PRIMARY} size="large" />
+        <ActivityIndicator color={colors.PRIMARY} size="large" />
         <Text style={styles.loadingText}>프로필 정보를 불러오는 중...</Text>
       </View>
     );
@@ -876,7 +864,7 @@ const ProfileScreen = ({ navigation }) => {
                 {currentInstagramId ? (
                   <TouchableOpacity onPress={handleOpenSocialModal} activeOpacity={0.8}>
                     <View style={styles.socialHandleContainer}>
-                      <Ionicons name="logo-instagram" size={12} color={COLORS.TEXT} style={styles.socialHandleIcon} />
+                      <Ionicons name="logo-instagram" size={12} color={colors.TEXT} style={styles.socialHandleIcon} />
                       <Text style={styles.socialHandleText}>{currentInstagramId}</Text>
                     </View>
                   </TouchableOpacity>
@@ -886,7 +874,7 @@ const ProfileScreen = ({ navigation }) => {
                     onPress={handleOpenSocialModal}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="logo-instagram" size={13} color={COLORS.PRIMARY} style={styles.socialAddIcon} />
+                    <Ionicons name="logo-instagram" size={13} color={colors.PRIMARY} style={styles.socialAddIcon} />
                     <Text style={styles.socialAddButtonText}>소셜계정 +</Text>
                   </TouchableOpacity>
                 )}
@@ -897,7 +885,7 @@ const ProfileScreen = ({ navigation }) => {
                 onPressIn={() => setEditBtnPressed(true)}
                 onPressOut={() => setEditBtnPressed(false)}
               >
-                <Ionicons name="create-outline" size={14} color={COLORS.TEXT} />
+                <Ionicons name="create-outline" size={14} color={colors.TEXT} />
                 <Text style={styles.profileEditTextMini}>프로필 편집</Text>
               </TouchableOpacity>
             </View>
@@ -965,7 +953,7 @@ const ProfileScreen = ({ navigation }) => {
             {/* 선호 코스 카드 */}
             <View style={styles.runningProfileCard}>
               <View style={styles.cardHeader}>
-                <Ionicons name="location-outline" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="location-outline" size={20} color={colors.PRIMARY} />
                 <Text style={styles.cardTitle}>선호 코스</Text>
               </View>
               <View style={styles.tagRow}>
@@ -980,7 +968,7 @@ const ProfileScreen = ({ navigation }) => {
             {/* 선호 시간 카드 */}
             <View style={styles.runningProfileCard}>
               <View style={styles.cardHeader}>
-                <Ionicons name="time-outline" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="time-outline" size={20} color={colors.PRIMARY} />
                 <Text style={styles.cardTitle}>선호 시간</Text>
               </View>
               <View style={styles.tagRow}>
@@ -995,7 +983,7 @@ const ProfileScreen = ({ navigation }) => {
             {/* 러닝 스타일 카드 */}
             <View style={styles.runningProfileCard}>
               <View style={styles.cardHeader}>
-                <Ionicons name="flash-outline" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="flash-outline" size={20} color={colors.PRIMARY} />
                 <Text style={styles.cardTitle}>러닝 스타일</Text>
               </View>
               <View style={styles.tagRow}>
@@ -1010,7 +998,7 @@ const ProfileScreen = ({ navigation }) => {
             {/* 선호 계절 카드 */}
             <View style={styles.runningProfileCard}>
               <View style={styles.cardHeader}>
-                <Ionicons name="cloud-outline" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="cloud-outline" size={20} color={colors.PRIMARY} />
                 <Text style={styles.cardTitle}>선호 계절</Text>
               </View>
               <View style={styles.tagRow}>
@@ -1025,7 +1013,7 @@ const ProfileScreen = ({ navigation }) => {
             {/* 러닝 목표 카드 */}
             <View style={styles.runningProfileCard}>
               <View style={styles.cardHeader}>
-                <Ionicons name="trophy-outline" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="trophy-outline" size={20} color={colors.PRIMARY} />
                 <Text style={styles.cardTitle}>러닝 목표</Text>
               </View>
               <View style={styles.tagRow}>
@@ -1070,7 +1058,7 @@ const ProfileScreen = ({ navigation }) => {
               <View style={styles.statCard}>
                 <View style={styles.statCardContent}>
                   <View style={styles.statIconContainer}>
-                    <Ionicons name="people" size={20} color={COLORS.TEXT} />
+                    <Ionicons name="people" size={20} color={colors.TEXT} />
                   </View>
                   <Text style={styles.statNumberWhite}>{activity.totalParticipated}</Text>
                 </View>
@@ -1081,7 +1069,7 @@ const ProfileScreen = ({ navigation }) => {
               <View style={styles.statCard}>
                 <View style={styles.statCardContent}>
                   <View style={styles.statIconContainer}>
-                    <Ionicons name="calendar" size={20} color={COLORS.TEXT} />
+                    <Ionicons name="calendar" size={20} color={colors.TEXT} />
                   </View>
                   <Text style={styles.statNumberWhite}>{activity.thisMonth}</Text>
                 </View>
@@ -1092,7 +1080,7 @@ const ProfileScreen = ({ navigation }) => {
               <View style={styles.statCard}>
                 <View style={styles.statCardContent}>
                   <View style={styles.statIconContainer}>
-                    <Ionicons name="trophy" size={20} color={COLORS.TEXT} />
+                    <Ionicons name="trophy" size={20} color={colors.TEXT} />
                   </View>
                   <Text style={styles.statNumberWhite}>{activity.hostedEvents}</Text>
                 </View>
@@ -1103,7 +1091,7 @@ const ProfileScreen = ({ navigation }) => {
             {/* 긍정적 매너 태그 카드 */}
             <View style={styles.mannerTagsCard}>
               <View style={styles.cardHeader}>
-                <Ionicons name="star" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="star" size={20} color={colors.PRIMARY} />
                 <Text style={styles.cardTitle}>좋았던 점</Text>
                 <Text style={styles.tagCountText}>({activity.tags.length}개)</Text>
               </View>
@@ -1181,11 +1169,11 @@ const ProfileScreen = ({ navigation }) => {
               <Text style={styles.socialModalTitle}>인스타 계정 입력</Text>
 
               <View style={styles.socialInputRow}>
-                <Ionicons name="logo-instagram" size={16} color={COLORS.TEXT_SECONDARY} style={styles.socialInputPrefixIcon} />
+                <Ionicons name="logo-instagram" size={16} color={colors.TEXT_SECONDARY} style={styles.socialInputPrefixIcon} />
                 <TextInput
                   style={styles.socialInput}
                   placeholder="instagram_id"
-                  placeholderTextColor={COLORS.TEXT_SECONDARY}
+                  placeholderTextColor={colors.TEXT_SECONDARY}
                   value={socialAccountInput}
                   onChangeText={setSocialAccountInput}
                   autoCapitalize="none"
@@ -1255,13 +1243,13 @@ const ProfileScreen = ({ navigation }) => {
                     isProfileEdit={true} // 프로필 편집 모달임을 표시
                     onChangeNickname={text => setEditData(d => ({ ...d, nickname: text }))}
                     onChangeBio={text => setEditData(d => ({ ...d, bio: text }))}
-                    colors={{ 
-                      TEXT: COLORS.TEXT, 
-                      PRIMARY: COLORS.PRIMARY, 
-                      CARD: COLORS.CARD, 
-                      TEXT_SECONDARY: COLORS.TEXT_SECONDARY,
-                      ERROR: COLORS.ERROR,
-                      SUCCESS: COLORS.SUCCESS
+                    colors={{
+                      TEXT: colors.TEXT,
+                      PRIMARY: colors.PRIMARY,
+                      CARD: colors.CARD,
+                      TEXT_SECONDARY: colors.TEXT_SECONDARY,
+                      ERROR: colors.ERROR,
+                      SUCCESS: colors.SUCCESS
                     }}
                   />
                 </View>
@@ -1273,13 +1261,13 @@ const ProfileScreen = ({ navigation }) => {
                     <View style={styles.verifiedInfoContainer}>
                       {editData.birthDate && calculateAge(editData.birthDate) && (
                         <View style={styles.verifiedInfoRow}>
-                          <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                          <Ionicons name="checkmark-circle" size={20} color={colors.PRIMARY} />
                           <Text style={styles.verifiedInfoText}>나이: {calculateAge(editData.birthDate)}세</Text>
                         </View>
                       )}
                       {editData.gender && (
                         <View style={styles.verifiedInfoRow}>
-                          <Ionicons name="checkmark-circle" size={20} color={COLORS.PRIMARY} />
+                          <Ionicons name="checkmark-circle" size={20} color={colors.PRIMARY} />
                           <Text style={styles.verifiedInfoText}>성별: {editData.gender}</Text>
                         </View>
                       )}
@@ -1291,7 +1279,7 @@ const ProfileScreen = ({ navigation }) => {
                   <OnboardingLevelSelector
                     value={editData.runningProfile?.level}
                     onChange={levelId => setEditData(d => ({ ...d, runningProfile: { ...d.runningProfile, level: levelId, pace: (RUNNING_LEVELS.find(l => l.id === levelId)?.pace || '') } }))}
-                    colors={{ TEXT: COLORS.TEXT, PRIMARY: COLORS.PRIMARY, CARD: COLORS.CARD, TEXT_SECONDARY: COLORS.TEXT_SECONDARY }}
+                    colors={{ TEXT: colors.TEXT, PRIMARY: colors.PRIMARY, CARD: colors.CARD, TEXT_SECONDARY: colors.TEXT_SECONDARY }}
                     levels={RUNNING_LEVELS}
                   />
                 </View>
@@ -1299,14 +1287,14 @@ const ProfileScreen = ({ navigation }) => {
                   <OnboardingCourseSelector
                     value={editData.runningProfile?.preferredCourses || []}
                     onChange={courses => setEditData(d => ({ ...d, runningProfile: { ...d.runningProfile, preferredCourses: courses } }))}
-                    colors={{ TEXT: COLORS.TEXT, PRIMARY: COLORS.PRIMARY, CARD: COLORS.CARD, TEXT_SECONDARY: COLORS.TEXT_SECONDARY }}
+                    colors={{ TEXT: colors.TEXT, PRIMARY: colors.PRIMARY, CARD: colors.CARD, TEXT_SECONDARY: colors.TEXT_SECONDARY }}
                   />
                 </View>
                 <View style={styles.stepContainer}>
                   <OnboardingTimeSelector 
                     value={editData.runningProfile?.preferredTimes || []}
                     onChange={(value) => setEditData(d => ({ ...d, runningProfile: { ...d.runningProfile, preferredTimes: value } }))}
-                    colors={{ TEXT: COLORS.TEXT, PRIMARY: COLORS.PRIMARY, CARD: COLORS.CARD, TEXT_SECONDARY: COLORS.TEXT_SECONDARY }}
+                    colors={{ TEXT: colors.TEXT, PRIMARY: colors.PRIMARY, CARD: colors.CARD, TEXT_SECONDARY: colors.TEXT_SECONDARY }}
                   />
                 </View>
                 <Text style={styles.inputLabel}>러닝 스타일을 선택해주세요.</Text>
@@ -1386,10 +1374,10 @@ const ProfileScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: colors.BACKGROUND,
   },
   scrollView: {
     flex: 1,
@@ -1399,10 +1387,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   loadingText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 16,
     marginTop: 16,
     fontFamily: 'Pretendard-Regular',
@@ -1422,7 +1410,7 @@ const styles = StyleSheet.create({
   },
   // 러닝 프로필 항목 카드 스타일
   runningProfileCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 18,
     marginHorizontal: 0,
     marginTop: 0, // 러닝 프로필 카드들만의 상단 여백
@@ -1466,7 +1454,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: COLORS.CARD,
+    borderColor: colors.CARD,
   },
   profileTextCol: {
     flex: 1,
@@ -1496,21 +1484,21 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginRight: 12,
     textAlign: 'left',
     fontFamily: 'Pretendard-Bold',
   },
   levelBadgeOutline: {
     borderWidth: 1.5,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 2,
     marginRight: 8,
   },
   levelBadgeText: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: 'bold',
     fontSize: 16,
     fontFamily: 'Pretendard-Bold',
@@ -1525,12 +1513,12 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   socialAddButtonText: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontSize: 12,
     fontFamily: 'Pretendard-Medium',
   },
   socialHandleText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 12,
     fontFamily: 'Pretendard-Regular',
   },
@@ -1554,7 +1542,7 @@ const styles = StyleSheet.create({
   },
   profileJoin: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
     textAlign: 'left',
     fontFamily: 'Pretendard-Regular',
@@ -1567,12 +1555,12 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     fontSize: 15,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-Regular',
   },
   profileBio: {
     fontSize: 17,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'left',
     marginBottom: 0,
     fontWeight: 'bold',
@@ -1582,7 +1570,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.TEXT,
+    borderColor: colors.TEXT,
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -1591,11 +1579,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   profileEditBtnMiniActive: {
-    backgroundColor: COLORS.PRIMARY,
-    borderColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
+    borderColor: colors.PRIMARY,
   },
   profileEditTextMini: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     marginLeft: 4,
     fontSize: 13,
@@ -1603,7 +1591,7 @@ const styles = StyleSheet.create({
   },
   levelSelectBtn: {
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1611,11 +1599,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   levelSelectBtnActive: {
-    backgroundColor: COLORS.PRIMARY,
-    borderColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
+    borderColor: colors.PRIMARY,
   },
   levelSelectText: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: 'bold',
     fontSize: 15,
     fontFamily: 'Pretendard-Bold',
@@ -1627,14 +1615,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-Bold',
   },
   inputLabel: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 20,
     marginBottom: 4,
     marginTop: 8,
     fontFamily: 'Pretendard-Bold',
   },
   inputHint: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 18,
     marginBottom: 16,
     fontFamily: 'Pretendard-Regular',
@@ -1646,19 +1634,19 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   settingLabel: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
   settingValue: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontSize: 15,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
   },
   infoCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 18,
     marginHorizontal: 0,
     marginBottom: 18,
@@ -1676,7 +1664,7 @@ const styles = StyleSheet.create({
   infoCardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
   infoRowCol: {
@@ -1686,7 +1674,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '600',
     marginBottom: 4,
     fontFamily: 'Pretendard-SemiBold',
@@ -1769,7 +1757,7 @@ const styles = StyleSheet.create({
   },
   activityLabel: {
     fontSize: 15,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 2,
     fontFamily: 'Pretendard-Regular',
   },
@@ -1788,7 +1776,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     width: '90%',
@@ -1799,7 +1787,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   socialModalContent: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     width: '90%',
@@ -1808,7 +1796,7 @@ const styles = StyleSheet.create({
   socialModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
     marginBottom: 14,
     textAlign: 'center',
@@ -1816,10 +1804,10 @@ const styles = StyleSheet.create({
   socialInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.SURFACE,
+    borderColor: colors.SURFACE,
     paddingHorizontal: 12,
     marginBottom: 16,
   },
@@ -1828,7 +1816,7 @@ const styles = StyleSheet.create({
   },
   socialInput: {
     flex: 1,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     paddingVertical: 12,
     fontSize: 16,
     fontFamily: 'Pretendard-Regular',
@@ -1841,7 +1829,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     height: 50,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.SURFACE,
+    borderBottomColor: colors.SURFACE,
   },
   modalBottomNavigator: {
     flexDirection: 'row',
@@ -1849,20 +1837,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 8,
     borderTopWidth: 1,
-    borderTopColor: COLORS.SURFACE,
-    backgroundColor: COLORS.CARD,
+    borderTopColor: colors.SURFACE,
+    backgroundColor: colors.CARD,
   },
   modalCancelButton: {
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     marginRight: 8,
     alignItems: 'center',
   },
   modalCancelButtonText: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 16,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
@@ -1872,7 +1860,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     marginLeft: 8,
     alignItems: 'center',
   },
@@ -1885,29 +1873,29 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     textAlign: 'center',
     flex: 1,
     fontFamily: 'Pretendard-Bold',
   },
   modalSubtitle: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     marginTop: 4,
     fontFamily: 'Pretendard-Regular',
   },
   input: {
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderRadius: 8,
     padding: 12,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 15,
     marginBottom: 12,
     fontFamily: 'Pretendard-Regular',
   },
   saveButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 8,
     padding: 14,
     alignItems: 'center',
@@ -1920,13 +1908,13 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-Bold',
   },
   cancelButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     padding: 12,
     alignItems: 'center',
   },
   cancelButtonText: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 15,
     fontFamily: 'Pretendard-Regular',
   },
@@ -1948,7 +1936,7 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 18,
     marginHorizontal: 0,
     padding: 4,
@@ -1963,16 +1951,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   activeTabButton: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
   },
   tabText: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-SemiBold',
   },
   activeTabText: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: 'bold',
     fontFamily: 'Pretendard-Bold',
   },
@@ -1987,26 +1975,26 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 8,
     fontFamily: 'Pretendard-Bold',
   },
   noTagsText: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontStyle: 'italic',
     fontFamily: 'Pretendard-Regular',
   },
   tagCountText: {
     fontSize: 12,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 4,
     fontFamily: 'Pretendard-Regular',
   },
   tagCountBadge: {
     fontSize: 10,
-    color: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    color: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 6,
@@ -2016,7 +2004,7 @@ const styles = StyleSheet.create({
   },
   // 매너거리 카드 스타일
   mannerDistanceCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 18,
     marginHorizontal: 0,
     marginTop: 0,
@@ -2030,7 +2018,7 @@ const styles = StyleSheet.create({
 
   // 매너 태그 카드 전용 스타일 (불투명)
   mannerTagsCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 18,
     marginHorizontal: 0,
     marginTop: 10,
@@ -2049,7 +2037,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: '49%',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginBottom: 4,
@@ -2066,20 +2054,20 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginBottom: 4,
     fontFamily: 'Pretendard-Bold',
   },
   statNumberWhite: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
     fontFamily: 'Pretendard-Bold',
   },
   statLabel: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard-Regular',
     textAlign: 'left',
   },
@@ -2089,7 +2077,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 4,
-    backgroundColor: COLORS.TEXT_SECONDARY + '30',
+    backgroundColor: colors.TEXT_SECONDARY + '30',
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -2101,7 +2089,7 @@ const styles = StyleSheet.create({
   activityNumPrimary: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginBottom: 2,
     fontFamily: 'Pretendard-Bold',
   },
@@ -2114,11 +2102,11 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   verifiedInfoContainer: {
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
   },
   verifiedInfoRow: {
     flexDirection: 'row',
@@ -2126,13 +2114,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   verifiedInfoText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 15,
     marginLeft: 8,
     fontFamily: 'Pretendard-Regular',
   },
   verifiedInfoNote: {
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 13,
     fontStyle: 'italic',
     marginTop: 4,

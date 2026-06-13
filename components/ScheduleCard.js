@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,12 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#181818',
-  CARD: '#171719',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasNotification = false, id, onMenuPress }) => {
-  
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   // 참여자수 계산
   const participantCount = Array.isArray(event.participants) ? event.participants.length : (event.participants || 1);
   const maxParticipantText = event.maxParticipants ? ` / ${event.maxParticipants}명` : '';
@@ -26,12 +21,12 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
   // 연도를 제거하고 요일을 추가하는 함수
   const formatDateWithoutYear = (dateString) => {
     if (!dateString) return '';
-    
+
     // 이미 요일이 포함된 형식인 경우 (예: "1월 18일 (목)") 그대로 반환
     if (dateString.includes('(') && dateString.includes(')')) {
       return dateString;
     }
-    
+
     // "2024년 1월 18일" 또는 ISO 형식을 "1월 18일 (요일)" 형식으로 변환
     try {
       let date;
@@ -48,7 +43,7 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
         // ISO 형식: "2024-01-18"
         date = new Date(dateString);
       }
-      
+
       if (date && !isNaN(date.getTime())) {
         const month = date.getMonth() + 1;
         const day = date.getDate();
@@ -58,7 +53,7 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
     } catch (error) {
 
     }
-    
+
     // 파싱 실패 시 연도만 제거하여 반환
     return dateString.replace(/^\d{4}년\s*/, '');
   };
@@ -66,7 +61,7 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
   // 해시태그 파싱 함수
   const parseHashtags = (hashtagString) => {
     if (!hashtagString || !hashtagString.trim()) return [];
-    
+
     return hashtagString
       .split(/\s+/)
       .filter(tag => tag.startsWith('#') && tag.length > 1)
@@ -75,7 +70,7 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
   };
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.container}
       onPress={() => onPress && onPress(event)}
       activeOpacity={0.8}
@@ -87,20 +82,20 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
           <View style={styles.notificationBadge} />
         )}
       </View>
-      
+
 
 
       {/* 위치와 날짜/시간을 한 줄로 배치 */}
       <View style={styles.locationDateTimeRow}>
         {/* 위치 */}
         <View style={styles.infoRow}>
-          <Ionicons name="location-outline" size={16} color={COLORS.PRIMARY} />
+          <Ionicons name="location-outline" size={16} color={colors.PRIMARY} />
           <Text style={styles.infoText}>{event.location}</Text>
         </View>
 
                   {/* 날짜/시간 */}
           <View style={styles.infoRow}>
-            <Ionicons name="time-outline" size={16} color={COLORS.PRIMARY} />
+            <Ionicons name="time-outline" size={16} color={colors.PRIMARY} />
             <Text style={styles.infoText}>
               {event.date ? formatDateWithoutYear(event.date) : '날짜 없음'} {event.time || '시간 없음'}
             </Text>
@@ -136,8 +131,8 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
         <View style={styles.organizerInfo}>
           <View style={styles.organizerAvatar}>
             {event.organizerImage && !event.organizerImage.startsWith('file://') ? (
-              <Image 
-                source={{ uri: event.organizerImage }} 
+              <Image
+                source={{ uri: event.organizerImage }}
                 style={styles.organizerAvatarImage}
               />
             ) : (
@@ -148,12 +143,12 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
         </View>
 
         <View style={styles.rightSection}>
-          <Text style={[styles.participantInfo, { color: '#ffffff', fontSize: 15 }]}>
+          <Text style={[styles.participantInfo, { color: colors.TEXT, fontSize: 15 }]}>
             {finalParticipantText}
           </Text>
           <View style={styles.buttonContainer}>
             {showJoinButton && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.joinButton,
                   // 참여 마감된 경우 버튼 비활성화
@@ -163,7 +158,7 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
                     const hasParticipantLimit = Number.isFinite(maxParticipants) && maxParticipants > 0;
                     return hasParticipantLimit && currentParticipants >= maxParticipants ? styles.disabledButton : {};
                   })()
-                ]} 
+                ]}
                 onPress={() => onJoinPress(event)}
                 // 참여 마감된 경우 버튼 비활성화
                 disabled={(() => {
@@ -193,12 +188,12 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
               </TouchableOpacity>
             )}
             {onMenuPress && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.menuButton}
                 onPress={() => onMenuPress(event)}
                 id={id === 'meetingCard' ? 'meetingCardMenu' : undefined}
               >
-                <Ionicons name="ellipsis-horizontal" size={20} color="#ffffff" />
+                <Ionicons name="ellipsis-horizontal" size={20} color={colors.TEXT_SECONDARY} />
               </TouchableOpacity>
             )}
           </View>
@@ -208,9 +203,9 @@ const ScheduleCard = ({ event, onJoinPress, onPress, showJoinButton = true, hasN
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     marginHorizontal: 0,
     marginVertical: 8,
     borderRadius: 12,
@@ -224,7 +219,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
     flex: 1,
   },
   notificationBadge: {
@@ -249,7 +244,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 15,
-    color: '#ffffff',
+    color: colors.TEXT,
     marginLeft: 8,
     flexShrink: 1,
   },
@@ -257,7 +252,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     marginBottom: 16,
     alignSelf: 'stretch',
@@ -270,13 +265,13 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
     marginBottom: 2,
     textAlign: 'center',
   },
   statLabel: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   dividerContainer: {
     width: 10, // 중간 공간 너비
@@ -286,7 +281,7 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -294,7 +289,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tag: {
-    backgroundColor: '#1C3336',
+    backgroundColor: colors.SURFACE,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -303,7 +298,7 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   footer: {
@@ -320,7 +315,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#6B7280', // 회색톤
+    backgroundColor: '#6B7280', // 회색톤 (아바타 기본 배경, 테마 무관 고정)
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -338,7 +333,7 @@ const styles = StyleSheet.create({
   },
   organizerName: {
     fontSize: 15,
-    color: '#ffffff',
+    color: colors.TEXT,
     fontWeight: '500',
   },
   rightSection: {
@@ -360,11 +355,11 @@ const styles = StyleSheet.create({
   },
   participantInfo: {
     fontSize: 13,
-    color: '#ffffff',
+    color: colors.TEXT,
     fontWeight: '500',
   },
   joinButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -372,15 +367,15 @@ const styles = StyleSheet.create({
   joinButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#000000',
+    color: '#000000', // PRIMARY 버튼 위 텍스트 - 항상 검정 (시안 배경에 가독성)
   },
   disabledButton: {
-    backgroundColor: '#666666', // 비활성화된 버튼의 색상
+    backgroundColor: colors.BORDER, // 비활성화된 버튼의 색상
     opacity: 0.7, // 비활성화된 버튼의 투명도
   },
   disabledButtonText: {
-    color: '#999999', // 비활성화된 텍스트의 색상
+    color: colors.TEXT_SECONDARY, // 비활성화된 텍스트의 색상
   },
 });
 
-export default ScheduleCard; 
+export default ScheduleCard;

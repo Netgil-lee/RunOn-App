@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,18 +13,11 @@ import { WEATHER_CONFIG } from '../config/weather';
 import weatherAlertService from '../services/weatherAlertService';
 import airQualityService from '../services/airQualityService';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { isNotificationTypeEnabled, settings } = useNotificationSettings();
   const [weather, setWeather] = useState(null);
   const [forecast, setForecast] = useState([]);
@@ -99,16 +92,16 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
           latitude,
           longitude
         });
-        
+
         if (addresses && addresses.length > 0) {
           const address = addresses[0];
           // 동과 도로명 정보를 조합하여 주소 생성
           let locationName = '';
-          
+
           // 동 정보 추출 (name에서 동 정보 가져오기)
           let dongName = '';
           let roadName = '';
-          
+
           // name에서 동 정보 추출 (예: "역삼동" 형태)
           if (address.name) {
             if (address.name.includes('동')) {
@@ -117,7 +110,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
               dongName = address.name;
             }
           }
-          
+
           // street에서 도로명 추출 (예: "강남대로" 형태)
           // street에 동 정보가 포함되어 있지 않은 경우만 도로명으로 사용
           if (address.street) {
@@ -134,7 +127,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
               }
             }
           }
-          
+
           // 동과 도로명 조합 (중복 제거)
           if (dongName && roadName) {
             // "현재위치 - 역삼동 강남대로" 형태로 표시
@@ -237,13 +230,13 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
       try {
         const currentText = await currentResponse.text();
         const forecastText = await forecastResponse.text();
-        
+
         currentData = JSON.parse(currentText);
         forecastData = JSON.parse(forecastText);
       } catch (parseError) {
         throw new Error('날씨 API 응답 형식이 올바르지 않습니다.');
       }
-      
+
       // 현재 날씨 설정
       const currentWeather = {
         temperature: Math.round(currentData.main.temp),
@@ -259,7 +252,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
 
       setWeather(currentWeather);
       setAirQuality(airQualityData || null);
-      
+
       // 부모 컴포넌트에 날씨 데이터 전달
       if (onWeatherDataUpdate) {
         onWeatherDataUpdate(currentWeather);
@@ -272,7 +265,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
         rainProbability: Math.round((item.pop || 0) * 100),
         icon: getRainIcon(item.rain ? item.rain['3h'] || 0 : 0),
       }));
-      
+
       // 2시간 간격으로 4개만 선택 (0, 1, 2, 3번째 인덱스 - 0, 3, 6, 9시간 후)
       const next4Hours = [next6Hours[0], next6Hours[1], next6Hours[2], next6Hours[3]];
 
@@ -296,7 +289,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
         allAlerts.forEach(alert => {
           // 날씨 알림 설정 확인
           const isEnabled = isNotificationTypeEnabled(alert.type);
-          
+
           // 디버깅 로그
           console.log(`🔔 날씨 알림 체크:`, {
             type: alert.type,
@@ -304,7 +297,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
             isEnabled: isEnabled,
             weatherAlertSetting: settings?.notifications?.weatherAlert
           });
-          
+
           if (isEnabled) {
             Alert.alert(
               alert.title,
@@ -333,7 +326,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
 
   useEffect(() => {
     fetchWeather();
-    
+
     // 설정된 간격마다 날씨 데이터 업데이트
     const interval = setInterval(() => {
       // 기존 위치 정보가 있으면 그것을 사용, 없으면 다시 위치 가져오기
@@ -343,7 +336,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
         fetchWeather();
       }
     }, WEATHER_CONFIG.UPDATE_INTERVAL);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -359,7 +352,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="small" color={colors.PRIMARY} />
           <Text style={styles.loadingText}>날씨 정보 로딩 중...</Text>
         </View>
       </View>
@@ -370,10 +363,10 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
     return (
       <View style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="cloud-offline" size={24} color={COLORS.SECONDARY} />
+          <Ionicons name="cloud-offline" size={24} color={colors.TEXT_SECONDARY} />
           <Text style={styles.errorText}>
-            {error === 'API 키가 설정되지 않았습니다.' 
-              ? 'API 키를 설정해주세요' 
+            {error === 'API 키가 설정되지 않았습니다.'
+              ? 'API 키를 설정해주세요'
               : '날씨 정보를 불러올 수 없습니다'}
           </Text>
         </View>
@@ -384,44 +377,44 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="location" size={16} color={COLORS.TEXT} />
+        <Ionicons name="location" size={16} color={colors.TEXT} />
         <Text style={styles.locationText}>{location.name}</Text>
       </View>
-      
+
       {/* 날씨 섹션 */}
       <View style={styles.weatherSection}>
         <View style={styles.weatherInfo}>
           <View style={styles.leftSection}>
             <View style={styles.mainWeather}>
-              <Ionicons 
-                name={weather.icon} 
-                size={32} 
-                color={COLORS.PRIMARY} 
+              <Ionicons
+                name={weather.icon}
+                size={32}
+                color={colors.PRIMARY}
               />
               <View style={styles.temperatureContainer}>
                 <Text style={styles.temperature}>{weather.temperature}°C</Text>
                 <Text style={styles.description}>{weather.description}</Text>
               </View>
             </View>
-            
+
             <Text style={styles.detailText}>
               체감 {weather.feelsLike}°C • 습도 {weather.humidity}%
             </Text>
           </View>
-          
+
           <View style={styles.forecastContainer}>
-            <ScrollView 
-              horizontal 
+            <ScrollView
+              horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.forecastScroll}
             >
               {forecast.map((item, index) => (
                 <View key={index} style={styles.forecastItem}>
                   <Text style={styles.forecastTime}>{item.time}</Text>
-                  <Ionicons 
-                    name={item.icon} 
-                    size={20} 
-                    color={item.rainVolume > 0 ? COLORS.PRIMARY : COLORS.SECONDARY} 
+                  <Ionicons
+                    name={item.icon}
+                    size={20}
+                    color={item.rainVolume > 0 ? colors.PRIMARY : colors.TEXT_SECONDARY}
                   />
                   <Text style={styles.forecastRain}>
                     {item.rainProbability}%
@@ -441,7 +434,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
       {/* 미세먼지 섹션 */}
       <View style={styles.airQualitySection}>
         <View style={styles.sectionDivider} />
-        
+
         {airQuality ? (
           <View style={styles.airQualityInfo}>
             {/* 대기질 지수 - 수치 + 프로그레스바 */}
@@ -461,14 +454,14 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
                   </Text>
                   <View style={styles.progressBarContainer}>
                     <View style={styles.progressBarBackground}>
-                      <View 
+                      <View
                         style={[
-                          styles.progressBarFill, 
-                          { 
+                          styles.progressBarFill,
+                          {
                             width: `${Math.min((airQuality.aqi / 500) * 100, 100)}%`,
-                            backgroundColor: COLORS.PRIMARY
+                            backgroundColor: colors.PRIMARY
                           }
-                        ]} 
+                        ]}
                       />
                     </View>
                     <Text style={styles.progressBarLabel}>0 - 500</Text>
@@ -515,7 +508,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
                 </View>
               </View>
             </View>
-            
+
             {/* 출처 표기 */}
             <View style={styles.sourceContainer}>
               <Text style={styles.sourceText}>출처 : 환경부/한국환경공단</Text>
@@ -525,7 +518,7 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
           /* 네트워크 오류 시 표시할 화면 */
           <View style={styles.airQualityErrorContainer}>
             <View style={styles.errorIconContainer}>
-              <Ionicons name="cloud-offline-outline" size={32} color={COLORS.SECONDARY} />
+              <Ionicons name="cloud-offline-outline" size={32} color={colors.TEXT_SECONDARY} />
             </View>
             <Text style={styles.errorTitle}>대기질 정보를 불러올 수 없습니다</Text>
             <Text style={styles.errorMessage}>
@@ -542,9 +535,9 @@ const WeatherCard = ({ onWeatherDataUpdate, isRefreshing = false }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
     paddingBottom: 12,
@@ -559,7 +552,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 6,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
@@ -581,12 +574,12 @@ const styles = StyleSheet.create({
   temperature: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
   description: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
     fontFamily: 'Pretendard',
   },
@@ -604,24 +597,24 @@ const styles = StyleSheet.create({
   },
   forecastTime: {
     fontSize: 12,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 6,
   },
   forecastRain: {
     fontSize: 12,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 4,
     fontWeight: '500',
   },
   forecastVolume: {
     fontSize: 10,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 2,
   },
 
   detailText: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 12,
     fontFamily: 'Pretendard',
   },
@@ -633,7 +626,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 8,
   },
   errorContainer: {
@@ -644,7 +637,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginLeft: 8,
   },
   // 날씨 섹션 스타일
@@ -657,7 +650,7 @@ const styles = StyleSheet.create({
   },
   sectionDivider: {
     height: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     marginVertical: 12,
   },
   airQualityHeader: {
@@ -667,7 +660,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 6,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
@@ -691,7 +684,7 @@ const styles = StyleSheet.create({
   },
   aqiLabel: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard',
   },
   aqiValueRow: {
@@ -704,7 +697,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'Pretendard-Bold',
     marginRight: 12,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   aqiLevel: {
     fontSize: 16,
@@ -720,7 +713,7 @@ const styles = StyleSheet.create({
   progressBarBackground: {
     width: '100%',
     height: 8,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 4,
@@ -731,14 +724,14 @@ const styles = StyleSheet.create({
   },
   progressBarLabel: {
     fontSize: 10,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
   },
   // 3x1 그리드 스타일
   airQualityGrid: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2A2A2A',
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     padding: 4,
   },
@@ -752,11 +745,11 @@ const styles = StyleSheet.create({
   gridDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#3A3A3A',
+    backgroundColor: colors.BORDER,
   },
   gridItemLabel: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '400',
     fontFamily: 'Pretendard',
     marginBottom: 6,
@@ -773,14 +766,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-Bold',
     marginBottom: 0,
     textAlign: 'center',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   healthImpactValue: {
     textAlign: 'center',
   },
   gridItemUnit: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
     textAlign: 'center',
     marginLeft: 4,
@@ -791,14 +784,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tag: {
-    backgroundColor: '#1C3336',
+    backgroundColor: colors.SURFACE,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   tagText: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
   },
@@ -810,7 +803,7 @@ const styles = StyleSheet.create({
   },
   sourceText: {
     fontSize: 11,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
     fontWeight: '400',
   },
@@ -825,7 +818,7 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
     fontWeight: '600',
     textAlign: 'center',
@@ -833,7 +826,7 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     fontSize: 13,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
     fontWeight: '400',
     textAlign: 'center',
@@ -843,16 +836,16 @@ const styles = StyleSheet.create({
   errorSourceContainer: {
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.SURFACE,
+    borderTopColor: colors.SURFACE,
     width: '100%',
     alignItems: 'center',
   },
   errorSourceText: {
     fontSize: 11,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontFamily: 'Pretendard',
     fontWeight: '400',
   },
 });
 
-export default WeatherCard; 
+export default WeatherCard;

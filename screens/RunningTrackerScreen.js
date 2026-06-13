@@ -1,25 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, ActivityIndicator, AppState, Linking, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Audio } from 'expo-av';
 import runOnRunningService from '../services/runOnRunningService';
 import backgroundLocationService from '../services/backgroundLocationService';
 import runningTrackingSessionService from '../services/runningTrackingSessionService';
 import RouteMap from '../components/RouteMap';
-import ENV from '../config/environment';
 import { getAppleFitnessService } from '../services/getAppleFitnessService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  TEXT: '#ffffff',
-  SECONDARY: '#9A9AA0',
-  DANGER: '#FF4D4F',
-};
+import { useTheme } from '../contexts/ThemeContext';
 const GPS_START_CACHE_MAX_AGE_MS = 15000;
 
 const toRad = (value) => (value * Math.PI) / 180;
@@ -92,6 +83,8 @@ const toMapCoords = (coords = []) => (
 const GPS_READY_BEEP_URI_1S = 'data:audio/wav;base64,UklGRmQfAABXQVZFZm10IBAAAAABAAEAoA8AAEAfAAACABAAZGF0YUAfAAAAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00wAAzCwAADTTAADMLAAANNMAAMwsAAA00w==';
 
 const RunningTrackerScreen = ({ navigation }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const [hasStartedRun, setHasStartedRun] = useState(false);
   const [isStartingRun, setIsStartingRun] = useState(false);
@@ -111,9 +104,7 @@ const RunningTrackerScreen = ({ navigation }) => {
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [pendingFinishData, setPendingFinishData] = useState(null);
   const [isSavingRun, setIsSavingRun] = useState(false);
-  const runningMapWebViewRef = useRef(null);
-  const isRunningMapLoadedRef = useRef(false);
-  const pendingMapPayloadRef = useRef(null);
+  const runningMapRef = useRef(null);
 
   const startTimeRef = useRef(new Date());
   const locationWatcherRef = useRef(null);
@@ -151,247 +142,37 @@ const RunningTrackerScreen = ({ navigation }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const createRunningMapHTML = useMemo(() => {
-    const kakaoApiKey = ENV.kakaoMapApiKey;
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-          <style>
-            html, body, #map {
-              width: 100%;
-              height: 100%;
-              margin: 0;
-              padding: 0;
-              background: #101014;
-            }
-          </style>
-        </head>
-        <body>
-          <div id="map"></div>
-          <script>
-            var map = null;
-            var polyline = null;
-            var currentMarker = null;
-            var startMarker = null;
-            var endMarker = null;
-            var mapReady = false;
+  // 경로 좌표 메모이제이션 (2초 주기로 갱신되는 mapRouteCoordinates 기반)
+  const mapCoords = useMemo(() => toMapCoords(mapRouteCoordinates), [mapRouteCoordinates]);
 
-            function createMarkerImage(fillColor) {
-              var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">' +
-                '<circle cx="13" cy="13" r="10" fill="' + fillColor + '" stroke="#ffffff" stroke-width="3" />' +
-                '</svg>';
-              var imageSrc = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
-              return new kakao.maps.MarkerImage(imageSrc, new kakao.maps.Size(26, 26));
-            }
+  // 현재 위치 (러닝 중: 마지막 좌표, 시작 전: GPS 위치)
+  const mapCurrentLocation = useMemo(() => {
+    if (mapCoords.length > 0) return mapCoords[mapCoords.length - 1];
+    if (!hasStartedRun && preStartCurrentLocation) return preStartCurrentLocation;
+    return null;
+  }, [mapCoords, hasStartedRun, preStartCurrentLocation]);
 
-            function postToRN(message) {
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(message);
-              }
-            }
-
-            function initMap() {
-              try {
-                if (
-                  typeof kakao === 'undefined'
-                  || !kakao.maps
-                  || typeof kakao.maps.LatLng !== 'function'
-                  || typeof kakao.maps.Map !== 'function'
-                ) {
-                  postToRN('runningMapError:KAKAO_SDK_NOT_READY');
-                  return;
-                }
-                var center = new kakao.maps.LatLng(37.5665, 126.9780);
-                map = new kakao.maps.Map(document.getElementById('map'), {
-                  center: center,
-                  level: 4
-                });
-                mapReady = true;
-                postToRN('runningMapLoaded');
-              } catch (error) {
-                postToRN('runningMapError:' + (error && error.message ? error.message : 'MAP_INIT_FAILED'));
-              }
-            }
-
-            function renderRoute(payload) {
-              if (!map || !payload) return;
-              var coords = Array.isArray(payload.routeCoordinates) ? payload.routeCoordinates : [];
-              var isFinished = !!payload.isFinished;
-              var shouldFollowCamera = !!payload.shouldFollowCamera;
-
-              var path = coords.map(function(coord) {
-                return new kakao.maps.LatLng(coord.latitude, coord.longitude);
-              });
-
-              if (path.length >= 2) {
-                if (!polyline) {
-                  polyline = new kakao.maps.Polyline({
-                    path: path,
-                    strokeWeight: 5,
-                    strokeColor: '#3AF8FF',
-                    strokeOpacity: 0.9,
-                    strokeStyle: 'solid'
-                  });
-                  polyline.setMap(map);
-                } else {
-                  polyline.setPath(path);
-                }
-              } else if (polyline) {
-                polyline.setMap(null);
-                polyline = null;
-              }
-
-              if (path.length >= 1) {
-                if (!startMarker) {
-                  startMarker = new kakao.maps.Marker({
-                    position: path[0],
-                    image: createMarkerImage('#28C76F')
-                  });
-                  startMarker.setMap(map);
-                } else {
-                  startMarker.setPosition(path[0]);
-                }
-              }
-
-              var current = payload.currentLocation;
-              if (current && Number.isFinite(current.latitude) && Number.isFinite(current.longitude)) {
-                var position = new kakao.maps.LatLng(current.latitude, current.longitude);
-                if (!isFinished) {
-                  if (!currentMarker) {
-                    currentMarker = new kakao.maps.Marker({
-                      position: position,
-                      image: createMarkerImage('#3AF8FF')
-                    });
-                    currentMarker.setMap(map);
-                  } else {
-                    currentMarker.setPosition(position);
-                  }
-                } else if (currentMarker) {
-                  currentMarker.setMap(null);
-                  currentMarker = null;
-                }
-
-                if (isFinished && path.length >= 1) {
-                  var endPosition = path[path.length - 1];
-                  if (!endMarker) {
-                    endMarker = new kakao.maps.Marker({
-                      position: endPosition,
-                      image: createMarkerImage('#FF4D4F')
-                    });
-                    endMarker.setMap(map);
-                  } else {
-                    endMarker.setPosition(endPosition);
-                  }
-                }
-
-                if (shouldFollowCamera) {
-                  map.panTo(position);
-                }
-              }
-            }
-
-            function handleMessage(event) {
-              try {
-                var data = JSON.parse(event.data);
-                if (data.type === 'updateRunningRoute') {
-                  renderRoute(data);
-                }
-              } catch (e) {
-                postToRN('runningMapError:MESSAGE_PARSE_FAILED');
-              }
-            }
-
-            window.addEventListener('message', handleMessage);
-            document.addEventListener('message', handleMessage);
-
-            window.onerror = function(message) {
-              postToRN('runningMapError:' + message);
-            };
-
-            (function loadKakaoSdk() {
-              try {
-                var sdk = document.createElement('script');
-                sdk.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoApiKey}&autoload=false';
-                sdk.async = true;
-                sdk.onload = function() {
-                  try {
-                    if (kakao && kakao.maps && typeof kakao.maps.load === 'function') {
-                      kakao.maps.load(function() {
-                        initMap();
-                      });
-                    } else {
-                      initMap();
-                    }
-                  } catch (error) {
-                    postToRN('runningMapError:' + (error && error.message ? error.message : 'KAKAO_MAPS_LOAD_FAILED'));
-                  }
-                };
-                sdk.onerror = function() {
-                  postToRN('runningMapError:KAKAO_SDK_LOAD_FAILED');
-                };
-                document.head.appendChild(sdk);
-              } catch (error) {
-                postToRN('runningMapError:' + (error && error.message ? error.message : 'SDK_LOAD_EXCEPTION'));
-              }
-            })();
-
-            setTimeout(function() {
-              if (!mapReady) {
-                postToRN('runningMapError:MAP_LOAD_TIMEOUT');
-              }
-            }, 7000);
-          </script>
-        </body>
-      </html>
-    `;
-  }, []);
-
-  const postRunningMapPayload = (payload) => {
-    if (!runningMapWebViewRef.current) return;
-    if (!isRunningMapLoadedRef.current) {
-      pendingMapPayloadRef.current = payload;
-      return;
-    }
-    runningMapWebViewRef.current.postMessage(JSON.stringify(payload));
-  };
-
+  // 카메라 자동 추적 (러닝 중 + 일시정지 아닐 때)
   useEffect(() => {
-    const normalizedCoords = toMapCoords(mapRouteCoordinates);
-    const currentLocation = normalizedCoords.length > 0
-      ? normalizedCoords[normalizedCoords.length - 1]
-      : (!hasStartedRun ? preStartCurrentLocation : null);
-    const shouldFollowCamera = !isPaused && !isRunFinished;
-
-    postRunningMapPayload({
-      type: 'updateRunningRoute',
-      routeCoordinates: normalizedCoords,
-      currentLocation,
-      isFinished: isRunFinished,
-      shouldFollowCamera,
-    });
-  }, [mapRouteCoordinates, isPaused, isRunFinished, hasStartedRun, preStartCurrentLocation]);
-
-  const handleRunningMapMessage = (event) => {
-    const data = event?.nativeEvent?.data;
-    if (data === 'runningMapLoaded') {
-      isRunningMapLoadedRef.current = true;
-      setRunningMapStatus('ready');
-      setRunningMapError('');
-      if (pendingMapPayloadRef.current && runningMapWebViewRef.current) {
-        runningMapWebViewRef.current.postMessage(JSON.stringify(pendingMapPayloadRef.current));
-        pendingMapPayloadRef.current = null;
-      }
-      return;
+    if (!isPaused && !isRunFinished && mapCurrentLocation) {
+      runningMapRef.current?.animateToRegion({
+        latitude: mapCurrentLocation.latitude,
+        longitude: mapCurrentLocation.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      }, 300);
     }
-    if (typeof data === 'string' && data.startsWith('runningMapError:')) {
-      const errorMessage = data.replace('runningMapError:', '').trim() || 'MAP_UNKNOWN_ERROR';
-      setRunningMapStatus('error');
-      setRunningMapError(errorMessage);
-    }
-  };
+  }, [mapCurrentLocation, isPaused, isRunFinished]);
+
+  // Android: 커스텀 View 마커는 tracksViewChanges=true일 때만 비트맵으로 래스터화됨.
+  // 마커가 처음 나타나는 시점(러닝 시작/종료/첫 좌표)에 잠시 켰다가 끔. (위치 이동은 false여도 갱신됨)
+  const hasAnyRunMarker = mapCoords.length > 0 || !!mapCurrentLocation;
+  const [markersTrackViewChanges, setMarkersTrackViewChanges] = useState(true);
+  useEffect(() => {
+    setMarkersTrackViewChanges(true);
+    const timer = setTimeout(() => setMarkersTrackViewChanges(false), 1500);
+    return () => clearTimeout(timer);
+  }, [hasStartedRun, isRunFinished, hasAnyRunMarker]);
 
   const playGpsReadyBeep = async () => {
     try {
@@ -870,11 +651,14 @@ const RunningTrackerScreen = ({ navigation }) => {
       });
 
       try {
+        // "항상 허용"(ACCESS_BACKGROUND_LOCATION)을 best-effort로 요청해 둔다.
+        // 단, location 타입 포그라운드 서비스는 "앱 사용 중 허용"만으로도 백그라운드에서
+        // 위치를 계속 받으므로, 권한 등급과 무관하게 포그라운드 서비스를 시작한다.
         const hasBackgroundPermission = await backgroundLocationService.ensureBackgroundPermission();
-        if (hasBackgroundPermission) {
-          await backgroundLocationService.start();
-        } else {
-          console.warn('⚠️ 백그라운드 위치 권한 미허용: 포그라운드 추적만 동작');
+        setBgPermissionGranted(!!hasBackgroundPermission);
+        await backgroundLocationService.start();
+        if (!hasBackgroundPermission) {
+          console.warn('⚠️ "항상 허용" 미부여 — 포그라운드 서비스로 백그라운드 추적(OEM 절전 정책에 따라 제한될 수 있음)');
         }
       } catch (bgError) {
         console.warn('⚠️ 백그라운드 위치 추적 시작 실패:', bgError?.message || bgError);
@@ -940,8 +724,6 @@ const RunningTrackerScreen = ({ navigation }) => {
   };
 
   const handleRetryRunningMap = () => {
-    isRunningMapLoadedRef.current = false;
-    pendingMapPayloadRef.current = null;
     setRunningMapError('');
     setRunningMapStatus('loading');
     setRunningMapReloadKey((prev) => prev + 1);
@@ -1130,23 +912,51 @@ const RunningTrackerScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.fullMapWrap}>
-        <WebView
-          key={`running-map-${runningMapReloadKey}`}
-          ref={runningMapWebViewRef}
-          source={{ html: createRunningMapHTML }}
+        <MapView
+          ref={runningMapRef}
+          provider={PROVIDER_GOOGLE}
           style={styles.runningMapWebView}
-          onMessage={handleRunningMapMessage}
-          onError={() => {
-            setRunningMapStatus('error');
-            setRunningMapError('WEBVIEW_LOAD_ERROR');
+          initialRegion={{
+            latitude: preStartCurrentLocation?.latitude ?? 37.5665,
+            longitude: preStartCurrentLocation?.longitude ?? 126.9780,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
           }}
-          javaScriptEnabled
-          domStorageEnabled
-          originWhitelist={['*']}
-          mixedContentMode="always"
           scrollEnabled={false}
-          bounces={false}
-        />
+          zoomEnabled={false}
+          rotateEnabled={false}
+          pitchEnabled={false}
+          showsUserLocation={false}
+          showsMyLocationButton={false}
+          showsCompass={false}
+          mapType="standard"
+          onMapReady={() => setRunningMapStatus('ready')}
+        >
+          {mapCoords.length >= 2 && (
+            <Polyline
+              coordinates={mapCoords}
+              strokeColor="#3AF8FF"
+              strokeWidth={5}
+              lineCap="round"
+              lineJoin="round"
+            />
+          )}
+          {mapCoords.length >= 1 && (
+            <Marker coordinate={mapCoords[0]} tracksViewChanges={markersTrackViewChanges} anchor={{ x: 0.5, y: 0.5 }}>
+              <View style={styles.runMarkerStart} />
+            </Marker>
+          )}
+          {isRunFinished && mapCoords.length >= 1 && (
+            <Marker coordinate={mapCoords[mapCoords.length - 1]} tracksViewChanges={markersTrackViewChanges} anchor={{ x: 0.5, y: 0.5 }}>
+              <View style={styles.runMarkerEnd} />
+            </Marker>
+          )}
+          {mapCurrentLocation && (
+            <Marker coordinate={mapCurrentLocation} tracksViewChanges={markersTrackViewChanges} anchor={{ x: 0.5, y: 0.5 }}>
+              <View style={styles.runMarkerCurrent} />
+            </Marker>
+          )}
+        </MapView>
       </View>
 
       {(runningMapStatus !== 'ready' || isGpsPreparing || showGpsReadyFeedback) && (
@@ -1164,7 +974,7 @@ const RunningTrackerScreen = ({ navigation }) => {
             </View>
           ) : showGpsReadyFeedback ? (
             <View style={styles.gpsReadyFeedbackWrap}>
-              <Ionicons name="checkmark-circle" size={42} color={COLORS.PRIMARY} />
+              <Ionicons name="checkmark-circle" size={42} color={colors.PRIMARY} />
               <Text style={styles.gpsReadyFeedbackText}>GPS 수신 완료</Text>
             </View>
           ) : (
@@ -1326,14 +1136,14 @@ const RunningTrackerScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   fullMapWrap: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#101014',
+    backgroundColor: '#101014', // intentional: map tile placeholder, immersive dark — keep
   },
   bottomModal: {
     position: 'absolute',
@@ -1342,8 +1152,8 @@ const styles = StyleSheet.create({
     bottom: 24,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#2D2D34',
-    backgroundColor: 'rgba(20,20,24,0.94)',
+    borderColor: colors.BORDER,
+    backgroundColor: 'rgba(20,20,24,0.94)', // intentional: glass HUD overlay on fullscreen map — keep dark
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 12,
@@ -1360,12 +1170,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metricLabel: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 11,
     marginBottom: 6,
   },
   metricValue: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 19,
     fontWeight: '700',
   },
@@ -1376,7 +1186,31 @@ const styles = StyleSheet.create({
   runningMapWebView: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#101014',
+    backgroundColor: '#101014', // intentional: map tile placeholder, immersive dark — keep
+  },
+  runMarkerCurrent: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#3AF8FF', // intentional: GPS map marker accent color — keep
+    borderWidth: 2.5,
+    borderColor: '#fff', // intentional: marker border always white — keep
+  },
+  runMarkerStart: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#00C853', // intentional: map start marker green — keep
+    borderWidth: 2,
+    borderColor: '#fff', // intentional: marker border always white — keep
+  },
+  runMarkerEnd: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#FF3B30', // intentional: map end marker red — keep
+    borderWidth: 2,
+    borderColor: '#fff', // intentional: marker border always white — keep
   },
   mapLoadingOverlay: {
     position: 'absolute',
@@ -1386,15 +1220,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(16,16,20,0.5)',
+    backgroundColor: 'rgba(16,16,20,0.5)', // intentional: fullscreen dim overlay on map — keep
     zIndex: 7,
     paddingHorizontal: 18,
   },
   mapErrorOverlay: {
-    backgroundColor: 'rgba(16,16,20,0.18)',
+    backgroundColor: 'rgba(16,16,20,0.18)', // intentional: immersive map overlay — keep
   },
   mapPlaceholderText: {
-    color: '#C8C8CF',
+    color: colors.TEXT_SECONDARY,
     fontSize: 13,
     textAlign: 'center',
   },
@@ -1405,13 +1239,13 @@ const styles = StyleSheet.create({
   gpsPreparingText: {
     fontSize: 19,
     fontWeight: '800',
-    color: '#ECFCFF',
+    color: '#ECFCFF', // intentional: light text on immersive dark glass overlay — keep
     marginBottom: 6,
   },
   gpsPreparingSubText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#BBD2D6',
+    color: '#BBD2D6', // intentional: light subtext on immersive dark overlay — keep
     textAlign: 'center',
   },
   gpsReadyFeedbackWrap: {
@@ -1420,14 +1254,14 @@ const styles = StyleSheet.create({
   },
   gpsReadyFeedbackText: {
     marginTop: 6,
-    color: '#D8FCFF',
+    color: '#D8FCFF', // intentional: light text on immersive map overlay — keep
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
   },
   pauseButton: {
     flex: 1,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1437,7 +1271,7 @@ const styles = StyleSheet.create({
   },
   startButton: {
     flex: 1,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1446,18 +1280,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   startButtonText: {
-    color: '#000000',
+    color: '#000000', // intentional: black text on PRIMARY (cyan) button — keep
     fontSize: 16,
     fontWeight: '800',
   },
   pauseButtonText: {
-    color: '#000000',
+    color: '#000000', // intentional: black text on PRIMARY (cyan) button — keep
     fontSize: 16,
     fontWeight: '700',
   },
   endButton: {
     flex: 1,
-    backgroundColor: COLORS.DANGER,
+    backgroundColor: colors.ERROR,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1466,7 +1300,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   endButtonText: {
-    color: '#ffffff',
+    color: '#ffffff', // intentional: white text on ERROR (red) button — keep
     fontSize: 16,
     fontWeight: '700',
   },
@@ -1480,9 +1314,9 @@ const styles = StyleSheet.create({
     bottom: 170,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(40,32,0,0.92)',
+    backgroundColor: 'rgba(40,32,0,0.92)', // intentional: semantic amber warning — keep
     borderWidth: 1,
-    borderColor: '#FF9F0A',
+    borderColor: '#FF9F0A', // intentional: amber warning border — keep
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 9,
@@ -1490,7 +1324,7 @@ const styles = StyleSheet.create({
   },
   bgPermissionWarningText: {
     flex: 1,
-    color: '#FFD966',
+    color: '#FFD966', // intentional: amber warning text — keep
     fontSize: 11.5,
     lineHeight: 16,
   },
@@ -1499,19 +1333,19 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#3A3A40',
-    backgroundColor: '#222229',
+    borderColor: '#3A3A40', // intentional: button inside immersive map area — keep dark
+    backgroundColor: '#222229', // intentional: dark button on map area — keep
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   mapRetryButtonText: {
-    color: '#E7E7EC',
+    color: '#E7E7EC', // intentional: light text on dark map area button — keep
     fontSize: 12,
     fontWeight: '600',
   },
   finishModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.58)',
+    backgroundColor: 'rgba(0,0,0,0.58)', // intentional: standard modal dim — keep
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
@@ -1521,13 +1355,13 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#303038',
-    backgroundColor: '#17171C',
+    borderColor: colors.BORDER,
+    backgroundColor: colors.SURFACE,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
   finishModalTitle: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 12,
@@ -1543,20 +1377,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   finishMetricLabel: {
-    color: '#9A9AA0',
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
     marginBottom: 4,
   },
   finishMetricValue: {
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 20,
     fontWeight: '700',
   },
   finishRouteWrap: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2E2E35',
-    backgroundColor: '#101014',
+    borderColor: colors.BORDER,
+    backgroundColor: '#101014', // intentional: map preview container, always dark — keep
     height: 172,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1564,7 +1398,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   finishRoutePlaceholder: {
-    color: '#8A8A90',
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
     textAlign: 'center',
   },
@@ -1580,20 +1414,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   finishDeleteButton: {
-    backgroundColor: '#2A2A31',
+    backgroundColor: colors.CARD,
     borderWidth: 1,
-    borderColor: '#3A3A43',
+    borderColor: colors.BORDER,
   },
   finishDeleteButtonText: {
-    color: '#D8D8DE',
+    color: colors.TEXT,
     fontSize: 14,
     fontWeight: '700',
   },
   finishSaveButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   finishSaveButtonText: {
-    color: '#000000',
+    color: '#000000', // intentional: black text on PRIMARY (cyan) button — keep
     fontSize: 14,
     fontWeight: '800',
   },

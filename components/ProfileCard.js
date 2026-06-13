@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,16 +6,12 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#181818',
-  CARD: '#171719',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const ProfileCard = ({ user }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const userProfile = {
     name: user?.displayName || '사용자',
     level: 'Runner',
@@ -82,9 +78,9 @@ const ProfileCard = ({ user }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     marginHorizontal: 0,
     marginTop: 16,
     borderRadius: 12,
@@ -101,14 +97,14 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#6B7280', // 회색톤
+    backgroundColor: '#6B7280', // 회색톤 (테마 무관 고정)
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#FFFFFF', // 아바타 배경 위 흰 글자 (항상 고정)
   },
   infoSection: {
     flex: 1,
@@ -121,11 +117,11 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
     marginRight: 8,
   },
   levelBadge: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
@@ -133,7 +129,7 @@ const styles = StyleSheet.create({
   levelText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#ffffff',
+    color: '#FFFFFF', // PRIMARY 색 배지 위 흰 글자 (항상 고정)
   },
   statsContainer: {
     flexDirection: 'row',
@@ -146,17 +142,17 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
     marginBottom: 2,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
     marginHorizontal: 8,
   },
   userDetails: {
@@ -164,9 +160,9 @@ const styles = StyleSheet.create({
   },
   userDetailsText: {
     fontSize: 14,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
 
 });
 
-export default ProfileCard; 
+export default ProfileCard;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,29 +10,26 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettingsPress, onSearchPress, hideProfile, title, unreadCount = 0, transparent = false }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const nickname = profile?.profile?.nickname || profile?.nickname || user?.displayName;
   const [imageLoadFailed, setImageLoadFailed] = React.useState(false);
   const insets = useSafeAreaInsets();
-  
+
   // 프로필 이미지가 변경되면 로드 실패 상태 리셋
   React.useEffect(() => {
     setImageLoadFailed(false);
   }, [profile?.profileImage]);
-  
+
   // Android에서 상태바 높이만큼 paddingTop 추가
   const statusBarHeight = Platform.OS === 'android' ? insets.top : 0;
-  
+
   return (
-    <View style={[styles.safeArea, { paddingTop: statusBarHeight, backgroundColor: transparent ? 'transparent' : COLORS.SURFACE }]}>
+    <View style={[styles.safeArea, { paddingTop: statusBarHeight, backgroundColor: transparent ? 'transparent' : colors.SURFACE }]}>
       <View style={[styles.container, transparent && styles.transparentContainer]}>
         {/* 왼쪽: 제목 또는 프로필 사진 */}
         <View style={styles.leftSection}>
@@ -44,12 +41,12 @@ const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettings
                 {(() => {
                   const hasImage = profile?.profileImage && !imageLoadFailed;
                   const imageUri = profile?.profileImage;
-                  
-                  
+
+
                   return hasImage ? (
-                    <Image 
+                    <Image
                       key={`profile-image-${user?.uid || 'default'}`}
-                      source={{ uri: imageUri }} 
+                      source={{ uri: imageUri }}
                       style={styles.profileImage}
                       onError={(error) => {
                         setImageLoadFailed(true);
@@ -75,16 +72,16 @@ const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettings
         {/* 오른쪽: 검색, 알림, 설정 */}
         <View style={styles.rightSection}>
           <TouchableOpacity style={styles.iconButton} onPress={onSearchPress}>
-            <Ionicons name="search-outline" size={22} color="#ffffff" />
+            <Ionicons name="search-outline" size={22} color={colors.TEXT} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
-            <Ionicons name="notifications-outline" size={22} color="#ffffff" />
+            <Ionicons name="notifications-outline" size={22} color={colors.TEXT} />
             {unreadCount > 0 && (
               <View style={styles.notificationBadge} />
             )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={onSettingsPress}>
-            <Ionicons name="settings-outline" size={22} color="#ffffff" />
+            <Ionicons name="settings-outline" size={22} color={colors.TEXT} />
           </TouchableOpacity>
         </View>
       </View>
@@ -92,13 +89,13 @@ const AppBar = ({ user, profile, onProfilePress, onNotificationPress, onSettings
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   safeArea: {
     // SafeAreaView 대신 View 사용, paddingTop은 동적으로 설정
   },
   container: {
     height: 56,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -125,7 +122,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 0.5,
-    borderColor: '#ffffff',
+    borderColor: colors.BORDER,
   },
   profileImage: {
     width: '100%',
@@ -140,7 +137,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   nicknameText: {
-    color: '#ffffff',
+    color: colors.TEXT,
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 12,
@@ -150,14 +147,14 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.TEXT,
     letterSpacing: 2,
     fontFamily: 'Pretendard-Bold',
   },
   title: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   iconButton: {
@@ -187,4 +184,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AppBar; 
+export default AppBar;

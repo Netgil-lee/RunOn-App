@@ -13,28 +13,18 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import { useGuide } from '../contexts/GuideContext';
 import GuideOverlay from '../components/GuideOverlay';
 import evaluationService from '../services/evaluationService';
-import ENV from '../config/environment';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import firestoreService from '../services/firestoreService';
-
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-  BORDER: '#374151',
-  ICON_DEFAULT: '#9CA3AF',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsChange, embedInExternalScrollView = false }, ref) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { event: rawEvent, isJoined = false, currentScreen, isCreatedByMe: routeIsCreatedByMe, returnToScreen, evaluationCompleted = false } = route.params;
   // BottomSheet 내부에서 렌더링되는지 확인 (MapScreen에서 호출될 때)
   const isInBottomSheet = returnToScreen === 'MapScreen';
@@ -592,121 +582,6 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
     );
   };
 
-  const createInlineMapHTML = () => {
-    let latitude, longitude;
-    
-    if (event.customMarkerCoords) {
-      latitude = event.customMarkerCoords.lat || event.customMarkerCoords.latitude;
-      longitude = event.customMarkerCoords.lng || event.customMarkerCoords.longitude;
-    } else {
-      latitude = 37.5172;
-      longitude = 126.9881;
-    }
-    
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-
-          <title>한강 지도</title>
-          <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${ENV.kakaoMapApiKey}"></script>
-          <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body { 
-                  background: #1F1F24; 
-                  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-                  overflow: hidden;
-                  height: 180px;
-              }
-              #map { 
-                  width: 100%; 
-                  height: 180px; 
-                  border: none;
-                  border-radius: 12px;
-              }
-          </style>
-      </head>
-      <body>
-          <div id="map"></div>
-          <script>
-              function sendMessage(message) {
-                  if (window.ReactNativeWebView) {
-                      window.ReactNativeWebView.postMessage(message);
-                  }
-              }
-              
-              try {
-                  sendMessage('🗺️ 스크립트 시작');
-                  sendMessage('📍 좌표: ${latitude}, ${longitude}');
-                  
-                  if (typeof kakao === 'undefined') {
-                      sendMessage('❌ Kakao SDK 로딩 실패');
-                      throw new Error('Kakao SDK not loaded');
-                  }
-                  sendMessage('✅ Kakao SDK 확인됨');
-                  
-                  var container = document.getElementById('map');
-                  if (!container) {
-                      sendMessage('❌ 지도 컨테이너 없음');
-                      throw new Error('Map container not found');
-                  }
-                  sendMessage('✅ 지도 컨테이너 확인됨');
-                  
-                  var options = {
-                      center: new kakao.maps.LatLng(${latitude}, ${longitude}),
-                      level: 3,
-                      disableDoubleClick: true,
-                      disableDoubleClickZoom: true
-                  };
-                  sendMessage('✅ 지도 옵션 설정됨');
-                  
-                  var map = new kakao.maps.Map(container, options);
-                  sendMessage('✅ 지도 객체 생성됨');
-                  
-                  var customSvgString = '<svg width="28" height="35" viewBox="0 0 28 35" xmlns="http://www.w3.org/2000/svg">' +
-                      '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="#FF4444"/>' +
-                      '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="none" stroke="#ffffff" stroke-width="2"/>' +
-                      '<circle cx="14" cy="14" r="7" fill="#ffffff"/>' +
-                      '<circle cx="14" cy="14" r="4" fill="#FF4444"/>' +
-                      '</svg>';
-                  var imageSrc = 'data:image/svg+xml;base64,' + btoa(customSvgString);
-                  var imageSize = new kakao.maps.Size(28, 35);
-                  var imageOffset = new kakao.maps.Point(14, 35);
-                  
-                  var markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, { offset: imageOffset });
-                  sendMessage('✅ 마커 이미지 생성됨');
-                  
-                  var markerPosition = new kakao.maps.LatLng(${latitude}, ${longitude});
-                  var marker = new kakao.maps.Marker({
-                      position: markerPosition,
-                      image: markerImage
-                  });
-                  marker.setMap(map);
-                  sendMessage('✅ 마커 배치됨');
-                  
-                  map.setMapTypeId(kakao.maps.MapTypeId.ROADMAP);
-                  sendMessage('✅ 지도 타입 설정됨');
-                  
-                  try {
-                      map.removeControl(map.getZoomControl());
-                      sendMessage('✅ 줌 컨트롤 제거됨');
-                  } catch (e) {
-                      sendMessage('⚠️ 줌 컨트롤 제거 실패: ' + e.message);
-                  }
-                  
-                  sendMessage('🎉 지도 초기화 완료!');
-                  
-              } catch (error) {
-                  sendMessage('🚨 지도 로딩 오류: ' + error.message);
-              }
-          </script>
-      </body>
-      </html>
-    `;
-  };
-
   // BottomSheet 내부에서는 View, 일반 화면에서는 SafeAreaView 사용
   const ContainerComponent = isInBottomSheet ? View : SafeAreaView;
   
@@ -868,7 +743,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             {/* 첫 번째 행: 날짜 | 시간 */}
             <View style={styles.infoGridRow}>
               <View style={styles.infoGridItem}>
-                <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="calendar" size={16} color={colors.TEXT_SECONDARY} />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>날짜</Text>
                   <Text style={styles.infoValue}>
@@ -878,7 +753,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
               </View>
               
               <View style={styles.infoGridItem}>
-                <Ionicons name="time" size={16} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="time" size={16} color={colors.TEXT_SECONDARY} />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>시간</Text>
                   <Text style={styles.infoValue}>{event.time}</Text>
@@ -926,7 +801,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
         <View style={styles.participantsSection}>
           <Text style={styles.sectionTitle}>참여자</Text>
           <View style={styles.participantsInfo}>
-            <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
+            <Ionicons name="people" size={20} color={colors.TEXT_SECONDARY} />
             <Text style={styles.participantsText}>
               {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
               {event.maxParticipants ? ` / ${event.maxParticipants}명` : ' (제한 없음)'}
@@ -961,7 +836,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             {/* 첫 번째 행: 날짜 | 시간 */}
             <View style={styles.infoGridRow}>
               <View style={styles.infoGridItem}>
-                <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="calendar" size={16} color={colors.TEXT_SECONDARY} />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>날짜</Text>
                   <Text style={styles.infoValue}>
@@ -971,7 +846,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
               </View>
               
               <View style={styles.infoGridItem}>
-                <Ionicons name="time" size={16} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="time" size={16} color={colors.TEXT_SECONDARY} />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>시간</Text>
                   <Text style={styles.infoValue}>{event.time}</Text>
@@ -1015,7 +890,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
         <View style={styles.participantsSection}>
           <Text style={styles.sectionTitle}>참여자</Text>
           <View style={styles.participantsInfo}>
-            <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
+            <Ionicons name="people" size={20} color={colors.TEXT_SECONDARY} />
             <Text style={styles.participantsText}>
               {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
               {event.maxParticipants ? ` / ${event.maxParticipants}명` : ' (제한 없음)'}
@@ -1089,7 +964,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                 {/* 첫 번째 행: 날짜 | 시간 */}
                 <View style={styles.infoGridRow}>
                   <View style={styles.infoGridItem}>
-                    <Ionicons name="calendar" size={16} color={COLORS.ICON_DEFAULT} />
+                    <Ionicons name="calendar" size={16} color={colors.TEXT_SECONDARY} />
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>날짜</Text>
                       <Text style={styles.infoValue}>
@@ -1099,7 +974,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                   </View>
                   
                   <View style={styles.infoGridItem}>
-                    <Ionicons name="time" size={16} color={COLORS.ICON_DEFAULT} />
+                    <Ionicons name="time" size={16} color={colors.TEXT_SECONDARY} />
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>시간</Text>
                       <Text style={styles.infoValue}>{event.time}</Text>
@@ -1147,7 +1022,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             <View style={styles.participantsSection}>
               <Text style={styles.sectionTitle}>참여자</Text>
               <View style={styles.participantsInfo}>
-                <Ionicons name="people" size={20} color={COLORS.ICON_DEFAULT} />
+                <Ionicons name="people" size={20} color={colors.TEXT_SECONDARY} />
                 <Text style={styles.participantsText}>
                   {Array.isArray(event.participants) ? event.participants.length : (event.participants || 1)}명
                   {event.maxParticipants ? ` / ${event.maxParticipants}명` : ' (제한 없음)'}
@@ -1246,7 +1121,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
               </TouchableOpacity>
             ) : isEnded && isEvaluationCompleted ? (
               <View style={[styles.actionButton, styles.completedButton]}>
-                <Ionicons name="checkmark-circle" size={24} color={COLORS.PRIMARY} />
+                <Ionicons name="checkmark-circle" size={24} color={colors.PRIMARY} />
                 <Text style={[styles.actionButtonText, styles.completedButtonText]}>러닝매너 작성완료</Text>
               </View>
             ) : (
@@ -1303,7 +1178,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                     <Ionicons 
                       name={isCreatedByMe ? "checkmark-circle" : (isJoinedState ? "exit" : "add")} 
                       size={24} 
-                      color={isCreatedByMe ? "#000000" : (isJoinedState ? COLORS.TEXT : "#000000")} 
+                      color={isCreatedByMe ? "#000000" : (isJoinedState ? colors.TEXT : "#000000")} 
                     />
                   );
                 })()}
@@ -1334,33 +1209,33 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
   );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     marginTop: -16, // 위로 올리기
   },
   containerInSheet: {
     // BottomSheet 내부: 배경색을 시트와 동일하게
     marginTop: 0,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   bottomSheetContainer: {
     // BottomSheet 내부 컨테이너: flexbox 레이아웃
     flex: 1,
     flexDirection: 'column',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   fixedHeaderSection: {
     // 고정 헤더 영역 (스크롤되지 않음)
     flexShrink: 0,
-    backgroundColor: COLORS.SURFACE, // BottomSheet와 동일
+    backgroundColor: colors.SURFACE, // BottomSheet와 동일
   },
   headerInSheet: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   customLocationContainerInSheet: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
   },
   scrollableSection: {
     // 스크롤 가능한 영역 - 하단 버튼 공간 확보
@@ -1382,7 +1257,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8, // 하단 여백 줄임
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   backButton: {
     padding: 4,
@@ -1391,7 +1266,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 12,
     marginRight: 12,
   },
@@ -1399,15 +1274,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 0, // 상단 여백 제거
     paddingBottom: 4, // 하단 여백 줄임
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   customLocationText: {
     fontSize: 15,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     lineHeight: 21,
   },
   descriptionCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 10, // 러닝정보 카드와 동일한 좌우 여백
@@ -1416,7 +1291,7 @@ const styles = StyleSheet.create({
   },
   descriptionText: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 24,
   },
   headerRightSection: {
@@ -1427,7 +1302,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 10,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   typeContainer: {
     backgroundColor: '#FF0073CC', // 구독서비스 하단버튼 색상 투명도 80% (CC = 204/255 ≈ 80%)
@@ -1438,10 +1313,10 @@ const styles = StyleSheet.create({
   typeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   infoSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12, // 모든 카드 사이 여백 통일
@@ -1463,7 +1338,7 @@ const styles = StyleSheet.create({
   infoGridHorizontalDivider: {
     height: 1,
     width: '100%',
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     marginVertical: 12,
   },
   infoRow: {
@@ -1477,31 +1352,22 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   infoDetailValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginTop: 4,
   },
-  inlineMapContainer: {
-    height: 180,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  inlineMapWebView: {
-    flex: 1,
-  },
   runningInfoSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 12, // 모든 카드 사이 여백 통일
@@ -1510,7 +1376,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 12,
   },
   statsContainer: {
@@ -1523,17 +1389,17 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 4,
   },
   statValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   statDivider: {
     width: 1,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     marginHorizontal: 20,
   },
   difficultyBadge: {
@@ -1547,7 +1413,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   participantsSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12, // 모든 카드 사이 여백 통일
@@ -1560,19 +1426,19 @@ const styles = StyleSheet.create({
   },
   participantsText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 8,
   },
   participantsBar: {
     flex: 1,
     height: 4,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     borderRadius: 2,
     marginLeft: 12,
   },
   participantsProgress: {
     height: '100%',
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 2,
   },
   participantsList: {
@@ -1587,7 +1453,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
   },
   participantAvatar: {
@@ -1604,7 +1470,7 @@ const styles = StyleSheet.create({
   participantImagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#6B7280',
+    backgroundColor: colors.TEXT_SECONDARY,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 20,
@@ -1620,13 +1486,13 @@ const styles = StyleSheet.create({
   },
   participantName: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
     marginBottom: 4,
   },
   participantBio: {
     fontSize: 12,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 16,
   },
   loadingContainer: {
@@ -1637,7 +1503,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   emptyContainer: {
     flex: 1,
@@ -1647,10 +1513,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   hashtagSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -1661,14 +1527,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   hashtagBadge: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   hashtagText: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   bottomActions: {
@@ -1676,18 +1542,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     paddingHorizontal: 10, // 카드와 동일한 좌우 여백
     paddingTop: 12,
     paddingBottom: 22,
     borderTopWidth: 0.25,
-    borderTopColor: '#333333',
+    borderTopColor: colors.BORDER,
   },
   bottomActionsInSheet: {
     // BottomSheet 내부에서는 absolute 제거, flexbox로 자연스럽게 하단 배치
     position: 'relative',
     width: '100%',
-    backgroundColor: COLORS.SURFACE, // BottomSheet와 동일
+    backgroundColor: colors.SURFACE, // BottomSheet와 동일
     // 명시적으로 높이 보장
     minHeight: 70,
     paddingHorizontal: 10, // 카드와 동일한 좌우 여백
@@ -1703,38 +1569,38 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   joinButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   leaveButton: {
     backgroundColor: '#FF4444',
   },
   endButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   actionButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
   },
   completedButton: {
-    backgroundColor: '#1F2937',
+    backgroundColor: colors.CARD,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
   },
   completedButtonText: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   joinButtonText: {
     color: '#000000',
   },
   leaveButtonText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   endButtonText: {
     color: '#000000',
   },
   disabledButton: {
     opacity: 0.7,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     paddingVertical: 18, // 기본 16에서 18로 증가 (위아래 여백 추가)
   },
   disabledButtonText: {
@@ -1757,6 +1623,7 @@ export const EventDetailBottomButton = ({
   styles: componentStyles
 }) => {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   return (
     <View style={[componentStyles.bottomActions, componentStyles.bottomActionsInSheet, { paddingBottom: 22 + insets.bottom }]}>
       {isEnded && !isEvaluationCompleted ? (
@@ -1769,7 +1636,7 @@ export const EventDetailBottomButton = ({
         </TouchableOpacity>
       ) : isEnded && isEvaluationCompleted ? (
         <View style={[componentStyles.actionButton, componentStyles.completedButton]}>
-          <Ionicons name="checkmark-circle" size={24} color={COLORS.PRIMARY} />
+          <Ionicons name="checkmark-circle" size={24} color={colors.PRIMARY} />
           <Text style={[componentStyles.actionButtonText, componentStyles.completedButtonText]}>러닝매너 작성완료</Text>
         </View>
       ) : (
@@ -1808,7 +1675,7 @@ export const EventDetailBottomButton = ({
               <Ionicons 
                 name={isCreatedByMe ? "checkmark-circle" : (isJoinedState ? "exit" : "add")} 
                 size={24} 
-                color={isCreatedByMe ? "#000000" : (isJoinedState ? COLORS.TEXT : "#000000")} 
+                color={isCreatedByMe ? "#000000" : (isJoinedState ? colors.TEXT : "#000000")} 
               />
             );
           })()}

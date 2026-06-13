@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,12 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
+import { useTheme } from '../contexts/ThemeContext';
 
 const MeetingCard = ({ meeting, onClose, onJoin, variant = 'card' }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (!meeting) return null;
 
   const isSheetList = variant === 'sheetList';
@@ -26,12 +20,12 @@ const MeetingCard = ({ meeting, onClose, onJoin, variant = 'card' }) => {
   // 연도를 제거하고 요일을 추가하는 함수 (ScheduleCard와 동일)
   const formatDateWithoutYear = (dateString) => {
     if (!dateString) return '';
-    
+
     // 이미 요일이 포함된 형식인 경우 (예: "1월 18일 (목)") 그대로 반환
     if (dateString.includes('(') && dateString.includes(')')) {
       return dateString;
     }
-    
+
     // "2024년 1월 18일" 또는 ISO 형식을 "1월 18일 (요일)" 형식으로 변환
     try {
       let date;
@@ -48,7 +42,7 @@ const MeetingCard = ({ meeting, onClose, onJoin, variant = 'card' }) => {
         // ISO 형식: "2024-01-18"
         date = new Date(dateString);
       }
-      
+
       if (date && !isNaN(date.getTime())) {
         const month = date.getMonth() + 1;
         const day = date.getDate();
@@ -58,7 +52,7 @@ const MeetingCard = ({ meeting, onClose, onJoin, variant = 'card' }) => {
     } catch (error) {
       // 파싱 실패 시 무시
     }
-    
+
     // 파싱 실패 시 연도만 제거하여 반환
     return dateString.replace(/^\d{4}년\s*/, '');
   };
@@ -66,7 +60,7 @@ const MeetingCard = ({ meeting, onClose, onJoin, variant = 'card' }) => {
   // 해시태그 파싱 함수 (ScheduleCard와 동일)
   const parseHashtags = (hashtagString) => {
     if (!hashtagString || !hashtagString.trim()) return [];
-    
+
     return hashtagString
       .split(/\s+/)
       .filter(tag => tag.startsWith('#') && tag.length > 1)
@@ -104,13 +98,13 @@ const MeetingCard = ({ meeting, onClose, onJoin, variant = 'card' }) => {
           <Text style={styles.descriptionSheetPlain}>{meeting.description}</Text>
           <View style={styles.locationDateTimeRowSheetPlain}>
             <View style={styles.infoRow}>
-              <Ionicons name="time-outline" size={16} color={COLORS.PRIMARY} />
+              <Ionicons name="time-outline" size={16} color={colors.PRIMARY} />
               <Text style={styles.infoText}>
                 {formatDateWithoutYear(meeting.date)} {meeting.time}
               </Text>
             </View>
             <View style={[styles.infoRow, styles.participantInfoRow]}>
-              <Ionicons name="people-outline" size={16} color={COLORS.PRIMARY} />
+              <Ionicons name="people-outline" size={16} color={colors.PRIMARY} />
               <Text style={styles.infoText}>
                 {(() => {
                   const participantCount = Array.isArray(meeting.participants)
@@ -156,8 +150,8 @@ const MeetingCard = ({ meeting, onClose, onJoin, variant = 'card' }) => {
           {/* 모임 생성자 프로필 */}
           <View style={styles.organizerAvatar}>
             {meeting.organizerImage && !meeting.organizerImage.startsWith('file://') ? (
-              <Image 
-                source={{ uri: meeting.organizerImage }} 
+              <Image
+                source={{ uri: meeting.organizerImage }}
                 style={styles.organizerAvatarImage}
               />
             ) : (
@@ -173,26 +167,26 @@ const MeetingCard = ({ meeting, onClose, onJoin, variant = 'card' }) => {
           <Text style={styles.title}>{meeting.title}</Text>
         </View>
         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <Ionicons name="close" size={20} color={COLORS.SECONDARY} />
+          <Ionicons name="close" size={20} color={colors.TEXT_SECONDARY} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
         {/* 설명 */}
         <Text style={styles.description}>{meeting.description}</Text>
-        
+
         {/* 날짜/시간과 참여자수를 한 줄로 배치 */}
         <View style={styles.locationDateTimeRow}>
           {/* 날짜/시간 */}
           <View style={styles.infoRow}>
-            <Ionicons name="time-outline" size={16} color={COLORS.PRIMARY} />
+            <Ionicons name="time-outline" size={16} color={colors.PRIMARY} />
             <Text style={styles.infoText}>
               {formatDateWithoutYear(meeting.date)} {meeting.time}
             </Text>
           </View>
           {/* 참여자수 (우측) */}
           <View style={[styles.infoRow, styles.participantInfoRow]}>
-            <Ionicons name="people-outline" size={16} color={COLORS.PRIMARY} />
+            <Ionicons name="people-outline" size={16} color={colors.PRIMARY} />
             <Text style={styles.infoText}>
               {(() => {
                 const participantCount = Array.isArray(meeting.participants) ? meeting.participants.length : (meeting.participants || 1);
@@ -231,9 +225,9 @@ const MeetingCard = ({ meeting, onClose, onJoin, variant = 'card' }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     margin: 16,
     borderRadius: 12,
     overflow: 'hidden',
@@ -241,9 +235,9 @@ const styles = StyleSheet.create({
   sheetRoot: {
     width: '100%',
     alignSelf: 'stretch',
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderBottomWidth: 2,
-    borderBottomColor: '#000000',
+    borderBottomColor: colors.BACKGROUND,
   },
   sheetSectionInner: {
     paddingHorizontal: 20,
@@ -258,7 +252,7 @@ const styles = StyleSheet.create({
   },
   descriptionSheetPlain: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -290,7 +284,7 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.SURFACE,
+    borderBottomColor: colors.SURFACE,
   },
   titleContainer: {
     flexDirection: 'row',
@@ -301,7 +295,7 @@ const styles = StyleSheet.create({
   locationName: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginLeft: 6,
   },
   closeButton: {
@@ -313,12 +307,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
   description: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -341,7 +335,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginLeft: 8,
     flexShrink: 1,
   },
@@ -349,7 +343,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     marginBottom: 16,
     alignSelf: 'stretch',
@@ -362,7 +356,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
     textAlign: 'center',
   },
@@ -374,7 +368,7 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -382,7 +376,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tag: {
-    backgroundColor: '#1C3336',
+    backgroundColor: colors.SURFACE,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -391,7 +385,7 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   footer: {
@@ -427,7 +421,7 @@ const styles = StyleSheet.create({
   },
   organizerName: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   rightSection: {
@@ -437,11 +431,11 @@ const styles = StyleSheet.create({
   },
   participantInfo: {
     fontSize: 13,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   joinButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -449,15 +443,15 @@ const styles = StyleSheet.create({
   joinButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.BACKGROUND,
+    color: colors.BACKGROUND,
   },
   disabledButton: {
-    backgroundColor: COLORS.SECONDARY,
+    backgroundColor: colors.TEXT_SECONDARY,
     opacity: 0.7,
   },
   disabledButtonText: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
 });
 
-export default MeetingCard; 
+export default MeetingCard;

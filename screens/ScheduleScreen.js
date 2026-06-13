@@ -17,23 +17,26 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
+import { getTabBarInsetsStyle } from '../constants/tabBarInsets';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { WebView } from 'react-native-webview';
+import { Picker } from '@react-native-picker/picker';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import { useGuide } from '../contexts/GuideContext';
+import { useTheme } from '../contexts/ThemeContext';
 import GuideOverlay from '../components/GuideOverlay';
 import firestoreService from '../services/firestoreService';
 import evaluationService from '../services/evaluationService';
 import RunningShareModal from '../components/RunningShareModal';
+import RouteMapSnapshot from '../components/RouteMapSnapshot';
 import runOnRunningService from '../services/runOnRunningService';
 import ENV from '../config/environment';
 import storageService from '../services/storageService';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { searchPlace } from '../services/kakaoPlacesService';
 import * as Location from 'expo-location';
 import * as Clipboard from 'expo-clipboard';
 import { recordMeetingLocation } from '../services/userActivityService';
@@ -44,16 +47,6 @@ const EXTERNAL_FITNESS_LABEL = Platform.OS === 'ios' ? 'Apple Fitness' : 'Google
 
 const firestore = getFirestore();
 
-
-// NetGill 디자인 시스템 - 홈화면과 동일한 색상 팔레트
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-  CARD: '#171719',
-  TEXT: '#ffffff',
-  SECONDARY: '#666666',
-};
 
 const FEED_META_STORAGE_KEY = 'runon_running_feed_meta_v1';
 const FEED_PAGE_SIZE = 8;
@@ -120,9 +113,65 @@ const isSameRunningSession = (runOnWorkout, appleWorkout) => {
   return durationDiff <= 8 * 60; // 8분 이내면 동일 세션으로 간주
 };
 
+// ─── 러닝피드 더미 데이터 (개발 검증용) ──────────────────────────────────
+// __DEV__ 빌드에서만 피드에 주입됨. 프로덕션(Play 릴리스)에는 절대 포함되지 않음.
+// 끄려면 ENABLE_DUMMY_FEED를 false로.
+const ENABLE_DUMMY_FEED = __DEV__;
 
+const makeDummyRoute = (lat, lng) => {
+  const points = [];
+  for (let i = 0; i < 26; i += 1) {
+    const t = (i / 26) * Math.PI * 2;
+    points.push({
+      latitude: lat + Math.sin(t) * 0.0045 + i * 0.00010,
+      longitude: lng + Math.cos(t) * 0.0060 + i * 0.00009,
+    });
+  }
+  return points;
+};
+
+const buildDummyFeedWorkouts = () => {
+  const now = Date.now();
+  return [
+    {
+      id: 'dummy-feed-1',
+      sourceLabel: 'RunOn',
+      sourceType: 'runon_local',
+      startTime: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+      distance: '5.20km',
+      pace: '5:28/km',
+      duration: '28:35',
+      calories: 342,
+      routeCoordinates: makeDummyRoute(37.5285, 126.9325),
+    },
+    {
+      id: 'dummy-feed-2',
+      sourceLabel: EXTERNAL_FITNESS_LABEL,
+      sourceType: Platform.OS === 'ios' ? 'apple' : 'health_connect',
+      startTime: new Date(now - 26 * 60 * 60 * 1000).toISOString(),
+      distance: '10.05km',
+      pace: '6:02/km',
+      duration: '1:00:42',
+      calories: 712,
+      routeCoordinates: makeDummyRoute(37.5102, 127.0985),
+    },
+    {
+      id: 'dummy-feed-3',
+      sourceLabel: 'RunOn',
+      sourceType: 'runon_local',
+      startTime: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      distance: '3.00km',
+      pace: '5:50/km',
+      duration: '17:30',
+      calories: 198,
+      routeCoordinates: makeDummyRoute(37.5663, 126.9779),
+    },
+  ];
+};
 
 const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMeetingCardRef, onMyCreatedMeetingsSectionRef, onMeetingCardRef, onMeetingCardMenuRef }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const authContext = useAuth();
   const { user } = authContext || {};
   const [userProfile, setUserProfile] = useState(null);
@@ -189,6 +238,14 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
   }, [showEndedEventsFromRoute, showMyCreatedFromRoute, showMyJoinedFromRoute, navigation]);
 
   const [showCreateFlow, setShowCreateFlow] = useState(false);
+  // 모임 생성 플로우 동안에는 하단 탭바를 숨긴다 (버튼 아래 탭바 영역이 여백처럼 보이는 문제 해결)
+  useEffect(() => {
+    if (showCreateFlow) {
+      navigation.setOptions({ tabBarStyle: { display: 'none' } });
+    } else {
+      navigation.setOptions({ tabBarStyle: getTabBarInsetsStyle(insets) });
+    }
+  }, [showCreateFlow, navigation, insets]);
   const [mainMode, setMainMode] = useState('group'); // 'group' | 'feed'
   const [showMyCreated, setShowMyCreated] = useState(false);
   
@@ -414,15 +471,27 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
         return !normalizedRunOn.some((runOnWorkout) => isSameRunningSession(runOnWorkout, externalWorkout));
       });
 
-      const merged = [...filteredExternal, ...normalizedRunOn]
+      let merged = [...filteredExternal, ...normalizedRunOn]
         .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
+      // 개발 검증용 더미 데이터 주입 (프로덕션 제외)
+      if (ENABLE_DUMMY_FEED) {
+        merged = [...merged, ...buildDummyFeedWorkouts()]
+          .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+      }
 
       setFeedWorkouts(merged);
       setFeedErrorCode(merged.length === 0 ? externalErrorCode : '');
     } catch (error) {
       const code = error?.code || 'UNKNOWN';
-      setFeedErrorCode(code);
-      setFeedWorkouts([]);
+      // 개발 모드에서는 에러 시에도 더미 데이터로 화면 검증 가능하게
+      if (ENABLE_DUMMY_FEED) {
+        setFeedWorkouts(buildDummyFeedWorkouts());
+        setFeedErrorCode('');
+      } else {
+        setFeedErrorCode(code);
+        setFeedWorkouts([]);
+      }
     } finally {
       setIsFeedLoading(false);
     }
@@ -849,7 +918,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>내가 만든 모임</Text>
           <View style={styles.headerRight} />
@@ -862,7 +931,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
         >
           {userCreatedEvents.filter(event => event.status !== 'ended').length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="create-outline" size={80} color="#ffffff" />
+              <Ionicons name="create-outline" size={80} color={colors.TEXT} />
               <Text style={styles.emptyTitle}>생성한 모임이 없어요</Text>
               <Text style={styles.emptySubtitle}>
                 새로운 러닝 모임을 만들어보세요!
@@ -910,7 +979,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>내가 참여한 모임</Text>
           <View style={styles.headerRight} />
@@ -923,7 +992,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
         >
           {userJoinedEvents.filter(event => event.status !== 'ended').length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={80} color="#ffffff" />
+              <Ionicons name="people-outline" size={80} color={colors.TEXT} />
               <Text style={styles.emptyTitle}>참여한 모임이 없어요</Text>
               <Text style={styles.emptySubtitle}>
                 다른 사람들의 러닝 모임에 참여해보세요!
@@ -962,7 +1031,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>종료된 모임</Text>
           <View style={styles.headerRight} />
@@ -978,7 +1047,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
             (event.participants && event.participants.includes(user?.uid))
           ).length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="checkmark-circle-outline" size={80} color="#ffffff" />
+              <Ionicons name="checkmark-circle-outline" size={80} color={colors.TEXT} />
               <Text style={styles.emptyTitle}>종료된 모임이 없어요</Text>
               <Text style={styles.emptySubtitle}>
                 모임이 종료되면 여기에서 확인할 수 있습니다.
@@ -1072,7 +1141,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               onPress={handleCreateEvent}
             >
               <View style={styles.optionIconContainer}>
-                <Ionicons name="add-circle" size={48} color={COLORS.PRIMARY} />
+                <Ionicons name="add-circle" size={48} color={colors.PRIMARY} />
               </View>
               <View style={styles.optionContent}>
                 <Text style={styles.optionTitle}>새 모임 만들기</Text>
@@ -1137,7 +1206,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                 <Text style={styles.optionTitle}>종료된 모임</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                   <Text style={styles.optionSubtitle}>종료된 모임을 확인하고 </Text>
-                  <Text style={[styles.optionSubtitle, { color: COLORS.PRIMARY }]}>러닝매너</Text>
+                  <Text style={[styles.optionSubtitle, { color: colors.PRIMARY }]}>러닝매너</Text>
                   <Text style={styles.optionSubtitle}>를 작성하세요</Text>
                 </View>
                 <View style={styles.optionBadge}>
@@ -1154,15 +1223,15 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
             <View style={styles.infoSection}>
               <Text style={styles.infoTitle}>💡 모임 관리 팁</Text>
               <View style={styles.infoItem}>
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
                 <Text style={styles.infoText}>모임 생성 시 상세한 정보를 입력하면 더 많은 참여자를 모을 수 있어요</Text>
               </View>
               <View style={styles.infoItem}>
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
                 <Text style={styles.infoText}>참여한 모임은 시작 24시간 전까지 취소할 수 있어요</Text>
               </View>
               <View style={styles.infoItem}>
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
                 <Text style={styles.infoText}>날씨나 상황 변경 시 참여자들에게 미리 알려주세요</Text>
               </View>
             </View>
@@ -1171,7 +1240,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
           <>
             {isFeedLoading ? (
               <View style={styles.runningFeedPlaceholderCard}>
-                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                <ActivityIndicator size="small" color={colors.PRIMARY} />
                 <Text style={styles.runningFeedPlaceholderTitle}>러닝 기록을 불러오는 중</Text>
               </View>
             ) : feedErrorCode ? (
@@ -1189,7 +1258,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               </View>
             ) : feedWorkouts.length === 0 ? (
               <View style={styles.runningFeedPlaceholderCard}>
-                <Ionicons name="fitness-outline" size={34} color={COLORS.PRIMARY} />
+                <Ionicons name="fitness-outline" size={34} color={colors.PRIMARY} />
                 <Text style={styles.runningFeedPlaceholderTitle}>러닝 기록이 없어요</Text>
                 <Text style={styles.runningFeedPlaceholderText}>
                   {`RunOn과 ${EXTERNAL_FITNESS_LABEL}의 러닝 기록이 여기에 표시됩니다.`}
@@ -1288,6 +1357,15 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                         </View>
                       </View>
 
+                      {Array.isArray(workout.routeCoordinates) && workout.routeCoordinates.length >= 2 && (
+                        <View style={styles.runningFeedMapWrapper}>
+                          <RouteMapSnapshot
+                            coordinates={workout.routeCoordinates}
+                            workoutId={workout.id}
+                          />
+                        </View>
+                      )}
+
                       <View style={styles.runningFeedFooter}>
                         <View style={styles.runningFeedActionButtons}>
                           <TouchableOpacity
@@ -1328,7 +1406,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                           <View style={styles.runningFeedEffortScaleRow}>
                             {Array.from({ length: 11 }).map((_, level) => {
                               const isActive = effortLevel !== null && level <= effortLevel;
-                              const activeColor = EFFORT_COLORS[level] || COLORS.PRIMARY;
+                              const activeColor = EFFORT_COLORS[level] || colors.PRIMARY;
                               return (
                                 <TouchableOpacity
                                   key={`${workout.id}-effort-${level}`}
@@ -1487,6 +1565,8 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
 };
 
 const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCreatedByMe = false, showOrganizerInfo = false, cardIndex, showJoinButton = true, isEnded = false, hasRatingNotification = false, hasMeetingNotification = false, navigation, user, onMeetingCardRef, onMeetingCardMenuRef }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [showActionModal, setShowActionModal] = useState(false);
   const [buttonLayout, setButtonLayout] = useState(null);
   const [cardLayout, setCardLayout] = useState(null);
@@ -1922,13 +2002,13 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
       <View style={styles.locationDateTimeRow}>
         {/* 위치 */}
         <View style={styles.infoRow}>
-          <Ionicons name="location-outline" size={16} color={COLORS.PRIMARY} />
+          <Ionicons name="location-outline" size={16} color={colors.PRIMARY} />
           <Text style={styles.infoText}>{event.location}</Text>
         </View>
 
         {/* 날짜/시간 */}
         <View style={styles.infoRow}>
-          <Ionicons name="time-outline" size={16} color={COLORS.PRIMARY} />
+          <Ionicons name="time-outline" size={16} color={colors.PRIMARY} />
           <Text style={styles.infoText}>
             {event.date ? formatDateWithoutYear(event.date) : '날짜 없음'} {event.time || '시간 없음'}
           </Text>
@@ -1982,7 +2062,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
             isEvaluationCompleted ? (
               <View style={styles.completedSection}>
                 <View style={[styles.evaluationCompletedButton, styles.evaluationCompletedButtonBright]}>
-                  <Ionicons name="checkmark-circle" size={16} color={COLORS.PRIMARY} />
+                  <Ionicons name="checkmark-circle" size={16} color={colors.PRIMARY} />
                   <Text style={styles.evaluationCompletedButtonText}>러닝매너 작성완료</Text>
                 </View>
                 <TouchableOpacity 
@@ -2093,6 +2173,8 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
 };
 
 const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { user, updateUserProfile } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
@@ -2166,7 +2248,30 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  
+
+  // 시간 드롭다운(오전·오후 / 시 / 분 0·15·30·45) 선택 상태
+  const [pickerAmpm, setPickerAmpm] = useState('오전');
+  const [pickerHour, setPickerHour] = useState(9);
+  const [pickerMinute, setPickerMinute] = useState(0);
+
+  const openTimePicker = React.useCallback(() => {
+    const h = time.getHours();
+    setPickerAmpm(h >= 12 ? '오후' : '오전');
+    setPickerHour(h % 12 || 12);
+    setPickerMinute((Math.round(time.getMinutes() / 15) * 15) % 60);
+    setShowTimePicker(true);
+  }, [time]);
+
+  const confirmTimeSelection = React.useCallback(() => {
+    let hour24 = pickerHour % 12;
+    if (pickerAmpm === '오후') hour24 += 12;
+    const next = new Date(time);
+    next.setHours(hour24, pickerMinute, 0, 0);
+    setTime(next);
+    setTimeString(`${pickerAmpm} ${pickerHour}:${String(pickerMinute).padStart(2, '0')}`);
+    setShowTimePicker(false);
+  }, [pickerAmpm, pickerHour, pickerMinute, time]);
+
   // 장소 선택 관련 상태
   const [selectedLocationType, setSelectedLocationType] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
@@ -2175,12 +2280,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [isLocationInitialized, setIsLocationInitialized] = useState(false);
   const [isLocationLoading, setIsLocationLoading] = useState(true);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false); // 드롭다운 표시 상태
-  // 검색 관련 state
-  const [locationSearchQuery, setLocationSearchQuery] = useState('');
-  const [locationSearchResults, setLocationSearchResults] = useState([]);
-  const [isLocationSearching, setIsLocationSearching] = useState(false);
-  const [showLocationSearchResults, setShowLocationSearchResults] = useState(false);
-  
+
   // 모달 오버레이 페이드 애니메이션
   const datePickerModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   const timePickerModalBackdropOpacity = useRef(new Animated.Value(0)).current;
@@ -2192,11 +2292,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   
   // GPS 권한 상태 (안내 문구 노출용)
   const [isGpsPermissionGranted, setIsGpsPermissionGranted] = useState(false);
-  const mapWebViewRef = useRef(null);
-  const isInlineMapLoadedRef = useRef(false);
-  const pendingMapMoveRef = useRef(null);
-  const latestMapMoveRequestIdRef = useRef(null);
-  const mapMoveRetryTimeoutsRef = useRef([]);
+  const inlineMapRef = useRef(null);
   const hasUserSelectedLocationRef = useRef(false);
   
   const scrollViewRef = useRef(null);
@@ -2368,10 +2464,9 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         setSelectedLocationData(null);
       }
 
-      // 장소 검색창 텍스트 복원
+      // 장소명 복원
       if (editingEvent.location) {
         setSelectedLocation('custom');
-        setLocationSearchQuery(editingEvent.location);
       }
 
       // 상세 위치 설명 복원
@@ -2385,24 +2480,9 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     }
   }, [editingEvent]);
 
-  // 커스텀 마커 상태 변경 감지
-  useEffect(() => {
-
-    
-    // 상세 위치 입력칸이 나타나면 자동으로 스크롤
-    if (hasCustomMarker && scrollViewRef.current) {
-      setTimeout(() => {
-        // 상세 위치 입력칸으로 부드럽게 스크롤 (적당한 위치로)
-        if (scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({
-            y: 650, // 더 큰 지도와 상세 위치 입력칸이 보이는 적당한 위치
-            animated: true,
-          });
-  
-        }
-      }, 500); // 입력칸이 렌더링된 후 스크롤
-    }
-  }, [hasCustomMarker, customMarkerCoords]);
+  // (제거됨) 마커 지정 시 자동으로 y:650으로 강제 스크롤하던 기능 —
+  // 마커를 찍은 뒤 화면이 강제로 끌려내려가 수동 스크롤을 방해해서 삭제함.
+  // 상세 위치 입력칸은 사용자가 직접 스크롤해서 접근.
 
   const handleInputFocus = () => {
     // 키보드 이벤트에서 이미 스크롤 처리하므로 여기서는 별도 처리 없음
@@ -2429,88 +2509,16 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
 
   // 장소 검색 함수
-  const [noSearchResults, setNoSearchResults] = useState(false);
-  
-  const performLocationSearch = async (query) => {
-    if (!query.trim()) {
-      setLocationSearchResults([]);
-      setShowLocationSearchResults(false);
-      setIsLocationSearching(false);
-      setNoSearchResults(false);
-      return;
-    }
-
-    setIsLocationSearching(true);
-    setShowLocationSearchResults(true);
-    setNoSearchResults(false);
-
-    try {
-      const results = await searchPlace(query, { size: 10 });
-      setLocationSearchResults(results);
-      
-      if (results.length === 0) {
-        // Alert 대신 UI에서 표시 (더 부드러운 UX)
-        setNoSearchResults(true);
-      }
-    } catch (error) {
-      console.error('장소 검색 실패:', error);
-      setNoSearchResults(true);
-      setLocationSearchResults([]);
-    } finally {
-      setIsLocationSearching(false);
-    }
-  };
-
-  const clearMapMoveRetries = useCallback(() => {
-    mapMoveRetryTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
-    mapMoveRetryTimeoutsRef.current = [];
+  // 지도 이동 함수 (네이티브 MapView animateToRegion)
+  const moveMapToLocation = useCallback((lat, lng) => {
+    inlineMapRef.current?.animateToRegion({
+      latitude: lat,
+      longitude: lng,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    }, 400);
   }, []);
 
-  const postMapMoveWithRetry = useCallback((payload) => {
-    if (!mapWebViewRef.current) return;
-
-    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    latestMapMoveRequestIdRef.current = requestId;
-    const payloadWithRequestId = { ...payload, requestId };
-
-    clearMapMoveRetries();
-
-    // 특정 실기기에서 postMessage가 드물게 유실되는 이슈를 완화하기 위해 짧게 재전송
-    [0, 220, 700].forEach((delayMs) => {
-      const timeoutId = setTimeout(() => {
-        if (latestMapMoveRequestIdRef.current !== requestId) return;
-        if (!mapWebViewRef.current) return;
-        mapWebViewRef.current.postMessage(JSON.stringify(payloadWithRequestId));
-      }, delayMs);
-      mapMoveRetryTimeoutsRef.current.push(timeoutId);
-    });
-  }, [clearMapMoveRetries]);
-
-  // 지도 이동 함수 (WebView에 postMessage로 좌표 전달)
-  const moveMapToLocation = useCallback((lat, lng, addMarker = false) => {
-    const movePayload = {
-      type: 'moveToLocation',
-      lat: lat,
-      lng: lng,
-      addMarker: addMarker,
-    };
-
-    if (!mapWebViewRef.current || !isInlineMapLoadedRef.current) {
-      pendingMapMoveRef.current = movePayload;
-      return;
-    }
-
-    postMapMoveWithRetry(movePayload);
-  }, [postMapMoveWithRetry]);
-
-  useEffect(() => {
-    return () => {
-      clearMapMoveRetries();
-      latestMapMoveRequestIdRef.current = null;
-    };
-  }, [clearMapMoveRetries]);
-
-  // 현재 위치 버튼: GPS 권한 요청 후 실제 위치로 지도 이동
   const moveToCurrentLocation = useCallback(async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -2545,60 +2553,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     }
   }, [moveMapToLocation]);
 
-  // 검색 결과 선택 핸들러
-  const handleLocationSearchResultSelect = (result) => {
-    const locationName = result.place_name || result.name;
-    const locationLat = parseFloat(result.y || result.lat);
-    const locationLng = parseFloat(result.x || result.lng);
-
-    // 사용자가 검색 결과를 직접 선택한 이후에는
-    // 비동기 현재위치 초기화가 선택 좌표를 덮어쓰지 않도록 플래그 설정
-    hasUserSelectedLocationRef.current = true;
-    setIsLocationInitialized(true);
-    
-    // 선택된 장소 정보 저장
-    setLocation(locationName);
-    const newSelectedLocationData = {
-      name: locationName,
-      lat: locationLat,
-      lng: locationLng,
-      address: result.address_name || result.road_address_name || '',
-    };
-    // 새 검색 결과로 WebView가 재로딩되므로 로딩 완료 신호 전까지 이동 명령을 큐에 보관
-    isInlineMapLoadedRef.current = false;
-    setSelectedLocationData(newSelectedLocationData);
-    setSelectedLocation('custom'); // 커스텀 위치로 설정
-    setLocationSearchQuery(locationName);
-    setShowLocationSearchResults(false);
-    
-    // 검색 결과 선택 시에는 빨간 마커(상세 위치 마커)를 설정하지 않음
-    // 지도 클릭 시에만 빨간 마커가 나타나도록 함
-    // 기존 커스텀 마커 초기화
-    setCustomMarkerCoords(null);
-    setHasCustomMarker(false);
-    setCustomLocation(''); // 상세 위치 설명도 초기화
-    
-    // 이동 명령은 WebView 로딩 완료(inlineMapLoaded) 시점에 자동 실행됨
-    moveMapToLocation(locationLat, locationLng, true);
-  };
-
-  // Debounce를 통한 자동 검색
-  useEffect(() => {
-    if (!locationSearchQuery.trim()) {
-      setLocationSearchResults([]);
-      setShowLocationSearchResults(false);
-      setIsLocationSearching(false);
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      performLocationSearch(locationSearchQuery);
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [locationSearchQuery]);
-
-  const canProceed = () => {
+    const canProceed = () => {
     switch (currentStep) {
       case 1: return eventType && title.trim();
       case 2: return hasCustomMarker && customLocation.trim() && dateString && timeString;
@@ -2826,6 +2781,11 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   };
 
   const handleDateChange = React.useCallback((event, selectedDate) => {
+    // Android는 네이티브 다이얼로그라 onChange에서 직접 닫는다 (확인/취소 버튼 없음)
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      if (event?.type === 'dismissed') return;
+    }
     if (selectedDate) {
       setDate(selectedDate);
       const dateStr = selectedDate.toISOString().split('T')[0];
@@ -2842,10 +2802,24 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   }, []);
 
   const handleTimeChange = React.useCallback((event, selectedTime) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+      if (event?.type === 'dismissed') return;
+    }
     if (selectedTime) {
-      setTime(selectedTime);
-      const hours = selectedTime.getHours();
-      const minutes = selectedTime.getMinutes();
+      let finalTime = selectedTime;
+      // Android 기본 시계 다이얼로그는 minuteInterval을 지원하지 않으므로 15분 단위로 스냅
+      if (Platform.OS === 'android') {
+        const snapped = new Date(selectedTime);
+        let rounded = Math.round(snapped.getMinutes() / 15) * 15;
+        if (rounded === 60) { snapped.setHours(snapped.getHours() + 1); rounded = 0; }
+        snapped.setMinutes(rounded);
+        snapped.setSeconds(0);
+        finalTime = snapped;
+      }
+      setTime(finalTime);
+      const hours = finalTime.getHours();
+      const minutes = finalTime.getMinutes();
       const ampm = hours >= 12 ? '오후' : '오전';
       const displayHours = hours % 12 || 12;
       const formattedTime = `${ampm} ${displayHours}:${minutes.toString().padStart(2, '0')}`;
@@ -2988,83 +2962,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>장소 선택</Text>
       
-      {/* 1단계: 장소 유형 선택 */}
-      {/* 장소 검색바 */}
-      <View style={styles.locationSearchContainer}>
-        <Ionicons name="search" size={20} color={COLORS.SECONDARY} style={styles.locationSearchIcon} />
-        <TextInput
-          style={styles.locationSearchInput}
-          placeholder="장소 키워드 입력 (예: 여의도, 해운대, 석촌호수 등)"
-          placeholderTextColor={COLORS.SECONDARY}
-          value={locationSearchQuery}
-          onChangeText={setLocationSearchQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-          onFocus={() => setShowLocationSearchResults(true)}
-          onBlur={() => {
-            // 약간의 지연 후 드롭다운 닫기 (선택 이벤트가 먼저 발생하도록)
-            setTimeout(() => setShowLocationSearchResults(false), 200);
-          }}
-        />
-        {isLocationSearching && (
-          <ActivityIndicator size="small" color={COLORS.PRIMARY} style={styles.locationSearchLoading} />
-        )}
-        {locationSearchQuery.length > 0 && !isLocationSearching && (
-        <TouchableOpacity
-          onPress={() => {
-              setLocationSearchQuery('');
-              setLocationSearchResults([]);
-              setShowLocationSearchResults(false);
-            }}
-            style={styles.locationSearchClearButton}
-          >
-            <Ionicons name="close-circle" size={20} color={COLORS.SECONDARY} />
-        </TouchableOpacity>
-        )}
-      </View>
-
-      {/* 검색 결과 리스트 */}
-      {showLocationSearchResults && locationSearchResults.length > 0 && (
-        <View style={styles.locationSearchResultsDropdown}>
-          <ScrollView style={styles.locationSearchResultsList}>
-            {locationSearchResults.map((result, index) => (
-          <TouchableOpacity
-                key={index}
-                style={styles.locationSearchResultItem}
-                onPress={() => handleLocationSearchResultSelect(result)}
-              >
-            <Ionicons 
-                  name="location"
-              size={20} 
-                  color={COLORS.PRIMARY}
-                  style={styles.locationSearchResultIcon}
-                />
-                <View style={styles.locationSearchResultContent}>
-                  <Text style={styles.locationSearchResultTitle}>
-                    {result.place_name || result.name}
-                  </Text>
-                  <Text style={styles.locationSearchResultSubtitle} numberOfLines={1}>
-                    {result.address_name || result.road_address_name || ''}
-                  </Text>
-                  {result.category_name && (
-                    <Text style={styles.locationSearchResultCategory}>{result.category_name}</Text>
-                  )}
-                </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-        </View>
-      )}
-
-      {/* 검색 결과 없음 표시 */}
-      {showLocationSearchResults && noSearchResults && locationSearchResults.length === 0 && !isLocationSearching && (
-        <View style={styles.noSearchResultsContainer}>
-          <Ionicons name="search-outline" size={24} color={COLORS.SECONDARY} />
-          <Text style={styles.noSearchResultsText}>검색 결과가 없습니다</Text>
-          <Text style={styles.noSearchResultsSubtext}>다른 키워드로 검색해 보세요</Text>
-        </View>
-      )}
-
       {/* 3단계: 선택된 장소 정보 및 지도 */}
       <View style={styles.selectedLocationSection}>
         
@@ -3178,471 +3075,67 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   }, [showLocationDropdown]);
 
   // 인라인 카카오맵 컴포넌트를 별도로 분리하여 격리
-  const InlineKakaoMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, initialCustomMarkerCoords, mapWebViewRef, onCurrentLocationPress }) => {
-    // WebView 재렌더링 방지를 위한 안정적인 key 생성
-    const stableKey = React.useMemo(() => {
-      if (!selectedLocation) return 'no-location-no-boundary-v24';
-      return `${selectedLocation.id || 'custom'}-${selectedLocation.name}-no-boundary-v24`;
-    }, [selectedLocation?.id, selectedLocation?.name]);
+  // 인라인 모임장소 지도 (네이티브 구글맵). 지도 탭으로 빨간 마커(상세 위치) 지정
+  const InlineMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, initialCustomMarkerCoords, inlineMapRef, onCurrentLocationPress }) => {
+    const [markerCoord, setMarkerCoord] = React.useState(
+      initialCustomMarkerCoords
+        ? { latitude: initialCustomMarkerCoords.lat, longitude: initialCustomMarkerCoords.lng }
+        : null
+    );
 
-    if (!selectedLocation) return null;
+    const initialRegion = React.useMemo(() => {
+      if (!selectedLocation?.lat || !selectedLocation?.lng) return null;
+      return {
+        latitude: selectedLocation.lat,
+        longitude: selectedLocation.lng,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      };
+    }, [selectedLocation?.lat, selectedLocation?.lng]);
 
-    // 선택된 장소의 카카오맵 HTML 생성
-    const createInlineMapHTML = React.useCallback(() => {
-      // TestFlight에서 API 키 로딩 상태 확인
-      const kakaoApiKey = ENV.kakaoMapApiKey;
-      if (!__DEV__) {
-
+    const handleMapPress = React.useCallback((e) => {
+      const { latitude, longitude } = e.nativeEvent.coordinate;
+      setMarkerCoord({ latitude, longitude });
+      if (onCustomMarkerChange) {
+        onCustomMarkerChange(true, { lat: latitude, lng: longitude });
       }
-      
-      // selectedLocation 값들을 변수로 추출 (템플릿 문자열에서 사용)
-      // 이 시점에서 selectedLocation은 반드시 유효한 lat/lng를 가져야 함 (상위에서 보장)
-      const locationName = selectedLocation?.name || '';
-      const locationLat = selectedLocation?.lat;
-      const locationLng = selectedLocation?.lng;
-      const customMarkerLat = initialCustomMarkerCoords?.lat || null;
-      const customMarkerLng = initialCustomMarkerCoords?.lng || null;
-      const hasCustomMarkerValue = initialCustomMarkerCoords ? true : false;
-      const currentLocationLat = selectedLocation?.lat;
-      const currentLocationLng = selectedLocation?.lng;
-      // name이 비어있으면 GPS 위치 (파란 원형 마커로 표시)
-      const isCurrentLocationGPS = !selectedLocation?.name || selectedLocation.name === '';
-      
-      return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    }, [onCustomMarkerChange]);
 
-            <title>${locationName || '위치'} 위치</title>
-            <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${ENV.kakaoMapApiKey}"></script>
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    background: #171719; 
-                    overflow: hidden; 
-                    height: 300px;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                }
-                #map { 
-                    width: 100%; 
-                    height: 300px; 
-                    border: none;
-                }
-                
-                /* 카카오맵 기본 InfoWindow 완전히 숨기기 */
-                div[style*="background"] {
-                    background: transparent !important;
-                    border: none !important;
-                    box-shadow: none !important;
-                    padding: 0 !important;
-                }
-                
-                /* 모든 InfoWindow 관련 기본 스타일 제거 */
-                .infowindow,
-                .info-window-container,
-                [class*="infowindow"],
-                [class*="InfoWindow"] {
-                    background: transparent !important;
-                    border: none !important;
-                    box-shadow: none !important;
-                    padding: 0 !important;
-                }
-                
-                /* 홈화면과 동일한 정보창 스타일 */
-                .info-window {
-                    background: #171719 !important;
-                    color: #ffffff !important;
-                    padding: 6px 10px !important;
-                    border-radius: 4px !important;
-                    border: 1px solid #333333 !important;
-                    font-size: 11px !important;
-                    font-weight: 500 !important;
-                    white-space: nowrap !important;
-                    text-align: center !important;
-                    margin: 0 !important;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-                    display: inline-block !important;
-                    margin-top: -5px !important;
-                }
-                
-                .diagonal-info {
-                    transform: translate(70px, 5px) !important;
-                }
-                
-                /* 커스텀 마커 정보창 스타일 */
-                .custom-info-window {
-                    background: #171719 !important;
-                    color: #3AF8FF !important;
-                    padding: 6px 10px !important;
-                    border-radius: 4px !important;
-                    border: 1px solid #3AF8FF !important;
-                    font-size: 11px !important;
-                    font-weight: 600 !important;
-                    white-space: nowrap !important;
-                    text-align: center !important;
-                    margin: 0 !important;
-                    box-shadow: 0 2px 8px rgba(58, 248, 255, 0.3) !important;
-                    display: inline-block !important;
-                    margin-top: -5px !important;
-                }
-            </style>
-        </head>
-        <body>
-            <div id="map"></div>
-            
-            <script>
-                var map;
-                var customMarker = null;
-                var customInfoWindow = null;
-                var currentLocationMarker = null;
-                var searchMarker = null;
-                var currentMapCenter = null;
-                var currentMapLevel = 4;
-                
+    // Android: 커스텀 View 마커는 tracksViewChanges=true일 때만 비트맵으로 래스터화됨.
+    // 마커 좌표가 바뀔 때(지도 탭) 잠시 켰다가 끔.
+    const [markerTracksViewChanges, setMarkerTracksViewChanges] = React.useState(true);
+    React.useEffect(() => {
+      if (!markerCoord) return undefined;
+      setMarkerTracksViewChanges(true);
+      const timer = setTimeout(() => setMarkerTracksViewChanges(false), 1000);
+      return () => clearTimeout(timer);
+    }, [markerCoord]);
 
-                
-                function waitForKakaoSDK() {
-                    if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
-                        setTimeout(waitForKakaoSDK, 100);
-                        return;
-                    }
-                    initializeMap();
-                }
-                
-                function initializeMap() {
-                    try {
-                        var mapContainer = document.getElementById('map');
-                        
-                        // 지도 중심 설정 (커스텀 마커가 있으면 그 위치 중심으로)
-                        var mapCenter, mapLevel = 4;
-                        var hasCustomMarker = ${hasCustomMarkerValue};
-                        
-                        if (hasCustomMarker) {
-                            // 커스텀 마커가 있으면 그 위치를 중심으로
-                            mapCenter = new kakao.maps.LatLng(${customMarkerLat || locationLat}, ${customMarkerLng || locationLng});
-                        } else {
-                            // 기본 장소를 중심으로
-                            mapCenter = new kakao.maps.LatLng(${locationLat}, ${locationLng});
-                        }
-                        
-                        var mapOption = {
-                            center: mapCenter,
-                            level: mapLevel,
-                            disableDoubleClick: false,
-                            disableDoubleClickZoom: false
-                        };
-                        
-                        map = new kakao.maps.Map(mapContainer, mapOption);
-                        map.setMapTypeId(kakao.maps.MapTypeId.ROADMAP);
-                        
-                        // 현재 지도 상태 저장
-                        currentMapCenter = map.getCenter();
-                        currentMapLevel = map.getLevel();
-                        
-                        // 현재 위치 마커 생성 (GPS 위치일 때만 표시) - SVG 사용
-                        var isCurrentLocationGPS = ${isCurrentLocationGPS};
-                        if (isCurrentLocationGPS) {
-                            var currentLocationPosition = new kakao.maps.LatLng(${currentLocationLat}, ${currentLocationLng});
-                            
-                            // SVG 사용 (넓은 반경의 파란색 원 + 투명도 40%)
-                            var currentLocationSvg = '<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">' +
-                                '<circle cx="25" cy="25" r="25" fill="#2294FF" fill-opacity="0.4"/>' +
-                                '<circle cx="25" cy="25" r="10" fill="#ffffff"/>' +
-                                '<circle cx="25" cy="25" r="6" fill="#2294FF"/>' +
-                                '</svg>';
-                            
-                            var currentLocationImageSrc = 'data:image/svg+xml;base64,' + btoa(currentLocationSvg);
-                            var currentLocationImageSize = new kakao.maps.Size(50, 50);
-                            var currentLocationImageOffset = new kakao.maps.Point(25, 50);
-                            
-                            var currentLocationImage = new kakao.maps.MarkerImage(
-                                currentLocationImageSrc,
-                                currentLocationImageSize,
-                                { offset: currentLocationImageOffset }
-                            );
-                            
-                            currentLocationMarker = new kakao.maps.Marker({
-                                position: currentLocationPosition,
-                                image: currentLocationImage,
-                                map: map,
-                                zIndex: 500 // 기본 마커(600)와 커스텀 마커(700)보다 낮게
-                            });
-                        }
-                        
-                        // 커스텀 마커 이미지 생성 (빨간색)
-                        var customSvgString = '<svg width="28" height="35" viewBox="0 0 28 35" xmlns="http://www.w3.org/2000/svg">' +
-                            '<path d="M14 0C6.3 0 0 6.3 0 14c0 8.4 14 21 14 21s14-12.6 14-21c0-7.7-6.3-14-14-14z" fill="#FF4444"/>' +
-                            '<circle cx="14" cy="14" r="7" fill="#ffffff"/>' +
-                            '<circle cx="14" cy="14" r="4" fill="#FF4444"/>' +
-                            '</svg>';
-                        
-                        var customMarkerImageSrc = 'data:image/svg+xml;base64,' + btoa(customSvgString);
-                        var customMarkerImageSize = new kakao.maps.Size(28, 35);
-                        var customMarkerImageOffset = new kakao.maps.Point(14, 35);
-                        
-                        var customMarkerImage = new kakao.maps.MarkerImage(
-                            customMarkerImageSrc,
-                            customMarkerImageSize,
-                            { offset: customMarkerImageOffset }
-                        );
-
-                        // 검색 결과용 노란 마커 생성/갱신
-                        function showSearchMarker(lat, lng) {
-                            if (searchMarker) {
-                                searchMarker.setMap(null);
-                            }
-
-                            var searchSvgString = '<svg width="24" height="30" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">' +
-                                '<path d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 18 12 18s12-10.8 12-18c0-6.6-5.4-12-12-12z" fill="#FFD700"/>' +
-                                '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
-                                '<circle cx="12" cy="12" r="3" fill="#FFD700"/>' +
-                                '</svg>';
-
-                            var searchMarkerImageSrc = 'data:image/svg+xml;base64,' + btoa(searchSvgString);
-                            var searchMarkerImage = new kakao.maps.MarkerImage(
-                                searchMarkerImageSrc,
-                                new kakao.maps.Size(24, 30),
-                                { offset: new kakao.maps.Point(12, 30) }
-                            );
-
-                            searchMarker = new kakao.maps.Marker({
-                                position: new kakao.maps.LatLng(lat, lng),
-                                image: searchMarkerImage,
-                                map: map,
-                                zIndex: 650
-                            });
-                        }
-                        
-                        // 지도 클릭 이벤트 (상세 위치 설정)
-                        kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
-                            var latlng = mouseEvent.latLng;
-                            var clickLat = latlng.getLat();
-                            var clickLng = latlng.getLng();
-                            
-                            // 디버그 로그
-                            if (window.ReactNativeWebView) {
-                                window.ReactNativeWebView.postMessage('LOG: INFO - 지도 클릭: ' + clickLat + ', ' + clickLng);
-                            }
-                            
-                            // 기존 커스텀 마커 제거
-                            if (customMarker) {
-                                customMarker.setMap(null);
-                            }
-                            if (customInfoWindow) {
-                                customInfoWindow.close();
-                            }
-                            
-                            // 새 커스텀 마커 생성
-                            customMarker = new kakao.maps.Marker({
-                                position: latlng,
-                                image: customMarkerImage,
-                                map: map
-                            });
-                            
-                            // 커스텀 정보창 생성
-                            var customInfoContent = '<div class="custom-info-window">상세 위치</div>';
-                            customInfoWindow = new kakao.maps.InfoWindow({
-                                content: customInfoContent,
-                                removable: false,
-                                yAnchor: 1.0
-                            });
-                            
-                            // 커스텀 정보창 표시
-                            customInfoWindow.open(map, customMarker);
-                            
-                            // 커스텀 마커 클릭 이벤트
-                            kakao.maps.event.addListener(customMarker, 'click', function() {
-                                if (customInfoWindow.getMap()) {
-                                    customInfoWindow.close();
-                                } else {
-                                    customInfoWindow.open(map, customMarker);
-                                }
-                            });
-                            
-                            // React Native에 커스텀 마커 정보 전송
-                            if (window.ReactNativeWebView) {
-                                var message = 'customMarkerAdded:' + latlng.getLat() + ',' + latlng.getLng();
-                                window.ReactNativeWebView.postMessage(message);
-                            }
-                            
-                            // 현재 지도 중심과 레벨 업데이트 (재렌더링 방지용)
-                            currentMapCenter = map.getCenter();
-                            currentMapLevel = map.getLevel();
-                        });
-                        
-                        // 커스텀 마커 복원 (있는 경우)
-                        if (hasCustomMarker) {
-                            var customLat = ${customMarkerCoords?.lat || 'null'};
-                            var customLng = ${customMarkerCoords?.lng || 'null'};
-                            
-                            if (customLat !== null && customLng !== null && !isNaN(customLat) && !isNaN(customLng)) {
-                                var customPosition = new kakao.maps.LatLng(customLat, customLng);
-                                
-                                customMarker = new kakao.maps.Marker({
-                                    position: customPosition,
-                                    image: customMarkerImage,
-                                    map: map
-                                });
-                                
-                                var customInfoContent = '<div class="custom-info-window">상세 위치</div>';
-                                customInfoWindow = new kakao.maps.InfoWindow({
-                                    content: customInfoContent,
-                                    removable: false,
-                                    yAnchor: 1.0
-                                });
-                                
-                                customInfoWindow.open(map, customMarker);
-                                
-                                kakao.maps.event.addListener(customMarker, 'click', function() {
-                                    if (customInfoWindow.getMap()) {
-                                        customInfoWindow.close();
-                                    } else {
-                                        customInfoWindow.open(map, customMarker);
-                                    }
-                                });
-                            }
-                        }
-                        
-                        // React Native에서 보낸 메시지 처리 (지도 이동)
-                        document.addEventListener('message', function(event) {
-                            try {
-                                var data = JSON.parse(event.data);
-                                if (data.type === 'moveToLocation') {
-                                    var newCenter = new kakao.maps.LatLng(data.lat, data.lng);
-                                    map.setCenter(newCenter);
-                                    map.setLevel(4);
-                                    if (data.addMarker) {
-                                        showSearchMarker(data.lat, data.lng);
-                                    }
-                                    if (window.ReactNativeWebView && data.requestId) {
-                                        window.ReactNativeWebView.postMessage('moveToLocationAck:' + data.requestId);
-                                    }
-                                    
-                                    currentMapCenter = newCenter;
-                                    currentMapLevel = 4;
-                                }
-                            } catch (e) {
-                                // JSON 파싱 실패 시 무시
-                            }
-                        });
-                        
-                        // iOS용 메시지 리스너
-                        window.addEventListener('message', function(event) {
-                            try {
-                                var data = JSON.parse(event.data);
-                                if (data.type === 'moveToLocation') {
-                                    var newCenter = new kakao.maps.LatLng(data.lat, data.lng);
-                                    map.setCenter(newCenter);
-                                    map.setLevel(4);
-                                    if (data.addMarker) {
-                                        showSearchMarker(data.lat, data.lng);
-                                    }
-                                    if (window.ReactNativeWebView && data.requestId) {
-                                        window.ReactNativeWebView.postMessage('moveToLocationAck:' + data.requestId);
-                                    }
-                                    
-                                    currentMapCenter = newCenter;
-                                    currentMapLevel = 4;
-                                }
-                            } catch (e) {
-                                // JSON 파싱 실패 시 무시
-                            }
-                        });
-                        
-                        // 메시지 리스너 등록이 끝난 뒤 로딩 완료 신호 전송
-                        // (실기기에서는 신호가 너무 빨리 오면 moveToLocation 메시지가 유실될 수 있음)
-                        if (window.ReactNativeWebView) {
-                            window.ReactNativeWebView.postMessage('inlineMapLoaded');
-                        }
-                        
-                    } catch (error) {
-                        console.error('Inline map error:', error);
-                        if (window.ReactNativeWebView) {
-                            window.ReactNativeWebView.postMessage('inlineMapError: ' + error.message);
-                        }
-                    }
-                }
-                
-                // SDK 로딩 대기
-                waitForKakaoSDK();
-            </script>
-        </body>
-        </html>
-      `;
-    }, [selectedLocation, initialCustomMarkerCoords]);
-
-    // 메시지 처리 함수를 useCallback으로 최적화
-    const handleWebViewMessage = React.useCallback((event) => {
-              const { data } = event.nativeEvent;
-              
-              if (data === 'inlineMapLoaded') {
-        isInlineMapLoadedRef.current = true;
-        if (pendingMapMoveRef.current && mapWebViewRef.current) {
-          postMapMoveWithRetry(pendingMapMoveRef.current);
-          pendingMapMoveRef.current = null;
-        }
-              } else if (data.startsWith('inlineMapError')) {
-        console.error('인라인 지도 로딩 실패:', data);
-              } else if (data.startsWith('moveToLocationAck:')) {
-                const ackRequestId = data.replace('moveToLocationAck:', '');
-                if (latestMapMoveRequestIdRef.current === ackRequestId) {
-                  clearMapMoveRetries();
-                  latestMapMoveRequestIdRef.current = null;
-                }
-              } else if (data.startsWith('customMarkerAdded:')) {
-                const coords = data.replace('customMarkerAdded:', '');
-                const [lat, lng] = coords.split(',');
-                
-                // 중복 업데이트 방지
-                const newCoords = {
-                  lat: parseFloat(lat),
-                  lng: parseFloat(lng)
-                };
-                
-                if (!customMarkerCoords || 
-                    customMarkerCoords.lat !== newCoords.lat || 
-                    customMarkerCoords.lng !== newCoords.lng) {
-                  // 부모 컴포넌트에 변경 알림
-                  if (onCustomMarkerChange) {
-                    onCustomMarkerChange(true, newCoords);
-          }
-        }
-      }
-    }, [selectedLocation?.name, selectedLocation?.lat, selectedLocation?.lng, customMarkerCoords, onCustomMarkerChange, postMapMoveWithRetry, clearMapMoveRetries]);
+    if (!initialRegion) return null;
 
     return (
       <View style={styles.inlineMapSection}>
-        <View 
-          style={styles.inlineMapContainer}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderGrant={() => {}}
-          onResponderRelease={() => {}}
-        >
-          <WebView
-            ref={mapWebViewRef}
-            key={stableKey}
-            source={{ html: createInlineMapHTML() }}
-            style={styles.inlineMapWebView}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={true}
-            scalesPageToFit={false}
-            scrollEnabled={false}
-            bounces={false}
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-            nestedScrollEnabled={false}
-            onMessage={handleWebViewMessage}
-            // WebView 재렌더링 최적화 설정
-            cacheEnabled={true}
-            incognito={false}
-            thirdPartyCookiesEnabled={false}
-            sharedCookiesEnabled={false}
-          />
-          {/* 현재 위치 버튼 */}
+        <View style={styles.inlineMapContainer}>
+          <MapView
+            ref={inlineMapRef}
+            provider={PROVIDER_GOOGLE}
+            style={{ flex: 1 }}
+            initialRegion={initialRegion}
+            onPress={handleMapPress}
+            showsUserLocation={true}
+            showsMyLocationButton={false}
+            showsCompass={false}
+            mapType="standard"
+          >
+            {markerCoord && (
+              <Marker coordinate={markerCoord} tracksViewChanges={markerTracksViewChanges}>
+                <View style={styles.inlineMarkerContainer}>
+                  <View style={styles.inlineMarkerPin} />
+                  <View style={styles.inlineMarkerTail} />
+                </View>
+              </Marker>
+            )}
+          </MapView>
           <TouchableOpacity
             style={styles.currentLocationButton}
             onPress={onCurrentLocationPress}
@@ -3653,18 +3146,10 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         </View>
       </View>
     );
-  }, (prevProps, nextProps) => {
-    // 더 엄격한 비교 조건 설정
-    const locationChanged = prevProps.selectedLocation?.id !== nextProps.selectedLocation?.id ||
-                           prevProps.selectedLocation?.name !== nextProps.selectedLocation?.name;
-    
-    // 커스텀 마커 변경은 WebView 내부에서 처리하므로 지도 재생성 조건에서 제외
-    const shouldNotRerender = !locationChanged;
-    
-
-    
-    return shouldNotRerender;
-  });
+  }, (prevProps, nextProps) => (
+    prevProps.selectedLocation?.lat === nextProps.selectedLocation?.lat &&
+    prevProps.selectedLocation?.lng === nextProps.selectedLocation?.lng
+  ));
 
   // 인라인 지도 컴포넌트 메모이제이션
   const memoizedInlineMap = useMemo(() => {
@@ -3700,12 +3185,12 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             <Text style={styles.mapGuideText}>지도를 클릭하여 상세한 모임장소를 정하세요!</Text>
           </View>
         </View>
-        <InlineKakaoMapComponent 
+        <InlineMapComponent
           key={`map-${selectedLocationData.id || selectedLocationData.name || 'custom'}-${selectedLocationData.lat}-${selectedLocationData.lng}`}
           selectedLocation={selectedLocationData}
           onCustomMarkerChange={handleCustomMarkerChange}
           initialCustomMarkerCoords={customMarkerCoords}
-          mapWebViewRef={mapWebViewRef}
+          inlineMapRef={inlineMapRef}
           onCurrentLocationPress={moveToCurrentLocation}
         />
       </React.Fragment>
@@ -3732,7 +3217,6 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
                 <Text style={styles.popularBadgeText}>인기</Text>
               </View>
             )}
-            <Text style={styles.eventTypeEmoji}>{type.emoji}</Text>
             <Text style={styles.eventTypeName}>{type.name}</Text>
           </TouchableOpacity>
         ))}
@@ -3804,7 +3288,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         <Text style={styles.inputLabel}>시간</Text>
         <TouchableOpacity
           style={styles.timeSelectButton}
-          onPress={() => setShowTimePicker(true)}
+          onPress={openTimePicker}
         >
           <Text style={styles.timeSelectText}>{formatTime(timeString)}</Text>
           <Ionicons name="time" size={20} color="#666666" />
@@ -3813,6 +3297,15 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
       {/* 날짜 선택기 */}
       {showDatePicker && (
+        Platform.OS === 'android' ? (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display="default"
+            onChange={handleDateChange}
+            minimumDate={new Date()}
+          />
+        ) : (
         <Modal visible={showDatePicker} transparent animationType="none">
           <View style={styles.datePickerModalOverlay}>
             <Animated.View
@@ -3846,40 +3339,62 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             </View>
           </View>
         </Modal>
+        )
       )}
 
       {/* 시간 선택 모달 */}
       {showTimePicker && (
-        <Modal visible={showTimePicker} transparent animationType="none">
+        <Modal visible={showTimePicker} transparent animationType="fade">
           <View style={styles.datePickerModalOverlay}>
-            <Animated.View
-              style={[
-                styles.datePickerModalBackdrop,
-                {
-                  opacity: timePickerModalBackdropOpacity,
-                },
-              ]}
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setShowTimePicker(false)}
             />
             <View style={styles.datePickerContainer}>
               <View style={styles.datePickerHeader}>
-                <TouchableOpacity onPress={handleTimePickerCancel}>
+                <TouchableOpacity onPress={() => setShowTimePicker(false)}>
                   <Text style={styles.datePickerCancelText}>취소</Text>
                 </TouchableOpacity>
                 <Text style={styles.datePickerTitle}>시간 선택</Text>
-                <TouchableOpacity onPress={handleTimePickerConfirm}>
+                <TouchableOpacity onPress={confirmTimeSelection}>
                   <Text style={styles.datePickerConfirmText}>확인</Text>
                 </TouchableOpacity>
               </View>
-              <DateTimePicker
-                value={time}
-                mode="time"
-                display="spinner"
-                onChange={handleTimeChange}
-                textColor="#ffffff"
-                style={styles.dateTimePicker}
-                locale="ko-KR"
-                minuteInterval={15}
-              />
+              <View style={styles.timeDropdownRow}>
+                <Picker
+                  selectedValue={pickerAmpm}
+                  onValueChange={setPickerAmpm}
+                  style={[styles.timeDropdown, { color: colors.TEXT }]}
+                  dropdownIconColor={colors.TEXT}
+                  itemStyle={{ color: colors.TEXT }}
+                >
+                  <Picker.Item label="오전" value="오전" color={colors.TEXT} />
+                  <Picker.Item label="오후" value="오후" color={colors.TEXT} />
+                </Picker>
+                <Picker
+                  selectedValue={pickerHour}
+                  onValueChange={setPickerHour}
+                  style={[styles.timeDropdown, { color: colors.TEXT }]}
+                  dropdownIconColor={colors.TEXT}
+                  itemStyle={{ color: colors.TEXT }}
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                    <Picker.Item key={h} label={`${h}시`} value={h} color={colors.TEXT} />
+                  ))}
+                </Picker>
+                <Picker
+                  selectedValue={pickerMinute}
+                  onValueChange={setPickerMinute}
+                  style={[styles.timeDropdown, { color: colors.TEXT }]}
+                  dropdownIconColor={colors.TEXT}
+                  itemStyle={{ color: colors.TEXT }}
+                >
+                  {[0, 15, 30, 45].map((m) => (
+                    <Picker.Item key={m} label={`${String(m).padStart(2, '0')}분`} value={m} color={colors.TEXT} />
+                  ))}
+                </Picker>
+              </View>
             </View>
           </View>
         </Modal>
@@ -4046,7 +3561,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
               <View key={index} style={styles.selectedTag}>
                 <Text style={styles.selectedTagText}>{tag}</Text>
                 <TouchableOpacity onPress={() => removeHashtag(tag.replace('#', ''))}>
-                  <Ionicons name="close" size={16} color="#ffffff" />
+                  <Ionicons name="close" size={16} color={colors.TEXT} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -4081,7 +3596,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             step <= currentStep ? styles.stepCircleActive : styles.stepCircleInactive
           ]}>
             <Text style={{
-              color: step <= currentStep ? '#000000' : '#666666',
+              color: step <= currentStep ? '#000000' : colors.TEXT_SECONDARY,
               fontWeight: 'bold'
             }}>
               {step}
@@ -4112,13 +3627,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     <View style={styles.flowContainer}>
       <View style={[styles.flowHeader, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={handleBack} style={styles.headerButton}>
-          <Ionicons name="arrow-back" size={24} color="#ffffff" />
+          <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
         </TouchableOpacity>
         <Text style={styles.flowTitle}>
           {editingEvent ? '모임 수정' : '새 모임 만들기'}
         </Text>
         <TouchableOpacity onPress={onClose} style={styles.headerButton}>
-          <Ionicons name="close" size={24} color="#ffffff" />
+          <Ionicons name="close" size={24} color={colors.TEXT} />
         </TouchableOpacity>
       </View>
 
@@ -4138,7 +3653,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         {getCurrentStepContent()}
       </ScrollView>
 
-      <View style={[styles.fixedBottomNav, { paddingBottom: insets.bottom + 16 }]}>
+      <View style={[styles.fixedBottomNav, { paddingBottom: insets.bottom }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={handleBack}
@@ -4171,10 +3686,10 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   scrollView: {
     flex: 1,
@@ -4195,20 +3710,20 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 20,
     marginBottom: 8,
     fontFamily: 'Pretendard-Bold',
   },
   emptySubtitle: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     marginBottom: 32,
     fontFamily: 'Pretendard-Regular',
   },
   createButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 25,
@@ -4227,7 +3742,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   eventCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 12,
@@ -4237,7 +3752,7 @@ const styles = StyleSheet.create({
   eventTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
     flex: 1,
     fontFamily: 'Pretendard-SemiBold',
   },
@@ -4256,7 +3771,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 15,
-    color: '#ffffff',
+    color: colors.TEXT,
     marginLeft: 8,
     flexShrink: 1,
     fontFamily: 'Pretendard-Regular',
@@ -4265,7 +3780,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.SURFACE,
     borderRadius: 8,
     marginBottom: 16,
     alignSelf: 'stretch',
@@ -4283,12 +3798,12 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#333333',
+    backgroundColor: colors.BORDER,
   },
   statValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#ffffff',
+    color: colors.TEXT,
     marginBottom: 2,
     textAlign: 'center',
     fontFamily: 'Pretendard-SemiBold',
@@ -4299,7 +3814,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tag: {
-    backgroundColor: '#1C3336',
+    backgroundColor: colors.SURFACE,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -4308,7 +3823,7 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
   },
@@ -4339,12 +3854,12 @@ const styles = StyleSheet.create({
   organizerAvatarText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
   organizerName: {
     fontSize: 15,
-    color: '#ffffff',
+    color: colors.TEXT,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
   },
@@ -4355,7 +3870,7 @@ const styles = StyleSheet.create({
   },
   participantInfo: {
     fontSize: 16,
-    color: '#ffffff',
+    color: colors.TEXT,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
@@ -4368,16 +3883,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 10,
-    backgroundColor: '#263238',
+    backgroundColor: colors.SURFACE,
   },
   shareMeetingLinkButtonText: {
     fontSize: 13,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
   evaluationButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -4392,7 +3907,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard-SemiBold',
   },
   evaluationCompletedButton: {
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.SURFACE,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -4400,11 +3915,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
   },
   evaluationCompletedButtonText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '600',
     fontFamily: 'Pretendard-SemiBold',
   },
@@ -4423,11 +3938,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#333333',
+    backgroundColor: colors.SURFACE,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#555555',
+    borderColor: colors.BORDER,
   },
   titleRow: {
     flexDirection: 'row',
@@ -4488,7 +4003,7 @@ const styles = StyleSheet.create({
   eventTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
     lineHeight: 28,
     letterSpacing: -0.5,
@@ -4499,7 +4014,7 @@ const styles = StyleSheet.create({
   },
   organizerText: {
     fontSize: 13,
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     marginTop: 4,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
@@ -4575,7 +4090,7 @@ const styles = StyleSheet.create({
   },
   eventDetailLabel: {
     fontSize: 12,
-    color: '#888888',
+    color: colors.TEXT_SECONDARY,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
@@ -4586,13 +4101,13 @@ const styles = StyleSheet.create({
   },
   eventDetailText: {
     fontSize: 17,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontWeight: '600',
     flex: 1,
     lineHeight: 22,
     fontFamily: 'Pretendard-SemiBold',
   },
-  
+
   // 모집 현황 스타일
   recruitmentStatusContainer: {
     alignSelf: 'flex-start',
@@ -4630,30 +4145,30 @@ const styles = StyleSheet.create({
   hashtagBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + '40',
+    borderColor: colors.PRIMARY + '40',
   },
   hashtagText: {
     fontSize: 12,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   publicBadge: {
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + '40',
+    borderColor: colors.PRIMARY + '40',
   },
   publicText: {
     fontSize: 11,
     fontWeight: '700',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   addMoreButton: {
     flexDirection: 'row',
@@ -4664,13 +4179,13 @@ const styles = StyleSheet.create({
   addMoreButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginLeft: 8,
   },
   // Flow styles
   flowContainer: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   flowHeader: {
     flexDirection: 'row',
@@ -4686,7 +4201,7 @@ const styles = StyleSheet.create({
   flowTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   flowContent: {
     flex: 1,
@@ -4701,9 +4216,9 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 16,
     borderTopWidth: 1,
-    borderTopColor: '#333333',
+    borderTopColor: colors.BORDER,
     gap: 12,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   fixedBottomNav: {
     position: 'absolute',
@@ -4714,15 +4229,15 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 16,
     borderTopWidth: 1,
-    borderTopColor: '#333333',
+    borderTopColor: colors.BORDER,
     gap: 12,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   backButton: {
     flex: 1,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#666666',
+    borderColor: colors.BORDER,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -4730,12 +4245,12 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#cccccc',
+    color: colors.TEXT_SECONDARY,
   },
   nextButton: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -4754,7 +4269,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   nextButtonTextDisabled: {
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   stepIndicator: {
     flexDirection: 'row',
@@ -4775,9 +4290,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepCircleActive: {
-    backgroundColor: COLORS.PRIMARY,
-    borderColor: COLORS.PRIMARY,
-    shadowColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
+    borderColor: colors.PRIMARY,
+    shadowColor: colors.PRIMARY,
     shadowOffset: {
       width: 0,
       height: 0,
@@ -4788,7 +4303,7 @@ const styles = StyleSheet.create({
   },
   stepCircleInactive: {
     backgroundColor: 'transparent',
-    borderColor: '#666666',
+    borderColor: colors.BORDER,
   },
   stepLine: {
     width: 48,
@@ -4796,10 +4311,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   stepLineActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   stepLineInactive: {
-    backgroundColor: '#666666',
+    backgroundColor: colors.BORDER,
   },
   stepContent: {
     gap: 14,
@@ -4808,12 +4323,12 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
   },
   stepSubtitle: {
     fontSize: 16,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -4823,12 +4338,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   eventTypeCard: {
-    backgroundColor: COLORS.SURFACE,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    backgroundColor: colors.SURFACE,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4837,15 +4352,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   eventTypeCardSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   popularBadge: {
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
@@ -4859,9 +4374,9 @@ const styles = StyleSheet.create({
     fontSize: 32,
   },
   eventTypeName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
   },
   inputGroup: {
@@ -4875,21 +4390,21 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   textInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     minHeight: 48,
     fontSize: 16,
   },
   inputHint: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 16,
     marginTop: 6,
     paddingBottom: 4,
@@ -4906,16 +4421,16 @@ const styles = StyleSheet.create({
   paceLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
   },
   paceInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     minHeight: 48,
     fontSize: 16,
     textAlign: 'center',
@@ -4928,11 +4443,11 @@ const styles = StyleSheet.create({
   paceSeparatorText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   paceHint: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 16,
     marginTop: 6,
     textAlign: 'center',
@@ -4943,34 +4458,34 @@ const styles = StyleSheet.create({
   },
   difficultyCard: {
     flex: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     alignItems: 'center',
   },
   difficultyCardSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   difficultyName: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   difficultyDescription: {
     fontSize: 14,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   dateTimeButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -4981,14 +4496,14 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   timeSelectButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -4996,7 +4511,7 @@ const styles = StyleSheet.create({
   timeSelectText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   modalOverlay: {
     flex: 1,
@@ -5007,19 +4522,30 @@ const styles = StyleSheet.create({
 
 
   dateTimePickerContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     margin: 20,
     borderRadius: 12,
     padding: 20,
     width: '90%',
   },
   datePickerContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     margin: 20,
     borderRadius: 12,
     padding: 0,
     width: '90%',
     overflow: 'hidden',
+  },
+  timeDropdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  timeDropdown: {
+    flex: 1,
+    color: colors.TEXT,
   },
   datePickerHeader: {
     flexDirection: 'row',
@@ -5028,25 +4554,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   datePickerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   datePickerCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   datePickerConfirmText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   dateTimePicker: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     height: 200,
   },
   dateTimeActions: {
@@ -5058,17 +4584,17 @@ const styles = StyleSheet.create({
   cancelButton: {
     padding: 12,
     borderWidth: 1,
-    borderColor: '#666666',
+    borderColor: colors.BORDER,
     borderRadius: 8,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   confirmButton: {
     padding: 12,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 8,
   },
   confirmButtonText: {
@@ -5077,18 +4603,18 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   shareOption: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   shareOptionSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   shareOptionContent: {
@@ -5103,11 +4629,11 @@ const styles = StyleSheet.create({
   shareOptionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   shareOptionDescription: {
     fontSize: 14,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   
@@ -5115,9 +4641,9 @@ const styles = StyleSheet.create({
   noticeSection: {
     marginTop: 24,
     padding: 20,
-    backgroundColor: COLORS.PRIMARY + '15',
+    backgroundColor: colors.PRIMARY + '15',
     borderRadius: 16,
-    shadowColor: COLORS.PRIMARY,
+    shadowColor: colors.PRIMARY,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -5129,7 +4655,7 @@ const styles = StyleSheet.create({
   noticeTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -5141,7 +4667,7 @@ const styles = StyleSheet.create({
   },
   noticeText: {
     fontSize: 15,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 22,
     flex: 1,
     fontWeight: '400',
@@ -5154,16 +4680,16 @@ const styles = StyleSheet.create({
   },
   locationTypeCard: {
     flex: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     alignItems: 'center',
   },
   locationTypeCardSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   locationTypeEmoji: {
@@ -5172,12 +4698,12 @@ const styles = StyleSheet.create({
   locationTypeName: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   locationTypeDescription: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   
   locationGrid: {
@@ -5186,18 +4712,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   locationCard: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     alignItems: 'center',
     width: '47%',
     position: 'relative',
   },
   locationCardSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   locationEmoji: {
@@ -5207,13 +4733,13 @@ const styles = StyleSheet.create({
   locationName: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
     marginBottom: 4,
   },
   locationDistance: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     marginBottom: 8,
   },
   mapButton: {
@@ -5222,22 +4748,22 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     borderRadius: 6,
   },
   mapButtonText: {
     fontSize: 11,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   
   // 선택된 장소 표시 스타일
   selectedLocationDisplay: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -5257,12 +4783,12 @@ const styles = StyleSheet.create({
   selectedLocationName: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
   },
   selectedLocationDescription: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   
   // 장소 선택 모달 스타일
@@ -5279,7 +4805,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   locationModalContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '85%',
@@ -5300,7 +4826,7 @@ const styles = StyleSheet.create({
   locationModalHandleBar: {
     width: 40,
     height: 4,
-    backgroundColor: '#666666',
+    backgroundColor: colors.BORDER,
     borderRadius: 2,
   },
   locationModalHeader: {
@@ -5310,25 +4836,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   locationModalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   locationModalCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   locationModalConfirmText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
   locationModalConfirmTextDisabled: {
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   locationModalContent: {
     flex: 1,
@@ -5342,7 +4868,7 @@ const styles = StyleSheet.create({
   // 카카오맵 WebView 스타일
   kakaoMapContainer: {
     flex: 1,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   kakaoMapWebView: {
     flex: 1,
@@ -5354,20 +4880,20 @@ const styles = StyleSheet.create({
   locationSearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     paddingHorizontal: 12,
     marginBottom: 16,
     height: 44,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
   },
   locationSearchIcon: {
     marginRight: 8,
   },
   locationSearchInput: {
     flex: 1,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 14,
   },
   locationSearchLoading: {
@@ -5378,12 +4904,12 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   locationSearchResultsDropdown: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     maxHeight: 300,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -5398,7 +4924,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
   },
   locationSearchResultIcon: {
     marginRight: 12,
@@ -5407,37 +4933,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationSearchResultTitle: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
   },
   locationSearchResultSubtitle: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
   },
   locationSearchResultCategory: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontSize: 10,
     marginTop: 2,
   },
   noSearchResultsContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
   },
   noSearchResultsText: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontSize: 14,
     fontWeight: '500',
     marginTop: 8,
   },
   noSearchResultsSubtext: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 12,
     marginTop: 4,
   },
@@ -5448,26 +4974,26 @@ const styles = StyleSheet.create({
   },
   locationTypeButton: {
     flex: 1,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
   },
   locationTypeButtonSelected: {
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.PRIMARY + '20',
+    borderColor: colors.PRIMARY,
+    backgroundColor: colors.PRIMARY + '20',
     borderWidth: 1,
   },
   locationTypeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   
   // 구체적 장소 선택 스타일
@@ -5477,35 +5003,35 @@ const styles = StyleSheet.create({
   specificLocationLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
   },
   dropdownButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   dropdownButtonText: {
     fontSize: 16,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     flex: 1,
   },
   dropdownButtonTextSelected: {
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   
   // 드롭다운 목록 스타일
   dropdownList: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     marginTop: 8,
     maxHeight: 200,
     overflow: 'hidden',
@@ -5516,26 +5042,26 @@ const styles = StyleSheet.create({
   dropdownItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: colors.BORDER,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   dropdownItemSelected: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
   },
   dropdownItemText: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
   },
   dropdownItemDistance: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
   },
   popularBadgeSmall: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -5551,11 +5077,11 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   selectedLocationCard: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: colors.PRIMARY,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -5563,17 +5089,17 @@ const styles = StyleSheet.create({
   },
   selectedLocationDistance: {
     fontSize: 12,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
   },
   coursePhotoSection: {
     marginBottom: 8,
   },
   coursePhotoButton: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     overflow: 'hidden',
   },
   coursePhotoButtonContent: {
@@ -5587,7 +5113,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -5597,12 +5123,12 @@ const styles = StyleSheet.create({
   coursePhotoButtonTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
   },
   coursePhotoButtonSubtitle: {
     fontSize: 13,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     lineHeight: 16,
   },
   
@@ -5618,21 +5144,21 @@ const styles = StyleSheet.create({
   mapGuideText: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'left',
   },
   gpsPermissionNotice: {
     marginTop: 6,
     marginLeft: 22,
     fontSize: 13,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 18,
   },
   locationErrorContainer: {
     height: 300,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1A1A1C',
+    backgroundColor: colors.CARD,
     borderRadius: 8,
     marginTop: 8,
     paddingHorizontal: 24,
@@ -5646,17 +5172,17 @@ const styles = StyleSheet.create({
   },
   locationErrorText: {
     fontSize: 13,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 20,
   },
   locationLoadingText: {
     fontSize: 14,
-    color: '#3AF8FF',
+    color: colors.PRIMARY,
     marginTop: 8,
   },
   requiredMark: {
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontSize: 18,
     fontWeight: '600',
     marginRight: 4,
@@ -5678,6 +5204,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
   },
+  inlineMarkerContainer: {
+    alignItems: 'center',
+  },
+  inlineMarkerPin: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FF4444',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  inlineMarkerTail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#FF4444',
+    marginTop: -2,
+  },
   currentLocationButton: {
     position: 'absolute',
     bottom: 12,
@@ -5685,54 +5233,54 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#3AF8FF',
+    borderColor: colors.PRIMARY,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
   },
-  
+
   // 상세 위치 입력 스타일
   customLocationInputContainer: {
     marginTop: 12,
     padding: 16,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#3AF8FF',
+    borderColor: colors.PRIMARY,
   },
   customLocationLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginBottom: 8,
   },
   customLocationInput: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: colors.CARD,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
   },
   customLocationHint: {
     fontSize: 12,
-    color: '#666666',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 16,
   },
-  
+
   // 개선된 상세 위치 입력 스타일
   customLocationInputGroup: {
-    backgroundColor: '#3AF8FF' + '10',
+    backgroundColor: colors.PRIMARY + '10',
     borderWidth: 1,
-    borderColor: '#3AF8FF',
+    borderColor: colors.PRIMARY,
     borderRadius: 12,
     padding: 16,
     marginTop: 12,
@@ -5746,7 +5294,7 @@ const styles = StyleSheet.create({
   customLocationLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3AF8FF',
+    color: colors.PRIMARY,
     marginLeft: 8,
     flex: 1,
   },
@@ -5764,20 +5312,20 @@ const styles = StyleSheet.create({
     color: '#FF0000',
   },
   customLocationInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     minHeight: 50,
     textAlignVertical: 'top',
   },
   customLocationHint: {
     fontSize: 12,
-    color: '#3AF8FF',
+    color: colors.PRIMARY,
     marginTop: 8,
     lineHeight: 16,
     fontStyle: 'italic',
@@ -5788,14 +5336,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   hashtagInput: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: colors.BORDER,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   selectedTags: {
     flexDirection: 'row',
@@ -5806,7 +5354,7 @@ const styles = StyleSheet.create({
   selectedTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1C3336',
+    backgroundColor: colors.SURFACE,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -5815,7 +5363,7 @@ const styles = StyleSheet.create({
   },
   selectedTagText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     marginRight: 6,
     fontWeight: '500',
     fontFamily: 'Pretendard-Medium',
@@ -5823,7 +5371,7 @@ const styles = StyleSheet.create({
 
   // 메인 옵션 카드 스타일
   mainOptionCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -5850,17 +5398,17 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   optionSubtitle: {
     fontSize: 14,
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     marginBottom: 8,
   },
   optionBadge: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -5869,7 +5417,7 @@ const styles = StyleSheet.create({
   optionBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
   },
 
   // 모임/러닝 피드 토글
@@ -5879,7 +5427,7 @@ const styles = StyleSheet.create({
   },
   modeToggleContainer: {
     flexDirection: 'row',
-    backgroundColor: '#1F1F24',
+    backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 4,
   },
@@ -5891,12 +5439,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   modeToggleButtonActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
   },
   modeToggleButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#A0A0A0',
+    color: colors.TEXT_SECONDARY,
   },
   modeToggleButtonTextActive: {
     color: '#000000',
@@ -5911,12 +5459,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 22,
   },
 
@@ -5927,12 +5475,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 2,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     flex: 1,
     textAlign: 'center',
   },
@@ -5951,7 +5499,7 @@ const styles = StyleSheet.create({
 
   // 정보 섹션 스타일
   infoSection: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -5959,7 +5507,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 16,
   },
   infoItem: {
@@ -5969,16 +5517,16 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#CCCCCC',
+    color: colors.TEXT_SECONDARY,
     lineHeight: 20,
     marginLeft: 8,
     flex: 1,
   },
   runningFeedPlaceholderCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#2B2B2F',
+    borderColor: colors.BORDER,
     paddingVertical: 28,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -5987,19 +5535,19 @@ const styles = StyleSheet.create({
   runningFeedPlaceholderTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginTop: 12,
     marginBottom: 8,
   },
   runningFeedPlaceholderText: {
     fontSize: 14,
-    color: '#B5B5B8',
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 20,
   },
   runningFeedRetryButton: {
     marginTop: 14,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -6011,16 +5559,16 @@ const styles = StyleSheet.create({
   },
   runningFeedList: {
     marginBottom: 16,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
   },
   runningFeedItemCard: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     paddingVertical: 14,
     paddingHorizontal: 14,
   },
   runningFeedItemDivider: {
     borderBottomWidth: 4,
-    borderBottomColor: '#000000',
+    borderBottomColor: colors.BACKGROUND,
   },
   runningFeedItemHeader: {
     flexDirection: 'row',
@@ -6031,7 +5579,7 @@ const styles = StyleSheet.create({
   runningFeedItemDate: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   runningFeedSourceBadge: {
     marginTop: 6,
@@ -6039,17 +5587,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: '#2A2A2E',
+    backgroundColor: colors.SURFACE,
     borderWidth: 1,
-    borderColor: '#3A3A40',
+    borderColor: colors.BORDER,
   },
   runningFeedSourceBadgeRunOn: {
-    backgroundColor: COLORS.PRIMARY,
-    borderColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
+    borderColor: colors.PRIMARY,
   },
   runningFeedSourceBadgeText: {
     fontSize: 11,
-    color: '#D4D4D8',
+    color: colors.TEXT_SECONDARY,
     fontWeight: '600',
   },
   runningFeedSourceBadgeTextRunOn: {
@@ -6057,12 +5605,17 @@ const styles = StyleSheet.create({
   },
   runningFeedItemTime: {
     fontSize: 13,
-    color: '#A7A7AA',
+    color: colors.TEXT_SECONDARY,
   },
   runningFeedStatRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 14,
+  },
+  runningFeedMapWrapper: {
+    marginHorizontal: -14, // 카드 paddingHorizontal(14) 상쇄 → 풀 너비
+    marginBottom: 12,
+    overflow: 'hidden',
   },
   runningFeedStatItem: {
     flex: 1,
@@ -6070,13 +5623,13 @@ const styles = StyleSheet.create({
   },
   runningFeedStatLabel: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: colors.TEXT_SECONDARY,
     marginBottom: 4,
   },
   runningFeedStatValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
   },
   runningFeedFooter: {
     flexDirection: 'row',
@@ -6101,8 +5654,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2F2F35',
-    backgroundColor: '#141417',
+    borderColor: colors.BORDER,
+    backgroundColor: colors.CARD,
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
@@ -6115,12 +5668,12 @@ const styles = StyleSheet.create({
   runningFeedEffortTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#D2D2D7',
+    color: colors.TEXT_SECONDARY,
   },
   runningFeedEffortValue: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.TEXT,
   },
   runningFeedEffortScaleRow: {
     flexDirection: 'row',
@@ -6137,8 +5690,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   runningFeedEffortBarInactive: {
-    backgroundColor: '#202027',
-    borderColor: '#34343C',
+    backgroundColor: colors.SURFACE,
+    borderColor: colors.BORDER,
   },
   runningFeedEffortLabels: {
     marginTop: 8,
@@ -6147,14 +5700,14 @@ const styles = StyleSheet.create({
   },
   runningFeedEffortLabelText: {
     fontSize: 11,
-    color: '#8E8E93',
+    color: colors.TEXT_SECONDARY,
   },
   runningFeedMemoContainer: {
     marginTop: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2F2F35',
-    backgroundColor: '#141417',
+    borderColor: colors.BORDER,
+    backgroundColor: colors.CARD,
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
@@ -6163,11 +5716,11 @@ const styles = StyleSheet.create({
     maxHeight: 140,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#303038',
-    backgroundColor: '#1E1E24',
+    borderColor: colors.BORDER,
+    backgroundColor: colors.SURFACE,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    color: '#FFFFFF',
+    color: colors.TEXT,
     fontSize: 13,
     textAlignVertical: 'top',
   },
@@ -6179,10 +5732,10 @@ const styles = StyleSheet.create({
   },
   runningFeedMemoHint: {
     fontSize: 11,
-    color: '#8E8E93',
+    color: colors.TEXT_SECONDARY,
   },
   runningFeedMemoSaveButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -6201,7 +5754,7 @@ const styles = StyleSheet.create({
   },
   organizerText: {
     fontSize: 12,
-    color: '#999999',
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   creatorBadge: {
@@ -6271,7 +5824,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomModal: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 34, // 하단 안전 영역 고려
@@ -6283,7 +5836,7 @@ const styles = StyleSheet.create({
   },
   bottomMenuItemText: {
     fontSize: 18,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontWeight: '500',
   },
   bottomMenuItemTextDelete: {
@@ -6291,7 +5844,7 @@ const styles = StyleSheet.create({
   },
   bottomModalSeparator: {
     height: 8,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   // 날짜/시간 선택 모달 오버레이
   datePickerModalOverlay: {
@@ -6371,18 +5924,18 @@ const styles = StyleSheet.create({
   coursePhotoName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 4,
   },
   coursePhotoDescription: {
     fontSize: 14,
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: 4,
     textAlign: 'center',
   },
   coursePhotoDistance: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    color: colors.PRIMARY,
     fontWeight: '500',
     marginBottom: 8,
   },
@@ -6392,7 +5945,7 @@ const styles = StyleSheet.create({
   },
   coursePhotoFeature: {
     fontSize: 13,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 2,
   },
   coursePhotoLoading: {
@@ -6401,7 +5954,7 @@ const styles = StyleSheet.create({
     height: 120,
   },
   coursePhotoLoadingText: {
-    color: COLORS.SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontSize: 15,
   },
   
@@ -6412,7 +5965,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: colors.SURFACE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
@@ -6426,11 +5979,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Bold',
   },
   modalEventInfo: {
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -6438,7 +5991,7 @@ const styles = StyleSheet.create({
   modalEventTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     marginBottom: 12,
     fontFamily: 'Pretendard-SemiBold',
   },
@@ -6452,12 +6005,12 @@ const styles = StyleSheet.create({
   },
   modalEventDetailText: {
     fontSize: 14,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-Regular',
   },
   modalMessage: {
     fontSize: 16,
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     textAlign: 'center',
     marginBottom: 24,
     fontFamily: 'Pretendard-Regular',
@@ -6468,7 +6021,7 @@ const styles = StyleSheet.create({
   },
   modalButtonSecondary: {
     flex: 1,
-    backgroundColor: COLORS.CARD,
+    backgroundColor: colors.CARD,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -6476,12 +6029,12 @@ const styles = StyleSheet.create({
   modalButtonSecondaryText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.TEXT,
+    color: colors.TEXT,
     fontFamily: 'Pretendard-SemiBold',
   },
   modalButtonPrimary: {
     flex: 1,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: colors.PRIMARY,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
