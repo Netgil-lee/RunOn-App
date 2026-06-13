@@ -243,9 +243,9 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
     if (showCreateFlow) {
       navigation.setOptions({ tabBarStyle: { display: 'none' } });
     } else {
-      navigation.setOptions({ tabBarStyle: getTabBarInsetsStyle(insets) });
+      navigation.setOptions({ tabBarStyle: getTabBarInsetsStyle(insets, { colors }) });
     }
-  }, [showCreateFlow, navigation, insets]);
+  }, [showCreateFlow, navigation, insets, colors]);
   const [mainMode, setMainMode] = useState('group'); // 'group' | 'feed'
   const [showMyCreated, setShowMyCreated] = useState(false);
   
@@ -1140,16 +1140,18 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               style={styles.mainOptionCard}
               onPress={handleCreateEvent}
             >
-              <View style={styles.optionIconContainer}>
-                <Ionicons name="add-circle" size={48} color={colors.PRIMARY} />
+              <View style={[styles.optionIconContainer, { backgroundColor: colors.PRIMARY }]}>
+                <Ionicons name="add-circle" size={30} color="#0F1115" />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>새 모임 만들기</Text>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>새 모임 만들기</Text>
+                </View>
                 <Text style={styles.optionSubtitle}>
                   새로운 러닝 모임을 생성하고 다른 사람들과 함께 달려보세요
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#666666" />
+              <Ionicons name="chevron-forward" size={24} color="#666666" style={styles.optionChevron} />
             </TouchableOpacity>
 
             {/* 내가 참여한 모임 */}
@@ -1157,19 +1159,21 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               {hasMeetingNotification && (
                 <View style={styles.cardTopNotificationBadge} />
               )}
-              <View style={styles.optionIconContainer}>
-                <Ionicons name="people" size={48} color="#ffffff" />
+              <View style={[styles.optionIconContainer, { backgroundColor: 'rgba(137, 175, 181, 0.9)' }]}>
+                <Ionicons name="people" size={30} color="#0F1115" />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>내가 참여한 모임</Text>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>내가 참여한 모임</Text>
+                  <View style={styles.optionBadge}>
+                    <Text style={styles.optionBadgeText}>{userJoinedEvents.filter(event => event.status !== 'ended').length}개</Text>
+                  </View>
+                </View>
                 <Text style={styles.optionSubtitle}>
                   참여 신청한 러닝 모임들을 확인하고 관리하세요
                 </Text>
-                <View style={styles.optionBadge}>
-                  <Text style={styles.optionBadgeText}>{userJoinedEvents.filter(event => event.status !== 'ended').length}개</Text>
-                </View>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#666666" />
+              <Ionicons name="chevron-forward" size={24} color="#666666" style={styles.optionChevron} />
             </TouchableOpacity>
 
             {/* 내가 만든 모임 */}
@@ -1179,19 +1183,21 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               style={styles.mainOptionCard}
               onPress={handleViewMyCreated}
             >
-              <View style={styles.optionIconContainer}>
-                <Ionicons name="create" size={48} color="#ffffff" />
+              <View style={[styles.optionIconContainer, { backgroundColor: 'rgba(137, 175, 181, 0.9)' }]}>
+                <Ionicons name="create" size={30} color="#0F1115" />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>내가 만든 모임</Text>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>내가 만든 모임</Text>
+                  <View style={styles.optionBadge}>
+                    <Text style={styles.optionBadgeText}>{userCreatedEvents.filter(event => event.status !== 'ended').length}개</Text>
+                  </View>
+                </View>
                 <Text style={styles.optionSubtitle}>
                   내가 만든 러닝 모임들을 관리하고 참여자를 확인하세요
                 </Text>
-                <View style={styles.optionBadge}>
-                  <Text style={styles.optionBadgeText}>{userCreatedEvents.filter(event => event.status !== 'ended').length}개</Text>
-                </View>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#666666" />
+              <Ionicons name="chevron-forward" size={24} color="#666666" style={styles.optionChevron} />
             </TouchableOpacity>
 
             {/* 종료된 모임 */}
@@ -1199,24 +1205,24 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               {hasRatingNotificationForEndedEventsOption() && (
                 <View style={styles.cardTopNotificationBadge} />
               )}
-              <View style={styles.optionIconContainer}>
-                <Ionicons name="checkmark-circle" size={48} color="#FFEA00" />
+              <View style={[styles.optionIconContainer, { backgroundColor: colors.PRIMARY }]}>
+                <Ionicons name="checkmark-circle" size={30} color="#0F1115" />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>종료된 모임</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  <Text style={styles.optionSubtitle}>종료된 모임을 확인하고 </Text>
-                  <Text style={[styles.optionSubtitle, { color: colors.PRIMARY }]}>러닝매너</Text>
-                  <Text style={styles.optionSubtitle}>를 작성하세요</Text>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>종료된 모임</Text>
+                  <View style={styles.optionBadge}>
+                    <Text style={styles.optionBadgeText}>{endedEvents.filter(event =>
+                      event.organizerId === user?.uid ||
+                      (event.participants && event.participants.includes(user?.uid))
+                    ).length}개</Text>
+                  </View>
                 </View>
-                <View style={styles.optionBadge}>
-                  <Text style={styles.optionBadgeText}>{endedEvents.filter(event =>
-                    event.organizerId === user?.uid ||
-                    (event.participants && event.participants.includes(user?.uid))
-                  ).length}개</Text>
-                </View>
+                <Text style={styles.optionSubtitle}>
+                  종료된 모임을 확인하고 <Text style={{ color: colors.PRIMARY }}>러닝매너</Text>를 작성하세요
+                </Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#666666" />
+              <Ionicons name="chevron-forward" size={24} color="#666666" style={styles.optionChevron} />
             </TouchableOpacity>
 
             {/* 추가 정보 섹션 */}
@@ -5372,47 +5378,52 @@ const createStyles = (colors) => StyleSheet.create({
   // 메인 옵션 카드 스타일
   mainOptionCard: {
     backgroundColor: colors.CARD,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
     flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    minHeight: 104,
+    alignItems: 'stretch',
+    height: 104,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.BORDER,
+    overflow: 'hidden',
     position: 'relative',
   },
   optionIconContainer: {
-    marginRight: 16,
+    width: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1.5,
+    borderRightColor: colors.BORDER,
   },
   optionContent: {
     flex: 1,
-    marginRight: 12,
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  optionChevron: {
+    alignSelf: 'center',
+    marginRight: 16,
   },
   optionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.TEXT,
+  },
+  optionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
   },
   optionSubtitle: {
     fontSize: 14,
     color: colors.TEXT_SECONDARY,
     lineHeight: 20,
-    marginBottom: 8,
   },
   optionBadge: {
     backgroundColor: colors.PRIMARY + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: 'flex-start',
+    marginLeft: 8,
   },
   optionBadgeText: {
     fontSize: 12,

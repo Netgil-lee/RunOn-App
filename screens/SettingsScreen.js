@@ -8,8 +8,13 @@ import {
   Alert,
   Switch,
   Image,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { captureRef } from 'react-native-view-shot';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
@@ -19,10 +24,76 @@ import { getAppleFitnessService } from '../services/getAppleFitnessService';
 import TermsPrivacyModal from '../components/TermsPrivacyModal';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemeToggle from '../components/ThemeToggle';
+import SlideToggle from '../components/SlideToggle';
+
+// 모듈 레벨 컴포넌트 — 부모 리렌더 시 리마운트되지 않아야 토글 슬라이드 애니메이션이 유지됨
+const SettingItem = ({ icon, title, subtitle, onPress, showArrow = true, children, customIcon }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  return (
+    <TouchableOpacity
+      style={styles.settingItem}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.settingItemLeft}>
+        <View style={styles.iconContainer}>
+          {customIcon ? customIcon : <Ionicons name={icon} size={20} color="#97DCDE" />}
+        </View>
+        <View style={styles.settingTextContainer}>
+          <Text style={styles.settingTitle}>{title}</Text>
+          {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+        </View>
+      </View>
+      <View style={styles.settingItemRight}>
+        {children}
+        {showArrow && <Ionicons name="chevron-forward" size={16} color={colors.TEXT_SECONDARY} />}
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const SettingsScreen = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  // 테마 전환 크로스페이드 — 현재 화면을 스냅샷으로 덮고 새 테마가 렌더되는 동안 페이드아웃
+  const screenRef = React.useRef(null);
+  const fadeOverlayOpacity = React.useRef(new Animated.Value(0)).current;
+  const [fadeSnapshotUri, setFadeSnapshotUri] = useState(null);
+  const isTransitioningRef = React.useRef(false);
+
+  const handleThemeToggle = async () => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+    try {
+      const uri = await captureRef(screenRef, {
+        format: 'jpg',
+        quality: 0.6,
+        width: Math.round(SCREEN_W / 2),
+        height: Math.round(SCREEN_H / 2),
+      });
+      fadeOverlayOpacity.setValue(1);
+      setFadeSnapshotUri(uri); // 스냅샷이 그려진 뒤 onLoad에서 전환
+    } catch {
+      toggleTheme();
+      isTransitioningRef.current = false;
+    }
+  };
+
+  // 스냅샷이 화면을 덮어 그려진 직후 — 테마 전환 + 스냅샷 페이드아웃
+  const handleOverlayLoaded = () => {
+    toggleTheme();
+    Animated.timing(fadeOverlayOpacity, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setFadeSnapshotUri(null);
+      isTransitioningRef.current = false;
+    });
+  };
+
   const { user, logout } = useAuth();
   const { settings, toggleSetting, updateSetting } = useNotificationSettings();
 
@@ -300,38 +371,6 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
-  const SettingItem = ({ icon, title, subtitle, onPress, showArrow = true, children, customIcon }) => (
-    <TouchableOpacity 
-      style={styles.settingItem} 
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.settingItemLeft}>
-        <View style={styles.iconContainer}>
-          {customIcon ? customIcon : <Ionicons name={icon} size={20} color="#97DCDE" />}
-        </View>
-        <View style={styles.settingTextContainer}>
-          <Text style={styles.settingTitle}>{title}</Text>
-          {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
-        </View>
-      </View>
-      <View style={styles.settingItemRight}>
-        {children}
-        {showArrow && <Ionicons name="chevron-forward" size={16} color={colors.TEXT_SECONDARY} />}
-      </View>
-    </TouchableOpacity>
-  );
-
-  const ToggleSwitch = ({ enabled, onToggle }) => (
-    <Switch
-      value={enabled}
-      onValueChange={onToggle}
-      trackColor={{ false: colors.TEXT_SECONDARY, true: colors.PRIMARY }}
-      thumbColor={enabled ? colors.TEXT : colors.BORDER}
-      ios_backgroundColor={colors.TEXT_SECONDARY}
-    />
-  );
-
   const SectionTitle = ({ title }) => (
     <View style={styles.sectionTitle}>
       <Text style={styles.sectionTitleText}>{title}</Text>
@@ -348,9 +387,10 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1 }}>
+    <View ref={screenRef} collapsable={false} style={styles.container}>
       {/* 헤더 */}
-      <SafeAreaView style={styles.header}>
+      <SafeAreaView style={styles.header} edges={['top']}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -371,20 +411,6 @@ const SettingsScreen = ({ navigation }) => {
       >
 
 
-        {/* 화면 설정 */}
-        <SectionTitle title="화면" />
-        <View style={styles.section}>
-          <SettingItem
-            icon={isDark ? 'moon-outline' : 'sunny-outline'}
-            title="다크 모드"
-            subtitle={isDark ? '어두운 테마를 사용 중입니다.' : '밝은 테마를 사용 중입니다.'}
-            showArrow={false}
-            onPress={toggleTheme}
-          >
-            <ThemeToggle />
-          </SettingItem>
-        </View>
-
         {/* 알림 설정 */}
         <SectionTitle title="알림 설정" />
         <View style={styles.section}>
@@ -395,9 +421,9 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => toggleSetting('notifications', 'newsNotification')}
             showArrow={false}
           >
-            <ToggleSwitch 
-              enabled={settings.notifications.newsNotification}
-              onToggle={() => toggleSetting('notifications', 'newsNotification')}
+            <SlideToggle 
+              value={settings.notifications.newsNotification}
+              onValueChange={() => toggleSetting('notifications', 'newsNotification')}
             />
           </SettingItem>
           <SettingItem
@@ -407,9 +433,9 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => toggleSetting('notifications', 'meetingReminder')}
             showArrow={false}
           >
-            <ToggleSwitch 
-              enabled={settings.notifications.meetingReminder}
-              onToggle={() => toggleSetting('notifications', 'meetingReminder')}
+            <SlideToggle 
+              value={settings.notifications.meetingReminder}
+              onValueChange={() => toggleSetting('notifications', 'meetingReminder')}
             />
           </SettingItem>
           <SettingItem
@@ -419,9 +445,9 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => toggleSetting('notifications', 'newMember')}
             showArrow={false}
           >
-            <ToggleSwitch 
-              enabled={settings.notifications.newMember}
-              onToggle={() => toggleSetting('notifications', 'newMember')}
+            <SlideToggle 
+              value={settings.notifications.newMember}
+              onValueChange={() => toggleSetting('notifications', 'newMember')}
             />
           </SettingItem>
           <SettingItem
@@ -431,9 +457,9 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => toggleSetting('notifications', 'chatNotification')}
             showArrow={false}
           >
-            <ToggleSwitch 
-              enabled={settings.notifications.chatNotification}
-              onToggle={() => toggleSetting('notifications', 'chatNotification')}
+            <SlideToggle 
+              value={settings.notifications.chatNotification}
+              onValueChange={() => toggleSetting('notifications', 'chatNotification')}
             />
           </SettingItem>
           <SettingItem
@@ -443,9 +469,9 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => toggleSetting('notifications', 'weatherAlert')}
             showArrow={false}
           >
-            <ToggleSwitch 
-              enabled={settings.notifications.weatherAlert}
-              onToggle={() => toggleSetting('notifications', 'weatherAlert')}
+            <SlideToggle 
+              value={settings.notifications.weatherAlert}
+              onValueChange={() => toggleSetting('notifications', 'weatherAlert')}
             />
           </SettingItem>
           <SettingItem
@@ -455,9 +481,9 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => toggleSetting('notifications', 'safetyAlert')}
             showArrow={false}
           >
-            <ToggleSwitch 
-              enabled={settings.notifications.safetyAlert}
-              onToggle={() => toggleSetting('notifications', 'safetyAlert')}
+            <SlideToggle 
+              value={settings.notifications.safetyAlert}
+              onValueChange={() => toggleSetting('notifications', 'safetyAlert')}
             />
           </SettingItem>
         </View>
@@ -467,6 +493,15 @@ const SettingsScreen = ({ navigation }) => {
         {/* 앱 */}
         <SectionTitle title="앱" />
         <View style={styles.section}>
+          <SettingItem
+            icon={isDark ? 'moon-outline' : 'sunny-outline'}
+            title="화면 모드"
+            subtitle={isDark ? '다크 모드' : '라이트 모드'}
+            showArrow={false}
+            onPress={handleThemeToggle}
+          >
+            <ThemeToggle onToggle={handleThemeToggle} />
+          </SettingItem>
           <SettingItem
             icon="heart-outline"
             title="건강데이터 접근"
@@ -587,6 +622,17 @@ const SettingsScreen = ({ navigation }) => {
         onClose={closeModal}
         type={modalType}
       />
+    </View>
+      {/* 테마 전환 크로스페이드 오버레이 (스냅샷이 새 테마 위에서 페이드아웃) */}
+      {fadeSnapshotUri && (
+        <Animated.Image
+          source={{ uri: fadeSnapshotUri }}
+          style={[StyleSheet.absoluteFill, { opacity: fadeOverlayOpacity }]}
+          pointerEvents="none"
+          resizeMode="cover"
+          onLoad={handleOverlayLoaded}
+        />
+      )}
     </View>
   );
 };

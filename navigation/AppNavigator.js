@@ -35,20 +35,15 @@ import AppGuideScreen from '../screens/AppGuideScreen';
 import BlacklistManagementScreen from '../screens/BlacklistManagementScreen';
 import PremiumScreen from '../screens/PremiumScreen';
 import { getTabBarInsetsStyle } from '../constants/tabBarInsets';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// NetGill 디자인 시스템
-const COLORS = {
-  PRIMARY: '#3AF8FF',
-  BACKGROUND: '#000000',
-  SURFACE: '#1F1F24',
-};
-
 // 로그인된 사용자를 위한 BottomTab 네비게이션
 const MainTabNavigator = () => {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const { hasMeetingNotification, hasUpdateNotification } = useEvents();
   const { hasCommunityNotification } = useCommunity();
 
@@ -100,9 +95,9 @@ const MainTabNavigator = () => {
         tabBarIcon: ({ focused, color, size }) => (
           <TabIconWithBadge route={route} focused={focused} color={color} size={size} />
         ),
-        tabBarActiveTintColor: COLORS.PRIMARY,
-        tabBarInactiveTintColor: '#cccccc',
-        tabBarStyle: getTabBarInsetsStyle(insets),
+        tabBarActiveTintColor: colors.PRIMARY,
+        tabBarInactiveTintColor: colors.TEXT_SECONDARY,
+        tabBarStyle: getTabBarInsetsStyle(insets, { colors }),
         tabBarLabelStyle: {
           fontSize: 13,
           fontWeight: '500',
@@ -141,6 +136,7 @@ const MainTabNavigator = () => {
 
 const AppNavigator = ({ isDemoMode = false }) => {
   const { user, initializing, onboardingCompleted } = useAuth();
+  const { colors } = useTheme();
 
 
 
@@ -158,7 +154,7 @@ const AppNavigator = ({ isDemoMode = false }) => {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
-          cardStyle: { backgroundColor: COLORS.BACKGROUND },
+          cardStyle: { backgroundColor: colors.BACKGROUND },
         }}
       >
         <Stack.Screen name="Login" component={LoginScreen} />
@@ -176,7 +172,7 @@ const AppNavigator = ({ isDemoMode = false }) => {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
-          cardStyle: { backgroundColor: COLORS.BACKGROUND },
+          cardStyle: { backgroundColor: colors.BACKGROUND },
         }}
       >
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
@@ -190,7 +186,7 @@ const AppNavigator = ({ isDemoMode = false }) => {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
-          cardStyle: { backgroundColor: COLORS.BACKGROUND },
+          cardStyle: { backgroundColor: colors.BACKGROUND },
         }}
       >
         <Stack.Screen name="Main" component={MainTabNavigator} />

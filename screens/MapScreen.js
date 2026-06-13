@@ -500,8 +500,8 @@ const MapScreen = ({ navigation, route }) => {
     React.useCallback(() => {
       didInitialCenterOnFocusRef.current = false;
 
-      // StatusBar 설정 (iOS) - 한 번만 설정
-      StatusBar.setBarStyle('dark-content', true);
+      // StatusBar 설정 - 테마에 따라 분기 (다크: 흰 아이콘 / 라이트: 검은 아이콘)
+      StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
       
       // 지도탭에서만 bottombar 구분선 추가
       navigation.setOptions({
@@ -595,8 +595,8 @@ const MapScreen = ({ navigation, route }) => {
         locationWatchSubRef.current?.remove();
         locationWatchSubRef.current = null;
 
-        // 화면을 벗어날 때 원래 설정으로 복원
-        StatusBar.setBarStyle('light-content', true);
+        // 화면을 벗어날 때 테마에 맞는 상태바로 복원
+        StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
         // bottombar 구분선 제거 (원래 스타일로 복원)
         navigation.setOptions({
           tabBarStyle: getTabBarInsetsStyle(insets, { withTopBorder: false }),
