@@ -188,11 +188,12 @@ const RunningShareModal = ({
   // 실제 운동기록 데이터 가져오기 (place 입력 후에만 실행)
   useEffect(() => {
     if (!visible || !hasEnteredPlace) return;
-    if (shouldUseRunOnLocalData) return;
+    // preset(러닝 피드에서 탭한 기록) 또는 RunOn 로컬 데이터는 그대로 사용 - 재조회로 덮어쓰지 않음
+    if (shouldUseRunOnLocalData || presetWorkoutData) return;
     if (eventData) {
       fetchActualWorkoutData();
     }
-  }, [visible, eventData, hasEnteredPlace, dataSource, shouldUseRunOnLocalData]);
+  }, [visible, eventData, hasEnteredPlace, dataSource, shouldUseRunOnLocalData, presetWorkoutData]);
 
   const fetchActualWorkoutData = async () => {
     try {

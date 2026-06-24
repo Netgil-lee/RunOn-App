@@ -505,7 +505,7 @@ const MapScreen = ({ navigation, route }) => {
       
       // 지도탭에서만 bottombar 구분선 추가
       navigation.setOptions({
-        tabBarStyle: getTabBarInsetsStyle(insets, { withTopBorder: true }),
+        tabBarStyle: getTabBarInsetsStyle(insets, { withTopBorder: true, colors }),
       });
       
       // 화면 포커스 시 모임 데이터 새로고침 (약간의 지연을 두어 Firestore 업데이트 반영)
@@ -599,10 +599,10 @@ const MapScreen = ({ navigation, route }) => {
         StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
         // bottombar 구분선 제거 (원래 스타일로 복원)
         navigation.setOptions({
-          tabBarStyle: getTabBarInsetsStyle(insets, { withTopBorder: false }),
+          tabBarStyle: getTabBarInsetsStyle(insets, { withTopBorder: false, colors }),
         });
       };
-    }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, syncUserLocation, insets])
+    }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, syncUserLocation, insets, colors])
   );
 
   // 검색 결과 선택 후 pendingSearchResult 처리 (지도 이동/상세 표시)
@@ -684,7 +684,7 @@ const MapScreen = ({ navigation, route }) => {
     >
       <View style={styles.bottomSheetIndicator} />
     </TouchableOpacity>
-  ), [handleHeaderPress]);
+  ), [handleHeaderPress, styles]);
 
   // 지도 클릭/드래그 시 Bottom Sheet 축소
   const handleMapInteraction = useCallback(() => {

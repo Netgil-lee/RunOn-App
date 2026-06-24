@@ -45,11 +45,24 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
     @ReactMethod
     fun isAvailable(promise: Promise) {
         try {
-            val result = healthConnectClient != null
-            promise.resolve(result)
+            // SDK 상태로 사용 가능 여부 판단 (Android 14+ OS 내장 / 13 이하 APK 모두 대응)
+            val status = HealthConnectClient.getSdkStatus(reactApplicationContext)
+            val available = status == HealthConnectClient.SDK_AVAILABLE
+
+            // 사용 가능한데 init 시점에 클라이언트 생성이 실패했다면 지연 생성 재시도
+            if (available && healthConnectClient == null) {
+                try {
+                    healthConnectClient = HealthConnectClient.getOrCreate(reactApplicationContext.applicationContext)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Health Connect 클라이언트 지연 초기화 실패", e)
+                }
+            }
+
+            Log.d(TAG, "Health Connect SDK 상태: $status, 사용가능: ${available && healthConnectClient != null}")
+            promise.resolve(available && healthConnectClient != null)
         } catch (e: Exception) {
             Log.e(TAG, "isAvailable 실패", e)
-            promise.reject("ERROR", "Health Connect 사용 가능 여부 확인 실패: ${e.message}", e)
+            promise.resolve(false)
         }
     }
     
@@ -251,10 +264,19 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
                 promise.reject("ERROR", "워크아웃 ID가 필요합니다.")
                 return
             }
-            
-            // Health Connect에서 Location 데이터 조회
-            // ExerciseSession과 연관된 Location 데이터를 읽는 방법 확인 필요
-            promise.reject("ERROR", "이동경로 조회는 아직 구현되지 않았습니다.")
+
+            scope.launch {
+                try {
+                    // 단건 조회로 해당 운동 세션의 경로를 읽음
+                    val response = healthConnectClient!!.readRecord(ExerciseSessionRecord::class, workoutId)
+                    val routeArray = buildRouteArray(response.record)
+                    promise.resolve(routeArray)
+                } catch (e: Exception) {
+                    Log.e(TAG, "getWorkoutRouteSamples 조회 실패", e)
+                    // 경로 접근 불가/없음은 오류가 아니라 빈 경로로 처리
+                    promise.resolve(createReactArray())
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "getWorkoutRouteSamples 실패", e)
             promise.reject("ERROR", "이동경로 샘플 조회 실패: ${e.message}", e)
@@ -297,12 +319,38 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
             workout.putDouble("calories", calories)
             workout.putString("activityName", "Running")
             workout.putInt("activityId", 1)
-            
+
+            // 워크아웃 고유 ID (좋아요/메모 키, 경로 재조회에 사용)
+            workout.putString("id", record.metadata.id)
+            // 이동경로 좌표 (접근 가능한 경우 인라인으로 포함)
+            workout.putArray("routeCoordinates", buildRouteArray(record))
+
             workout
         } catch (e: Exception) {
             Log.e(TAG, "워크아웃 데이터 변환 실패", e)
             null
         }
+    }
+
+    // ExerciseSessionRecord에서 이동경로 좌표 배열 추출
+    // 접근 권한이 있어 경로가 제공되는 경우(Data)에만 좌표를 반환, 그 외에는 빈 배열
+    private fun buildRouteArray(record: ExerciseSessionRecord): WritableArray {
+        val array = createReactArray()
+        try {
+            val routeResult = record.exerciseRouteResult
+            if (routeResult is ExerciseRouteResult.Data) {
+                routeResult.exerciseRoute.route.forEach { location ->
+                    val point = createReactMap().apply {
+                        putDouble("latitude", location.latitude)
+                        putDouble("longitude", location.longitude)
+                    }
+                    array.pushMap(point)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "경로 데이터 변환 실패", e)
+        }
+        return array
     }
     
     private fun formatDate(timestamp: Long): String {

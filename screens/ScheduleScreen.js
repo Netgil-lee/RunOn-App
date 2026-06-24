@@ -247,6 +247,19 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
     }
   }, [showCreateFlow, navigation, insets, colors]);
   const [mainMode, setMainMode] = useState('group'); // 'group' | 'feed'
+  const toggleAnim = useRef(new Animated.Value(0)).current; // 0: group, 1: feed
+  const [toggleTrackWidth, setToggleTrackWidth] = useState(0);
+
+  // 모드 토글 슬라이딩 애니메이션 (같이 달리기 ↔ 러닝 피드)
+  useEffect(() => {
+    Animated.spring(toggleAnim, {
+      toValue: mainMode === 'feed' ? 1 : 0,
+      useNativeDriver: true,
+      friction: 9,
+      tension: 80,
+    }).start();
+  }, [mainMode, toggleAnim]);
+
   const [showMyCreated, setShowMyCreated] = useState(false);
   
   // 내가 만든 모임 화면 진입 감지
@@ -1089,7 +1102,53 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
   // 메인 모임 화면 (3개 옵션)
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView 
+      {/* 모드 토글 (모임탭 최상단 고정 - 스크롤해도 항상 보임) */}
+      <View style={styles.modeToggleWrap}>
+        <View
+          style={styles.modeToggleContainer}
+          onLayout={(e) => setToggleTrackWidth(e.nativeEvent.layout.width)}
+        >
+          {toggleTrackWidth > 0 && (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.modeTogglePill,
+                {
+                  width: (toggleTrackWidth - 8) / 2,
+                  transform: [
+                    {
+                      translateX: toggleAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, (toggleTrackWidth - 8) / 2],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          )}
+          <TouchableOpacity
+            style={styles.modeToggleButton}
+            activeOpacity={0.8}
+            onPress={() => setMainMode('group')}
+          >
+            <Text style={[styles.modeToggleButtonText, mainMode === 'group' && styles.modeToggleButtonTextActive]}>
+              같이 달리기
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.modeToggleButton}
+            activeOpacity={0.8}
+            onPress={() => setMainMode('feed')}
+          >
+            <Text style={[styles.modeToggleButtonText, mainMode === 'feed' && styles.modeToggleButtonTextActive]}>
+              러닝 피드
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -1099,28 +1158,6 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
         onScroll={handleFeedScroll}
         scrollEventThrottle={16}
       >
-        {/* 모드 토글 (모임탭 최상단) */}
-        <View style={styles.modeToggleWrap}>
-          <View style={styles.modeToggleContainer}>
-            <TouchableOpacity
-              style={[styles.modeToggleButton, mainMode === 'group' && styles.modeToggleButtonActive]}
-              onPress={() => setMainMode('group')}
-            >
-              <Text style={[styles.modeToggleButtonText, mainMode === 'group' && styles.modeToggleButtonTextActive]}>
-                같이 달리기
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeToggleButton, mainMode === 'feed' && styles.modeToggleButtonActive]}
-              onPress={() => setMainMode('feed')}
-            >
-              <Text style={[styles.modeToggleButtonText, mainMode === 'feed' && styles.modeToggleButtonTextActive]}>
-                러닝 피드
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* 헤더 섹션 */}
         <View style={styles.headerSection}>
           <Text style={styles.title}>{mainMode === 'group' ? '모임' : '러닝 피드'}</Text>
@@ -1381,7 +1418,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                             <Ionicons
                               name={effortLevel !== null ? 'heart' : 'heart-outline'}
                               size={22}
-                              color="#FFFFFF"
+                              color={colors.TEXT}
                             />
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -1391,14 +1428,14 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
                             <Ionicons
                               name={savedMemo ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'}
                               size={22}
-                              color="#FFFFFF"
+                              color={colors.TEXT}
                             />
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={styles.runningFeedIconButton}
                             onPress={() => handleFeedSharePress(workout)}
                           >
-                            <Ionicons name="share-social-outline" size={22} color="#FFFFFF" />
+                            <Ionicons name="share-social-outline" size={22} color={colors.TEXT} />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -1541,7 +1578,7 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
       <RunningShareModal
         visible={showFeedShareModal}
         onClose={handleFeedShareClose}
-        showRoute={false}
+        showRoute={true}
         workoutSource={selectedFeedWorkout?.sourceLabel || selectedFeedWorkout?.sourceName || null}
         workoutData={{
           distance: selectedFeedWorkout?.distance || '0m',
@@ -3944,7 +3981,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.SURFACE,
+    backgroundColor: colors.BORDER,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -5435,12 +5472,23 @@ const createStyles = (colors) => StyleSheet.create({
   modeToggleWrap: {
     paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: colors.BACKGROUND,
   },
   modeToggleContainer: {
     flexDirection: 'row',
     backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 4,
+    position: 'relative',
+  },
+  modeTogglePill: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    bottom: 4,
+    borderRadius: 10,
+    backgroundColor: colors.PRIMARY,
   },
   modeToggleButton: {
     flex: 1,
@@ -5448,9 +5496,6 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 10,
     paddingVertical: 10,
-  },
-  modeToggleButtonActive: {
-    backgroundColor: colors.PRIMARY,
   },
   modeToggleButtonText: {
     fontSize: 14,

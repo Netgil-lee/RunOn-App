@@ -103,24 +103,28 @@ const CommunityScreen = ({ navigation, route }) => {
   
   // 탭 상태
   const [activeTab, setActiveTab] = useState('모임'); // '모임', '채팅', '게시판'
-  
+
+  // 슬라이딩 애니메이션 값 (0: 모임, 1: 채팅, 2: 게시판)
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [toggleTrackWidth, setToggleTrackWidth] = useState(0);
+
   // route.params에서 activeTab을 받아서 설정
   useEffect(() => {
     if (route.params?.activeTab) {
       setActiveTab(route.params.activeTab);
-      // 채팅 탭으로 이동하는 경우 슬라이딩 애니메이션 실행
-      if (route.params.activeTab === '채팅') {
-        Animated.timing(slideAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: false,
-        }).start();
-      }
     }
   }, [route.params?.activeTab]);
-  
-  // 슬라이딩 애니메이션 값
-  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  // activeTab이 바뀌면 슬라이딩 박스를 부드럽게 이동 (ScheduleScreen 토글과 동일한 모션)
+  useEffect(() => {
+    const idx = activeTab === '채팅' ? 1 : activeTab === '게시판' ? 2 : 0;
+    Animated.spring(slideAnim, {
+      toValue: idx,
+      useNativeDriver: true,
+      friction: 9,
+      tension: 80,
+    }).start();
+  }, [activeTab, slideAnim]);
   
   // 게시판 카테고리 필터 상태
   const [selectedPostCategory, setSelectedPostCategory] = useState('전체');
@@ -403,32 +407,27 @@ const CommunityScreen = ({ navigation, route }) => {
           <Text style={styles.subtitle}>러너들과 함께 소통하고 달려보세요</Text>
         </View>
 
-        <View style={styles.tabContainer}>
-          <TouchableOpacity 
+        <View
+          style={styles.tabContainer}
+          onLayout={(e) => setToggleTrackWidth(e.nativeEvent.layout.width)}
+        >
+          <TouchableOpacity
             style={styles.tab}
+            activeOpacity={0.8}
             onPress={() => {
               setActiveTab('모임');
-              Animated.timing(slideAnim, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: false,
-              }).start();
             }}
           >
             <Text style={[styles.tabText, activeTab === '모임' && styles.activeTabText]}>
               러닝모임
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.tab}
+            activeOpacity={0.8}
             onPress={() => {
               setActiveTab('채팅');
               handleChatTabClick(); // 채팅 탭 클릭 시 알림 해제
-              Animated.timing(slideAnim, {
-                toValue: 1,
-                duration: 300,
-                useNativeDriver: false,
-              }).start();
             }}
           >
             <View style={styles.tabTextContainer}>
@@ -440,16 +439,12 @@ const CommunityScreen = ({ navigation, route }) => {
               )}
             </View>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.tab}
+            activeOpacity={0.8}
             onPress={() => {
               setActiveTab('게시판');
               handleBoardTabClick(); // 자유게시판 탭 클릭 시 알림 해제
-              Animated.timing(slideAnim, {
-                toValue: 2,
-                duration: 300,
-                useNativeDriver: false,
-              }).start();
             }}
           >
             <View style={styles.tabTextContainer}>
@@ -463,21 +458,29 @@ const CommunityScreen = ({ navigation, route }) => {
           </TouchableOpacity>
           
           {/* 슬라이딩 박스 */}
-          <Animated.View 
-            style={[
-              styles.slidingBox,
-              {
-                transform: [
-                  {
-                    translateX: slideAnim.interpolate({
-                      inputRange: [0, 1, 2],
-                      outputRange: [0, 125, 255]
-                    })
-                  }
-                ]
-              }
-            ]}
-          />
+          {toggleTrackWidth > 0 && (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.slidingBox,
+                {
+                  width: (toggleTrackWidth - 8) / 3,
+                  transform: [
+                    {
+                      translateX: slideAnim.interpolate({
+                        inputRange: [0, 1, 2],
+                        outputRange: [
+                          0,
+                          (toggleTrackWidth - 8) / 3,
+                          ((toggleTrackWidth - 8) / 3) * 2,
+                        ],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          )}
         </View>
       </View>
 
@@ -1234,10 +1237,9 @@ const createStyles = (colors) => StyleSheet.create({
   },
   slidingBox: {
     position: 'absolute',
-    top: 2.5,
+    top: 4,
     left: 4,
-    width: 127,
-    height: 42.5,
+    bottom: 4,
     backgroundColor: colors.PRIMARY,
     borderRadius: 8,
     zIndex: 1,

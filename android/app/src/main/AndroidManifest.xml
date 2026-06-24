@@ -19,8 +19,12 @@
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-  <!-- Health Connect 권한 -->
+  <!-- Health Connect 권한 (네이티브 모듈이 요청하는 3종 모두 선언해야 부여됨) -->
   <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
+  <uses-permission android:name="android.permission.health.READ_DISTANCE"/>
+  <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED"/>
+  <!-- 이동경로 일괄 읽기 권한(Android 14+ Health Connect). 미지원 기기에선 무시되며, 권한 판정에는 포함하지 않음(선택적). -->
+  <uses-permission android:name="android.permission.health.READ_EXERCISE_ROUTES"/>
   <queries>
     <!-- Health Connect 패키지 쿼리 -->
     <package android:name="com.google.android.apps.healthdata"/>
@@ -47,6 +51,21 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="exp+runon"/>
       </intent-filter>
+      <!-- Health Connect 권한 안내(Android 13 이하: Health Connect APK) -->
+      <intent-filter>
+        <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
+      </intent-filter>
     </activity>
+    <!-- Health Connect 권한 사용 안내 화면(Android 14+: OS 내장) -->
+    <activity-alias
+      android:name="ViewPermissionUsageActivity"
+      android:exported="true"
+      android:targetActivity=".MainActivity"
+      android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
+        <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
+      </intent-filter>
+    </activity-alias>
   </application>
 </manifest>

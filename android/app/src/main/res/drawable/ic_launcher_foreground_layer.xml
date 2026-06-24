@@ -9,7 +9,7 @@
     android:height="@dimen/adaptive_icon_foreground_slot"
     android:gravity="center">
     <bitmap
-      android:gravity="center"
+      android:gravity="fill"
       android:src="@mipmap/ic_launcher_foreground" />
   </item>
 </layer-list>

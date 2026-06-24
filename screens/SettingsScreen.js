@@ -10,6 +10,7 @@ import {
   Image,
   Animated,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
@@ -21,10 +22,14 @@ import { useNotificationSettings } from '../contexts/NotificationSettingsContext
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import blacklistService from '../services/blacklistService';
 import { getAppleFitnessService } from '../services/getAppleFitnessService';
+import healthConnectService from '../services/healthConnectService';
 import TermsPrivacyModal from '../components/TermsPrivacyModal';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemeToggle from '../components/ThemeToggle';
 import SlideToggle from '../components/SlideToggle';
+
+// 플랫폼별 건강데이터 서비스 (iOS: HealthKit, Android: Google Health Connect)
+const HEALTH_SERVICE_LABEL = Platform.OS === 'android' ? 'Google Health Connect' : 'HealthKit';
 
 // 모듈 레벨 컴포넌트 — 부모 리렌더 시 리마운트되지 않아야 토글 슬라이드 애니메이션이 유지됨
 const SettingItem = ({ icon, title, subtitle, onPress, showArrow = true, children, customIcon }) => {
@@ -214,7 +219,19 @@ const SettingsScreen = ({ navigation }) => {
   const checkHealthKitStatus = async () => {
     try {
       setHealthKitStatus(prev => ({ ...prev, isChecking: true }));
-      
+
+      // Android: Google Health Connect 권한 상태 확인
+      if (Platform.OS === 'android') {
+        const status = await healthConnectService.checkPermissions();
+        setHealthKitStatus({
+          isAvailable: status.isAvailable,
+          hasPermissions: status.hasPermissions,
+          isChecking: false,
+        });
+        console.log('🏥 Health Connect 상태:', status);
+        return;
+      }
+
       const appleFitnessService = getAppleFitnessService();
       // HealthKit 모듈 안전성 체크
       if (!appleFitnessService || typeof appleFitnessService.checkPermissions !== 'function') {
@@ -249,6 +266,53 @@ const SettingsScreen = ({ navigation }) => {
   // HealthKit 권한 요청
   const handleHealthKitAccess = async () => {
     try {
+      // Android: Google Health Connect 연동/권한 요청
+      if (Platform.OS === 'android') {
+        if (healthKitStatus.hasPermissions) {
+          Alert.alert(
+            '건강데이터 접근',
+            '이미 Google Health Connect 권한이 허용되어 있습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
+            [{ text: '확인' }]
+          );
+          return;
+        }
+
+        Alert.alert(
+          '건강데이터 접근',
+          'Google Health Connect에서 러닝 데이터를 가져오기 위해 건강 데이터 접근 권한이 필요합니다.\n\n허용하시겠습니까?',
+          [
+            { text: '취소', style: 'cancel' },
+            {
+              text: '허용',
+              onPress: async () => {
+                try {
+                  const success = await healthConnectService.requestPermissions();
+                  if (success) {
+                    Alert.alert(
+                      '권한 허용 완료',
+                      'Google Health Connect 권한이 허용되었습니다.\n\n러닝 데이터가 자동으로 동기화됩니다.',
+                      [{ text: '확인' }]
+                    );
+                  } else {
+                    Alert.alert(
+                      '권한 허용 실패',
+                      'Google Health Connect 권한을 허용하지 못했습니다.\n\nHealth Connect 앱(또는 설정 > 보안 및 개인정보 > Health Connect)에서 RunOn의 권한을 직접 허용해주세요.',
+                      [{ text: '확인' }]
+                    );
+                  }
+                  // 허용 여부와 무관하게 최신 상태 반영
+                  await checkHealthKitStatus();
+                } catch (error) {
+                  console.error('❌ Health Connect 권한 요청 실패:', error);
+                  Alert.alert('오류', 'Google Health Connect 권한 요청 중 오류가 발생했습니다.', [{ text: '확인' }]);
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
       if (healthKitStatus.hasPermissions) {
         Alert.alert(
           '건강데이터 접근',
@@ -506,10 +570,10 @@ const SettingsScreen = ({ navigation }) => {
             icon="heart-outline"
             title="건강데이터 접근"
             subtitle={
-              healthKitStatus.isChecking 
-                ? "상태 확인 중..." 
-                : healthKitStatus.hasPermissions 
-                  ? "HealthKit 권한 허용됨" 
+              healthKitStatus.isChecking
+                ? "상태 확인 중..."
+                : healthKitStatus.hasPermissions
+                  ? `${HEALTH_SERVICE_LABEL} 권한 허용됨`
                   : "러닝 데이터 동기화 및 권한 관리"
             }
             onPress={handleHealthKitAccess}

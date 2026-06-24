@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <!-- 적응형 런처 아이콘 전경 로고 박스 한 변. -->
-  <dimen name="adaptive_icon_foreground_slot">60dp</dimen>
+  <dimen name="adaptive_icon_foreground_slot">66dp</dimen>
 </resources>

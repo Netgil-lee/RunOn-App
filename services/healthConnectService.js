@@ -385,14 +385,15 @@ class HealthConnectService {
     const workoutId = workout.id || workout.uuid || workout.workoutId;
     const feedId = workoutId ? `hc-${workoutId}` : `hc-${startDate.getTime()}`;
 
-    let routeCoordinates = [];
-    if (includeRoute && workoutId && HealthConnect?.getWorkoutRouteSamples) {
+    // 네이티브 getSamples가 인라인으로 제공한 경로를 우선 사용
+    let routeCoordinates = Array.isArray(workout.routeCoordinates) ? workout.routeCoordinates : [];
+    // 인라인 경로가 없고 경로 포함 요청이면 단건 재조회로 폴백
+    if (includeRoute && routeCoordinates.length === 0 && workoutId && HealthConnect?.getWorkoutRouteSamples) {
       try {
-        routeCoordinates = await HealthConnect.getWorkoutRouteSamples({ id: workoutId });
-        if (!Array.isArray(routeCoordinates)) routeCoordinates = [];
+        const fetched = await HealthConnect.getWorkoutRouteSamples({ id: workoutId });
+        if (Array.isArray(fetched)) routeCoordinates = fetched;
       } catch (error) {
         console.warn('⚠️ [HealthConnectService] 피드 경로 조회 실패:', error?.message || error);
-        routeCoordinates = [];
       }
     }
 
