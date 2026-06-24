@@ -182,6 +182,18 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
 
   const [showCreateFlow, setShowCreateFlow] = useState(false);
   const [mainMode, setMainMode] = useState('group'); // 'group' | 'feed'
+  const toggleAnim = useRef(new Animated.Value(0)).current; // 0: group, 1: feed
+  const [toggleTrackWidth, setToggleTrackWidth] = useState(0);
+
+  // 모드 토글 슬라이딩 애니메이션 (같이 달리기 ↔ 러닝 피드)
+  useEffect(() => {
+    Animated.spring(toggleAnim, {
+      toValue: mainMode === 'feed' ? 1 : 0,
+      useNativeDriver: true,
+      friction: 9,
+      tension: 80,
+    }).start();
+  }, [mainMode, toggleAnim]);
   const [showMyCreated, setShowMyCreated] = useState(false);
   
   // 내가 만든 모임 화면 진입 감지
@@ -999,11 +1011,34 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
         onScroll={handleFeedScroll}
         scrollEventThrottle={16}
       >
-        {/* 모드 토글 (모임탭 최상단) */}
+        {/* 모드 토글 (모임탭 최상단 고정) */}
         <View style={styles.modeToggleWrap}>
-          <View style={styles.modeToggleContainer}>
+          <View
+            style={styles.modeToggleContainer}
+            onLayout={(e) => setToggleTrackWidth(e.nativeEvent.layout.width)}
+          >
+            {toggleTrackWidth > 0 && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.modeTogglePill,
+                  {
+                    width: (toggleTrackWidth - 8) / 2,
+                    transform: [
+                      {
+                        translateX: toggleAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, (toggleTrackWidth - 8) / 2],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            )}
             <TouchableOpacity
-              style={[styles.modeToggleButton, mainMode === 'group' && styles.modeToggleButtonActive]}
+              style={styles.modeToggleButton}
+              activeOpacity={0.8}
               onPress={() => setMainMode('group')}
             >
               <Text style={[styles.modeToggleButtonText, mainMode === 'group' && styles.modeToggleButtonTextActive]}>
@@ -1011,7 +1046,8 @@ const ScheduleScreen = ({ navigation, route, onMyCreatedScreenEnter, onCreateMee
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modeToggleButton, mainMode === 'feed' && styles.modeToggleButtonActive]}
+              style={styles.modeToggleButton}
+              activeOpacity={0.8}
               onPress={() => setMainMode('feed')}
             >
               <Text style={[styles.modeToggleButtonText, mainMode === 'feed' && styles.modeToggleButtonTextActive]}>
@@ -5285,6 +5321,15 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.SURFACE,
     borderRadius: 12,
     padding: 4,
+    position: 'relative',
+  },
+  modeTogglePill: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    bottom: 4,
+    borderRadius: 10,
+    backgroundColor: colors.PRIMARY,
   },
   modeToggleButton: {
     flex: 1,
@@ -5292,9 +5337,6 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 10,
     paddingVertical: 10,
-  },
-  modeToggleButtonActive: {
-    backgroundColor: colors.PRIMARY,
   },
   modeToggleButtonText: {
     fontSize: 14,
