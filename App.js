@@ -12,6 +12,8 @@ import AppNavigator from './navigation/AppNavigator';
 import firebaseService from './config/firebase';
 import { firestore } from './config/firebase';
 import pushNotificationService from './services/pushNotificationService';
+import { checkForceUpdate } from './services/appUpdateService';
+import ForceUpdateModal from './components/ForceUpdateModal';
 import { AuthProvider } from './contexts/AuthContext';
 import { NetworkProvider } from './contexts/NetworkContext';
 import { EventProvider } from './contexts/EventContext';
@@ -49,6 +51,7 @@ export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [pendingDeepLinkEventId, setPendingDeepLinkEventId] = useState(null);
+  const [forceUpdate, setForceUpdate] = useState({ required: false, storeUrl: null });
   const navigationRef = useRef(null);
 
   const extractEventIdFromUrl = useCallback((url) => {
@@ -208,7 +211,17 @@ export default function App() {
       // }
 
       await initializeFirebase();
-      
+
+      // 강제 업데이트 체크 (실패해도 앱 진행 — fail-open)
+      try {
+        const updateResult = await checkForceUpdate();
+        if (updateResult.required) {
+          setForceUpdate({ required: true, storeUrl: updateResult.storeUrl });
+        }
+      } catch (updateError) {
+        console.warn('강제 업데이트 체크 실패:', updateError);
+      }
+
       // 스플래시 스크린 즉시 숨기기
       await SplashScreen.hideAsync();
       
@@ -298,6 +311,10 @@ export default function App() {
         >
           <ThemeProvider>
             <ThemedStatusBar />
+            <ForceUpdateModal
+              visible={forceUpdate.required}
+              storeUrl={forceUpdate.storeUrl}
+            />
             <NetworkProvider>
               <AuthProvider isDemoMode={isDemoMode}>
                 <PremiumProvider>
