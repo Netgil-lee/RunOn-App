@@ -421,20 +421,59 @@ class FirestoreService {
   async updateEvent(eventId, eventData) {
     let retryCount = 0;
     const maxRetries = 3;
-    
+
+    // customMarkerCoords가 포함되면 GeoPoint(coordinates)로 변환하여 지오해시(g)까지 갱신
+    // (createEvent와 동일한 신형 포맷으로 저장 — customMarkerCoords는 문서에 남기지 않음)
+    let updatePayload = eventData;
+    let useGeoUpdate = false;
+    if (eventData && eventData.customMarkerCoords) {
+      const lat = eventData.customMarkerCoords.latitude ?? eventData.customMarkerCoords.lat;
+      const lng = eventData.customMarkerCoords.longitude ?? eventData.customMarkerCoords.lng;
+      const { customMarkerCoords, ...rest } = eventData;
+      if (lat != null && lng != null) {
+        updatePayload = { ...rest, coordinates: new GeoPoint(lat, lng) };
+        useGeoUpdate = true;
+      } else {
+        // 유효 좌표가 없으면 customMarkerCoords만 제거하고 일반 업데이트
+        updatePayload = rest;
+      }
+    }
+
     while (retryCount < maxRetries) {
       try {
         console.log('🔍 FirestoreService.updateEvent 호출됨 (시도:', retryCount + 1, ')');
         console.log('🔍 이벤트 ID:', eventId);
-        console.log('🔍 업데이트 데이터:', eventData);
+        console.log('🔍 업데이트 데이터:', updatePayload);
+        console.log('🔍 지오업데이트 여부:', useGeoUpdate);
         console.log('🔍 환경:', __DEV__ ? 'development' : 'production');
-        
-        const eventRef = doc(this.db, 'events', eventId);
-        await updateDoc(eventRef, {
-          ...eventData,
-          updatedAt: serverTimestamp()
-        });
-        
+
+        if (useGeoUpdate) {
+          // GeoFirestore로 업데이트하면 coordinates 변경 시 g(geohash) 필드가 자동 재계산됨
+          try {
+            const geofirestore = getGeoFirestore();
+            const geocollection = geofirestore.collection('events');
+            await geocollection.doc(eventId).update({
+              ...updatePayload,
+              updatedAt: serverTimestamp()
+            });
+          } catch (geoError) {
+            // GeoFirestore 업데이트 실패 시에도 수정은 반영되도록 일반 업데이트로 폴백
+            // (coordinates(GeoPoint)는 저장되지만 g(geohash)는 갱신되지 않을 수 있음)
+            console.warn('⚠️ GeoFirestore 업데이트 실패 → 일반 업데이트로 폴백:', geoError?.message);
+            const eventRef = doc(this.db, 'events', eventId);
+            await updateDoc(eventRef, {
+              ...updatePayload,
+              updatedAt: serverTimestamp()
+            });
+          }
+        } else {
+          const eventRef = doc(this.db, 'events', eventId);
+          await updateDoc(eventRef, {
+            ...updatePayload,
+            updatedAt: serverTimestamp()
+          });
+        }
+
         console.log('✅ 이벤트 업데이트 완료 (시도:', retryCount + 1, ')');
         return { success: true };
         

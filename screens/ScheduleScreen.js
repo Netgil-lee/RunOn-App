@@ -2369,27 +2369,40 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       setIsLocationLoading(false);
 
       // 커스텀 마커 좌표를 기준으로 지도 위치 설정
+      // 신형 이벤트는 customMarkerCoords 없이 coordinates(GeoPoint)만 저장되므로 폴백 처리
+      let restoredCoords = null;
       if (editingEvent.customMarkerCoords) {
-        setCustomMarkerCoords(editingEvent.customMarkerCoords);
+        restoredCoords = {
+          lat: editingEvent.customMarkerCoords.lat ?? editingEvent.customMarkerCoords.latitude,
+          lng: editingEvent.customMarkerCoords.lng ?? editingEvent.customMarkerCoords.longitude,
+        };
+      } else if (editingEvent.coordinates) {
+        // GeoPoint: 접근자(latitude/longitude) 또는 직렬화(_lat/_long) 모두 지원
+        restoredCoords = {
+          lat: editingEvent.coordinates.latitude ?? editingEvent.coordinates._lat,
+          lng: editingEvent.coordinates.longitude ?? editingEvent.coordinates._long,
+        };
+      }
+
+      if (restoredCoords && restoredCoords.lat != null && restoredCoords.lng != null) {
+        setCustomMarkerCoords(restoredCoords);
         setHasCustomMarker(true);
 
-        // selectedLocationData를 커스텀 마커 좌표로 설정 (지도 중심을 마커 위치로)
+        // selectedLocationData를 마커 좌표로 설정 (지도 중심을 마커 위치로)
         setSelectedLocationData({
           name: editingEvent.location || '',
-          lat: editingEvent.customMarkerCoords.lat,
-          lng: editingEvent.customMarkerCoords.lng,
+          lat: restoredCoords.lat,
+          lng: restoredCoords.lng,
           address: '',
         });
-      } else if (editingEvent.location) {
-        // customMarkerCoords 없이 location 이름만 있는 경우 — 검색 상태만 복원
-        // selectedLocationData는 null 유지 → 오류 UI로 장소 재검색 유도
+      } else {
+        // 좌표가 전혀 없는 경우 — 오류 UI로 위치 재지정 유도
         setSelectedLocationData(null);
       }
 
-      // 장소 검색창 텍스트 복원
+      // 장소명 상태 복원
       if (editingEvent.location) {
         setSelectedLocation('custom');
-        setLocationSearchQuery(editingEvent.location);
       }
 
       // 상세 위치 설명 복원
@@ -3033,13 +3046,40 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       };
     }, [selectedLocation?.lat, selectedLocation?.lng]);
 
-    const handleMapPress = React.useCallback((e) => {
-      const { latitude, longitude } = e.nativeEvent.coordinate;
+    // 지도 중심 좌표 추적 (중앙 고정 핀이 가리키는 위치)
+    const centerCoordRef = React.useRef(
+      initialRegion
+        ? { latitude: initialRegion.latitude, longitude: initialRegion.longitude }
+        : null
+    );
+
+    const handleRegionChangeComplete = React.useCallback((region) => {
+      if (region?.latitude != null && region?.longitude != null) {
+        centerCoordRef.current = { latitude: region.latitude, longitude: region.longitude };
+      }
+    }, []);
+
+    // 좌표를 마커로 확정 (지도 탭 / 중앙 핀 탭 공통)
+    const commitCoord = React.useCallback((latitude, longitude) => {
       setMarkerCoord({ latitude, longitude });
       if (onCustomMarkerChange) {
         onCustomMarkerChange(true, { lat: latitude, lng: longitude });
       }
     }, [onCustomMarkerChange]);
+
+    // 지도를 직접 탭한 위치에 마커 지정
+    const handleMapPress = React.useCallback((e) => {
+      const { latitude, longitude } = e.nativeEvent.coordinate;
+      commitCoord(latitude, longitude);
+    }, [commitCoord]);
+
+    // 중앙 고정 핀을 눌러 현재 지도 중심에 마커 지정
+    const handleCenterPinPress = React.useCallback(() => {
+      const center = centerCoordRef.current;
+      if (center) {
+        commitCoord(center.latitude, center.longitude);
+      }
+    }, [commitCoord]);
 
     if (!initialRegion) return null;
 
@@ -3052,6 +3092,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             style={{ flex: 1 }}
             initialRegion={initialRegion}
             onPress={handleMapPress}
+            onRegionChangeComplete={handleRegionChangeComplete}
             showsUserLocation={true}
             showsMyLocationButton={false}
             showsCompass={false}
@@ -3066,6 +3107,26 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
               </Marker>
             )}
           </MapView>
+
+          {/* 중앙 고정 핀 오버레이 — 지도를 움직여 위치를 맞추고 핀을 눌러 확정 */}
+          <View style={styles.centerPinOverlay} pointerEvents="box-none">
+            <TouchableOpacity
+              style={styles.centerPinTouchable}
+              onPress={handleCenterPinPress}
+              activeOpacity={0.85}
+            >
+              <View style={styles.centerPinBadge}>
+                <Text style={styles.centerPinBadgeText}>여기로 지정</Text>
+              </View>
+              <Ionicons
+                name="location"
+                size={40}
+                color="#3AF8FF"
+                style={styles.centerPinIcon}
+              />
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
             style={styles.currentLocationButton}
             onPress={onCurrentLocationPress}
@@ -3115,7 +3176,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         <View style={styles.mapGuideSection}>
           <View style={styles.mapGuideTextContainer}>
             <Text style={styles.requiredMark}>*</Text>
-            <Text style={styles.mapGuideText}>지도를 클릭하여 상세한 모임장소를 정하세요!</Text>
+            <Text style={styles.mapGuideText}>지도를 움직여 중앙 핀을 맞추고 "여기로 지정"을 눌러주세요!</Text>
           </View>
         </View>
         <InlineAppleMapComponent
@@ -5109,6 +5170,36 @@ const createStyles = (colors) => StyleSheet.create({
     borderRightColor: 'transparent',
     borderTopColor: '#3AF8FF',
     marginTop: -2,
+  },
+  // 중앙 고정 핀 오버레이 (지도 중심에 떠 있는 위치 지정 핀)
+  centerPinOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerPinTouchable: {
+    alignItems: 'center',
+    // 핀 아이콘의 뾰족한 끝(하단)이 지도 정중앙을 가리키도록 위로 보정
+    transform: [{ translateY: -20 }],
+  },
+  centerPinBadge: {
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    marginBottom: 2,
+    borderWidth: 1,
+    borderColor: '#3AF8FF',
+  },
+  centerPinBadgeText: {
+    color: '#3AF8FF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  centerPinIcon: {
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   currentLocationButton: {
     position: 'absolute',

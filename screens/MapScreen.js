@@ -139,8 +139,48 @@ function mapEventDistanceLabel(meeting) {
   return `${s}km`;
 }
 
-const PinMarker = React.memo(({ color }) => (
+// 마커 위 이름표(푯말) 스타일 — 카카오맵의 info-window를 대체
+const markerLabelStyles = StyleSheet.create({
+  bubble: {
+    maxWidth: 200,
+    backgroundColor: '#1a1a1a',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333333',
+    marginBottom: 4,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  benefit: {
+    color: '#3AF8FF',
+    fontSize: 11,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+});
+
+// 핀 + 이름표(푯말). label이 있으면 마커 위에 이름표를 항상 표시
+const PinMarker = React.memo(({ color, label, benefit }) => (
   <View style={{ alignItems: 'center', backgroundColor: 'transparent' }}>
+    {label ? (
+      <View style={markerLabelStyles.bubble}>
+        <Text style={markerLabelStyles.title} numberOfLines={1}>{label}</Text>
+        {benefit ? (
+          <Text style={markerLabelStyles.benefit} numberOfLines={1}>{benefit}</Text>
+        ) : null}
+      </View>
+    ) : null}
     <View style={{
       width: 32, height: 32, borderRadius: 16, backgroundColor: color,
       alignItems: 'center', justifyContent: 'center',
@@ -173,6 +213,14 @@ const MapScreen = ({ navigation, route }) => {
   const [events, setEvents] = useState([]);
   const [cafes, setCafes] = useState([]);
   const [foods, setFoods] = useState([]);
+  // 커스텀 View 마커(이름표 포함)는 tracksViewChanges가 true일 때 스냅샷됨.
+  // 처음부터 false면 이름표 텍스트가 빈 채로 렌더될 수 있어, 토글/데이터 변경 시 잠시 true로 켰다가 끔.
+  const [markersTrackViewChanges, setMarkersTrackViewChanges] = useState(true);
+  useEffect(() => {
+    setMarkersTrackViewChanges(true);
+    const timer = setTimeout(() => setMarkersTrackViewChanges(false), 1200);
+    return () => clearTimeout(timer);
+  }, [activeToggle, events, cafes, foods]);
   // useFocusEffect 내부에서 최신 값을 읽기 위한 refs
   // (cafes/foods를 의존성에 넣으면 setCafes/setFoods 호출 시마다 effect가 재실행되어 지도가 현재위치로 튀는 버그 발생)
   const cafesRef = useRef([]);
@@ -1440,9 +1488,10 @@ const MapScreen = ({ navigation, route }) => {
                   key={event.id}
                   coordinate={coords}
                   onPress={() => handleEventClick(event)}
-                  tracksViewChanges={false}
+                  tracksViewChanges={markersTrackViewChanges}
+                  anchor={{ x: 0.5, y: 1 }}
                 >
-                  <PinMarker color="#3AF8FF" />
+                  <PinMarker color="#3AF8FF" label={event.title || '러닝모임'} />
                 </Marker>
               );
             })}
@@ -1454,9 +1503,14 @@ const MapScreen = ({ navigation, route }) => {
                   key={cafe.id}
                   coordinate={coords}
                   onPress={() => handleCafeClick(cafe)}
-                  tracksViewChanges={false}
+                  tracksViewChanges={markersTrackViewChanges}
+                  anchor={{ x: 0.5, y: 1 }}
                 >
-                  <PinMarker color="#FF0073" />
+                  <PinMarker
+                    color="#FF0073"
+                    label={cafe.name || '러닝카페'}
+                    benefit={cafe.runningCertificationBenefit}
+                  />
                 </Marker>
               );
             })}
@@ -1468,9 +1522,14 @@ const MapScreen = ({ navigation, route }) => {
                   key={food.id}
                   coordinate={coords}
                   onPress={() => handleFoodClick(food)}
-                  tracksViewChanges={false}
+                  tracksViewChanges={markersTrackViewChanges}
+                  anchor={{ x: 0.5, y: 1 }}
                 >
-                  <PinMarker color="#FF0073" />
+                  <PinMarker
+                    color="#FF0073"
+                    label={food.name || '러닝푸드'}
+                    benefit={food.runningCertificationBenefit}
+                  />
                 </Marker>
               );
             })}
