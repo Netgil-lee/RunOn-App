@@ -5,6 +5,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import Svg, { Path, Circle } from 'react-native-svg';
+import { captureRef } from 'react-native-view-shot';
 import * as Location from 'expo-location';
 import BottomSheet, { BottomSheetFooter, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -96,21 +97,78 @@ function getInstagramUrl(entity) {
   return `https://${trimmed}`;
 }
 
-// 지도 마커 핀 (모임=시안, 카페/푸드=핑크).
-// Android react-native-maps는 커스텀 View 마커를 비트맵으로 래스터화하는데,
-// CSS 보더 삼각형(투명 보더)이 검은 사각형으로 깨지는 고질 버그가 있어 SVG로 그린다.
-// Marker anchor={{x:0.5,y:1}}로 핀 끝점이 좌표를 가리키게 함.
-const PinMarker = React.memo(({ color }) => (
-  <Svg width={30} height={38} viewBox="0 0 30 38">
-    <Path
-      d="M15 1C7.27 1 1 7.27 1 15c0 9.5 14 21.5 14 21.5S29 24.5 29 15C29 7.27 22.73 1 15 1z"
-      fill={color}
-      stroke="#FFFFFF"
-      strokeWidth={2}
-    />
-    <Circle cx={15} cy={15} r={5.5} fill="#FFFFFF" />
-  </Svg>
-));
+// ⚠️ 근본 원인(공식 이슈 #5877): react-native-maps 1.20 + New Architecture(Fabric)에서는
+// <Marker>의 커스텀 자식(View/SVG/Text)이 제대로 래스터화되지 않아 검은 박스로 깨진다.
+// → Android에서는 커스텀 자식을 아예 쓰지 않고, 핀+이름표(푯말)를 view-shot로 PNG로 구운 뒤
+//   Marker의 "네이티브 image prop"으로 넘긴다(네이티브 아이콘 경로라 이 버그를 우회).
+//   (iOS는 커스텀 View 마커가 정상 동작하므로 별도 구현 — 이 파일은 Android 전용)
+
+const PIN_W = 30;
+const PIN_H = 38;
+
+const truncateLabel = (text, max) => {
+  const s = String(text);
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+};
+
+// view-shot로 캡처될 오프스크린 컨텐츠(핀 + 이름표). 일반 View라 정상 렌더되고,
+// 캡처된 PNG를 마커 아이콘으로 쓰므로 Fabric 마커 버그의 영향을 받지 않는다.
+const markerCaptureStyles = StyleSheet.create({
+  wrap: {
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    paddingHorizontal: 6,
+    paddingTop: 4,
+  },
+  bubble: {
+    maxWidth: 200,
+    backgroundColor: '#1a1a1a',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333333',
+    marginBottom: 3,
+    alignItems: 'center',
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  benefit: {
+    color: '#3AF8FF',
+    fontSize: 11,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+});
+
+const MarkerCaptureContent = ({ color, label, benefit }) => (
+  <View style={markerCaptureStyles.wrap}>
+    {label ? (
+      <View style={markerCaptureStyles.bubble}>
+        <Text style={markerCaptureStyles.title} numberOfLines={1}>{truncateLabel(label, 18)}</Text>
+        {benefit ? (
+          <Text style={markerCaptureStyles.benefit} numberOfLines={1}>{truncateLabel(benefit, 20)}</Text>
+        ) : null}
+      </View>
+    ) : null}
+    <Svg width={PIN_W} height={PIN_H} viewBox={`0 0 ${PIN_W} ${PIN_H}`}>
+      <Path
+        d="M15 1C7.27 1 1 7.27 1 15c0 9.5 14 21.5 14 21.5S29 24.5 29 15C29 7.27 22.73 1 15 1z"
+        fill={color}
+        stroke="#FFFFFF"
+        strokeWidth={2}
+      />
+      <Circle cx={15} cy={15} r={5.5} fill="#FFFFFF" />
+    </Svg>
+  </View>
+);
+
+// 마커 아이콘 캐시 키 (동일 내용은 한 번만 캡처)
+const makeIconKey = (color, label, benefit) => `${color}|${label || ''}|${benefit || ''}`;
 
 const MapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -347,14 +405,48 @@ const MapScreen = ({ navigation, route }) => {
     longitudeDelta: 0.1,
   }), []);
 
-  // Android: 커스텀 View 마커는 tracksViewChanges가 true일 때만 비트맵으로 래스터화됨.
-  // 처음부터 false면 핀이 빈 채로 렌더되므로, 데이터/토글 변경 시 잠시 true로 켰다가 끔.
-  const [markersTrackViewChanges, setMarkersTrackViewChanges] = useState(true);
-  useEffect(() => {
-    setMarkersTrackViewChanges(true);
-    const timer = setTimeout(() => setMarkersTrackViewChanges(false), 1200);
-    return () => clearTimeout(timer);
+  // 마커 아이콘(핀+이름표 PNG) 캐시: { iconKey: fileUri }
+  // Fabric에서 커스텀 자식 마커가 깨지므로, view-shot로 오프스크린에서 PNG를 굽고
+  // Marker의 네이티브 image prop으로 넘긴다.
+  const [markerIcons, setMarkerIcons] = useState({});
+  const iconViewRefs = useRef({});
+
+  // 현재 토글의 마커 정의(아이템 + 색/라벨/혜택)
+  const activeMarkerDefs = useMemo(() => {
+    if (activeToggle === 'events') {
+      return events.map((e) => ({ id: e.id, item: e, color: '#3AF8FF', label: e.title || '러닝모임', benefit: '' }));
+    }
+    if (activeToggle === 'cafes') {
+      return cafes.map((c) => ({ id: c.id, item: c, color: '#FF0073', label: c.name || '러닝카페', benefit: c.runningCertificationBenefit || '' }));
+    }
+    if (activeToggle === 'foods') {
+      return foods.map((f) => ({ id: f.id, item: f, color: '#FF0073', label: f.name || '러닝푸드', benefit: f.runningCertificationBenefit || '' }));
+    }
+    return [];
   }, [activeToggle, events, cafes, foods]);
+
+  // 아직 아이콘이 없는 고유 라벨만 캡처 대상으로
+  const pendingIconDefs = useMemo(() => {
+    const map = new Map();
+    for (const d of activeMarkerDefs) {
+      const key = makeIconKey(d.color, d.label, d.benefit);
+      if (!markerIcons[key] && !map.has(key)) map.set(key, { key, ...d });
+    }
+    return Array.from(map.values());
+  }, [activeMarkerDefs, markerIcons]);
+
+  // 오프스크린 뷰가 레이아웃되면 PNG로 캡처하여 캐시에 저장
+  const captureIcon = useCallback(async (key) => {
+    const ref = iconViewRefs.current[key];
+    if (!ref) return;
+    try {
+      let uri = await captureRef(ref, { format: 'png', quality: 1, result: 'tmpfile' });
+      if (uri && uri.startsWith('/')) uri = `file://${uri}`;
+      setMarkerIcons((prev) => (prev[key] ? prev : { ...prev, [key]: uri }));
+    } catch (e) {
+      // 캡처 실패 시 마커는 기본 핀(pinColor)으로 표시됨
+    }
+  }, []);
 
   // 현재 위치 가져오기 함수
   const getCurrentLocation = async () => {
@@ -1489,49 +1581,65 @@ const MapScreen = ({ navigation, route }) => {
             {activeToggle === 'events' && events.map((event) => {
               const coords = getMarkerCoords(event);
               if (!coords) return null;
+              const uri = markerIcons[makeIconKey('#3AF8FF', event.title || '러닝모임', '')];
               return (
                 <Marker
                   key={event.id}
                   coordinate={coords}
                   onPress={() => handleEventClick(event)}
-                  tracksViewChanges={markersTrackViewChanges}
-                  anchor={{ x: 0.5, y: 1 }}
-                >
-                  <PinMarker color="#3AF8FF" />
-                </Marker>
+                  {...(uri
+                    ? { image: { uri }, anchor: { x: 0.5, y: 1 } }
+                    : { pinColor: '#3AF8FF' })}
+                />
               );
             })}
             {activeToggle === 'cafes' && cafes.map((cafe) => {
               const coords = getMarkerCoords(cafe);
               if (!coords) return null;
+              const uri = markerIcons[makeIconKey('#FF0073', cafe.name || '러닝카페', cafe.runningCertificationBenefit || '')];
               return (
                 <Marker
                   key={cafe.id}
                   coordinate={coords}
                   onPress={() => handleCafeClick(cafe)}
-                  tracksViewChanges={markersTrackViewChanges}
-                  anchor={{ x: 0.5, y: 1 }}
-                >
-                  <PinMarker color="#FF0073" />
-                </Marker>
+                  {...(uri
+                    ? { image: { uri }, anchor: { x: 0.5, y: 1 } }
+                    : { pinColor: '#FF0073' })}
+                />
               );
             })}
             {activeToggle === 'foods' && foods.map((food) => {
               const coords = getMarkerCoords(food);
               if (!coords) return null;
+              const uri = markerIcons[makeIconKey('#FF0073', food.name || '러닝푸드', food.runningCertificationBenefit || '')];
               return (
                 <Marker
                   key={food.id}
                   coordinate={coords}
                   onPress={() => handleFoodClick(food)}
-                  tracksViewChanges={markersTrackViewChanges}
-                  anchor={{ x: 0.5, y: 1 }}
-                >
-                  <PinMarker color="#FF0073" />
-                </Marker>
+                  {...(uri
+                    ? { image: { uri }, anchor: { x: 0.5, y: 1 } }
+                    : { pinColor: '#FF0073' })}
+                />
               );
             })}
           </MapView>
+        )}
+
+        {/* 오프스크린 마커 아이콘 캡처 레이어 (view-shot) — 화면 밖에서 렌더 후 PNG로 캡처 */}
+        {!isSearchMode && (
+          <View style={styles.markerIconCaptureLayer} pointerEvents="none">
+            {pendingIconDefs.map((def) => (
+              <View
+                key={def.key}
+                collapsable={false}
+                ref={(r) => { iconViewRefs.current[def.key] = r; }}
+                onLayout={() => captureIcon(def.key)}
+              >
+                <MarkerCaptureContent color={def.color} label={def.label} benefit={def.benefit} />
+              </View>
+            ))}
+          </View>
         )}
         
         {/* Bottom Sheet */}
@@ -2190,6 +2298,13 @@ const createStyles = (colors) => StyleSheet.create({
   },
   webview: {
     flex: 1,
+    backgroundColor: 'transparent',
+  },
+  // 마커 아이콘 캡처용 오프스크린 레이어 (화면 밖에 렌더, 사용자에겐 안 보임)
+  markerIconCaptureLayer: {
+    position: 'absolute',
+    left: -10000,
+    top: 0,
     backgroundColor: 'transparent',
   },
   loadingContainer: {
