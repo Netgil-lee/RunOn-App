@@ -1,0 +1,35 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 프로필 이미지
+    match /profile-images/users/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 이벤트 이미지
+    match /event-images/events/{eventId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.organizerId;
+    }
+    
+    // 게시글 이미지
+    match /post-images/posts/{postId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.uid == get(/databases/$(database)/documents/posts/$(postId)).data.authorId;
+    }
+    
+    // 임시 파일 (24시간 후 자동 삭제)
+    match /temp/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // 파일 크기 제한 (10MB)
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null && 
+        request.resource.size < 10 * 1024 * 1024;
+    }
+  }
+} 

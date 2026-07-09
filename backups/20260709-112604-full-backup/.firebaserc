@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "runon-production-app",
+    "garmin-eval": "runon-garmin-eval"
+  }
+}
