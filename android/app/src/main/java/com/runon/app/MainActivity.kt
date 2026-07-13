@@ -68,13 +68,12 @@ class MainActivity : ReactActivity() {
         }
     }
     
-    // 권한 판정 기준이 되는 핵심 권한(운동 세션/거리/칼로리)
+    // 권한 판정 기준이 되는 핵심 권한(운동 세션/거리)
     private fun getCoreHealthPermissions(): Set<String> {
         // HealthPermission.getReadPermission()은 String을 반환
         return setOf(
             HealthPermission.getReadPermission(androidx.health.connect.client.records.ExerciseSessionRecord::class),
-            HealthPermission.getReadPermission(androidx.health.connect.client.records.DistanceRecord::class),
-            HealthPermission.getReadPermission(androidx.health.connect.client.records.TotalCaloriesBurnedRecord::class)
+            HealthPermission.getReadPermission(androidx.health.connect.client.records.DistanceRecord::class)
         )
     }
 

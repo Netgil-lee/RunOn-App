@@ -10,7 +10,6 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.*
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.DistanceRecord
-import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.activity.result.contract.ActivityResultContracts
@@ -194,22 +193,14 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
                     )
                     val distanceResponse = healthConnectClient!!.readRecords(distanceRequest)
                     val distanceRecords = distanceResponse.records.filterIsInstance<DistanceRecord>()
-                    
-                    // TotalCaloriesBurned 레코드 조회
-                    val caloriesRequest = ReadRecordsRequest(
-                        recordType = TotalCaloriesBurnedRecord::class,
-                        timeRangeFilter = timeRangeFilter
-                    )
-                    val caloriesResponse = healthConnectClient!!.readRecords(caloriesRequest)
-                    val caloriesRecords = caloriesResponse.records.filterIsInstance<TotalCaloriesBurnedRecord>()
-                    
+
                     val results = mutableListOf<WritableMap>()
                     
                     exerciseRecords.forEach { exerciseRecord ->
-                        // 해당 운동 세션의 시간 범위에 맞는 거리와 칼로리 찾기
+                        // 해당 운동 세션의 시간 범위에 맞는 거리 찾기
                         val sessionStart = exerciseRecord.startTime
                         val sessionEnd = exerciseRecord.endTime
-                        
+
                         // 거리 합계 계산
                         var totalDistance = 0.0
                         distanceRecords.forEach { distanceRecord ->
@@ -218,16 +209,8 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
                                 totalDistance += distanceRecord.distance.inMeters.toDouble()
                             }
                         }
-                        
-                        // 칼로리 합계 계산
-                        var totalCalories = 0.0
-                        caloriesRecords.forEach { caloriesRecord ->
-                            if (caloriesRecord.startTime >= sessionStart && caloriesRecord.endTime <= sessionEnd) {
-                                totalCalories += caloriesRecord.energy.inKilocalories
-                            }
-                        }
-                        
-                        val workout = createWorkoutMap(exerciseRecord, totalDistance, totalCalories)
+
+                        val workout = createWorkoutMap(exerciseRecord, totalDistance)
                         if (workout != null) {
                             results.add(workout)
                         }
@@ -288,8 +271,7 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
         // HealthPermission.getReadPermission()은 String을 반환
         return setOf(
             HealthPermission.getReadPermission(ExerciseSessionRecord::class),
-            HealthPermission.getReadPermission(DistanceRecord::class),
-            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
+            HealthPermission.getReadPermission(DistanceRecord::class)
         )
     }
     
@@ -303,7 +285,7 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
         }
     }
     
-    private fun createWorkoutMap(record: ExerciseSessionRecord, distanceMeters: Double, calories: Double): WritableMap? {
+    private fun createWorkoutMap(record: ExerciseSessionRecord, distanceMeters: Double): WritableMap? {
         return try {
             val workout = createReactMap()
             
@@ -316,7 +298,7 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
             workout.putString("end", formatDate(endTime))
             workout.putDouble("duration", duration.toDouble())
             workout.putDouble("distance", distanceMeters / 1609.34) // 미터를 마일로 변환 (HealthKit 형식)
-            workout.putDouble("calories", calories)
+            workout.putDouble("calories", 0.0) // 칼로리는 Health Connect에서 읽지 않음(권한 제거). JS는 0 fallback 처리
             workout.putString("activityName", "Running")
             workout.putInt("activityId", 1)
 

@@ -19,10 +19,9 @@
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-  <!-- Health Connect 권한 (네이티브 모듈이 요청하는 3종 모두 선언해야 부여됨) -->
+  <!-- Health Connect 권한 (네이티브 모듈이 요청하는 2종 모두 선언해야 부여됨) -->
   <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
   <uses-permission android:name="android.permission.health.READ_DISTANCE"/>
-  <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED"/>
   <!-- 이동경로 일괄 읽기 권한(Android 14+ Health Connect). 미지원 기기에선 무시되며, 권한 판정에는 포함하지 않음(선택적). -->
   <uses-permission android:name="android.permission.health.READ_EXERCISE_ROUTES"/>
   <queries>
