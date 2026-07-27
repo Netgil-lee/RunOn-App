@@ -42,7 +42,7 @@ const Tab = createBottomTabNavigator();
 // 로그인된 사용자를 위한 BottomTab 네비게이션
 const MainTabNavigator = () => {
   const { colors } = useTheme();
-  const { hasMeetingNotification, hasUpdateNotification } = useEvents();
+  const { hasMeetingNotification } = useEvents();
   const { hasCommunityNotification } = useCommunity();
 
 

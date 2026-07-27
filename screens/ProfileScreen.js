@@ -32,7 +32,6 @@ import OnboardingLevelSelector from '../components/OnboardingLevelSelector';
 import OnboardingCourseSelector from '../components/OnboardingCourseSelector';
 import evaluationService from '../services/evaluationService';
 import storageService from '../services/storageService';
-import updateService from '../services/updateService';
 import mannerDistanceService from '../services/mannerDistanceService';
 import MannerDistanceDisplay from '../components/MannerDistanceDisplay';
 import { useTheme } from '../contexts/ThemeContext';
@@ -145,7 +144,7 @@ const ProfileScreen = ({ navigation }) => {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, logout, updateUserProfile } = useAuth();
   const { isTabEnabled, isNotificationTypeEnabled } = useNotificationSettings();
-  const { hasMeetingNotification, hasUpdateNotification } = useEvents();
+  const { hasMeetingNotification } = useEvents();
   const { hasCommunityNotification } = useCommunity();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -178,9 +177,6 @@ const ProfileScreen = ({ navigation }) => {
     chat: []
   });
 
-  // 업데이트 알림 상태
-  const [updateNotification, setUpdateNotification] = useState(null);
-
   // 설정에 따라 필터링된 알림 가져오기
   const getFilteredNotifications = (tabType) => {
     if (!isTabEnabled(tabType)) {
@@ -197,35 +193,12 @@ const ProfileScreen = ({ navigation }) => {
     return getFilteredNotifications(tabType).filter(notif => !notif.isRead).length;
   };
 
-  // 업데이트 알림 가져오기
-  const fetchUpdateNotification = async () => {
-    try {
-      const updateResult = await updateService.checkForUpdate();
-      
-      if (updateResult && updateResult.showNotification) {
-        const notification = {
-          id: 'update',
-          type: 'update',
-          title: '앱 업데이트',
-          message: updateResult.message,
-          timestamp: new Date(),
-          isRead: false,
-        };
-        setUpdateNotification(notification);
-      } else {
-        setUpdateNotification(null);
-      }
-    } catch (error) {
-      console.error('업데이트 알림 가져오기 실패:', error);
-    }
-  };
-
   const getTotalUnreadCount = () => {
     // Context 상태를 사용하여 알림 카운트 계산
     let totalCount = 0;
     
     // 모임 알림
-    if (hasMeetingNotification || hasUpdateNotification) {
+    if (hasMeetingNotification) {
       totalCount += 1;
     }
     
@@ -473,7 +446,6 @@ const ProfileScreen = ({ navigation }) => {
       }
     };
     fetchProfile();
-    fetchUpdateNotification();
   }, [user]);
 
   const handleMenuPress = () => {

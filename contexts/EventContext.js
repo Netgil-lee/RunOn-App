@@ -249,12 +249,6 @@ export const EventProvider = ({ children }) => {
     checkRatingNotifications();
   }, [meetingNotifications]);
 
-  // 사용자 로그인 시 업데이트 알림 상태 확인
-  useEffect(() => {
-    if (user) {
-      checkUpdateNotificationStatus();
-    }
-  }, [user]);
 
   // 종료된 이벤트는 이제 위의 useEffect에서 통합 관리됨
 
@@ -267,7 +261,6 @@ export const EventProvider = ({ children }) => {
   // 알림 표시 상태 관리
   const [hasMeetingNotification, setHasMeetingNotification] = useState(false);
   const [hasRatingNotification, setHasRatingNotification] = useState(false);
-  const [hasUpdateNotification, setHasUpdateNotification] = useState(false);
   
   // 종료된 모임 옵션카드 클릭 상태 관리 (rating 알림용)
   const [endedEventsOptionClicked, setEndedEventsOptionClicked] = useState(false);
@@ -1279,48 +1272,6 @@ export const EventProvider = ({ children }) => {
     console.log(`💬 채팅방 ${chatRoomId}에 메시지 추가됨: ${message}`);
   };
 
-  // 업데이트 알림 설정 함수
-  const setUpdateNotification = (show) => {
-    setHasUpdateNotification(show);
-    console.log('🔔 업데이트 알림 상태 변경:', show);
-  };
-
-  // 업데이트 알림 해제 함수
-  const clearUpdateNotification = () => {
-    setHasUpdateNotification(false);
-    console.log('✅ 업데이트 알림 해제됨');
-  };
-
-  // AsyncStorage와 동기화하여 업데이트 알림 상태 확인
-  const checkUpdateNotificationStatus = async () => {
-    try {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      const updateRead = await AsyncStorage.getItem('updateNotificationRead');
-      
-      // 안전한 값 검증
-      if (updateRead === 'true') {
-        // 이미 읽었으면 알림 표시하지 않음
-        setHasUpdateNotification(false);
-        console.log('🔄 AsyncStorage 동기화: 업데이트 알림 읽음 처리됨');
-      } else if (updateRead === 'false' || updateRead === null || updateRead === undefined) {
-        // 읽지 않았거나 값이 없으면 알림 표시
-        setHasUpdateNotification(true);
-        console.log('🔄 AsyncStorage 동기화: 업데이트 알림 표시됨');
-      } else {
-        // 잘못된 값이면 초기화하고 알림 표시
-        console.log('⚠️ AsyncStorage 잘못된 값 발견, 초기화:', updateRead);
-        await AsyncStorage.removeItem('updateNotificationRead');
-        setHasUpdateNotification(true);
-        console.log('🔄 AsyncStorage 동기화: 잘못된 값 초기화 후 알림 표시됨');
-      }
-    } catch (error) {
-      console.error('❌ AsyncStorage 동기화 실패:', error);
-      // 오류 발생 시 기본값으로 설정
-      setHasUpdateNotification(true);
-      console.log('🔄 AsyncStorage 동기화: 오류 발생으로 기본값 설정');
-    }
-  };
-
   // 메시지 연속성 확인 함수 (1분 미만 간격)
   const isConsecutiveMessage = (currentMessageTime, previousMessageTime) => {
     if (!currentMessageTime || !previousMessageTime) return false;
@@ -1557,7 +1508,6 @@ export const EventProvider = ({ children }) => {
     checkMeetingNotifications,
     addMeetingNotificationWithBadge,
     hasMeetingNotification,
-    hasUpdateNotification,
     hasRatingNotification,
     checkRatingNotifications,
     hasRatingNotificationForEvent,
@@ -1568,9 +1518,6 @@ export const EventProvider = ({ children }) => {
     handleChatTabClick,
     handleChatRoomClick,
     addChatMessage,
-    setUpdateNotification,
-    clearUpdateNotification,
-    checkUpdateNotificationStatus,
     clearMeetingNotificationBadge,
     // 메시지 연속 기능 관련 함수들
     isConsecutiveMessage,
