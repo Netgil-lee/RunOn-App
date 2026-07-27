@@ -8,14 +8,14 @@
     <item name="android:windowTranslucentStatus">true</item>
     <item name="android:windowTranslucentNavigation">true</item>
   </style>
-  <!-- Android 12 이전 버전 (API 30 이하)을 위한 스플래시 스크린 스타일 -->
-  <style name="Theme.App.SplashScreen" parent="Theme.AppCompat.Light.NoActionBar">
-    <item name="android:windowBackground">@drawable/ic_launcher_background</item>
-    <item name="android:statusBarColor">@color/splashscreen_background</item>
-    <item name="android:navigationBarColor">@color/splashscreen_background</item>
-    <item name="android:windowFullscreen">false</item>
-    <item name="android:windowContentOverlay">@null</item>
-    <item name="android:windowNoTitle">true</item>
-    <item name="android:windowActionBar">false</item>
+  <!-- Android 12 이전 버전 (API 30 이하)을 위한 스플래시 스크린 스타일.
+       반드시 androidx의 Theme.SplashScreen 을 상속해야 한다. 그래야 core-splashscreen 호환 경로가
+       스플래시 뷰(splash_screen_view.xml)를 인플레이트할 때 splashScreenIconSize 등 필수 속성을
+       찾을 수 있고, 구형 기기(예: 갤럭시 노트9/Android 10)에서 InflateException(getLayoutDimension)
+       으로 즉시 강제 종료되는 문제를 막는다. (values-v31 버전과 동일한 룩을 유지) -->
+  <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
+    <item name="windowSplashScreenBackground">@color/splashscreen_background</item>
+    <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    <item name="postSplashScreenTheme">@style/AppTheme</item>
   </style>
 </resources>
