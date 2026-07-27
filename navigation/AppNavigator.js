@@ -44,7 +44,7 @@ const Tab = createBottomTabNavigator();
 const MainTabNavigator = () => {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { hasMeetingNotification, hasUpdateNotification } = useEvents();
+  const { hasMeetingNotification } = useEvents();
   const { hasCommunityNotification } = useCommunity();
 
 

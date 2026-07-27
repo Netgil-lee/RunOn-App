@@ -23,9 +23,16 @@ import WeatherCard from '../components/WeatherCard';
 import MyDashboard from '../components/MyDashboard';
 import NewCafesList from '../components/NewCafesList';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import updateService from '../services/updateService';
 import storageService from '../services/storageService';
 import { useTheme } from '../contexts/ThemeContext';
+import AdPopupModal from '../components/AdPopupModal';
+import {
+  fetchActiveAdBanner,
+  hasShownAdThisSession,
+  markAdShownThisSession,
+  isAdHiddenToday,
+  suppressAdForToday,
+} from '../services/adBannerService';
 
 const HomeScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -46,17 +53,17 @@ const HomeScreen = ({ navigation }) => {
   
   const { user } = authContext;
   const { isTabEnabled, isNotificationTypeEnabled } = notificationContext;
-  const { hasMeetingNotification, hasUpdateNotification } = eventsContext;
+  const { hasMeetingNotification } = eventsContext;
   const { hasCommunityNotification } = communityContext;
   const scrollViewRef = useRef(null);
   const weatherCardRef = useRef(null);
-  
+
   // 알림 유무만 체크 (빨간색 점 표시용)
   const unreadCount = useMemo(() => {
     // 모임 알림이나 커뮤니티 알림이 있으면 1, 없으면 0
-    const hasAnyNotification = hasMeetingNotification || hasUpdateNotification || hasCommunityNotification;
+    const hasAnyNotification = hasMeetingNotification || hasCommunityNotification;
     return hasAnyNotification ? 1 : 0;
-  }, [hasMeetingNotification, hasUpdateNotification, hasCommunityNotification]);
+  }, [hasMeetingNotification, hasCommunityNotification]);
   
   // 로딩 상태 추가
   const [isLoading, setIsLoading] = useState(true);
@@ -70,7 +77,11 @@ const HomeScreen = ({ navigation }) => {
   
   // 새로고침 상태
   const [refreshing, setRefreshing] = useState(false);
-  
+
+  // 광고 팝업 상태
+  const [adBanner, setAdBanner] = useState(null);
+  const [adVisible, setAdVisible] = useState(false);
+
   // 커뮤니티 활동 데이터 상태
   const [communityActivity, setCommunityActivity] = useState({
     totalParticipated: 0,
@@ -122,8 +133,7 @@ const HomeScreen = ({ navigation }) => {
         
         await Promise.all([
           fetchCommunityActivity(),
-          fetchUserProfile(),
-          fetchUpdateNotification()
+          fetchUserProfile()
         ]);
         
       } catch (error) {
@@ -136,6 +146,38 @@ const HomeScreen = ({ navigation }) => {
     
     initializeData();
   }, [user]);
+
+  // 홈 진입 시 광고 팝업 노출 판단
+  // 순서: 이번 실행에 아직 안 띄웠나? → 오늘 '보지 않기' 안 눌렀나? → 활성 배너 있나?
+  useEffect(() => {
+    let cancelled = false;
+
+    const maybeShowAd = async () => {
+      if (!user) return;
+      if (hasShownAdThisSession()) return;
+      if (await isAdHiddenToday()) return;
+
+      const banner = await fetchActiveAdBanner();
+      if (cancelled || !banner) return;
+
+      markAdShownThisSession();
+      setAdBanner(banner);
+      setAdVisible(true);
+    };
+
+    maybeShowAd();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // 광고 팝업 닫기 (suppressToday: '오늘 하루 보지 않기' 체크 여부)
+  const handleCloseAd = useCallback(async (suppressToday) => {
+    setAdVisible(false);
+    if (suppressToday) {
+      await suppressAdForToday();
+    }
+  }, []);
 
   // 사용자 프로필 데이터 상태
   const [userProfile, setUserProfile] = useState(null);
@@ -262,29 +304,6 @@ const HomeScreen = ({ navigation }) => {
     setWeatherData(weather);
   };
 
-  // 업데이트 알림 가져오기
-  const fetchUpdateNotification = async () => {
-    try {
-      const updateResult = await updateService.checkForUpdate();
-      
-      if (updateResult && updateResult.showNotification) {
-        const notification = {
-          id: 'update',
-          type: 'update',
-          title: '앱 업데이트',
-          message: updateResult.message,
-          timestamp: new Date(),
-          isRead: false,
-        };
-        setUpdateNotification(notification);
-      } else {
-        setUpdateNotification(null);
-      }
-    } catch (error) {
-      console.error('업데이트 알림 가져오기 실패:', error);
-    }
-  };
-
   // 새로고침 함수
   const onRefresh = async () => {
     setRefreshing(true);
@@ -297,10 +316,7 @@ const HomeScreen = ({ navigation }) => {
       
       // 사용자 프로필 데이터 새로고침
       await fetchUserProfile();
-      
-      // 업데이트 알림 새로고침
-      await fetchUpdateNotification();
-      
+
       // 날씨 데이터 새로고침 (WeatherCard에서 자동으로 업데이트됨)
       // 사용자 데이터 새로고침 (AuthContext에서 자동으로 업데이트됨)
       // 이벤트 데이터 새로고침 (EventContext에서 자동으로 업데이트됨)
@@ -321,9 +337,6 @@ const HomeScreen = ({ navigation }) => {
     meeting: [],
     chat: []
   });
-
-  // 업데이트 알림 상태
-  const [updateNotification, setUpdateNotification] = useState(null);
 
   // 설정에 따라 필터링된 알림 가져오기
   const getFilteredNotifications = (tabType) => {
@@ -473,8 +486,15 @@ const HomeScreen = ({ navigation }) => {
 
         {/* 하단 여백 */}
         <View style={styles.bottomSpacing} />
-        
+
       </ScrollView>
+
+      {/* 파트너 광고 팝업 */}
+      <AdPopupModal
+        visible={adVisible}
+        banner={adBanner}
+        onClose={handleCloseAd}
+      />
     </View>
   );
 };

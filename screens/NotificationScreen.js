@@ -11,13 +11,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import weatherAlertService from '../services/weatherAlertService';
-import updateService from '../services/updateService';
 import pushNotificationService from '../services/pushNotificationService';
 import Animated, { 
   useSharedValue, 
@@ -31,7 +29,7 @@ const NotificationScreen = () => {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const navigation = useNavigation();
   const { isTabEnabled, isNotificationTypeEnabled, settings } = useNotificationSettings();
-  const { meetingNotifications, setMeetingNotifications, chatRooms, addChatMessage, setUpdateNotification: setEventUpdateNotification, clearUpdateNotification, checkUpdateNotificationStatus, checkMeetingNotifications } = useEvents();
+  const { meetingNotifications, setMeetingNotifications, chatRooms, addChatMessage, checkMeetingNotifications } = useEvents();
   const { notifications: communityNotifications, markNotificationAsRead, deleteNotification, getPostById, createLikeNotification, createCommentNotification, createChatNotification, handleChatTabClick, handleBoardTabClick } = useCommunity();
   
   // 탭 상태
@@ -44,10 +42,6 @@ const NotificationScreen = () => {
     chat: []
   });
 
-  // 업데이트 알림 상태
-  const [updateNotification, setUpdateNotification] = useState(null);
-  const [updateReadStatus, setUpdateReadStatus] = useState(false);
-
   // 탭 데이터
   const tabs = [
     { id: 'general', name: '일반' },
@@ -55,74 +49,15 @@ const NotificationScreen = () => {
     { id: 'chat', name: '커뮤니티' }
   ];
 
-  // 앱 업데이트 체크
-  useEffect(() => {
-    const checkForUpdate = async () => {
-      try {
-        // AsyncStorage에서 업데이트 읽음 상태 확인
-        const updateRead = await AsyncStorage.getItem('updateNotificationRead');
-        if (updateRead === 'true') {
-          setUpdateReadStatus(true);
-          return; // 이미 읽었으면 업데이트 알림을 표시하지 않음
-        }
-
-        const updateInfo = await updateService.checkForUpdate();
-        if (updateInfo.showNotification) {
-          setUpdateNotification({
-            id: 'update_notification',
-            type: 'update',
-            title: '앱 업데이트',
-            message: updateInfo.message || '새로운 업데이트가 있습니다.',
-            isRead: false,
-            timestamp: new Date()
-          });
-          // EventContext에도 업데이트 알림 상태 설정
-          setEventUpdateNotification(true);
-          console.log('🔔 업데이트 알림 설정됨:', updateInfo);
-        }
-      } catch (error) {
-        console.error('❌ 업데이트 체크 실패:', error);
-      }
-    };
-
-    checkForUpdate();
-  }, []);
-
   // 화면 포커스 시 알림 상태 동기화
   useFocusEffect(
     useCallback(() => {
-      const syncNotificationStatus = async () => {
-        try {
-          // EventContext 상태 동기화
-          await checkUpdateNotificationStatus();
-          checkMeetingNotifications();
-          
-          // AsyncStorage에서 업데이트 읽음 상태 확인
-          const updateRead = await AsyncStorage.getItem('updateNotificationRead');
-          
-          if (updateRead === 'true') {
-            // 이미 읽었으면 읽음 상태로 알림 유지
-            setUpdateReadStatus(true);
-            const updateInfo = await updateService.checkForUpdate();
-            if (updateInfo.showNotification) {
-              setUpdateNotification({
-                id: 'update_notification',
-                type: 'update',
-                title: '앱 업데이트',
-                message: updateInfo.message || '새로운 업데이트가 있습니다.',
-                isRead: true,
-                timestamp: new Date()
-              });
-            }
-          }
-          
-          console.log('🔄 화면 포커스 - 알림 상태 동기화 완료');
-        } catch (error) {
-          console.error('❌ 화면 포커스 - 알림 동기화 실패:', error);
-        }
-      };
-
-      syncNotificationStatus();
+      try {
+        checkMeetingNotifications();
+        console.log('🔄 화면 포커스 - 알림 상태 동기화 완료');
+      } catch (error) {
+        console.error('❌ 화면 포커스 - 알림 동기화 실패:', error);
+      }
     }, [])
   );
 
@@ -161,18 +96,14 @@ const NotificationScreen = () => {
       );
     }
     
-    // 일반 탭의 경우 날씨 알림과 업데이트 알림 포함
+    // 일반 탭의 경우 날씨 알림 포함
     if (tabType === 'general') {
-      const generalNotifications = notifications[tabType].filter(notif => 
+      const generalNotifications = notifications[tabType].filter(notif =>
         isNotificationTypeEnabled(notif.type)
       );
-      
-      // 업데이트 알림 추가 (읽음 상태와 관계없이 표시)
+
       const notificationsWithUpdate = [...generalNotifications];
-      if (updateNotification) {
-        notificationsWithUpdate.unshift(updateNotification);
-      }
-      
+
       // 날씨 알림이 활성화되어 있으면 날씨 알림도 추가
       if (settings.notifications.weatherAlert) {
         // 여기서 실제 날씨 데이터를 가져와서 알림을 생성할 수 있습니다
@@ -210,7 +141,7 @@ const NotificationScreen = () => {
     };
 
     syncBadgeCount();
-  }, [meetingNotifications, communityNotifications, notifications, updateNotification, updateReadStatus, settings]);
+  }, [meetingNotifications, communityNotifications, notifications, settings]);
 
   // 슬라이딩 언더라인 애니메이션 스타일
   const slidingUnderlineStyle = useAnimatedStyle(() => {
@@ -303,31 +234,6 @@ const NotificationScreen = () => {
     console.log('🎯 처리할 액션:', action);
     
     switch (action) {
-      case 'update':
-        // 업데이트 알림 클릭 시 확인만
-        Alert.alert(
-          '앱 업데이트',
-          notification.message || '새로운 업데이트가 있습니다.',
-          [
-            { 
-              text: '확인', 
-              onPress: () => {
-                // 업데이트 알림을 읽음 처리 (삭제하지 않고 상태만 변경)
-                setUpdateReadStatus(true);
-                setUpdateNotification(prev => prev ? { ...prev, isRead: true } : null);
-                // EventContext의 업데이트 알림 해제 (AppNavigator 아이콘 제거)
-                clearUpdateNotification();
-                // AsyncStorage에 업데이트 읽음 상태 저장
-                AsyncStorage.setItem('updateNotificationRead', 'true');
-                // 현재 업데이트 메시지와 타임스탬프도 저장
-                AsyncStorage.setItem('lastUpdateMessage', notification.message);
-                AsyncStorage.setItem('lastUpdateTimestamp', notification.timestamp.toISOString());
-                console.log('✅ 업데이트 알림 읽음 처리 완료 (알림 유지)');
-              }
-            }
-          ]
-        );
-        break;
       case 'meeting':
         navigation.navigate('EventDetail', { eventId: notification.meetingId });
         break;

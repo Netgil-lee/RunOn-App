@@ -133,6 +133,8 @@ const createStyles = (colors) =>
     updateButtonText: {
       fontSize: 16,
       fontWeight: '700',
-      color: colors.BACKGROUND,
+      // 시안(PRIMARY) 버튼 위 텍스트는 앱 관례대로 검정 고정.
+      // colors.BACKGROUND를 쓰면 라이트모드에서 흰색에 가까워 대비가 무너진다.
+      color: '#000000',
     },
   });
