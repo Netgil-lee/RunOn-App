@@ -39,6 +39,7 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import * as Location from 'expo-location';
 import * as Clipboard from 'expo-clipboard';
 import { recordMeetingLocation } from '../services/userActivityService';
+import kakaoPlacesService from '../services/kakaoPlacesService';
 import { useTheme } from '../contexts/ThemeContext';
 
 const firestore = getFirestore();
@@ -2046,6 +2047,170 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
   );
 };
 
+// 확정된 모임 장소 마커 색 (iOS 시스템 레드). 미확정 중앙 핀의 시안 PRIMARY와 대비되도록
+// 의도적으로 고정색을 쓴다 — 라이트/다크 어느 쪽에서도 "확정" 신호가 같아야 한다.
+const CONFIRMED_MARKER_COLOR = '#FF3B30';
+
+// 지도 중심이 확정 마커와 "겹쳤다"고 볼 기준 — 현재 보이는 범위의 4% 이내
+// (지도 높이 420px 기준 약 17px. 살짝만 끌어도 중앙 핀이 다시 나타난다)
+const CENTER_PIN_SNAP_RATIO = 0.04;
+
+const isCenterOnMarker = (region, markerCoord) => {
+  if (!region || !markerCoord) return false;
+  return (
+    Math.abs(region.latitude - markerCoord.latitude) < region.latitudeDelta * CENTER_PIN_SNAP_RATIO &&
+    Math.abs(region.longitude - markerCoord.longitude) < region.longitudeDelta * CENTER_PIN_SNAP_RATIO
+  );
+};
+
+/**
+ * 모임 생성 2단계 인라인 지도 (Apple Maps)
+ *
+ * 위치 지정 방식은 중앙 고정 핀 하나뿐이다 — 지도를 끌어 원하는 지점을 중앙 시안 핀에 맞추고
+ * 핀을 누르면 그 자리에 빨간 마커가 확정된다. 확정 순간 시안 핀은 숨겨져서,
+ * 사용자 눈에는 "핀이 빨갛게 변하며 지도에 박히는" 것으로 보인다.
+ * 지도를 다시 끌면 마커에서 멀어지는 순간 시안 핀이 되돌아온다.
+ *
+ * 반드시 모듈 스코프에 둘 것 — 부모 함수 안에서 정의하면 부모가 리렌더될 때마다
+ * 새 컴포넌트 타입이 만들어져 지도가 언마운트/리마운트되고 카메라가 initialRegion으로 튄다.
+ */
+const InlineAppleMapComponent = React.memo(({
+  selectedLocation,
+  markerCoord,
+  onCommitCoord,
+  inlineMapRef,
+  onCurrentLocationPress,
+  mapCenterRef,
+}) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const initialRegion = useMemo(() => {
+    if (!selectedLocation?.lat || !selectedLocation?.lng) return null;
+    return {
+      latitude: selectedLocation.lat,
+      longitude: selectedLocation.lng,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    };
+  }, [selectedLocation?.lat, selectedLocation?.lng]);
+
+  // 지도 중심 좌표 추적 (중앙 고정 핀이 가리키는 위치)
+  const centerCoordRef = useRef(
+    initialRegion
+      ? { latitude: initialRegion.latitude, longitude: initialRegion.longitude }
+      : null
+  );
+
+  // 확정 마커가 화면 중앙에 있으면 중앙 핀을 숨긴다 (겹쳐서 색 변화가 안 보이므로)
+  const [centerPinHidden, setCenterPinHidden] = useState(!!markerCoord);
+
+  // 확정 직후 정렬 애니메이션 동안에는 핀 표시를 건드리지 않는다 (깜빡임 방지)
+  const suppressPinRef = useRef(false);
+
+  // 드래그 중에도 즉시 반응하도록 onRegionChange(연속 호출)로 추적한다.
+  // 실제 setState는 표시 여부가 뒤집힐 때만 일어나므로 리렌더 비용은 거의 없다.
+  const handleRegionChange = useCallback((region) => {
+    if (region?.latitude == null || region?.longitude == null) return;
+    centerCoordRef.current = { latitude: region.latitude, longitude: region.longitude };
+    if (suppressPinRef.current) return;
+
+    const hidden = isCenterOnMarker(region, markerCoord);
+    setCenterPinHidden((prev) => (prev === hidden ? prev : hidden));
+  }, [markerCoord]);
+
+  const handleRegionChangeComplete = useCallback((region) => {
+    if (region?.latitude == null || region?.longitude == null) return;
+    centerCoordRef.current = { latitude: region.latitude, longitude: region.longitude };
+    // 장소명 검색 시 현재 보고 있는 지역을 기준으로 정렬하기 위해 부모에도 공유
+    if (mapCenterRef) {
+      mapCenterRef.current = { lat: region.latitude, lng: region.longitude };
+    }
+  }, [mapCenterRef]);
+
+  // 중앙 고정 핀을 눌러 현재 지도 중심을 모임 장소로 확정
+  const handleCenterPinPress = useCallback(() => {
+    const center = centerCoordRef.current;
+    if (!center) return;
+
+    onCommitCoord(center.latitude, center.longitude);
+    setCenterPinHidden(true);
+    suppressPinRef.current = true;
+    setTimeout(() => { suppressPinRef.current = false; }, 400);
+
+    // 확정 지점을 화면 정중앙으로 정렬. 관성 스크롤 도중 눌러 중심이 미세하게
+    // 어긋났을 때를 보정한다. animateToRegion과 달리 줌 레벨은 유지된다.
+    inlineMapRef?.current?.animateCamera(
+      { center: { latitude: center.latitude, longitude: center.longitude } },
+      { duration: 300 }
+    );
+  }, [onCommitCoord, inlineMapRef]);
+
+  if (!initialRegion) return null;
+
+  // 확정된 마커가 없으면 중앙 핀은 무조건 보여야 한다.
+  // (같은 장소를 다시 검색해 카메라가 실제로 움직이지 않으면 onRegionChange가 안 오는데,
+  //  숨김 상태가 그대로 굳으면 확정할 방법이 사라진다)
+  const showCenterPin = !markerCoord || !centerPinHidden;
+
+  return (
+    <View style={styles.inlineMapSection}>
+      <View style={styles.inlineMapContainer}>
+        <MapView
+          ref={inlineMapRef}
+          provider={PROVIDER_DEFAULT}
+          style={{ flex: 1 }}
+          initialRegion={initialRegion}
+          onRegionChange={handleRegionChange}
+          onRegionChangeComplete={handleRegionChangeComplete}
+          showsUserLocation={true}
+          showsMyLocationButton={false}
+          showsCompass={false}
+          mapType="standard"
+        >
+          {markerCoord && (
+            <Marker coordinate={markerCoord} tracksViewChanges={false}>
+              <View style={styles.inlineMarkerContainer}>
+                <View style={styles.inlineMarkerPin} />
+                <View style={styles.inlineMarkerTail} />
+              </View>
+            </Marker>
+          )}
+        </MapView>
+
+        {/* 중앙 고정 핀 오버레이 — 지도를 움직여 위치를 맞추고 핀을 눌러 확정 */}
+        {showCenterPin && (
+          <View style={styles.centerPinOverlay} pointerEvents="box-none">
+            <TouchableOpacity
+              style={styles.centerPinTouchable}
+              onPress={handleCenterPinPress}
+              activeOpacity={0.85}
+            >
+              <View style={styles.centerPinBadge}>
+                <Text style={styles.centerPinBadgeText}>여기로 지정</Text>
+              </View>
+              <Ionicons
+                name="location"
+                size={40}
+                color={colors.PRIMARY}
+                style={styles.centerPinIcon}
+              />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.currentLocationButton}
+          onPress={onCurrentLocationPress}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="locate" size={22} color={colors.PRIMARY} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
 const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -2134,6 +2299,12 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [isLocationLoading, setIsLocationLoading] = useState(true);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false); // 드롭다운 표시 상태
 
+  // 주소/장소명 검색 (도로명 주소를 입력해 지도를 해당 위치로 이동)
+  const [locationQuery, setLocationQuery] = useState('');
+  const [locationResults, setLocationResults] = useState([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [locationSearchError, setLocationSearchError] = useState('');
+
   // 모달 오버레이 페이드 애니메이션
   const datePickerModalBackdropOpacity = useRef(new Animated.Value(0)).current;
   const timePickerModalBackdropOpacity = useRef(new Animated.Value(0)).current;
@@ -2148,6 +2319,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const inlineMapRef = useRef(null);
   const mapMoveRetryTimeoutsRef = useRef([]);
   const hasUserSelectedLocationRef = useRef(false);
+  // 현재 지도 중심 좌표 (장소명 검색 시 가까운 결과를 우선 정렬하는 기준)
+  const mapCenterRef = useRef(null);
   
   const scrollViewRef = useRef(null);
   const titleInputRef = useRef(null);
@@ -2434,6 +2607,78 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     }
   }, [moveMapToLocation]);
 
+  // 주소/장소명 검색 실행
+  const handleLocationSearch = useCallback(async () => {
+    const query = locationQuery.trim();
+    if (!query) {
+      return;
+    }
+
+    Keyboard.dismiss();
+    setIsSearchingLocation(true);
+    setLocationSearchError('');
+    setShowLocationDropdown(true);
+
+    try {
+      const results = await kakaoPlacesService.searchPlaces(query, {
+        center: mapCenterRef.current,
+      });
+
+      setLocationResults(results);
+
+      if (results.length === 0) {
+        setLocationSearchError('검색 결과가 없습니다. 도로명 주소나 장소 이름을 다시 확인해주세요.');
+      }
+    } catch (error) {
+      console.log('장소 검색 실패:', error);
+      setLocationResults([]);
+      setLocationSearchError('검색에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.');
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  }, [locationQuery]);
+
+  // 검색 결과 선택 → 기존 확정을 해제하고 그 위치로 지도 이동
+  // (새 장소를 검색한 이상 이전 확정은 무효. 화면 밖에 마커가 남아 엉뚱한 좌표로 모임이
+  //  만들어지는 것을 막는다. 확정은 사용자가 중앙 핀을 눌러 다시 해야 한다)
+  const handleSelectSearchResult = useCallback((place) => {
+    // GPS 초기화 로직이 검색으로 옮긴 위치를 덮어쓰지 않도록 표시
+    hasUserSelectedLocationRef.current = true;
+    mapCenterRef.current = { lat: place.lat, lng: place.lng };
+
+    // 상세 위치 설명(customLocation) 텍스트는 일부러 지우지 않는다 —
+    // 입력칸은 잠시 숨겨졌다가 다시 확정하면 쓰던 내용 그대로 되살아난다.
+    setHasCustomMarker(false);
+    setCustomMarkerCoords(null);
+
+    setShowLocationDropdown(false);
+    setLocationResults([]);
+    setLocationSearchError('');
+    setLocationQuery(place.roadAddress || place.name);
+    Keyboard.dismiss();
+
+    // 지도가 아직 마운트되지 않은 상태(GPS 실패·권한 거부)라면 검색 위치로 지도를 띄운다
+    if (!selectedLocationData?.lat || !selectedLocationData?.lng) {
+      setSelectedLocationData({
+        name: place.name || '',
+        lat: place.lat,
+        lng: place.lng,
+        address: place.roadAddress || place.jibunAddress || '',
+      });
+      return;
+    }
+
+    // 이미 지도가 떠 있으면 state 교체 없이 카메라만 이동 (지도 리마운트·마커 소실 방지)
+    moveMapToLocation(place.lat, place.lng);
+  }, [selectedLocationData, moveMapToLocation]);
+
+  const handleClearLocationSearch = useCallback(() => {
+    setLocationQuery('');
+    setLocationResults([]);
+    setLocationSearchError('');
+    setShowLocationDropdown(false);
+  }, []);
+
   const canProceed = () => {
     switch (currentStep) {
       case 1: return eventType && title.trim();
@@ -2462,7 +2707,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       if (!hasCustomMarker) {
         Alert.alert(
           '모임장소를 정해주세요',
-          '지도를 클릭하여 상세한 모임장소를 정해주세요.',
+          '지도를 움직여 원하는 모임 장소를 정하고 클릭해주세요.',
           [{ text: '확인', style: 'default' }]
         );
         return;
@@ -2592,7 +2837,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     
     // 최종 검증: hasCustomMarker와 customLocation이 필수
     if (!hasCustomMarker || !customMarkerCoords) {
-      Alert.alert('모임장소를 정해주세요', '지도를 클릭하여 상세한 모임장소를 정해주세요.');
+      Alert.alert('모임장소를 정해주세요', '지도를 움직여 원하는 모임 장소를 정하고 클릭해주세요.');
       return;
     }
     
@@ -2837,20 +3082,97 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     }
   };
 
-  // 커스텀 마커 변경 핸들러
-  const handleCustomMarkerChange = useCallback((hasMarker, coords) => {
-    setHasCustomMarker(hasMarker);
-    setCustomMarkerCoords(coords);
+  // 중앙 핀으로 모임 장소 확정
+  const handleCommitCoord = useCallback((latitude, longitude) => {
+    setHasCustomMarker(true);
+    setCustomMarkerCoords({ lat: latitude, lng: longitude });
   }, []);
+
+  // 지도에 넘길 마커 좌표 ({lat,lng} → {latitude,longitude})
+  const markerCoordForMap = useMemo(() => {
+    if (!hasCustomMarker || !customMarkerCoords) return null;
+    return { latitude: customMarkerCoords.lat, longitude: customMarkerCoords.lng };
+  }, [hasCustomMarker, customMarkerCoords]);
+
+  // 검색 결과 한 줄 렌더링
+  const renderLocationSearchResult = (place) => (
+    <TouchableOpacity
+      key={place.id}
+      style={styles.locationResultItem}
+      onPress={() => handleSelectSearchResult(place)}
+      activeOpacity={0.7}
+    >
+      <Ionicons
+        name={place.source === 'address' ? 'map-outline' : 'location-outline'}
+        size={18}
+        color={colors.PRIMARY}
+        style={styles.locationResultIcon}
+      />
+      <View style={styles.locationResultTextGroup}>
+        <Text style={styles.locationResultName} numberOfLines={1}>
+          {place.name}
+        </Text>
+        {!!(place.roadAddress || place.jibunAddress) && (
+          <Text style={styles.locationResultAddress} numberOfLines={1}>
+            {place.roadAddress || place.jibunAddress}
+          </Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
 
   // 장소 선택 렌더링 (인라인 드롭다운 방식)
   const renderLocationSelection = () => (
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>장소 선택</Text>
-      
+
+      {/* 주소·장소명 검색 — 입력한 위치로 지도를 이동시킨다 */}
+      <View style={styles.locationSearchContainer}>
+        <Ionicons name="search" size={18} color={colors.TEXT_SECONDARY} />
+        <TextInput
+          style={styles.locationSearchInput}
+          value={locationQuery}
+          onChangeText={setLocationQuery}
+          placeholder="도로명 주소 또는 장소 이름 검색"
+          placeholderTextColor={colors.TEXT_SECONDARY}
+          returnKeyType="search"
+          onSubmitEditing={handleLocationSearch}
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+        {locationQuery.length > 0 && (
+          <TouchableOpacity onPress={handleClearLocationSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={18} color={colors.TEXT_SECONDARY} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[styles.locationSearchButton, !locationQuery.trim() && styles.locationSearchButtonDisabled]}
+          onPress={handleLocationSearch}
+          disabled={!locationQuery.trim() || isSearchingLocation}
+          activeOpacity={0.8}
+        >
+          {isSearchingLocation ? (
+            <ActivityIndicator size="small" color="#000000" />
+          ) : (
+            <Text style={styles.locationSearchButtonText}>검색</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* 검색 결과 목록 */}
+      {showLocationDropdown && !isSearchingLocation && (
+        <View style={styles.locationResultsContainer}>
+          {locationResults.length > 0
+            ? locationResults.map(renderLocationSearchResult)
+            : !!locationSearchError && (
+                <Text style={styles.locationResultEmptyText}>{locationSearchError}</Text>
+              )}
+        </View>
+      )}
+
       {/* 선택된 장소 정보 및 지도 */}
       <View style={styles.selectedLocationSection}>
-        
+
         {/* 카카오맵 표시 - 상태 변경 격리 */}
         {memoizedInlineMap}
           
@@ -2960,121 +3282,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     };
   }, [showLocationDropdown]);
 
-  // 인라인 Apple Maps 컴포넌트 (모임 생성 2단계 위치 선택)
-  const InlineAppleMapComponent = React.memo(({ selectedLocation, onCustomMarkerChange, initialCustomMarkerCoords, inlineMapRef, onCurrentLocationPress }) => {
-    const [markerCoord, setMarkerCoord] = React.useState(
-      initialCustomMarkerCoords
-        ? { latitude: initialCustomMarkerCoords.lat, longitude: initialCustomMarkerCoords.lng }
-        : null
-    );
-
-    const initialRegion = React.useMemo(() => {
-      if (!selectedLocation?.lat || !selectedLocation?.lng) return null;
-      return {
-        latitude: selectedLocation.lat,
-        longitude: selectedLocation.lng,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      };
-    }, [selectedLocation?.lat, selectedLocation?.lng]);
-
-    // 지도 중심 좌표 추적 (중앙 고정 핀이 가리키는 위치)
-    const centerCoordRef = React.useRef(
-      initialRegion
-        ? { latitude: initialRegion.latitude, longitude: initialRegion.longitude }
-        : null
-    );
-
-    const handleRegionChangeComplete = React.useCallback((region) => {
-      if (region?.latitude != null && region?.longitude != null) {
-        centerCoordRef.current = { latitude: region.latitude, longitude: region.longitude };
-      }
-    }, []);
-
-    // 좌표를 마커로 확정 (지도 탭 / 중앙 핀 탭 공통)
-    const commitCoord = React.useCallback((latitude, longitude) => {
-      setMarkerCoord({ latitude, longitude });
-      if (onCustomMarkerChange) {
-        onCustomMarkerChange(true, { lat: latitude, lng: longitude });
-      }
-    }, [onCustomMarkerChange]);
-
-    // 지도를 직접 탭한 위치에 마커 지정
-    const handleMapPress = React.useCallback((e) => {
-      const { latitude, longitude } = e.nativeEvent.coordinate;
-      commitCoord(latitude, longitude);
-    }, [commitCoord]);
-
-    // 중앙 고정 핀을 눌러 현재 지도 중심에 마커 지정
-    const handleCenterPinPress = React.useCallback(() => {
-      const center = centerCoordRef.current;
-      if (center) {
-        commitCoord(center.latitude, center.longitude);
-      }
-    }, [commitCoord]);
-
-    if (!initialRegion) return null;
-
-    return (
-      <View style={styles.inlineMapSection}>
-        <View style={styles.inlineMapContainer}>
-          <MapView
-            ref={inlineMapRef}
-            provider={PROVIDER_DEFAULT}
-            style={{ flex: 1 }}
-            initialRegion={initialRegion}
-            onPress={handleMapPress}
-            onRegionChangeComplete={handleRegionChangeComplete}
-            showsUserLocation={true}
-            showsMyLocationButton={false}
-            showsCompass={false}
-            mapType="standard"
-          >
-            {markerCoord && (
-              <Marker coordinate={markerCoord} tracksViewChanges={false}>
-                <View style={styles.inlineMarkerContainer}>
-                  <View style={styles.inlineMarkerPin} />
-                  <View style={styles.inlineMarkerTail} />
-                </View>
-              </Marker>
-            )}
-          </MapView>
-
-          {/* 중앙 고정 핀 오버레이 — 지도를 움직여 위치를 맞추고 핀을 눌러 확정 */}
-          <View style={styles.centerPinOverlay} pointerEvents="box-none">
-            <TouchableOpacity
-              style={styles.centerPinTouchable}
-              onPress={handleCenterPinPress}
-              activeOpacity={0.85}
-            >
-              <View style={styles.centerPinBadge}>
-                <Text style={styles.centerPinBadgeText}>여기로 지정</Text>
-              </View>
-              <Ionicons
-                name="location"
-                size={40}
-                color="#3AF8FF"
-                style={styles.centerPinIcon}
-              />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.currentLocationButton}
-            onPress={onCurrentLocationPress}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="locate" size={22} color="#3AF8FF" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }, (prevProps, nextProps) => {
-    return (
-      prevProps.selectedLocation?.lat === nextProps.selectedLocation?.lat &&
-      prevProps.selectedLocation?.lng === nextProps.selectedLocation?.lng
-    );
-  });
+  // 인라인 지도 컴포넌트는 모듈 스코프의 InlineAppleMapComponent 사용
+  // (컴포넌트 함수 안에서 정의하면 렌더마다 새 타입이 생겨 지도가 통째로 리마운트된다)
 
 
   // 인라인 지도 컴포넌트 메모이제이션
@@ -3097,7 +3306,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
           <Text style={styles.locationErrorTitle}>위치 오류</Text>
           <Text style={styles.locationErrorText}>
             GPS 위치를 가져올 수 없습니다.{'\n'}
-            장소를 직접 검색하거나 위치 권한을 허용해주세요.
+            위 검색창에 주소를 입력하거나 위치 권한을 허용해주세요.
           </Text>
         </View>
       );
@@ -3108,19 +3317,20 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         <View style={styles.mapGuideSection}>
           <View style={styles.mapGuideTextContainer}>
             <Text style={styles.requiredMark}>*</Text>
-            <Text style={styles.mapGuideText}>지도를 움직여 중앙 핀을 맞추고 "여기로 지정"을 눌러주세요!</Text>
+            <Text style={styles.mapGuideText}>지도를 움직여 원하는 모임 장소를 정하고 클릭하세요!</Text>
           </View>
         </View>
         <InlineAppleMapComponent
           selectedLocation={selectedLocationData}
-          onCustomMarkerChange={handleCustomMarkerChange}
-          initialCustomMarkerCoords={customMarkerCoords}
+          markerCoord={markerCoordForMap}
+          onCommitCoord={handleCommitCoord}
           inlineMapRef={inlineMapRef}
           onCurrentLocationPress={moveToCurrentLocation}
+          mapCenterRef={mapCenterRef}
         />
       </React.Fragment>
     );
-  }, [selectedLocationData, customMarkerCoords, handleCustomMarkerChange, moveToCurrentLocation, isLocationLoading]);
+  }, [selectedLocationData, markerCoordForMap, handleCommitCoord, moveToCurrentLocation, isLocationLoading, styles]);
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
@@ -5069,6 +5279,84 @@ const createStyles = (colors) => StyleSheet.create({
     marginRight: 4,
   },
   
+  // 주소·장소명 검색 스타일
+  locationSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingLeft: 12,
+    paddingRight: 6,
+    paddingVertical: 6,
+    backgroundColor: colors.CARD,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.BORDER,
+  },
+  locationSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.TEXT,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+  },
+  locationSearchButton: {
+    minWidth: 56,
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: colors.PRIMARY,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationSearchButtonDisabled: {
+    opacity: 0.4,
+  },
+  locationSearchButtonText: {
+    // 시안 배경 위 텍스트 — 라이트/다크 공통으로 검정이 대비가 가장 높다
+    color: '#000000',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  locationResultsContainer: {
+    marginTop: 8,
+    backgroundColor: colors.SURFACE,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.BORDER,
+    overflow: 'hidden',
+  },
+  locationResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.BORDER,
+  },
+  locationResultIcon: {
+    marginRight: 10,
+  },
+  locationResultTextGroup: {
+    flex: 1,
+  },
+  locationResultName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.TEXT,
+  },
+  locationResultAddress: {
+    marginTop: 2,
+    fontSize: 13,
+    color: colors.TEXT_SECONDARY,
+  },
+  locationResultEmptyText: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    color: colors.TEXT_SECONDARY,
+    lineHeight: 18,
+  },
+
   // 인라인 카카오맵 스타일
   inlineMapSection: {
     marginTop: 8,
@@ -5084,11 +5372,12 @@ const createStyles = (colors) => StyleSheet.create({
   inlineMarkerContainer: {
     alignItems: 'center',
   },
+  // 확정된 모임 장소 마커 — 빨강 = 확정, 시안(중앙 핀) = 아직 미확정
   inlineMarkerPin: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#3AF8FF',
+    backgroundColor: CONFIRMED_MARKER_COLOR,
     borderWidth: 2,
     borderColor: '#fff',
   },
@@ -5100,7 +5389,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderTopWidth: 8,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: '#3AF8FF',
+    borderTopColor: CONFIRMED_MARKER_COLOR,
     marginTop: -2,
   },
   // 중앙 고정 핀 오버레이 (지도 중심에 떠 있는 위치 지정 핀)
