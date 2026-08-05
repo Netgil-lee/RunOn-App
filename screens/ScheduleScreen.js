@@ -5410,10 +5410,10 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 14,
     marginBottom: 2,
     borderWidth: 1,
-    borderColor: '#3AF8FF',
+    borderColor: colors.PRIMARY,
   },
   centerPinBadgeText: {
-    color: '#3AF8FF',
+    color: colors.PRIMARY,
     fontSize: 12,
     fontWeight: '700',
   },
