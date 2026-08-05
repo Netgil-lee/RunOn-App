@@ -241,5 +241,13 @@ service cloud.firestore {
       // 쓰기는 관리자 대시보드 백엔드(Admin SDK)에서만 → 클라이언트 쓰기 금지
       allow write: if false;
     }
+
+    // 앱 설정 (appConfig) - 예: adBanner 문서의 배너 자동 전환 주기(rotationIntervalMs)
+    match /appConfig/{configId} {
+      // 인증된 사용자는 읽기만 가능
+      allow read: if request.auth != null;
+      // 쓰기는 관리자 대시보드 백엔드(Admin SDK)에서만 → 클라이언트 쓰기 금지
+      allow write: if false;
+    }
   }
 }

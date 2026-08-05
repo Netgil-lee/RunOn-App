@@ -27,7 +27,8 @@ import storageService from '../services/storageService';
 import { useTheme } from '../contexts/ThemeContext';
 import AdPopupModal from '../components/AdPopupModal';
 import {
-  fetchActiveAdBanner,
+  fetchActiveAdBanners,
+  fetchAdRotationIntervalMs,
   hasShownAdThisSession,
   markAdShownThisSession,
   isAdHiddenToday,
@@ -78,8 +79,9 @@ const HomeScreen = ({ navigation }) => {
   // 새로고침 상태
   const [refreshing, setRefreshing] = useState(false);
 
-  // 광고 팝업 상태
-  const [adBanner, setAdBanner] = useState(null);
+  // 광고 팝업 상태 (활성 배너 최대 3개 + 자동 전환 주기)
+  const [adBanners, setAdBanners] = useState([]);
+  const [adRotationMs, setAdRotationMs] = useState(null);
   const [adVisible, setAdVisible] = useState(false);
 
   // 커뮤니티 활동 데이터 상태
@@ -157,11 +159,15 @@ const HomeScreen = ({ navigation }) => {
       if (hasShownAdThisSession()) return;
       if (await isAdHiddenToday()) return;
 
-      const banner = await fetchActiveAdBanner();
-      if (cancelled || !banner) return;
+      const [banners, rotationMs] = await Promise.all([
+        fetchActiveAdBanners(),
+        fetchAdRotationIntervalMs(),
+      ]);
+      if (cancelled || banners.length === 0) return;
 
       markAdShownThisSession();
-      setAdBanner(banner);
+      setAdBanners(banners);
+      setAdRotationMs(rotationMs);
       setAdVisible(true);
     };
 
@@ -492,7 +498,8 @@ const HomeScreen = ({ navigation }) => {
       {/* 파트너 광고 팝업 */}
       <AdPopupModal
         visible={adVisible}
-        banner={adBanner}
+        banners={adBanners}
+        rotationIntervalMs={adRotationMs}
         onClose={handleCloseAd}
       />
     </View>
