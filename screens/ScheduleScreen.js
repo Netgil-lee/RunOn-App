@@ -2095,12 +2095,25 @@ const InlineAppleMapComponent = React.memo(({
     };
   }, [selectedLocation?.lat, selectedLocation?.lng]);
 
-  // 지도 중심 좌표 추적 (중앙 고정 핀이 가리키는 위치)
-  const centerCoordRef = useRef(
-    initialRegion
-      ? { latitude: initialRegion.latitude, longitude: initialRegion.longitude }
-      : null
-  );
+  // 지도 중심 추적 (중앙 고정 핀이 가리키는 위치).
+  // 확정 후 정렬 애니메이션에서 줌을 그대로 유지하려면 delta까지 함께 들고 있어야 한다.
+  const centerRegionRef = useRef(initialRegion ? { ...initialRegion } : null);
+
+  // onRegionChange가 준 region을 안전한 형태로 정규화 (비정상 값이면 null → 이후 동작 전부 skip)
+  const normalizeRegion = useCallback((region) => {
+    if (!Number.isFinite(region?.latitude) || !Number.isFinite(region?.longitude)) return null;
+    const prev = centerRegionRef.current;
+    return {
+      latitude: region.latitude,
+      longitude: region.longitude,
+      latitudeDelta: Number.isFinite(region.latitudeDelta)
+        ? region.latitudeDelta
+        : (prev?.latitudeDelta ?? 0.005),
+      longitudeDelta: Number.isFinite(region.longitudeDelta)
+        ? region.longitudeDelta
+        : (prev?.longitudeDelta ?? 0.005),
+    };
+  }, []);
 
   // 확정 마커가 화면 중앙에 있으면 중앙 핀을 숨긴다 (겹쳐서 색 변화가 안 보이므로)
   const [centerPinHidden, setCenterPinHidden] = useState(!!markerCoord);
@@ -2111,39 +2124,56 @@ const InlineAppleMapComponent = React.memo(({
   // 드래그 중에도 즉시 반응하도록 onRegionChange(연속 호출)로 추적한다.
   // 실제 setState는 표시 여부가 뒤집힐 때만 일어나므로 리렌더 비용은 거의 없다.
   const handleRegionChange = useCallback((region) => {
-    if (region?.latitude == null || region?.longitude == null) return;
-    centerCoordRef.current = { latitude: region.latitude, longitude: region.longitude };
+    const next = normalizeRegion(region);
+    if (!next) return;
+    centerRegionRef.current = next;
     if (suppressPinRef.current) return;
 
-    const hidden = isCenterOnMarker(region, markerCoord);
+    const hidden = isCenterOnMarker(next, markerCoord);
     setCenterPinHidden((prev) => (prev === hidden ? prev : hidden));
-  }, [markerCoord]);
+  }, [markerCoord, normalizeRegion]);
 
   const handleRegionChangeComplete = useCallback((region) => {
-    if (region?.latitude == null || region?.longitude == null) return;
-    centerCoordRef.current = { latitude: region.latitude, longitude: region.longitude };
+    const next = normalizeRegion(region);
+    if (!next) return;
+    centerRegionRef.current = next;
     // 장소명 검색 시 현재 보고 있는 지역을 기준으로 정렬하기 위해 부모에도 공유
     if (mapCenterRef) {
-      mapCenterRef.current = { lat: region.latitude, lng: region.longitude };
+      mapCenterRef.current = { lat: next.latitude, lng: next.longitude };
     }
-  }, [mapCenterRef]);
+  }, [mapCenterRef, normalizeRegion]);
 
   // 중앙 고정 핀을 눌러 현재 지도 중심을 모임 장소로 확정
   const handleCenterPinPress = useCallback(() => {
-    const center = centerCoordRef.current;
-    if (!center) return;
+    const region = centerRegionRef.current;
+    if (!region) return;
 
-    onCommitCoord(center.latitude, center.longitude);
+    onCommitCoord(region.latitude, region.longitude);
     setCenterPinHidden(true);
     suppressPinRef.current = true;
     setTimeout(() => { suppressPinRef.current = false; }, 400);
 
     // 확정 지점을 화면 정중앙으로 정렬. 관성 스크롤 도중 눌러 중심이 미세하게
-    // 어긋났을 때를 보정한다. animateToRegion과 달리 줌 레벨은 유지된다.
-    inlineMapRef?.current?.animateCamera(
-      { center: { latitude: center.latitude, longitude: center.longitude } },
-      { duration: 300 }
-    );
+    // 어긋났을 때를 보정한다. 현재 delta를 그대로 넘기므로 줌 레벨은 유지된다.
+    //
+    // animateCamera가 아니라 animateToRegion을 쓴다 — 같은 화면에서 앱을 죽였던 API이고
+    // (New Arch TurboModule은 인자 타입이 틀리면 JS 예외가 아니라 네이티브 abort),
+    // animateToRegion은 MapScreen·RunningTrackerScreen에서 실기기 검증된 경로다.
+    // 인자는 (region, duration "숫자") — 객체를 넘기면 안 된다.
+    try {
+      inlineMapRef?.current?.animateToRegion(
+        {
+          latitude: region.latitude,
+          longitude: region.longitude,
+          latitudeDelta: region.latitudeDelta,
+          longitudeDelta: region.longitudeDelta,
+        },
+        300
+      );
+    } catch (error) {
+      // 정렬은 미세 보정일 뿐이라 실패해도 확정 자체는 이미 끝났다. 앱을 죽이지 않는다.
+      console.log('지도 중앙 정렬 실패(무시):', error);
+    }
   }, [onCommitCoord, inlineMapRef]);
 
   if (!initialRegion) return null;
