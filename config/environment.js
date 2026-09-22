@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import * as Device from 'expo-device';
 
 // 환경 변수 설정
 const ENV = {
@@ -91,5 +92,18 @@ function getEnvVars(env = Constants.expoConfig?.releaseChannel) {
     return ENV.prod;
   }
 }
+
+/**
+ * HealthKit 더미 데이터를 쓸지 판별한다.
+ *
+ * `simulateHealthKitOnSimulator` 플래그만 보면 실기기 개발 빌드에서도 더미가 뜬다
+ * (`__DEV__`는 실기기 개발 빌드에서도 참). 플래그 이름 그대로 시뮬레이터일 때만
+ * 켜지도록 `Device.isDevice`로 한 번 더 거른다.
+ *
+ * @returns {boolean} 더미를 써야 하면 true
+ */
+export const shouldSimulateHealthKit = () => (
+  __DEV__ && getEnvVars().simulateHealthKitOnSimulator && !Device.isDevice
+);
 
 export default getEnvVars(); 

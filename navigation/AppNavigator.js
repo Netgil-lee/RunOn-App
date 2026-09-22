@@ -28,6 +28,7 @@ import NotificationScreen from '../screens/NotificationScreen';
 import SearchScreen from '../screens/SearchScreen';
 import RunningTrackerScreen from '../screens/RunningTrackerScreen';
 import RunningResultScreen from '../screens/RunningResultScreen';
+import RunningStatsScreen from '../screens/RunningStatsScreen';
 
 import AppIntroScreen from '../screens/AppIntroScreen';
 import AppGuideScreen from '../screens/AppGuideScreen';
@@ -207,6 +208,7 @@ const AppNavigator = ({ isDemoMode = false }) => {
         <Stack.Screen name="Search" component={SearchScreen} />
         <Stack.Screen name="RunningTracker" component={RunningTrackerScreen} />
         <Stack.Screen name="RunningResult" component={RunningResultScreen} />
+        <Stack.Screen name="RunningStats" component={RunningStatsScreen} />
         <Stack.Screen name="BlacklistManagement" component={BlacklistManagementScreen} />
         <Stack.Screen name="Premium" component={PremiumScreen} />
       </Stack.Navigator>

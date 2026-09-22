@@ -41,6 +41,7 @@ import * as Clipboard from 'expo-clipboard';
 import { recordMeetingLocation } from '../services/userActivityService';
 import kakaoPlacesService from '../services/kakaoPlacesService';
 import { useTheme } from '../contexts/ThemeContext';
+import { isRunOnWorkoutSource, mergeRunningWorkouts } from '../utils/runningWorkouts';
 
 const firestore = getFirestore();
 
@@ -63,56 +64,6 @@ const EFFORT_COLORS = [
   '#FF9E3D',
   '#FF5A5F',
 ];
-
-const isRunOnWorkoutSource = (workout) => /runon/i.test(
-  `${workout?.sourceLabel || workout?.sourceName || workout?.source || ''}`
-);
-
-const parseDurationToSeconds = (durationValue) => {
-  if (typeof durationValue === 'number' && Number.isFinite(durationValue)) {
-    return Math.max(0, Math.floor(durationValue));
-  }
-  const text = `${durationValue || ''}`.trim();
-  if (!text) return null;
-  if (/^\d{1,2}:\d{2}:\d{2}$/.test(text)) {
-    const [hh, mm, ss] = text.split(':').map(Number);
-    return hh * 3600 + mm * 60 + ss;
-  }
-  if (/^\d{1,2}:\d{2}$/.test(text)) {
-    const [mm, ss] = text.split(':').map(Number);
-    return mm * 60 + ss;
-  }
-
-  const hourMatch = text.match(/(\d+)\s*h/);
-  const minuteMatch = text.match(/(\d+)\s*m/);
-  const secondMatch = text.match(/(\d+)\s*s/);
-  const hours = hourMatch ? Number(hourMatch[1]) : 0;
-  const minutes = minuteMatch ? Number(minuteMatch[1]) : 0;
-  const seconds = secondMatch ? Number(secondMatch[1]) : 0;
-  const total = hours * 3600 + minutes * 60 + seconds;
-  return total > 0 ? total : null;
-};
-
-const isSameRunningSession = (runOnWorkout, appleWorkout) => {
-  const runOnStart = new Date(runOnWorkout?.startTime || 0).getTime();
-  const appleStart = new Date(appleWorkout?.startTime || 0).getTime();
-  if (!Number.isFinite(runOnStart) || !Number.isFinite(appleStart)) return false;
-
-  const startDiffMs = Math.abs(runOnStart - appleStart);
-  const maxStartDiffMs = 12 * 60 * 1000; // 12분
-  if (startDiffMs > maxStartDiffMs) return false;
-
-  const runOnDuration = parseDurationToSeconds(runOnWorkout?.raw?.durationSeconds ?? runOnWorkout?.duration);
-  const appleDuration = parseDurationToSeconds(appleWorkout?.raw?.durationSeconds ?? appleWorkout?.duration);
-  if (runOnDuration === null || appleDuration === null) {
-    return true;
-  }
-
-  const durationDiff = Math.abs(runOnDuration - appleDuration);
-  return durationDiff <= 8 * 60; // 8분 이내면 동일 세션으로 간주
-};
-
-
 
 const ScheduleScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
@@ -345,31 +296,8 @@ const ScheduleScreen = ({ navigation, route }) => {
         appleErrorCode = error?.code || 'UNKNOWN';
       }
 
-      const normalizedApple = (appleWorkouts || [])
-        .filter((item) => {
-          // RunOn 앱이 HealthKit에 직접 저장한 기록은 제외
-          // → RunOn 로컬 기록(AsyncStorage)이 동일 데이터를 이미 포함하므로 중복 방지
-          const sourceName = `${item?.sourceName || item?.source || ''}`.trim();
-          return !/runon/i.test(sourceName);
-        })
-        .map((item) => ({
-          ...item,
-          sourceLabel: 'Apple Fitness',
-          sourceType: 'apple',
-        }));
-      const normalizedRunOn = (runOnWorkouts || []).map((item) => ({
-        ...item,
-        sourceLabel: 'RunOn',
-        sourceType: 'runon_local',
-      }));
-
       // 동일 세션(시간대) 데이터는 RunOn 로컬 기록을 우선한다.
-      const filteredApple = normalizedApple.filter((appleWorkout) => {
-        return !normalizedRunOn.some((runOnWorkout) => isSameRunningSession(runOnWorkout, appleWorkout));
-      });
-
-      const merged = [...filteredApple, ...normalizedRunOn]
-        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+      const merged = mergeRunningWorkouts(runOnWorkouts, appleWorkouts);
 
       setFeedWorkouts(merged);
       setFeedErrorCode(merged.length === 0 ? appleErrorCode : '');
@@ -1132,6 +1060,16 @@ const ScheduleScreen = ({ navigation, route }) => {
           </>
         ) : (
           <>
+            <TouchableOpacity
+              style={styles.statsEntryButton}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('RunningStats')}
+            >
+              <Ionicons name="stats-chart" size={18} color="#000000" />
+              <Text style={styles.statsEntryButtonText}>러닝 통계 보기</Text>
+              <Ionicons name="chevron-forward" size={18} color="#000000" />
+            </TouchableOpacity>
+
             {isFeedLoading ? (
               <View style={styles.runningFeedPlaceholderCard}>
                 <ActivityIndicator size="small" color={colors.PRIMARY} />
@@ -5759,6 +5697,24 @@ const createStyles = (colors) => StyleSheet.create({
     lineHeight: 20,
     marginLeft: 8,
     flex: 1,
+  },
+  statsEntryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 15,
+    borderRadius: 12,
+    backgroundColor: colors.PRIMARY,
+  },
+  statsEntryButtonText: {
+    fontSize: 16,
+    // 시안 배경 위 텍스트 — colors.BACKGROUND는 라이트모드에서 흰색이라 대비가 무너진다
+    color: '#000000',
+    fontFamily: 'Pretendard-SemiBold',
+    marginLeft: 8,
+    marginRight: 4,
   },
   runningFeedPlaceholderCard: {
     backgroundColor: colors.CARD,

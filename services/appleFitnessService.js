@@ -1,6 +1,6 @@
 // 애플 피트니스 연동 서비스 - 단순화 버전
 import { Platform, NativeModules } from 'react-native';
-import env from '../config/environment';
+import { shouldSimulateHealthKit } from '../config/environment';
 
 // HealthKit 네이티브 모듈은 시뮬레이터에서 초기화 시점에 크래시를 유발할 수 있으므로
 // 반드시 동적 임포트로 지연 로드한다.
@@ -62,7 +62,7 @@ class AppleFitnessService {
       }
 
       // 개발/시뮬레이터 환경에서 모의 허용 옵션
-      if (__DEV__ && env.simulateHealthKitOnSimulator) {
+      if (shouldSimulateHealthKit()) {
         console.log('🧪 시뮬레이터 HealthKit 모의 허용 활성화');
         this.isAvailable = true;
         this.isInitialized = true;
@@ -160,7 +160,7 @@ class AppleFitnessService {
         };
       }
 
-      if (__DEV__ && env.simulateHealthKitOnSimulator) {
+      if (shouldSimulateHealthKit()) {
         return { isAvailable: true, hasPermissions: true, error: null };
       }
 
@@ -223,7 +223,7 @@ class AppleFitnessService {
         return false;
       }
 
-      if (__DEV__ && env.simulateHealthKitOnSimulator) {
+      if (shouldSimulateHealthKit()) {
         console.log('🧪 시뮬레이터에서 권한 모의 허용');
         this.isInitialized = true;
         this.isAvailable = true;
@@ -576,7 +576,7 @@ class AppleFitnessService {
         return [];
       }
 
-      if (__DEV__ && env.simulateHealthKitOnSimulator) {
+      if (shouldSimulateHealthKit()) {
         // 시뮬레이터 모드: 더미 데이터 반환
         return [
           { latitude: 37.5665, longitude: 126.9780 },
@@ -906,7 +906,7 @@ class AppleFitnessService {
       const loadAll = !Number.isFinite(days) || days <= 0;
       const periodDays = loadAll ? 0 : days;
 
-      if (__DEV__ && env.simulateHealthKitOnSimulator) {
+      if (shouldSimulateHealthKit()) {
         const now = new Date();
         return [
           {
@@ -917,6 +917,7 @@ class AppleFitnessService {
             duration: this.formatDuration(1820),
             pace: '5:50/km',
             calories: 315,
+            raw: { distanceMeters: 5200, durationSeconds: 1820 },
             forceKakaoMiniMap: true,
             routeCoordinates: [
               { latitude: 37.48614, longitude: 127.12112 },
@@ -933,6 +934,7 @@ class AppleFitnessService {
             duration: this.formatDuration(1800),
             pace: '6:00/km',
             calories: 300,
+            raw: { distanceMeters: 5000, durationSeconds: 1800 },
             routeCoordinates: [
               { latitude: 37.5665, longitude: 126.9780 },
               { latitude: 37.5666, longitude: 126.9781 },
@@ -1122,7 +1124,7 @@ class AppleFitnessService {
       console.log('✅ [AppleFitnessService] 이벤트 시간 파싱 완료:', eventTime.toISOString());
 
       // 개발 모드 체크
-      if (__DEV__ && env.simulateHealthKitOnSimulator) {
+      if (shouldSimulateHealthKit()) {
         console.log('🔧 [AppleFitnessService] 개발 모드: 더미 데이터 사용');
         return this.getDummyWorkoutDetails();
       }
