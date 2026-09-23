@@ -77,8 +77,9 @@ describe('getWorkoutDistanceMeters / getWorkoutDurationSeconds', () => {
 
 describe('mergeRunningWorkouts', () => {
   it('동일 세션은 RunOn 로컬 기록을 남긴다', () => {
+    // RunOn은 로컬 기록과 HealthKit 워크아웃을 같은 시작 시각으로 함께 저장한다.
     const runOn = [makeWorkout({ id: 'runon-1', sourceName: 'RunOn' })];
-    const apple = [makeWorkout({ id: 'hk-1', sourceName: 'RunOn', startTime: '2026-09-15T09:03:00.000Z' })];
+    const apple = [makeWorkout({ id: 'hk-1', sourceName: 'RunOn' })];
 
     const merged = mergeRunningWorkouts(runOn, apple);
 
@@ -116,6 +117,52 @@ describe('mergeRunningWorkouts', () => {
     const merged = mergeRunningWorkouts(runOn, apple);
 
     expect(merged.map((item) => item.id)).toEqual(['hk-1', 'runon-1', 'hk-2']);
+  });
+
+  it('HealthKit이 지속 시간을 주지 않아도 RunOn 사본을 중복 제거한다', () => {
+    const runOn = [makeWorkout({
+      id: 'runon-1',
+      sourceName: 'RunOn',
+      routeCoordinates: [{ latitude: 37.5, longitude: 127 }, { latitude: 37.6, longitude: 127.1 }],
+    })];
+    const apple = [makeWorkout({
+      id: 'hk-1',
+      sourceName: 'RunOn',
+      routeCoordinates: [],
+      raw: { distanceMeters: 5000, durationSeconds: 0 },
+    })];
+
+    const merged = mergeRunningWorkouts(runOn, apple);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0].id).toBe('runon-1');
+    expect(merged[0].routeCoordinates).toHaveLength(2);
+  });
+
+  it('일시정지로 지속 시간이 벌어져도 RunOn 사본을 중복 제거한다', () => {
+    // 로컬은 일시정지를 뺀 활동 시간(30분), HealthKit은 포함한 경과 시간(40분)
+    const runOn = [makeWorkout({ id: 'runon-1', sourceName: 'RunOn' })];
+    const apple = [makeWorkout({
+      id: 'hk-1',
+      sourceName: 'RunOn',
+      raw: { distanceMeters: 5000, durationSeconds: 2400 },
+    })];
+
+    const merged = mergeRunningWorkouts(runOn, apple);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0].id).toBe('runon-1');
+  });
+
+  it('다른 앱 기록은 지속 시간이 어긋나면 별개 기록으로 남긴다', () => {
+    const runOn = [makeWorkout({ id: 'runon-1', sourceName: 'RunOn' })];
+    const apple = [makeWorkout({
+      id: 'hk-1',
+      sourceName: 'Apple Watch',
+      raw: { distanceMeters: 5000, durationSeconds: 0 },
+    })];
+
+    expect(mergeRunningWorkouts(runOn, apple)).toHaveLength(2);
   });
 
   it('빈 입력과 null을 허용한다', () => {

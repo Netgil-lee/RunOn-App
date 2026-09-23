@@ -12,6 +12,8 @@
 const SAME_SESSION_START_TOLERANCE_MS = 12 * 60 * 1000; // 12분
 // 같은 세션으로 볼 지속 시간 허용 오차
 const SAME_SESSION_DURATION_TOLERANCE_SEC = 8 * 60; // 8분
+// RunOn 로컬 기록과 RunOn이 HealthKit에 남긴 사본을 같은 세션으로 볼 시작 시각 허용 오차
+const SAME_RUNON_COPY_TOLERANCE_MS = 60 * 1000; // 1분
 
 /**
  * 기록의 소스가 RunOn인지 판별
@@ -128,9 +130,31 @@ const normalizeAppleWorkouts = (workouts) => (workouts || []).map((item) => {
 });
 
 /**
+ * RunOn 로컬 기록과 HealthKit 사본이 같은 세션인지 판별
+ *
+ * 둘은 서로 닮은 별개의 기록이 아니라, RunOn이 러닝 종료 시 같은 시작 시각으로
+ * 함께 써 넣은 한 세션의 두 사본이다. 따라서 시작 시각만으로 확정한다.
+ * 지속 시간은 비교하지 않는다 — 로컬은 일시정지를 뺀 활동 시간을 저장하는 반면
+ * HealthKit 워크아웃은 일시정지를 포함한 경과 시간이라 애초에 일치하지 않고,
+ * HealthKit이 지속 시간을 돌려주지 않아 0으로 잡히는 기록도 있다.
+ *
+ * @param {object} runOnWorkout - RunOn 로컬 기록
+ * @param {object} healthWorkout - HealthKit에서 읽은 RunOn 기록
+ * @returns {boolean} 같은 세션의 사본이면 true
+ */
+const isSameRunOnCopy = (runOnWorkout, healthWorkout) => {
+  const runOnStart = new Date(runOnWorkout?.startTime || 0).getTime();
+  const healthStart = new Date(healthWorkout?.startTime || 0).getTime();
+  if (!runOnStart || !healthStart) return false;
+  return Math.abs(runOnStart - healthStart) <= SAME_RUNON_COPY_TOLERANCE_MS;
+};
+
+/**
  * RunOn 로컬 기록과 Apple Fitness 기록을 중복 없이 병합
  *
- * 동일 세션이 양쪽에 있으면 RunOn 로컬 기록을 우선한다.
+ * 동일 세션이 양쪽에 있으면 RunOn 로컬 기록을 우선한다(경로 좌표가 있는 쪽).
+ * RunOn이 HealthKit에 남긴 사본은 시작 시각으로 확정하고, 다른 앱 기록은
+ * 시작 시각·지속 시간 근사로 판별한다.
  * 소스 이름만 보고 미리 걸러내지 않고 세션 단위로만 중복을 제거하므로,
  * 로컬 보관 한도(300개)를 넘겨 사라진 과거 기록도 HealthKit 쪽에서 살아남는다.
  *
@@ -142,9 +166,12 @@ export const mergeRunningWorkouts = (runOnWorkouts, appleWorkouts) => {
   const normalizedRunOn = normalizeRunOnWorkouts(runOnWorkouts);
   const normalizedApple = normalizeAppleWorkouts(appleWorkouts);
 
-  const dedupedApple = normalizedApple.filter((appleWorkout) => (
-    !normalizedRunOn.some((runOnWorkout) => isSameRunningSession(runOnWorkout, appleWorkout))
-  ));
+  const dedupedApple = normalizedApple.filter((appleWorkout) => {
+    const isSameSession = appleWorkout.sourceType === 'runon_health'
+      ? isSameRunOnCopy
+      : isSameRunningSession;
+    return !normalizedRunOn.some((runOnWorkout) => isSameSession(runOnWorkout, appleWorkout));
+  });
 
   return [...dedupedApple, ...normalizedRunOn]
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
