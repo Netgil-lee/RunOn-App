@@ -12,10 +12,6 @@ import { getAppleFitnessService } from './getAppleFitnessService';
 import healthConnectService from './healthConnectService';
 import runOnRunningService from './runOnRunningService';
 import { mergeRunningWorkouts } from '../utils/runningWorkouts';
-import { buildDummyStatsWorkouts } from '../utils/runningStatsDummy';
-
-// 개발 검증용 더미 기록 주입 (__DEV__ 빌드에서만). 끄려면 false로.
-const ENABLE_DUMMY_STATS = __DEV__;
 
 // 화면을 드나들 때마다 Health Connect를 다시 훑지 않도록 짧게 캐시한다
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -78,12 +74,7 @@ class RunningStatsService {
       externalErrorCode = error?.code || 'UNKNOWN';
     }
 
-    let workouts = mergeRunningWorkouts(runOnWorkouts, externalWorkouts);
-
-    if (ENABLE_DUMMY_STATS) {
-      workouts = [...workouts, ...buildDummyStatsWorkouts()]
-        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-    }
+    const workouts = mergeRunningWorkouts(runOnWorkouts, externalWorkouts);
     // 로컬 기록이라도 있으면 외부 피트니스 실패는 에러로 알리지 않는다
     const errorCode = workouts.length === 0 ? externalErrorCode : '';
 
