@@ -1,0 +1,189 @@
+/**
+ * 러닝 기록 정규화 · 병합 유틸
+ *
+ * RunOn 로컬 기록(AsyncStorage)과 외부 피트니스 기록(Android: Health Connect,
+ * iOS: HealthKit)은 서로 다른 형태로 들어오지만, 같은 러닝 세션이 양쪽에 모두
+ * 있을 수 있다. (다른 앱으로 동시에 측정했거나, iOS는 RunOn이 HealthKit에도
+ * 함께 저장하기 때문)
+ *
+ * 러닝 피드와 러닝 통계가 동일한 병합 규칙을 쓰도록 이곳에 모아둔다.
+ */
+
+import { Platform } from 'react-native';
+
+/** 외부 피트니스 소스의 표시 이름과 타입 */
+export const EXTERNAL_FITNESS_SOURCE = Platform.OS === 'ios'
+  ? { label: 'Apple Fitness', type: 'apple' }
+  : { label: 'Google Health Connect', type: 'health_connect' };
+
+// 같은 세션으로 볼 시작 시각 허용 오차
+const SAME_SESSION_START_TOLERANCE_MS = 12 * 60 * 1000; // 12분
+// 같은 세션으로 볼 지속 시간 허용 오차
+const SAME_SESSION_DURATION_TOLERANCE_SEC = 8 * 60; // 8분
+// RunOn 로컬 기록과 RunOn이 외부 피트니스에 남긴 사본을 같은 세션으로 볼 시작 시각 허용 오차
+const SAME_RUNON_COPY_TOLERANCE_MS = 60 * 1000; // 1분
+
+/**
+ * 기록의 소스가 RunOn인지 판별
+ * @param {object} workout - 러닝 기록
+ * @returns {boolean} RunOn에서 측정된 기록이면 true
+ */
+export const isRunOnWorkoutSource = (workout) => /runon/i.test(
+  `${workout?.sourceLabel || workout?.sourceName || workout?.source || ''}`
+);
+
+/**
+ * 지속 시간 값을 초 단위로 변환
+ * 숫자(초), "1:02:03", "5:30", "1h 2m 3s" 형태를 모두 허용한다.
+ * @param {number|string} durationValue - 지속 시간 값
+ * @returns {number|null} 초 단위 지속 시간, 해석 불가 시 null
+ */
+export const parseDurationToSeconds = (durationValue) => {
+  if (typeof durationValue === 'number' && Number.isFinite(durationValue)) {
+    return Math.max(0, Math.floor(durationValue));
+  }
+  const text = `${durationValue || ''}`.trim();
+  if (!text) return null;
+  if (/^\d{1,2}:\d{2}:\d{2}$/.test(text)) {
+    const [hh, mm, ss] = text.split(':').map(Number);
+    return hh * 3600 + mm * 60 + ss;
+  }
+  if (/^\d{1,2}:\d{2}$/.test(text)) {
+    const [mm, ss] = text.split(':').map(Number);
+    return mm * 60 + ss;
+  }
+
+  const hourMatch = text.match(/(\d+)\s*h/);
+  const minuteMatch = text.match(/(\d+)\s*m/);
+  const secondMatch = text.match(/(\d+)\s*s/);
+  const hours = hourMatch ? Number(hourMatch[1]) : 0;
+  const minutes = minuteMatch ? Number(minuteMatch[1]) : 0;
+  const seconds = secondMatch ? Number(secondMatch[1]) : 0;
+  const total = hours * 3600 + minutes * 60 + seconds;
+  return total > 0 ? total : null;
+};
+
+/**
+ * 두 기록이 동일한 러닝 세션인지 판별
+ * @param {object} runOnWorkout - RunOn 로컬 기록
+ * @param {object} externalWorkout - 외부 피트니스 기록
+ * @returns {boolean} 동일 세션으로 간주되면 true
+ */
+export const isSameRunningSession = (runOnWorkout, externalWorkout) => {
+  const runOnStart = new Date(runOnWorkout?.startTime || 0).getTime();
+  const externalStart = new Date(externalWorkout?.startTime || 0).getTime();
+  if (!Number.isFinite(runOnStart) || !Number.isFinite(externalStart)) return false;
+
+  const startDiffMs = Math.abs(runOnStart - externalStart);
+  if (startDiffMs > SAME_SESSION_START_TOLERANCE_MS) return false;
+
+  const runOnDuration = parseDurationToSeconds(runOnWorkout?.raw?.durationSeconds ?? runOnWorkout?.duration);
+  const externalDuration = parseDurationToSeconds(
+    externalWorkout?.raw?.durationSeconds ?? externalWorkout?.duration
+  );
+  if (runOnDuration === null || externalDuration === null) {
+    return true;
+  }
+
+  const durationDiff = Math.abs(runOnDuration - externalDuration);
+  return durationDiff <= SAME_SESSION_DURATION_TOLERANCE_SEC;
+};
+
+/**
+ * 기록의 거리를 미터 단위로 반환
+ * 포맷된 문자열("5.2km")이 아닌 raw 값을 사용한다.
+ * @param {object} workout - 러닝 기록
+ * @returns {number} 미터 단위 거리 (없으면 0)
+ */
+export const getWorkoutDistanceMeters = (workout) => {
+  const meters = Number(workout?.raw?.distanceMeters);
+  return Number.isFinite(meters) && meters > 0 ? meters : 0;
+};
+
+/**
+ * 기록의 지속 시간을 초 단위로 반환
+ * @param {object} workout - 러닝 기록
+ * @returns {number} 초 단위 지속 시간 (없으면 0)
+ */
+export const getWorkoutDurationSeconds = (workout) => {
+  const seconds = parseDurationToSeconds(workout?.raw?.durationSeconds ?? workout?.duration);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+};
+
+/**
+ * RunOn 로컬 기록에 소스 정보를 붙인다.
+ * @param {Array} workouts - RunOn 로컬 기록 배열
+ * @returns {Array} 소스 정보가 추가된 배열
+ */
+const normalizeRunOnWorkouts = (workouts) => (workouts || []).map((item) => ({
+  ...item,
+  sourceLabel: 'RunOn',
+  sourceType: 'runon_local',
+}));
+
+/**
+ * 외부 피트니스 기록에 소스 정보를 붙인다.
+ *
+ * 소스 이름이 RunOn인 기록(iOS에서 RunOn이 HealthKit에 저장한 사본)은
+ * 로컬 기록이 사라진 뒤에도 RunOn 기록으로 표시되도록 라벨을 맞춰준다.
+ * (sourceType은 'runon_health' — 로컬 기록이 아니므로 삭제 대상은 아니다)
+ * Android는 RunOn이 Health Connect에 기록을 쓰지 않으므로 사실상 모두 외부 기록이다.
+ * 매핑 단계에서 붙은 sourceLabel이 아니라 원본 소스 이름으로만 판별한다.
+ * @param {Array} workouts - 외부 피트니스 기록 배열
+ * @returns {Array} 소스 정보가 추가된 배열
+ */
+const normalizeExternalWorkouts = (workouts) => (workouts || []).map((item) => {
+  const fromRunOn = /runon/i.test(`${item?.sourceName || item?.source || ''}`);
+  return {
+    ...item,
+    sourceLabel: fromRunOn ? 'RunOn' : EXTERNAL_FITNESS_SOURCE.label,
+    sourceType: fromRunOn ? 'runon_health' : EXTERNAL_FITNESS_SOURCE.type,
+  };
+});
+
+/**
+ * RunOn 로컬 기록과 HealthKit 사본이 같은 세션인지 판별
+ *
+ * 둘은 서로 닮은 별개의 기록이 아니라, RunOn이 러닝 종료 시 같은 시작 시각으로
+ * 함께 써 넣은 한 세션의 두 사본이다. 따라서 시작 시각만으로 확정한다.
+ * 지속 시간은 비교하지 않는다 — 로컬은 일시정지를 뺀 활동 시간을 저장하는 반면
+ * HealthKit 워크아웃은 일시정지를 포함한 경과 시간이라 애초에 일치하지 않고,
+ * HealthKit이 지속 시간을 돌려주지 않아 0으로 잡히는 기록도 있다.
+ *
+ * @param {object} runOnWorkout - RunOn 로컬 기록
+ * @param {object} healthWorkout - 외부 피트니스에서 읽은 RunOn 기록
+ * @returns {boolean} 같은 세션의 사본이면 true
+ */
+const isSameRunOnCopy = (runOnWorkout, healthWorkout) => {
+  const runOnStart = new Date(runOnWorkout?.startTime || 0).getTime();
+  const healthStart = new Date(healthWorkout?.startTime || 0).getTime();
+  if (!runOnStart || !healthStart) return false;
+  return Math.abs(runOnStart - healthStart) <= SAME_RUNON_COPY_TOLERANCE_MS;
+};
+
+/**
+ * RunOn 로컬 기록과 외부 피트니스 기록을 중복 없이 병합
+ *
+ * 동일 세션이 양쪽에 있으면 RunOn 로컬 기록을 우선한다(경로 좌표가 있는 쪽).
+ * RunOn이 외부 피트니스에 남긴 사본은 시작 시각으로 확정하고, 다른 앱 기록은
+ * 시작 시각·지속 시간 근사로 판별한다.
+ * 소스 이름만 보고 미리 걸러내지 않고 세션 단위로만 중복을 제거한다.
+ *
+ * @param {Array} runOnWorkouts - RunOn 로컬 기록 배열
+ * @param {Array} externalWorkouts - 외부 피트니스 기록 배열
+ * @returns {Array} 최신순으로 정렬된 병합 결과
+ */
+export const mergeRunningWorkouts = (runOnWorkouts, externalWorkouts) => {
+  const normalizedRunOn = normalizeRunOnWorkouts(runOnWorkouts);
+  const normalizedExternal = normalizeExternalWorkouts(externalWorkouts);
+
+  const dedupedExternal = normalizedExternal.filter((externalWorkout) => {
+    const isSameSession = externalWorkout.sourceType === 'runon_health'
+      ? isSameRunOnCopy
+      : isSameRunningSession;
+    return !normalizedRunOn.some((runOnWorkout) => isSameSession(runOnWorkout, externalWorkout));
+  });
+
+  return [...dedupedExternal, ...normalizedRunOn]
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+};

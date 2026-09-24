@@ -450,6 +450,8 @@ class HealthConnectService {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       type: 'Workout',
+      // 경로가 필요 없는 조회(통계)는 네이티브에서 좌표 변환을 건너뛴다
+      includeRoutes,
     });
 
     const runningWorkouts = (workouts || [])

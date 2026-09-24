@@ -5,6 +5,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Audio } from 'expo-av';
 import runOnRunningService from '../services/runOnRunningService';
+import runningStatsService from '../services/runningStatsService';
 import backgroundLocationService from '../services/backgroundLocationService';
 import runningTrackingSessionService from '../services/runningTrackingSessionService';
 import RouteMap from '../components/RouteMap';
@@ -844,6 +845,8 @@ const RunningTrackerScreen = ({ navigation }) => {
         calories,
         routeCoordinates: finalRouteCoordinates,
       });
+      // 새 기록이 통계에 바로 반영되도록 캐시를 비운다
+      runningStatsService.clearCache();
     } catch (error) {
       console.error('❌ RunOn 로컬 기록 저장 실패:', error);
     }

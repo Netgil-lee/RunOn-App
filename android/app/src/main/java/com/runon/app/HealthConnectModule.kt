@@ -25,6 +25,8 @@ import java.util.*
 class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
     
     private val TAG = "HealthConnectModule"
+    // readRecords 페이지 크기 (Health Connect 허용 최대값)
+    private val READ_PAGE_SIZE = 5000
     private var healthConnectClient: HealthConnectClient? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
@@ -171,28 +173,22 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
             
             val startTime = parseISOStringToInstant(startDate)
             val endTime = parseISOStringToInstant(endDate)
+            // 경로 좌표 포함 여부 (기본 true — 기존 호출부 호환). 통계처럼 경로가 필요 없으면 false
+            val includeRoutes = if (params.hasKey("includeRoutes")) params.getBoolean("includeRoutes") else true
             
             scope.launch {
                 try {
                     val timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
                     
-                    // ExerciseSession 레코드 조회
-                    val exerciseRequest = ReadRecordsRequest(
-                        recordType = ExerciseSessionRecord::class,
-                        timeRangeFilter = timeRangeFilter
-                    )
-                    
-                    val exerciseResponse = healthConnectClient!!.readRecords(exerciseRequest)
-                    val exerciseRecords = exerciseResponse.records.filterIsInstance<ExerciseSessionRecord>()
+                    // ExerciseSession 레코드 조회 (전체 페이지)
+                    val exerciseRecords = readAllRecords(ExerciseSessionRecord::class, timeRangeFilter)
                         .filter { it.exerciseType == ExerciseSessionRecord.EXERCISE_TYPE_RUNNING }
                     
-                    // Distance 레코드 조회
-                    val distanceRequest = ReadRecordsRequest(
-                        recordType = DistanceRecord::class,
-                        timeRangeFilter = timeRangeFilter
-                    )
-                    val distanceResponse = healthConnectClient!!.readRecords(distanceRequest)
-                    val distanceRecords = distanceResponse.records.filterIsInstance<DistanceRecord>()
+                    // Distance 레코드 조회 (전체 페이지)
+                    // 삼성헬스 등은 세션 하나에 거리 레코드를 여러 개 쓰므로 첫 페이지만 읽으면 거리가 누락된다
+                    val distanceRecords = readAllRecords(DistanceRecord::class, timeRangeFilter)
+                        .sortedBy { it.startTime }
+                    val distanceStartTimes = distanceRecords.map { it.startTime }
 
                     val results = mutableListOf<WritableMap>()
                     
@@ -201,16 +197,27 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
                         val sessionStart = exerciseRecord.startTime
                         val sessionEnd = exerciseRecord.endTime
 
-                        // 거리 합계 계산
+                        // 거리 합계 계산 — 시작 시각 정렬 목록에서 세션 시작 지점부터만 훑는다
                         var totalDistance = 0.0
-                        distanceRecords.forEach { distanceRecord ->
-                            if (distanceRecord.startTime >= sessionStart && distanceRecord.endTime <= sessionEnd) {
+                        val searchIndex = distanceStartTimes.binarySearch(sessionStart)
+                        var index = if (searchIndex >= 0) {
+                            // 같은 시작 시각이 여러 개일 수 있으므로 첫 번째 위치까지 되돌린다
+                            var first = searchIndex
+                            while (first > 0 && distanceStartTimes[first - 1] == sessionStart) first--
+                            first
+                        } else {
+                            -(searchIndex + 1)
+                        }
+                        while (index < distanceRecords.size && distanceRecords[index].startTime < sessionEnd) {
+                            val distanceRecord = distanceRecords[index]
+                            if (distanceRecord.endTime <= sessionEnd) {
                                 // DistanceRecord의 distance 속성 사용
-                                totalDistance += distanceRecord.distance.inMeters.toDouble()
+                                totalDistance += distanceRecord.distance.inMeters
                             }
+                            index++
                         }
 
-                        val workout = createWorkoutMap(exerciseRecord, totalDistance)
+                        val workout = createWorkoutMap(exerciseRecord, totalDistance, includeRoutes)
                         if (workout != null) {
                             results.add(workout)
                         }
@@ -275,6 +282,28 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
         )
     }
     
+    // readRecords는 한 번에 한 페이지만 돌려주므로 pageToken이 빌 때까지 이어서 읽는다
+    private suspend fun <T : Record> readAllRecords(
+        recordType: kotlin.reflect.KClass<T>,
+        timeRangeFilter: TimeRangeFilter
+    ): List<T> {
+        val records = mutableListOf<T>()
+        var pageToken: String? = null
+        do {
+            val response = healthConnectClient!!.readRecords(
+                ReadRecordsRequest(
+                    recordType = recordType,
+                    timeRangeFilter = timeRangeFilter,
+                    pageSize = READ_PAGE_SIZE,
+                    pageToken = pageToken
+                )
+            )
+            records.addAll(response.records)
+            pageToken = response.pageToken
+        } while (!pageToken.isNullOrEmpty())
+        return records
+    }
+    
     private fun parseISOStringToInstant(isoString: String): Instant {
         return try {
             val formatter = DateTimeFormatter.ISO_INSTANT
@@ -285,7 +314,7 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
         }
     }
     
-    private fun createWorkoutMap(record: ExerciseSessionRecord, distanceMeters: Double): WritableMap? {
+    private fun createWorkoutMap(record: ExerciseSessionRecord, distanceMeters: Double, includeRoute: Boolean): WritableMap? {
         return try {
             val workout = createReactMap()
             
@@ -304,8 +333,8 @@ class HealthConnectModule(reactContext: ReactApplicationContext) : ReactContextB
 
             // 워크아웃 고유 ID (좋아요/메모 키, 경로 재조회에 사용)
             workout.putString("id", record.metadata.id)
-            // 이동경로 좌표 (접근 가능한 경우 인라인으로 포함)
-            workout.putArray("routeCoordinates", buildRouteArray(record))
+            // 이동경로 좌표 (요청 시, 접근 가능한 경우 인라인으로 포함)
+            workout.putArray("routeCoordinates", if (includeRoute) buildRouteArray(record) else createReactArray())
 
             workout
         } catch (e: Exception) {

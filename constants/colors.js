@@ -18,6 +18,7 @@ export const DARK_THEME = {
   // 텍스트
   TEXT: '#ffffff',
   TEXT_SECONDARY: '#9A9AA0',
+  TEXT_SECONDARY_STRONG: '#D8D8DD', // 보조 텍스트 강조 — 더 밝은 흰색 (제목보단 약함)
 
   // 구분선·테두리
   BORDER: '#2C313A',  // 청회색 톤 맞춤 (구 #2D2D34)
@@ -51,6 +52,7 @@ export const LIGHT_THEME = {
   // 텍스트
   TEXT: '#1C1C1E',          // iOS 표준 다크 텍스트
   TEXT_SECONDARY: '#6C6C70', // iOS 표준 보조 텍스트
+  TEXT_SECONDARY_STRONG: '#3A3A3C', // 보조 텍스트 강조 — 더 진하게(가독성↑)
 
   // 구분선·테두리
   BORDER: '#D9D9DE',        // 카드/타일 테두리
