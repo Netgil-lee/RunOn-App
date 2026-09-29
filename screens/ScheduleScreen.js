@@ -273,6 +273,16 @@ const ScheduleScreen = ({ navigation, route }) => {
     Alert.alert('저장 완료', '메모가 저장되었습니다.');
   };
 
+  // 스크롤로 페이지가 늘어나도(feedRouteFetchLimit 증가) 처음부터 전체를
+  // 다시 불러오지 않도록, loadRunningFeed는 항상 "최초 로드 시점"의 값이 아니라
+  // ref로 최신 routeFetchLimit만 참조한다 (의존성 배열에서 제외).
+  const feedRouteFetchLimitRef = useRef(feedRouteFetchLimit);
+  useEffect(() => {
+    feedRouteFetchLimitRef.current = feedRouteFetchLimit;
+  }, [feedRouteFetchLimit]);
+
+  const isLoadingMoreFeedRoutesRef = useRef(false);
+
   const loadRunningFeed = useCallback(async () => {
     if (mainMode !== 'feed' || showCreateFlow || showMyCreated || showMyJoined || showEndedEvents) {
       return;
@@ -289,7 +299,7 @@ const ScheduleScreen = ({ navigation, route }) => {
       try {
         appleWorkouts = await appleFitnessService.getRecentRunningWorkouts(0, {
           includeRoutes: true,
-          routeFetchLimit: feedRouteFetchLimit,
+          routeFetchLimit: feedRouteFetchLimitRef.current,
           cacheTtlMs: 90000,
         });
       } catch (error) {
@@ -308,7 +318,7 @@ const ScheduleScreen = ({ navigation, route }) => {
     } finally {
       setIsFeedLoading(false);
     }
-  }, [mainMode, showCreateFlow, showMyCreated, showMyJoined, showEndedEvents, feedRouteFetchLimit]);
+  }, [mainMode, showCreateFlow, showMyCreated, showMyJoined, showEndedEvents]);
 
   useEffect(() => {
     loadRunningFeed();
@@ -321,6 +331,36 @@ const ScheduleScreen = ({ navigation, route }) => {
     });
   }, [feedWorkouts.length]);
 
+  // 스크롤로 다음 페이지가 보일 때 이미 불러온 기록은 그대로 두고
+  // 아직 경로(route)가 없는 "다음 구간"의 GPS 경로만 추가로 불러온다.
+  // (전체 목록을 처음부터 다시 불러오면 화면이 스피너로 전환되면서
+  //  이미 그려진 지도들이 한꺼번에 재생성돼 메모리 급증 → 앱 종료로 이어졌다)
+  const loadMoreFeedRoutes = useCallback(async (nextRouteLimit) => {
+    if (mainMode !== 'feed' || isLoadingMoreFeedRoutesRef.current) return;
+    isLoadingMoreFeedRoutesRef.current = true;
+    try {
+      const appleWorkouts = await appleFitnessService.getRecentRunningWorkouts(0, {
+        includeRoutes: true,
+        routeFetchLimit: nextRouteLimit,
+        cacheTtlMs: 90000,
+      });
+      const routeById = new Map(appleWorkouts.map((w) => [w.id, w.routeCoordinates]));
+      setFeedWorkouts((prev) => prev.map((workout) => {
+        if (Array.isArray(workout.routeCoordinates) && workout.routeCoordinates.length > 0) {
+          return workout;
+        }
+        const routeCoordinates = routeById.get(workout.id);
+        return Array.isArray(routeCoordinates) && routeCoordinates.length > 0
+          ? { ...workout, routeCoordinates }
+          : workout;
+      }));
+    } catch (error) {
+      // 추가 경로 로딩 실패는 조용히 무시 — 이미 보이는 기록에는 영향 없음
+    } finally {
+      isLoadingMoreFeedRoutesRef.current = false;
+    }
+  }, [mainMode]);
+
   const handleFeedScroll = useCallback((event) => {
     if (mainMode !== 'feed' || isFeedLoading) return;
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent || {};
@@ -332,12 +372,18 @@ const ScheduleScreen = ({ navigation, route }) => {
 
     setFeedVisibleCount((prev) => Math.min(prev + FEED_PAGE_SIZE, feedWorkouts.length));
 
-    setFeedRouteFetchLimit((prev) => {
-      const desired = Math.min(feedWorkouts.length, feedVisibleCount + FEED_PAGE_SIZE);
-      if (desired <= prev) return prev;
-      return Math.min(prev + ROUTE_FETCH_STEP, feedWorkouts.length);
-    });
-  }, [mainMode, isFeedLoading, feedWorkouts.length, feedVisibleCount]);
+    // setState 업데이터 안에서 비동기 fetch를 직접 트리거하지 않도록,
+    // 최신 routeFetchLimit는 ref로 읽고 다음 값 계산 후 별도로 반영한다.
+    const desired = Math.min(feedWorkouts.length, feedVisibleCount + FEED_PAGE_SIZE);
+    const currentRouteLimit = feedRouteFetchLimitRef.current;
+    if (desired > currentRouteLimit) {
+      const nextRouteLimit = Math.min(currentRouteLimit + ROUTE_FETCH_STEP, feedWorkouts.length);
+      if (nextRouteLimit > currentRouteLimit) {
+        setFeedRouteFetchLimit(nextRouteLimit);
+        loadMoreFeedRoutes(nextRouteLimit);
+      }
+    }
+  }, [mainMode, isFeedLoading, feedWorkouts.length, feedVisibleCount, loadMoreFeedRoutes]);
 
   // 러닝매너 작성 모달창 표시 함수
   const showRunningMannerNotification = (event) => {

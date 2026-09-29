@@ -5,6 +5,31 @@ import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 // { uri, startDot: {x,y}, endDot: {x,y} } 형태로 캐싱
 const snapshotCache = new Map();
 
+// 스크롤 중 피드 아이템이 한꺼번에 많이 마운트돼도 네이티브 MapView가
+// 동시에 여러 개 켜지지 않도록 상한을 둔다 (초과분은 대기 후 순차 실행).
+// 스냅샷이 끝나면 즉시 정적 이미지로 전환되므로 대기 시간은 짧다.
+const MAX_CONCURRENT_LIVE_MAPS = 3;
+let activeLiveMapCount = 0;
+const liveMapWaitQueue = [];
+
+const acquireLiveMapSlot = () => new Promise((resolve) => {
+  if (activeLiveMapCount < MAX_CONCURRENT_LIVE_MAPS) {
+    activeLiveMapCount += 1;
+    resolve();
+  } else {
+    liveMapWaitQueue.push(resolve);
+  }
+});
+
+const releaseLiveMapSlot = () => {
+  const next = liveMapWaitQueue.shift();
+  if (next) {
+    next();
+  } else {
+    activeLiveMapCount = Math.max(0, activeLiveMapCount - 1);
+  }
+};
+
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DOT_RADIUS = 6;
 
@@ -66,6 +91,8 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
   const mapRef = useRef(null);
   const timerRef = useRef(null);
   const [snapshotData, setSnapshotData] = useState(() => snapshotCache.get(workoutId) || null);
+  const [hasLiveMapSlot, setHasLiveMapSlot] = useState(false);
+  const hasLiveMapSlotRef = useRef(false);
 
   const displayCoords = useMemo(
     () => downsample(normalizeCoords(coordinates)),
@@ -78,6 +105,31 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
   );
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  // 이미 스냅샷이 있으면 지도를 켤 필요가 없다. 없는 경우에만 "동시 실행 슬롯"을
+  // 확보한 뒤 실제 네이티브 MapView를 마운트한다 (초과분은 대기).
+  useEffect(() => {
+    if (snapshotData || !region) return undefined;
+
+    let cancelled = false;
+    acquireLiveMapSlot().then(() => {
+      if (cancelled) {
+        releaseLiveMapSlot();
+        return;
+      }
+      hasLiveMapSlotRef.current = true;
+      setHasLiveMapSlot(true);
+    });
+
+    return () => {
+      cancelled = true;
+      if (hasLiveMapSlotRef.current) {
+        hasLiveMapSlotRef.current = false;
+        releaseLiveMapSlot();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!region) return null;
 
@@ -105,9 +157,16 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
           const data = { uri, startDot, endDot };
           snapshotCache.set(workoutId, data);
           setSnapshotData(data);
+          // 정적 이미지로 전환됐으니 더 이상 라이브 지도가 필요 없다.
+          // 슬롯을 바로 반납해 대기 중인 다음 아이템이 진행할 수 있게 한다.
+          if (hasLiveMapSlotRef.current) {
+            hasLiveMapSlotRef.current = false;
+            releaseLiveMapSlot();
+          }
         }
       } catch {
-        // 실패 시 라이브 MapView 유지
+        // 실패 시 라이브 MapView를 계속 보여줘야 하므로 슬롯은 그대로 유지한다
+        // (언마운트 시 정리 이펙트가 반납한다).
       }
     }, 1000);
   };
@@ -123,6 +182,19 @@ const RouteMapSnapshot = React.memo(({ coordinates, workoutId, width = SCREEN_WI
         />
         <DotOverlay pos={snapshotData.startDot} color="#28C76F" />
         <DotOverlay pos={snapshotData.endDot} color="#FF4D4F" />
+      </View>
+    );
+  }
+
+  // 동시 실행 슬롯 대기 중: 지도를 켜지 않고 로딩 표시만 (동시 라이브 지도 개수 제한)
+  if (!hasLiveMapSlot) {
+    return (
+      <View style={{
+        width, height,
+        backgroundColor: 'rgba(20,20,24,0.6)',
+        justifyContent: 'center', alignItems: 'center',
+      }}>
+        <ActivityIndicator size="small" color="#3AF8FF" />
       </View>
     );
   }

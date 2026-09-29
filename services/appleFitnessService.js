@@ -37,6 +37,25 @@ async function loadHealthKitModule() {
   return undefined;
 }
 
+// 러닝 피드에서 GPS 경로를 여러 개 한꺼번에 조회할 때 네이티브 브릿지 호출이
+// 동시에 몰려 메모리 스파이크가 나지 않도록 동시 실행 개수를 제한한다.
+async function mapWithConcurrency(items, concurrency, iterator) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await iterator(items[currentIndex], currentIndex);
+    }
+  }
+
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 class AppleFitnessService {
   constructor() {
     this.isAvailable = false;
@@ -1081,7 +1100,8 @@ class AppleFitnessService {
       if (includeRoutes && routeFetchLimit > 0) {
         const targetCount = Math.min(routeFetchLimit, filteredMapped.length);
         const routeTargets = filteredMapped.slice(0, targetCount);
-        await Promise.all(routeTargets.map(async (item) => {
+        const ROUTE_FETCH_CONCURRENCY = 3;
+        await mapWithConcurrency(routeTargets, ROUTE_FETCH_CONCURRENCY, async (item) => {
           try {
             if (Array.isArray(this.workoutRouteCache?.[item.id])) {
               item.routeCoordinates = this.workoutRouteCache[item.id];
@@ -1093,7 +1113,7 @@ class AppleFitnessService {
           } catch (error) {
             item.routeCoordinates = [];
           }
-        }));
+        });
       }
 
       const finalResult = filteredMapped.map((item) => {
