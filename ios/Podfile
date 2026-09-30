@@ -84,8 +84,11 @@ target 'RunOn' do
         installer.aggregate_targets.each do |agg|
           agg.user_project.native_targets.each do |t|
             t.build_configurations.each do |c|
-              existing = c.build_settings['FRAMEWORK_SEARCH_PATHS'] || '$(inherited)'
-              c.build_settings['FRAMEWORK_SEARCH_PATHS'] = "\"#{patch_search_path}\" #{existing}"
+              # 앱 프로젝트 값은 배열로 저장되므로 배열로 다루고, 이미 있으면 중복 추가하지 않음
+              existing = Array(c.build_settings['FRAMEWORK_SEARCH_PATHS'] || '$(inherited)')
+              quoted_patch_path = "\"#{patch_search_path}\""
+              next if existing.include?(quoted_patch_path)
+              c.build_settings['FRAMEWORK_SEARCH_PATHS'] = [quoted_patch_path] + existing
             end
           end
           agg.user_project.save
@@ -114,6 +117,13 @@ target 'RunOn' do
 
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
+        # Xcode 27(iOS 27 SDK)은 배포 타겟 15.0 미만을 에러로 처리함.
+        # 리소스 번들 타겟(_Privacy 등)은 podspec의 낮은 최소 버전을 그대로 쓰므로 15.1로 상향
+        deployment_target = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        if deployment_target && Gem::Version.new(deployment_target) < Gem::Version.new('15.1')
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+        end
+
         if config.name == 'Release'
           config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
           config.build_settings['GCC_GENERATE_DEBUGGING_SYMBOLS'] = 'YES'
