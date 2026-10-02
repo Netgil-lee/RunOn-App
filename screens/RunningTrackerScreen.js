@@ -1017,12 +1017,12 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   metricLabel: {
-    color: colors.TEXT_SECONDARY,
+    color: '#9A9AA0', // intentional: fixed light-gray text on always-dark map HUD overlay — keep
     fontSize: 11,
     marginBottom: 6,
   },
   metricValue: {
-    color: colors.TEXT,
+    color: '#ffffff', // intentional: fixed white text on always-dark map HUD overlay — keep
     fontSize: 19,
     fontWeight: '700',
   },

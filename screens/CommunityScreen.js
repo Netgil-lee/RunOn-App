@@ -880,7 +880,7 @@ const CommunityScreen = ({ navigation, route }) => {
                         <View style={styles.postAuthorSection}>
                           {post.isAnonymous ? (
                             <View style={styles.postAuthorAvatar}>
-                              <Ionicons name="person" size={16} color="#ffffff" />
+                              <Ionicons name="person" size={16} color={colors.TEXT} />
                             </View>
                           ) : post.authorProfile?.profileImage ? (
                             <Image 
@@ -890,7 +890,7 @@ const CommunityScreen = ({ navigation, route }) => {
                             />
                           ) : (
                             <View style={styles.postAuthorAvatar}>
-                              <Ionicons name="person" size={16} color="#ffffff" />
+                              <Ionicons name="person" size={16} color={colors.TEXT} />
                             </View>
                           )}
                           <Text style={styles.postAuthor}>by {getDisplayAuthor(post)}</Text>
@@ -944,7 +944,7 @@ const CommunityScreen = ({ navigation, route }) => {
                         <View style={styles.postAuthorSection}>
                           {post.isAnonymous ? (
                             <View style={styles.postAuthorAvatar}>
-                              <Ionicons name="person" size={16} color="#ffffff" />
+                              <Ionicons name="person" size={16} color={colors.TEXT} />
                             </View>
                           ) : post.authorProfile?.profileImage ? (
                             <Image 
@@ -954,7 +954,7 @@ const CommunityScreen = ({ navigation, route }) => {
                             />
                           ) : (
                             <View style={styles.postAuthorAvatar}>
-                              <Ionicons name="person" size={16} color="#ffffff" />
+                              <Ionicons name="person" size={16} color={colors.TEXT} />
                             </View>
                           )}
                           <Text style={styles.postAuthor}>by {getDisplayAuthor(post)}</Text>

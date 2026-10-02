@@ -777,7 +777,7 @@ const ScheduleScreen = ({ navigation, route }) => {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>내가 만든 모임</Text>
           <View style={styles.headerRight} />
@@ -786,7 +786,7 @@ const ScheduleScreen = ({ navigation, route }) => {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {userCreatedEvents.filter(event => event.status !== 'ended').length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="create-outline" size={80} color="#ffffff" />
+              <Ionicons name="create-outline" size={80} color={colors.TEXT_SECONDARY} />
               <Text style={styles.emptyTitle}>생성한 모임이 없어요</Text>
               <Text style={styles.emptySubtitle}>
                 새로운 러닝 모임을 만들어보세요!
@@ -831,7 +831,7 @@ const ScheduleScreen = ({ navigation, route }) => {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>내가 참여한 모임</Text>
           <View style={styles.headerRight} />
@@ -840,7 +840,7 @@ const ScheduleScreen = ({ navigation, route }) => {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {userJoinedEvents.filter(event => event.status !== 'ended').length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={80} color="#ffffff" />
+              <Ionicons name="people-outline" size={80} color={colors.TEXT_SECONDARY} />
               <Text style={styles.emptyTitle}>참여한 모임이 없어요</Text>
               <Text style={styles.emptySubtitle}>
                 다른 사람들의 러닝 모임에 참여해보세요!
@@ -879,7 +879,7 @@ const ScheduleScreen = ({ navigation, route }) => {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBackToMain} style={styles.headerBackButton}>
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>종료된 모임</Text>
           <View style={styles.headerRight} />
@@ -891,7 +891,7 @@ const ScheduleScreen = ({ navigation, route }) => {
             (event.participants && event.participants.includes(user?.uid))
           ).length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="checkmark-circle-outline" size={80} color="#ffffff" />
+              <Ionicons name="checkmark-circle-outline" size={80} color={colors.TEXT_SECONDARY} />
               <Text style={styles.emptyTitle}>종료된 모임이 없어요</Text>
               <Text style={styles.emptySubtitle}>
                 모임이 종료되면 여기에서 확인할 수 있습니다.
@@ -1851,7 +1851,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
                 });
               }}
             >
-              <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.TEXT_SECONDARY} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -1928,7 +1928,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
                   style={styles.shareButton}
                   onPress={() => handleSharePress(event)}
                 >
-                  <Ionicons name="share-outline" size={18} color="#ffffff" />
+                  <Ionicons name="share-outline" size={18} color={colors.TEXT_SECONDARY} />
                 </TouchableOpacity>
               </View>
             ) : (
