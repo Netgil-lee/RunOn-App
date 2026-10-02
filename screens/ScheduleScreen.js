@@ -2041,7 +2041,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
                 });
               }}
             >
-              <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.TEXT_SECONDARY} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -2118,7 +2118,7 @@ const ScheduleCard = ({ event, onEdit, onDelete, onPress, onEndedLongPress, isCr
                   style={styles.shareButton}
                   onPress={() => handleSharePress(event)}
                 >
-                  <Ionicons name="share-outline" size={18} color="#ffffff" />
+                  <Ionicons name="share-outline" size={18} color={colors.TEXT_SECONDARY} />
                 </TouchableOpacity>
               </View>
             ) : (

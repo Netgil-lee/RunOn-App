@@ -702,7 +702,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
               <TouchableOpacity onPress={() => {
                 navigation.goBack();
               }} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={24} color="#ffffff" />
+                <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
               </TouchableOpacity>
               <Text style={styles.headerTitle} numberOfLines={1}>{event.title}</Text>
               <View style={styles.headerRightSection}>
@@ -922,7 +922,7 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
             <TouchableOpacity onPress={() => {
               navigation.goBack();
             }} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#ffffff" />
+              <Ionicons name="arrow-back" size={24} color={colors.TEXT} />
             </TouchableOpacity>
             <Text style={styles.headerTitle} numberOfLines={1}>{event.title}</Text>
             <View style={styles.headerRightSection}>
