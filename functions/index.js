@@ -1083,6 +1083,10 @@ async function sendBadgeSyncPush(expoPushToken, recipientId) {
 
 /**
  * 모임 시작 시각(Date) 파싱
+ * 주의: 모임 date/time은 항상 한국(Asia/Seoul, UTC+9) 기준 벽시계 시간으로 저장되어 있으므로,
+ * Cloud Functions 런타임의 로컬 타임존(보통 UTC)과 무관하게 정확한 시점을 계산하기 위해
+ * 연/월/일/시/분을 숫자로만 모아뒀다가 마지막에 KST 오프셋을 직접 빼서 UTC 시각으로 변환한다.
+ * (new Date(y, m, d)나 setHours()는 런타임 로컬 타임존을 쓰므로 여기서는 사용하지 않는다.)
  */
 function parseEventStartDateTime(eventData) {
   const rawDate = eventData?.date;
@@ -1092,38 +1096,45 @@ function parseEventStartDateTime(eventData) {
     return null;
   }
 
-  let baseDate = null;
+  let year = null;
+  let month = null; // 0-indexed
+  let day = null;
 
   if (rawDate instanceof Date) {
-    baseDate = new Date(rawDate);
+    year = rawDate.getFullYear();
+    month = rawDate.getMonth();
+    day = rawDate.getDate();
   } else if (rawDate && typeof rawDate.toDate === 'function') {
-    baseDate = rawDate.toDate();
+    const d = rawDate.toDate();
+    year = d.getFullYear();
+    month = d.getMonth();
+    day = d.getDate();
   } else if (typeof rawDate === 'string') {
     const dateText = rawDate.trim();
 
     const isoMatch = dateText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (isoMatch) {
-      const year = Number(isoMatch[1]);
-      const month = Number(isoMatch[2]) - 1;
-      const day = Number(isoMatch[3]);
-      baseDate = new Date(year, month, day);
+      year = Number(isoMatch[1]);
+      month = Number(isoMatch[2]) - 1;
+      day = Number(isoMatch[3]);
     } else {
       const koreanMatch = dateText.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
       if (koreanMatch) {
-        const year = Number(koreanMatch[1]);
-        const month = Number(koreanMatch[2]) - 1;
-        const day = Number(koreanMatch[3]);
-        baseDate = new Date(year, month, day);
+        year = Number(koreanMatch[1]);
+        month = Number(koreanMatch[2]) - 1;
+        day = Number(koreanMatch[3]);
       } else {
         const parsed = new Date(dateText);
         if (!Number.isNaN(parsed.getTime())) {
-          baseDate = parsed;
+          year = parsed.getFullYear();
+          month = parsed.getMonth();
+          day = parsed.getDate();
         }
       }
     }
   }
 
-  if (!baseDate || Number.isNaN(baseDate.getTime())) {
+  if (year == null || month == null || day == null) {
     return null;
   }
 
@@ -1161,8 +1172,8 @@ function parseEventStartDateTime(eventData) {
     return null;
   }
 
-  const eventStart = new Date(baseDate);
-  eventStart.setHours(hours, minutes, 0, 0);
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+  const eventStart = new Date(Date.UTC(year, month, day, hours, minutes, 0, 0) - KST_OFFSET_MS);
 
   if (Number.isNaN(eventStart.getTime())) {
     return null;
@@ -1171,18 +1182,71 @@ function parseEventStartDateTime(eventData) {
   return eventStart;
 }
 
+/**
+ * 모임을 자동 종료 처리한다 (12시간 경과 자동 종료용).
+ * - status를 'ended'로 변경 → onEventEndedCleanup 트리거가 채팅방 정리를 자동 수행
+ * - 참여자(주최자 제외)에게 '종료하기' 수동 종료와 동일한 러닝매너점수 평가 요청 알림을 생성
+ *   (모임 사진은 삭제하지 않음 — 수동 종료의 Storage 이미지 삭제는 자동 종료에 포함하지 않기로 함)
+ */
+async function autoEndEvent(eventDoc, eventId, eventData) {
+  try {
+    await eventDoc.ref.update({
+      status: 'ended',
+      endedAt: admin.firestore.FieldValue.serverTimestamp(),
+      autoEnded: true,
+    });
+
+    const participants = Array.isArray(eventData.participants) ? eventData.participants : [];
+    const organizerId = eventData.organizerId;
+    const targetUsers = participants.filter((uid) => uid && uid !== organizerId);
+
+    if (targetUsers.length > 0) {
+      const eventTitle = eventData.title || '모임';
+      const batch = admin.firestore().batch();
+      const notificationsRef = admin.firestore().collection('meetingNotifications');
+
+      targetUsers.forEach((targetUserId) => {
+        const docRef = notificationsRef.doc();
+        batch.set(docRef, {
+          id: `meeting_${Date.now()}_${Math.random()}`,
+          type: 'rating',
+          eventId,
+          eventTitle,
+          organizerId: organizerId || null,
+          organizerName: eventData.organizer || '',
+          targetUserId,
+          isRead: false,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          action: 'rating',
+          title: '러닝매너점수 작성 요청',
+          message: `참여한 ${eventTitle} 모임이 종료되었습니다. 러닝매너점수를 작성해주세요.`,
+        });
+      });
+
+      await batch.commit();
+      console.log(`✅ 모임 자동 종료 + 매너평가 알림 생성 완료: ${eventId} (${targetUsers.length}명)`);
+    } else {
+      console.log(`✅ 모임 자동 종료 완료 (알림 대상 없음): ${eventId}`);
+    }
+  } catch (error) {
+    console.error(`❌ 모임 자동 종료 실패: ${eventId}`, error);
+  }
+}
+
 // ============================================
-// 모임 24시간 전 리마인더 알림 스케줄러
+// 모임 24시간 전 리마인더 알림 + 12시간 경과 자동 종료 스케줄러
 // ============================================
 
 /**
  * 모임 시작 24시간 전에 참여자에게 리마인더 푸시 알림 전송
+ * + 모임 시작 시각으로부터 12시간이 지난 모임을 자동 종료 처리
+ * (전체 events 컬렉션을 한 번만 순회하도록 두 작업을 같은 스케줄에서 함께 처리)
  */
 exports.sendMeetingReminder24h = functions.pubsub
   .schedule('*/5 * * * *') // 5분마다 실행
   .timeZone('Asia/Seoul')
   .onRun(async () => {
-    console.log('🕐 모임 24시간 전 리마인더 스케줄러 실행 시작');
+    console.log('🕐 모임 리마인더/자동종료 스케줄러 실행 시작');
 
     try {
       const now = new Date();
@@ -1190,6 +1254,7 @@ exports.sendMeetingReminder24h = functions.pubsub
       const TOLERANCE_MS = 10 * 60 * 1000; // 스케줄 오차 보정 (±10분)
       const windowStart = new Date(now.getTime() + DAY_MS - TOLERANCE_MS);
       const windowEnd = new Date(now.getTime() + DAY_MS + TOLERANCE_MS);
+      const AUTO_END_AFTER_MS = 12 * 60 * 60 * 1000; // 모임 시작 12시간 후 자동 종료
 
       const eventsSnapshot = await admin.firestore().collection('events').get();
       console.log(`📋 전체 모임 조회 완료: ${eventsSnapshot.size}개`);
@@ -1205,11 +1270,19 @@ exports.sendMeetingReminder24h = functions.pubsub
             continue;
           }
 
+          const eventStart = parseEventStartDateTime(eventData);
+
+          // 모임 시작 12시간 경과 시 자동 종료 (리마인더보다 먼저 체크)
+          if (eventStart && now.getTime() - eventStart.getTime() >= AUTO_END_AFTER_MS) {
+            await autoEndEvent(eventDoc, eventId, eventData);
+            results.push({ eventId, autoEnded: true });
+            continue;
+          }
+
           if (eventData.reminder24hSentAt) {
             continue;
           }
 
-          const eventStart = parseEventStartDateTime(eventData);
           if (!eventStart) {
             continue;
           }
@@ -1312,13 +1385,14 @@ exports.sendMeetingReminder24h = functions.pubsub
         }
       }
 
-      console.log('✅ 모임 24시간 전 리마인더 스케줄러 실행 완료', {
+      console.log('✅ 모임 리마인더/자동종료 스케줄러 실행 완료', {
         totalProcessed: results.length,
+        autoEnded: results.filter((r) => r.autoEnded).length,
       });
 
       return { success: true, results };
     } catch (error) {
-      console.error('❌ 모임 24시간 전 리마인더 스케줄러 실패:', error);
+      console.error('❌ 모임 리마인더/자동종료 스케줄러 실패:', error);
       return null;
     }
   });
