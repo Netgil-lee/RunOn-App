@@ -12,6 +12,7 @@ import {
   Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import { useEvents } from '../contexts/EventContext';
@@ -22,7 +23,7 @@ import RecommendationCard from '../components/RecommendationCard';
 import WeatherCard from '../components/WeatherCard';
 import MyDashboard from '../components/MyDashboard';
 import NewCafesList from '../components/NewCafesList';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import storageService from '../services/storageService';
 import { useTheme } from '../contexts/ThemeContext';
 import AdPopupModal from '../components/AdPopupModal';
@@ -58,6 +59,7 @@ const HomeScreen = ({ navigation }) => {
   const { hasCommunityNotification } = communityContext;
   const scrollViewRef = useRef(null);
   const weatherCardRef = useRef(null);
+  const lastHomeAccessUpdateRef = useRef(null);
   
   // 알림 유무만 체크 (빨간색 점 표시용)
   const unreadCount = useMemo(() => {
@@ -119,6 +121,35 @@ const HomeScreen = ({ navigation }) => {
       console.error('커뮤니티 활동 데이터 가져오기 실패:', error);
     }
   };
+
+  // 관리자 대시보드 DAU/WAU/MAU 집계용 - 홈 탭 진입 시각 기록
+  // 같은 세션에서 5분 이내 재진입은 중복 기록 스킵
+  const updateLastHomeAccess = useCallback(async () => {
+    if (!user) return;
+
+    const now = Date.now();
+    const UPDATE_INTERVAL = 5 * 60 * 1000;
+    if (lastHomeAccessUpdateRef.current && (now - lastHomeAccessUpdateRef.current) < UPDATE_INTERVAL) {
+      return;
+    }
+
+    try {
+      const db = getFirestore();
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        lastHomeAccess: serverTimestamp(),
+      });
+      lastHomeAccessUpdateRef.current = now;
+    } catch (error) {
+      console.error('❌ lastHomeAccess 업데이트 실패:', error);
+    }
+  }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      updateLastHomeAccess();
+    }, [updateLastHomeAccess])
+  );
 
   // 컴포넌트 마운트 시 데이터 가져오기
   useEffect(() => {

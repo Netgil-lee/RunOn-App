@@ -16,6 +16,7 @@ import { captureRef } from 'react-native-view-shot';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 import { Ionicons } from '@expo/vector-icons';
+import * as Application from 'expo-application';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -569,8 +570,8 @@ const SettingsScreen = ({ navigation }) => {
           <SettingItem
             icon="information-circle-outline"
             title="버전 정보"
-            subtitle="RunOn v1.0.3"
-            onPress={() => Alert.alert('버전 정보', 'RunOn v1.0.0\n최신 버전입니다.')}
+            subtitle={`RunOn v${Application.nativeApplicationVersion}`}
+            onPress={() => Alert.alert('버전 정보', `RunOn v${Application.nativeApplicationVersion}\n최신 버전입니다.`)}
           />
         </View>
 

@@ -19,7 +19,7 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.45</string>
+	<string>1.1.47</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
@@ -44,7 +44,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>198</string>
+	<string>200</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSMinimumSystemVersion</key>
@@ -91,6 +91,19 @@
 				<key>NSIncludesSubdomains</key>
 				<true/>
 			</dict>
+			<key>recaptcha.net</key>
+			<dict>
+				<key>NSExceptionAllowsArbitraryLoads</key>
+				<true/>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
 			<key>t1.daumcdn.net</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
@@ -116,19 +129,6 @@
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-			<key>recaptcha.net</key>
-			<dict>
-				<key>NSExceptionAllowsArbitraryLoads</key>
-				<true/>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.0</string>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
 				<key>NSIncludesSubdomains</key>
 				<true/>
 			</dict>
@@ -191,6 +191,11 @@
 	<string>모임 알림, 메시지 알림, 날씨 경고 등 중요한 정보를 받기 위해 알림 권한이 필요합니다.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -210,10 +215,5 @@
 	<string>Light</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-		<string>remote-notification</string>
-	</array>
 </dict>
 </plist>
