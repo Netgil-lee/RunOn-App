@@ -83,6 +83,18 @@ BottomTab 5개: `홈(HomeTab)` / `모임(ScheduleTab)` / `지도(MapTab)` / `커
 - 세션 복구: 앱 종료 후 재진입 시 `runningTrackingSessionService.load()`로 자동 복구
 - 완료 후 Apple Fitness(HealthKit)에 운동 기록 저장 → `RunningResult` 화면으로 이동
 
+### 홈 (`screens/HomeScreen.js`)
+
+위→아래: 상단바 → 배너 → 바로가기 5개 → 다가오는 내 모임 → 2칸 타일 → 내 주변 모임 → 러닝카페·푸드. 섹션 컴포넌트는 `components/home/`, 스펙과 결정 기록은 `design/home-redesign/`.
+- 날씨: `hooks/useHomeWeather.js`가 위치·날씨·대기질을 한 번 조회 → 상단바 칩과 날씨 상세 시트(`WeatherCard`, 표시 전용)가 함께 사용
+- 2칸 타일: `hooks/useHomeSummary.js` (주간 거리는 러닝 통계 화면과 같은 `utils/runningStats` 집계, 주간 목표는 러닝 레벨별 기본값)
+- 배너: `adBanners` 문서의 `placement`(`popup`/`home`/`both`, 없으면 `popup`)로 팝업과 홈 배너를 구분
+- 모임 `date`/`time`은 문자열(형식 혼재) → `utils/eventDateTime.js`로 파싱. 모임에는 지역·이미지 필드가 없어 지역 칩은 `utils/eventRegion.js`(장소명 + 좌표 근사)로 분류
+
+### 하단 탭바 (`components/PillTabBar.js`)
+
+화면 위에 떠 있는 알약 모양(반투명 + 블러)이라 레이아웃 공간을 차지하지 않는다. 탭 화면의 스크롤 하단 여백과 하단 고정 버튼은 `constants/layout.js`의 `useTabBarSpace()`만큼 띄울 것.
+
 ### 지도 (`screens/MapScreen.js`)
 
 카카오맵을 **WebView**로 렌더링 (`components/HanRiverMap.js`, `components/RouteMap.js`). React Native ↔ WebView 간 `postMessage`/`onMessage`로 통신.

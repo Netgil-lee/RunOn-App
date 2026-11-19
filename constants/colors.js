@@ -38,6 +38,27 @@ export const DARK_THEME = {
   TAG_PURPLE: '#E2D6FF',
   TAG_PINK: '#FFD6E7',
   TAG_BLUE: '#B6E6F5',
+
+  // 알약 탭바 — 배경 불투명도 20% (뒤 콘텐츠가 비침, 블러 위에 얹는 색)
+  TAB_BAR_BG: 'rgba(32, 36, 43, 0.20)',
+  TAB_BAR_BORDER: 'rgba(255, 255, 255, 0.14)',
+  TAB_BAR_ACTIVE_BG: 'rgba(120, 130, 148, 0.38)', // 선택된 탭 뒤 캡슐
+  TAB_BAR_ACTIVE_ICON: '#3AF8FF',
+  TAB_BAR_ACTIVE_LABEL: '#ffffff',
+  TAB_BAR_INACTIVE: '#D8D8DD',
+
+  // 시안(PRIMARY) 바탕 위에 올리는 글자·아이콘 — 흰색은 대비가 부족해 쓰지 않는다
+  ON_PRIMARY: '#04342C',
+
+  // 홈 바로가기 아이콘 색
+  SHORTCUT_BLUE: '#85B7EB',
+  SHORTCUT_PURPLE: '#AFA9EC',
+  SHORTCUT_AMBER: '#FAC775',
+  SHORTCUT_GREEN: '#5DE2A0',
+
+  // 홈: 모임 관련 강조색(참여 목표 진행바·매너 점수), 배너 이미지가 뜨기 전 바탕
+  MEETING_ACCENT: '#FFB800',
+  BANNER_PLACEHOLDER: '#13343A',
 };
 
 export const LIGHT_THEME = {
@@ -72,6 +93,27 @@ export const LIGHT_THEME = {
   TAG_PURPLE: '#E2D6FF',
   TAG_PINK: '#FFD6E7',
   TAG_BLUE: '#B6E6F5',
+
+  // 알약 탭바 — 라이트에서는 선택 아이콘에 시안을 쓰지 않는다 (밝은 배경 대비 부족)
+  TAB_BAR_BG: 'rgba(255, 255, 255, 0.20)',
+  TAB_BAR_BORDER: 'rgba(0, 0, 0, 0.10)',
+  TAB_BAR_ACTIVE_BG: 'rgba(60, 60, 67, 0.14)',
+  TAB_BAR_ACTIVE_ICON: '#1C1C1E',
+  TAB_BAR_ACTIVE_LABEL: '#1C1C1E',
+  TAB_BAR_INACTIVE: '#1C1C1E',
+
+  // 시안(PRIMARY) 바탕 위에 올리는 글자·아이콘
+  ON_PRIMARY: '#04342C',
+
+  // 홈 바로가기 아이콘 색 — 밝은 배경에서 보이도록 다크보다 진하게
+  SHORTCUT_BLUE: '#2F7BD0',
+  SHORTCUT_PURPLE: '#6A5FD6',
+  SHORTCUT_AMBER: '#C9861A',
+  SHORTCUT_GREEN: '#1F9D62',
+
+  // 홈: 모임 관련 강조색(참여 목표 진행바·매너 점수), 배너 이미지가 뜨기 전 바탕
+  MEETING_ACCENT: '#F5A623',
+  BANNER_PLACEHOLDER: '#D6F3F5',
 };
 
 // 하위 호환 — 기존 import { COLORS } 코드 유지용

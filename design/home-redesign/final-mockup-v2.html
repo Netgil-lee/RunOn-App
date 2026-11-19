@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RunOn 홈 목업 v2</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+body{margin:0;background:#E9E9EE;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{display:flex;gap:32px;justify-content:center;align-items:flex-start;flex-wrap:wrap;padding:32px 16px}
+.ph{width:300px;background:#0F1115;border-radius:28px;border:6px solid #2C313A;overflow:hidden;color:#fff;font-size:12px;line-height:1.4;position:relative;flex:none}
+.ph *,.nw{white-space:nowrap}
+.mt{color:#9A9AA0;font-size:11px}
+.ch{display:inline-block;padding:3px 10px;border-radius:12px;border:0.5px solid #2C313A;color:#9A9AA0;font-size:11px;margin-right:4px}
+.ca{background:#3AF8FF;color:#04342C;border-color:#3AF8FF}
+.qi{width:20%;text-align:center;font-size:11px;color:#D8D8DD}
+.qb{width:48px;height:48px;border-radius:16px;background:#20242B;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-size:25px;position:relative}
+.qb .mdi{line-height:1}
+.nb{position:absolute;top:-4px;right:-4px;background:#FF4D6D;color:#fff;font-size:10px;font-weight:600;border-radius:8px;padding:0 4px;line-height:15px;border:1.5px solid #0F1115}
+.tl{background:#181B20;border:0.5px solid #2C313A;border-radius:12px;padding:10px}
+.tt{color:#fff;font-size:11px;font-weight:500}
+.pill{display:flex;padding:5px;border-radius:30px}
+.pill>span{flex:1;text-align:center;font-size:11px;padding:5px 0 4px;border-radius:24px}
+.pill i{display:block;font-size:19px;margin-bottom:1px}
+.dk80{background:rgba(32,36,43,0.80);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:0.5px solid rgba(58,64,75,0.9);color:#D8D8DD}
+.dk20{background:rgba(32,36,43,0.20);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:0.5px solid rgba(58,64,75,0.9);color:#D8D8DD}
+.cap{font-size:13px;color:#3A3A3C;margin:0 0 8px;font-weight:600}
+.sub{font-size:11px;color:#6C6C70;margin:0 0 6px}
+.side{width:300px;flex:none}
+.box{background:#0F1115;border-radius:14px;padding:12px 6px 10px;color:#fff;margin-bottom:8px}
+.row{display:flex}
+.tag{display:inline-block;font-size:10px;font-weight:600;color:#04342C;background:#3AF8FF;border-radius:6px;padding:0 6px;margin-left:6px;line-height:16px;vertical-align:1px}
+.demo{background:#0F1115;border-radius:14px;height:112px;position:relative;overflow:hidden;color:#fff;font-size:12px;margin-bottom:8px}
+.demo .cards{display:flex;gap:8px;padding:10px 10px 0}
+.demo .cards>div{flex:1}
+.demo .pill{position:absolute;left:10px;right:10px;bottom:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="ph">
+  <!-- ① 상단바: 실제 데이터 형태(역지오코딩 '동' 이름) -->
+  <div style="padding:14px 14px 10px;background:#20242B">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:6px"><span style="font-weight:600;font-size:14px">반포동</span><i class="ti ti-chevron-down"></i></div>
+      <div style="display:flex;gap:14px;font-size:18px"><i class="ti ti-search"></i><i class="ti ti-bell"></i></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:9px"><span class="ch" style="color:#fff;margin:0"><i class="ti ti-sun"></i> 12° 맑음</span><span class="ch" style="color:#00FF88;border-color:#1D5A40;margin:0">미세먼지 좋음</span><span class="ch" style="margin:0">달리기 좋은 날</span></div>
+  </div>
+  <div style="height:12px"></div>
+
+  <!-- ② 히어로 배너 -->
+  <div style="margin:0 12px 14px;background:#13343A;border-radius:14px;padding:14px;height:104px;position:relative;box-sizing:content-box">
+    <div style="color:#3AF8FF;font-size:11px">파트너 · 런카페 반포점</div>
+    <div style="font-size:16px;font-weight:600;margin-top:6px;line-height:1.35">11월 한강 나이트런<br>참가 접수 시작</div>
+    <div style="position:absolute;bottom:10px;right:10px;background:#0F1115;padding:2px 8px;border-radius:10px;font-size:11px;color:#D8D8DD">2 / 5</div>
+  </div>
+
+  <!-- ③ 바로가기 5개 — 아이콘 개선(A안): 채운 아이콘 + 항목별 색 -->
+  <div style="display:flex;padding:0 6px 14px">
+    <div class="qi"><div class="qb" style="background:#3AF8FF;color:#04342C"><i class="mdi mdi-run-fast"></i></div>러닝 시작</div>
+    <div class="qi"><div class="qb" style="background:rgba(133,183,235,.16);color:#85B7EB"><i class="mdi mdi-account-search"></i></div>모임 찾기</div>
+    <div class="qi"><div class="qb" style="background:rgba(175,169,236,.16);color:#AFA9EC"><i class="mdi mdi-calendar-plus"></i></div>모임 만들기</div>
+    <div class="qi"><div class="qb" style="background:rgba(250,199,117,.16);color:#FAC775"><i class="mdi mdi-coffee"></i><span class="nb">N</span></div>러닝카페</div>
+    <div class="qi"><div class="qb" style="background:rgba(93,226,160,.16);color:#5DE2A0"><i class="mdi mdi-chart-bar"></i></div>내 기록</div>
+  </div>
+
+  <!-- ④ 다가오는 내 모임 -->
+  <div style="margin:0 12px 8px;background:#181B20;border:0.5px solid #2C313A;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+    <span style="background:#3AF8FF;color:#04342C;border-radius:8px;padding:5px 7px;font-weight:600">D-1</span>
+    <div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis">반포 새벽 10K 페이스런</div><div class="mt">토 07:00 · 반포한강공원</div></div>
+    <span style="color:#3AF8FF;font-size:11px">채팅 ›</span>
+  </div>
+
+  <!-- ⑤ 2칸 타일 — 제목 글자색 흰색 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 12px 18px">
+    <div class="tl"><div class="tt">나의 러닝 · 이번 주</div><div style="margin:3px 0 8px"><span style="font-size:18px;font-weight:600">12.4</span><span class="mt"> / 20km</span></div><div style="height:5px;background:#2C313A;border-radius:3px"><div style="width:62%;height:5px;background:#3AF8FF;border-radius:3px"></div></div></div>
+    <div class="tl"><div class="tt">나의 모임 · 참여 목표</div><div style="margin:3px 0 8px"><span style="font-size:18px;font-weight:600">3</span><span class="mt"> / 5회</span><span style="float:right;color:#FFB800;font-size:11px;margin-top:6px"><i class="ti ti-star"></i> 4.9</span></div><div style="height:5px;background:#2C313A;border-radius:3px"><div style="width:60%;height:5px;background:#FFB800;border-radius:3px"></div></div></div>
+  </div>
+
+  <!-- ⑥ 내 주변 모임 -->
+  <div style="padding:0 0 12px">
+    <div style="display:flex;justify-content:space-between;padding:0 12px 8px"><span style="font-weight:600;font-size:13px">내 주변 모임</span><span class="mt">더보기 ›</span></div>
+    <div style="padding:0 12px 8px"><span class="ch ca">전체</span><span class="ch">한강</span><span class="ch">서울</span><span class="ch">경기</span></div>
+    <div style="display:flex;gap:8px;padding-left:12px;overflow:hidden">
+      <div style="flex:none;width:122px"><div style="height:74px;border-radius:10px;background:#1B2A3A;display:flex;align-items:center;justify-content:center;font-size:22px;color:#85B7EB"><i class="ti ti-route"></i></div><div style="margin-top:4px;font-weight:600">잠실 저녁 조깅</div><div class="mt">오늘 20:00 · 5/10</div></div>
+      <div style="flex:none;width:122px"><div style="height:74px;border-radius:10px;background:#2A2236;display:flex;align-items:center;justify-content:center;font-size:22px;color:#AFA9EC"><i class="ti ti-moon"></i></div><div style="margin-top:4px;font-weight:600">여의도 나이트런</div><div class="mt">금 21:00 · 9/15</div></div>
+      <div style="flex:none;width:122px"><div style="height:74px;border-radius:10px;background:#1E3328"></div></div>
+    </div>
+  </div>
+
+  <!-- ⑦ 러닝카페·푸드 — 사진 세로 70 → 104 -->
+  <div style="padding:6px 0 92px">
+    <div style="display:flex;justify-content:space-between;padding:0 12px 8px"><span style="font-weight:600;font-size:13px">러닝카페·푸드</span><span class="mt">더보기 ›</span></div>
+    <div style="padding:0 12px 8px"><span class="ch ca">신규 입점</span><span class="ch">자주 가는 곳</span></div>
+    <div style="display:flex;gap:8px;padding:0 12px">
+      <div style="flex:1"><div style="height:104px;border-radius:10px;background:#33281A;position:relative;display:flex;align-items:center;justify-content:center;font-size:26px;color:#FAC775"><i class="ti ti-coffee"></i><span style="position:absolute;top:6px;left:6px;background:#3AF8FF;color:#04342C;font-size:11px;border-radius:6px;padding:0 5px">NEW</span></div><div style="margin-top:5px;font-weight:600">런브루 반포</div><div class="mt">11월 10일 입점</div></div>
+      <div style="flex:1"><div style="height:104px;border-radius:10px;background:#3A1F22;position:relative;display:flex;align-items:center;justify-content:center;font-size:26px;color:#F09595"><i class="ti ti-salad"></i><span style="position:absolute;top:6px;left:6px;background:#3AF8FF;color:#04342C;font-size:11px;border-radius:6px;padding:0 5px">NEW</span></div><div style="margin-top:5px;font-weight:600">포케런 잠원</div><div class="mt">11월 3일 입점</div></div>
+    </div>
+  </div>
+
+  <!-- ⑧ 알약 탭바 — 불투명도 80% + 블러 -->
+  <div class="pill dk80" style="position:absolute;left:10px;right:10px;bottom:12px">
+    <span style="background:rgba(72,80,94,.75);color:#fff"><i class="ti ti-home" style="color:#3AF8FF"></i>홈</span>
+    <span><i class="ti ti-calendar"></i>모임</span>
+    <span><i class="ti ti-map"></i>지도</span>
+    <span><i class="ti ti-messages"></i>커뮤니티</span>
+    <span><i class="ti ti-user"></i>프로필</span>
+  </div>
+</div>
+
+<div class="side">
+  <p class="cap">③ 바로가기 아이콘 후보</p>
+  <p class="sub">A. 채운 아이콘 + 항목별 색<span class="tag">적용</span></p>
+  <div class="box"><div class="row">
+    <div class="qi"><div class="qb" style="background:#3AF8FF;color:#04342C"><i class="mdi mdi-run-fast"></i></div>러닝 시작</div>
+    <div class="qi"><div class="qb" style="background:rgba(133,183,235,.16);color:#85B7EB"><i class="mdi mdi-account-search"></i></div>모임 찾기</div>
+    <div class="qi"><div class="qb" style="background:rgba(175,169,236,.16);color:#AFA9EC"><i class="mdi mdi-calendar-plus"></i></div>모임 만들기</div>
+    <div class="qi"><div class="qb" style="background:rgba(250,199,117,.16);color:#FAC775"><i class="mdi mdi-coffee"></i></div>러닝카페</div>
+    <div class="qi"><div class="qb" style="background:rgba(93,226,160,.16);color:#5DE2A0"><i class="mdi mdi-chart-bar"></i></div>내 기록</div>
+  </div></div>
+  <p class="sub">B. 채운 아이콘 + 시안 한 가지 색</p>
+  <div class="box"><div class="row">
+    <div class="qi"><div class="qb" style="background:#3AF8FF;color:#04342C;border-radius:24px"><i class="mdi mdi-run-fast"></i></div>러닝 시작</div>
+    <div class="qi"><div class="qb" style="color:#3AF8FF;border-radius:24px"><i class="mdi mdi-account-search"></i></div>모임 찾기</div>
+    <div class="qi"><div class="qb" style="color:#3AF8FF;border-radius:24px"><i class="mdi mdi-calendar-plus"></i></div>모임 만들기</div>
+    <div class="qi"><div class="qb" style="color:#3AF8FF;border-radius:24px"><i class="mdi mdi-coffee"></i></div>러닝카페</div>
+    <div class="qi"><div class="qb" style="color:#3AF8FF;border-radius:24px"><i class="mdi mdi-chart-bar"></i></div>내 기록</div>
+  </div></div>
+  <p class="sub">C. 바탕 없이 큰 선 아이콘</p>
+  <div class="box" style="margin-bottom:24px"><div class="row">
+    <div class="qi"><div class="qb" style="background:none;color:#3AF8FF;font-size:30px"><i class="mdi mdi-run-fast"></i></div>러닝 시작</div>
+    <div class="qi"><div class="qb" style="background:none;color:#fff;font-size:30px"><i class="mdi mdi-account-search-outline"></i></div>모임 찾기</div>
+    <div class="qi"><div class="qb" style="background:none;color:#fff;font-size:30px"><i class="mdi mdi-calendar-plus-outline"></i></div>모임 만들기</div>
+    <div class="qi"><div class="qb" style="background:none;color:#fff;font-size:30px"><i class="mdi mdi-coffee-outline"></i></div>러닝카페</div>
+    <div class="qi"><div class="qb" style="background:none;color:#fff;font-size:30px"><i class="mdi mdi-chart-box-outline"></i></div>내 기록</div>
+  </div></div>
+
+  <p class="cap">⑧ 탭바 투명도 · 콘텐츠가 뒤로 지나갈 때</p>
+  <p class="sub">불투명도 80% (뒤가 20% 비침)<span class="tag">적용</span></p>
+  <div class="demo">
+    <div class="cards">
+      <div><div style="height:70px;border-radius:10px;background:#33281A;display:flex;align-items:center;justify-content:center;font-size:22px;color:#FAC775"><i class="ti ti-coffee"></i></div><div style="margin-top:4px;font-weight:600">런브루 반포</div></div>
+      <div><div style="height:70px;border-radius:10px;background:#3A1F22;display:flex;align-items:center;justify-content:center;font-size:22px;color:#F09595"><i class="ti ti-salad"></i></div><div style="margin-top:4px;font-weight:600">포케런 잠원</div></div>
+    </div>
+    <div class="pill dk80">
+      <span style="background:rgba(72,80,94,.75);color:#fff"><i class="ti ti-home" style="color:#3AF8FF"></i>홈</span>
+      <span><i class="ti ti-calendar"></i>모임</span><span><i class="ti ti-map"></i>지도</span><span><i class="ti ti-messages"></i>커뮤니티</span><span><i class="ti ti-user"></i>프로필</span>
+    </div>
+  </div>
+  <p class="sub">불투명도 20% (뒤가 80% 비침)</p>
+  <div class="demo" style="margin-bottom:24px">
+    <div class="cards">
+      <div><div style="height:70px;border-radius:10px;background:#33281A;display:flex;align-items:center;justify-content:center;font-size:22px;color:#FAC775"><i class="ti ti-coffee"></i></div><div style="margin-top:4px;font-weight:600">런브루 반포</div></div>
+      <div><div style="height:70px;border-radius:10px;background:#3A1F22;display:flex;align-items:center;justify-content:center;font-size:22px;color:#F09595"><i class="ti ti-salad"></i></div><div style="margin-top:4px;font-weight:600">포케런 잠원</div></div>
+    </div>
+    <div class="pill dk20">
+      <span style="background:rgba(72,80,94,.55);color:#fff"><i class="ti ti-home" style="color:#3AF8FF"></i>홈</span>
+      <span><i class="ti ti-calendar"></i>모임</span><span><i class="ti ti-map"></i>지도</span><span><i class="ti ti-messages"></i>커뮤니티</span><span><i class="ti ti-user"></i>프로필</span>
+    </div>
+  </div>
+
+  <p class="cap">⑧ 알약 탭바 · 라이트 모드 (불투명도 80%)</p>
+  <div style="background:#F2F2F7;border-radius:16px;padding:14px 10px;border:0.5px solid #D9D9DE">
+    <div class="pill" style="background:rgba(255,255,255,0.80);border:0.5px solid #D9D9DE;color:#1C1C1E">
+      <span style="background:#E9E9EE;font-weight:600"><i class="ti ti-home"></i>홈</span>
+      <span><i class="ti ti-calendar"></i>모임</span>
+      <span><i class="ti ti-map"></i>지도</span>
+      <span><i class="ti ti-messages"></i>커뮤니티</span>
+      <span><i class="ti ti-user"></i>프로필</span>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

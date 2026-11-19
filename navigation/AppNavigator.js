@@ -1,11 +1,7 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
-import { View } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { useEvents } from '../contexts/EventContext';
-import { useCommunity } from '../contexts/CommunityContext';
 import LoginScreen from '../screens/LoginScreen';
 import PhoneAuthScreen from '../screens/PhoneAuthScreen';
 
@@ -35,80 +31,19 @@ import AppGuideScreen from '../screens/AppGuideScreen';
 import BlacklistManagementScreen from '../screens/BlacklistManagementScreen';
 import PremiumScreen from '../screens/PremiumScreen';
 import { useTheme } from '../contexts/ThemeContext';
+import PillTabBar from '../components/PillTabBar';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 
 // 로그인된 사용자를 위한 BottomTab 네비게이션
+// 탭바는 화면 위에 떠 있는 알약 모양(PillTabBar) — 아이콘·알림 점도 그 안에서 그린다
 const MainTabNavigator = () => {
-  const { colors } = useTheme();
-  const { hasMeetingNotification } = useEvents();
-  const { hasCommunityNotification } = useCommunity();
-
-
-
-  // 알림 표시가 있는 아이콘 컴포넌트
-  const TabIconWithBadge = ({ route, focused, color, size }) => {
-    let iconName;
-    let hasBadge = false;
-
-    if (route.name === 'HomeTab') {
-      iconName = focused ? 'home' : 'home-outline';
-    } else if (route.name === 'MapTab') {
-      iconName = focused ? 'map' : 'map-outline';
-    } else if (route.name === 'ScheduleTab') {
-      iconName = focused ? 'calendar-clear' : 'calendar-clear-outline';
-      hasBadge = hasMeetingNotification;
-    } else if (route.name === 'CommunityTab') {
-      iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
-      hasBadge = hasCommunityNotification;
-    } else if (route.name === 'ProfileTab') {
-      iconName = focused ? 'person' : 'person-outline';
-    }
-
-    return (
-      <View style={{ position: 'relative' }}>
-        <Ionicons name={iconName} size={28} color={color} />
-        {hasBadge && (
-          <View
-            style={{
-              position: 'absolute',
-              top: -2,
-              right: -2,
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: '#FF0022',
-            }}
-          />
-        )}
-      </View>
-    );
-  };
-
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarIcon: ({ focused, color, size }) => (
-          <TabIconWithBadge route={route} focused={focused} color={color} size={size} />
-        ),
-        tabBarActiveTintColor: colors.PRIMARY,
-        tabBarInactiveTintColor: colors.TEXT_SECONDARY,
-        tabBarStyle: {
-          backgroundColor: colors.SURFACE,
-          borderTopWidth: 0,
-          height: 85,
-          paddingBottom: 36,
-          paddingTop: 0,
-        },
-        tabBarLabelStyle: {
-          fontSize: 13,
-          fontWeight: '500',
-          marginTop: -2,
-        },
-      })}
+      tabBar={(props) => <PillTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
       <Tab.Screen 
         name="HomeTab" 

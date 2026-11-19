@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { View, StyleSheet, ActivityIndicator, Alert, Linking, StatusBar, TouchableOpacity, Text, TextInput, FlatList, ScrollView, Image, Animated, Dimensions, Modal } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getTabBarSpace } from '../constants/layout';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
 import BottomSheet, { BottomSheetFooter, BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -201,6 +202,8 @@ const PinMarker = React.memo(({ color, label, benefit }) => (
 
 const MapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
+  // 떠 있는 탭바가 가리는 높이 — 바텀시트는 화면 맨 아래까지 깔리고 탭바가 그 위에 뜬다
+  const tabBarSpace = getTabBarSpace(insets);
   const nav = useNavigation();
   
   // route params에서 대시보드에서 전달된 데이터 받기
@@ -289,7 +292,7 @@ const MapScreen = ({ navigation, route }) => {
     if (activeToggle === 'events' && selectedEvent && bottomButtonProps) {
       try {
         return (
-          <BottomSheetFooter {...props} bottomInset={-10}>
+          <BottomSheetFooter {...props} bottomInset={tabBarSpace - 10}>
             <EventDetailBottomButton
               {...bottomButtonProps}
               onJoinPress={bottomButtonProps.handleJoinPress}
@@ -303,7 +306,7 @@ const MapScreen = ({ navigation, route }) => {
       }
     }
     return null;
-  }, [activeToggle, selectedEvent, bottomButtonProps, insets.bottom]);
+  }, [activeToggle, selectedEvent, bottomButtonProps, tabBarSpace]);
 
   useEffect(() => {
     if (!selectedEvent) {
@@ -329,9 +332,9 @@ const MapScreen = ({ navigation, route }) => {
   const snapPoints = useMemo(() => {
     // 시스템바를 가리지 않는 최대 높이 계산
     const maxHeightPercent = ((screenHeight - insets.top) / screenHeight) * 100;
-    // 3단계 snapPoints: 부분 확장(10%), 중간 확장(50%), 전체 확장(시스템바 아래까지)
-    return ['10%', '50%', `${maxHeightPercent}%`];
-  }, [screenHeight, insets.top]);
+    // 3단계 snapPoints: 부분 확장(탭바 위로 손잡이·제목이 보이는 높이), 중간 확장(50%), 전체 확장(시스템바 아래까지)
+    return [tabBarSpace + 76, '50%', `${maxHeightPercent}%`];
+  }, [screenHeight, insets.top, tabBarSpace]);
   
   // Bottom Sheet 최대 높이 제한 (스와이프로 올릴 때의 최대 높이)
   // 스크롤 테스트를 위해 60% 제한 제거
@@ -549,18 +552,6 @@ const MapScreen = ({ navigation, route }) => {
       // StatusBar 설정 (iOS) - 테마에 따라 분기
       StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
       
-      // 지도탭에서만 bottombar 구분선 추가
-      navigation.setOptions({
-        tabBarStyle: {
-          backgroundColor: colors.SURFACE,
-          borderTopWidth: 1,
-          borderTopColor: colors.BORDER,
-          height: 85,
-          paddingBottom: 36,
-          paddingTop: 0,
-        },
-      });
-      
       // 화면 포커스 시 모임 데이터 새로고침 (약간의 지연을 두어 Firestore 업데이트 반영)
       setTimeout(() => {
         loadAllEvents();
@@ -650,16 +641,6 @@ const MapScreen = ({ navigation, route }) => {
 
         // 화면을 벗어날 때 원래 설정으로 복원
         StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
-        // bottombar 구분선 제거 (원래 스타일로 복원)
-        navigation.setOptions({
-          tabBarStyle: {
-            backgroundColor: colors.SURFACE,
-            borderTopWidth: 0,
-            height: 85,
-            paddingBottom: 36,
-            paddingTop: 0,
-          },
-        });
       };
     }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, syncUserLocation, colors])
   );
@@ -1457,7 +1438,7 @@ const MapScreen = ({ navigation, route }) => {
         )}
 
         {!isSearchMode && (
-          <TouchableOpacity style={styles.runningStartFab} onPress={handleRunningStart}>
+          <TouchableOpacity style={[styles.runningStartFab, { bottom: tabBarSpace + 110 }]} onPress={handleRunningStart}>
             <Ionicons name="play" size={18} color="#000000" />
             <Text style={styles.runningStartFabText}>러닝 시작</Text>
           </TouchableOpacity>
@@ -1557,7 +1538,7 @@ const MapScreen = ({ navigation, route }) => {
             style={[styles.bottomSheetContent, styles.scrollView]}
             contentContainerStyle={{
               paddingTop: 16,
-              paddingBottom: insets.bottom + 80,
+              paddingBottom: tabBarSpace + 80,
               flexGrow: 1,
             }}
             showsVerticalScrollIndicator={true}

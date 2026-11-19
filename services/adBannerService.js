@@ -1,8 +1,12 @@
-// 홈 화면 광고 팝업(파트너 배너) 데이터/노출 제어 서비스
+// 홈 화면 파트너 배너(광고 팝업 + 홈 상단 배너) 데이터/노출 제어 서비스
 //
 // - 광고 이미지는 관리자 대시보드(runon-admin-dashboard)에서 Firestore `adBanners`
-//   컬렉션에 등록됨. 앱은 active === true 인 배너를 order 순으로 최대 3개까지 받아
-//   팝업 안에서 자동 전환(캐러셀)으로 노출한다.
+//   컬렉션에 등록됨. 앱은 active === true 인 배너를 order 순으로 받아 자동 전환(캐러셀)으로 노출한다.
+// - 배너가 어디에 뜨는지는 문서의 placement 필드로 정한다.
+//     'popup' : 홈 진입 시 뜨는 팝업 (최대 3개)
+//     'home'  : 홈 상단 배너 (최대 5개)
+//     'both'  : 두 곳 모두
+//   placement 필드가 없는 예전 문서는 'popup'으로 취급한다.
 // - 전환 주기는 Firestore `appConfig/adBanner` 문서의 rotationIntervalMs 값을 따른다.
 //   (대시보드에서 조정 → 앱 재배포 없이 반영)
 // - 노출 규칙:
@@ -19,12 +23,25 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Linking } from 'react-native';
 
 const AD_POPUP_HIDDEN_KEY = '@runon:ad_popup_hidden_date';
 
 // 대시보드(MAX_ACTIVE_AD_BANNERS)와 맞춘 상한. 서버가 이미 제한하지만
 // 잘못된 데이터가 들어와도 앱이 4개 이상 돌리지 않도록 한 번 더 막는다.
 export const MAX_AD_BANNERS = 3;
+// 홈 상단 배너 상한
+export const MAX_HOME_BANNERS = 5;
+
+export const PLACEMENT_POPUP = 'popup';
+export const PLACEMENT_HOME = 'home';
+export const PLACEMENT_BOTH = 'both';
+
+// 배너가 해당 위치(placement)에 노출 대상인지. 필드 없는 문서는 팝업 전용.
+export const isBannerForPlacement = (banner, placement) => {
+  const value = banner?.placement || PLACEMENT_POPUP;
+  return value === PLACEMENT_BOTH || value === placement;
+};
 // appConfig 문서를 못 읽었을 때 쓰는 기본 전환 주기
 export const DEFAULT_ROTATION_INTERVAL_MS = 2000;
 
@@ -82,8 +99,9 @@ const compareBannerOrder = (a, b) => {
   return toMillis(b.createdAt) - toMillis(a.createdAt);
 };
 
-// 활성 광고 배너 조회 (order 순, 최대 MAX_AD_BANNERS개)
-export const fetchActiveAdBanners = async () => {
+// 활성 광고 배너 조회 (order 순). 위치별로 먼저 거른 뒤 그 위치의 상한만큼 자른다.
+// @param {'popup'|'home'} placement - 기본값은 팝업
+export const fetchActiveAdBanners = async (placement = PLACEMENT_POPUP) => {
   try {
     const db = getFirestore();
     // where 단일 필터만 사용 → 복합 색인 불필요. 정렬은 클라이언트에서 처리.
@@ -94,8 +112,9 @@ export const fetchActiveAdBanners = async () => {
     return snap.docs
       .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
       .filter((b) => b.imageUrl) // 이미지 URL 없는 문서는 제외
+      .filter((b) => isBannerForPlacement(b, placement))
       .sort(compareBannerOrder)
-      .slice(0, MAX_AD_BANNERS);
+      .slice(0, placement === PLACEMENT_HOME ? MAX_HOME_BANNERS : MAX_AD_BANNERS);
   } catch (error) {
     console.warn('광고 배너 조회 실패:', error);
     return [];
@@ -113,5 +132,18 @@ export const fetchAdRotationIntervalMs = async () => {
   } catch (error) {
     console.warn('광고 배너 전환 주기 조회 실패:', error);
     return DEFAULT_ROTATION_INTERVAL_MS;
+  }
+};
+
+// 배너의 링크(linkUrl)를 연다. 링크가 없거나 열 수 없으면 아무 일도 하지 않는다.
+export const openAdBannerLink = async (banner) => {
+  const url = banner?.linkUrl;
+  if (!url) return;
+  try {
+    if (await Linking.canOpenURL(url)) {
+      await Linking.openURL(url);
+    }
+  } catch (error) {
+    console.warn('광고 링크 열기 실패:', error);
   }
 };

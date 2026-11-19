@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTabBarSpace } from '../constants/layout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -68,6 +69,8 @@ const EFFORT_COLORS = [
 const ScheduleScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // 떠 있는 탭바에 마지막 콘텐츠가 가리지 않도록 띄울 높이
+  const tabBarSpace = useTabBarSpace();
   const authContext = useAuth();
   const { user } = authContext || {};
   const [userProfile, setUserProfile] = useState(null);
@@ -134,6 +137,16 @@ const ScheduleScreen = ({ navigation, route }) => {
 
   const [showCreateFlow, setShowCreateFlow] = useState(false);
   const [mainMode, setMainMode] = useState('group'); // 'group' | 'feed'
+
+  // 홈 바로가기 '모임 만들기'로 들어온 경우 곧바로 생성 흐름을 연다.
+  // 탭을 다시 눌렀을 때 또 열리지 않도록 파라미터는 바로 비운다.
+  const openCreateFlowFromRoute = route?.params?.openCreateFlow;
+  useEffect(() => {
+    if (!openCreateFlowFromRoute) return;
+    setEditingEvent(null);
+    setShowCreateFlow(true);
+    navigation.setParams({ openCreateFlow: undefined });
+  }, [openCreateFlowFromRoute, navigation]);
   const toggleAnim = useRef(new Animated.Value(0)).current; // 0: group, 1: feed
   const [toggleTrackWidth, setToggleTrackWidth] = useState(0);
 
@@ -783,7 +796,11 @@ const ScheduleScreen = ({ navigation, route }) => {
           <View style={styles.headerRight} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: tabBarSpace }}
+        >
           {userCreatedEvents.filter(event => event.status !== 'ended').length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="create-outline" size={80} color={colors.TEXT_SECONDARY} />
@@ -837,7 +854,11 @@ const ScheduleScreen = ({ navigation, route }) => {
           <View style={styles.headerRight} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: tabBarSpace }}
+        >
           {userJoinedEvents.filter(event => event.status !== 'ended').length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={80} color={colors.TEXT_SECONDARY} />
@@ -885,7 +906,11 @@ const ScheduleScreen = ({ navigation, route }) => {
           <View style={styles.headerRight} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: tabBarSpace }}
+        >
           {endedEvents.filter(event => 
             event.organizerId === user?.uid || 
             (event.participants && event.participants.includes(user?.uid))
@@ -937,7 +962,7 @@ const ScheduleScreen = ({ navigation, route }) => {
         stickyHeaderIndices={[0]}
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarSpace + 24 }]}
         onScroll={handleFeedScroll}
         scrollEventThrottle={16}
       >
@@ -2228,6 +2253,8 @@ const InlineAppleMapComponent = React.memo(({
 const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // 하단 '이전/다음' 버튼 줄을 떠 있는 탭바 위로 올릴 높이
+  const tabBarSpace = useTabBarSpace();
   const { user, updateUserProfile } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [userProfile, setUserProfile] = useState(null);
@@ -3762,7 +3789,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContentContainer,
-          { paddingBottom: keyboardVisible ? 210 : 80 }
+          { paddingBottom: keyboardVisible ? 210 : 80 + tabBarSpace }
         ]}
         keyboardShouldPersistTaps="handled"
         scrollEnabled={true}
@@ -3772,7 +3799,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         {getCurrentStepContent()}
       </ScrollView>
 
-      <View style={styles.fixedBottomNav}>
+      <View style={[styles.fixedBottomNav, { bottom: tabBarSpace }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={handleBack}
@@ -3814,7 +3841,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100, // BottomTab을 위한 여백
+    paddingBottom: 100, // 기본값 — 실제 여백은 화면에서 탭바 높이 기준으로 덮어씀
   },
   emptyState: {
     flex: 1,
