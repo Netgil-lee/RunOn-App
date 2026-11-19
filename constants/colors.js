@@ -50,7 +50,10 @@ export const DARK_THEME = {
   // 시안(PRIMARY) 바탕 위에 올리는 글자·아이콘 — 흰색은 대비가 부족해 쓰지 않는다
   ON_PRIMARY: '#04342C',
 
-  // 홈 바로가기 아이콘 색
+  // 홈 바로가기 아이콘 (시안 한 가지 색)
+  SHORTCUT_ICON: '#3AF8FF',
+
+  // 홈 카드 타일 색 (내 주변 모임·러닝카페 카드의 아이콘과 옅은 바탕)
   SHORTCUT_BLUE: '#85B7EB',
   SHORTCUT_PURPLE: '#AFA9EC',
   SHORTCUT_AMBER: '#FAC775',
@@ -105,7 +108,10 @@ export const LIGHT_THEME = {
   // 시안(PRIMARY) 바탕 위에 올리는 글자·아이콘
   ON_PRIMARY: '#04342C',
 
-  // 홈 바로가기 아이콘 색 — 밝은 배경에서 보이도록 다크보다 진하게
+  // 홈 바로가기 아이콘 — 흰 바탕에서는 밝은 시안이 잘 안 보여 진한 청록을 쓴다
+  SHORTCUT_ICON: '#0A8F96',
+
+  // 홈 카드 타일 색 — 밝은 배경에서 보이도록 다크보다 진하게
   SHORTCUT_BLUE: '#2F7BD0',
   SHORTCUT_PURPLE: '#6A5FD6',
   SHORTCUT_AMBER: '#C9861A',

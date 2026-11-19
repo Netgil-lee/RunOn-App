@@ -3,12 +3,10 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 
-// 16진수 색 뒤에 붙이는 투명도 (약 16%) — 아이콘 색을 옅게 깐 바탕
-const TINT_ALPHA = '29';
-
 /**
  * 홈 바로가기 5개 (한 줄)
- * 러닝 시작만 시안으로 채워 강조하고, 나머지는 항목별 색 아이콘 + 옅은 바탕.
+ * 동그란 바탕에 채운 아이콘, 색은 시안 한 가지.
+ * 러닝 시작만 바탕을 시안으로 채워 강조한다.
  */
 const HomeShortcuts = ({ navigation, showCafeBadge = false }) => {
   const { colors } = useTheme();
@@ -26,7 +24,6 @@ const HomeShortcuts = ({ navigation, showCafeBadge = false }) => {
       key: 'find',
       label: '모임 찾기',
       icon: 'account-search',
-      color: colors.SHORTCUT_BLUE,
       // 모임 목록은 지도 탭의 모임 토글에 있다 (모임 탭 첫 화면은 메뉴)
       onPress: () => navigation.navigate('MapTab', { activeToggle: 'events' }),
     },
@@ -34,14 +31,12 @@ const HomeShortcuts = ({ navigation, showCafeBadge = false }) => {
       key: 'create',
       label: '모임 만들기',
       icon: 'calendar-plus',
-      color: colors.SHORTCUT_PURPLE,
       onPress: () => navigation.navigate('ScheduleTab', { openCreateFlow: true }),
     },
     {
       key: 'cafe',
       label: '러닝카페',
       icon: 'coffee',
-      color: colors.SHORTCUT_AMBER,
       badge: showCafeBadge,
       onPress: () => navigation.navigate('MapTab', { activeToggle: 'cafes' }),
     },
@@ -49,7 +44,6 @@ const HomeShortcuts = ({ navigation, showCafeBadge = false }) => {
       key: 'stats',
       label: '내 기록',
       icon: 'chart-bar',
-      color: colors.SHORTCUT_GREEN,
       onPress: () => navigation.navigate('RunningStats'),
     },
   ];
@@ -68,13 +62,13 @@ const HomeShortcuts = ({ navigation, showCafeBadge = false }) => {
           <View
             style={[
               styles.iconBox,
-              { backgroundColor: item.primary ? colors.PRIMARY : `${item.color}${TINT_ALPHA}` },
+              item.primary && { backgroundColor: colors.PRIMARY },
             ]}
           >
             <MaterialCommunityIcons
               name={item.icon}
               size={28}
-              color={item.primary ? colors.ON_PRIMARY : item.color}
+              color={item.primary ? colors.ON_PRIMARY : colors.SHORTCUT_ICON}
             />
             {item.badge && (
               <View style={styles.badge}>
@@ -102,7 +96,8 @@ const createStyles = (colors) => StyleSheet.create({
   iconBox: {
     width: 56,
     height: 56,
-    borderRadius: 18,
+    borderRadius: 28,
+    backgroundColor: colors.SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
   },
