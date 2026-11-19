@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **RunOn** — iOS 전용 러닝 커뮤니티 앱 (React Native + Expo, Firebase 백엔드)
 - Bundle ID: `com.runon.app`
-- 현재 버전: `1.1.29` (buildNumber: `182`)
+- 현재 버전: `1.1.48` (buildNumber: `201`)
 - Firebase 프로젝트: `runon-production-app`
 - EAS 프로젝트 ID: `b2ec1d33-1054-4404-b072-623c6cd66588`
 
