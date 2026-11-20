@@ -18,7 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
 import evaluationService from '../services/evaluationService';
 import { recordCafeVisit, recordFoodVisit } from '../services/userActivityService';
-import { getTabBarInsetsStyle } from '../constants/tabBarInsets';
+import { getTabBarSpace } from '../constants/layout';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -172,6 +172,8 @@ const makeIconKey = (color, label, benefit) => `${color}|${label || ''}|${benefi
 
 const MapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
+  // 떠 있는 탭바가 가리는 높이 — 바텀시트는 화면 맨 아래까지 깔리고 탭바가 그 위에 뜬다
+  const tabBarSpace = getTabBarSpace(insets);
   const nav = useNavigation();
   
   // route params에서 대시보드에서 전달된 데이터 받기
@@ -255,7 +257,7 @@ const MapScreen = ({ navigation, route }) => {
     if (activeToggle === 'events' && selectedEvent && bottomButtonProps) {
       try {
         return (
-          <BottomSheetFooter {...props} bottomInset={-10}>
+          <BottomSheetFooter {...props} bottomInset={tabBarSpace - 10}>
             <EventDetailBottomButton
               {...bottomButtonProps}
               onJoinPress={bottomButtonProps.handleJoinPress}
@@ -269,7 +271,7 @@ const MapScreen = ({ navigation, route }) => {
       }
     }
     return null;
-  }, [activeToggle, selectedEvent, bottomButtonProps, insets.bottom]);
+  }, [activeToggle, selectedEvent, bottomButtonProps, tabBarSpace]);
 
   useEffect(() => {
     if (!selectedEvent) {
@@ -296,8 +298,9 @@ const MapScreen = ({ navigation, route }) => {
     // 시스템바를 가리지 않는 최대 높이 계산
     const maxHeightPercent = ((screenHeight - insets.top) / screenHeight) * 100;
     // 3단계 snapPoints: 부분 확장(10%), 중간 확장(50%), 전체 확장(시스템바 아래까지)
-    return ['10%', '50%', `${maxHeightPercent}%`];
-  }, [screenHeight, insets.top]);
+    // 1단계는 탭바 위로 손잡이·제목이 보이는 높이
+    return [tabBarSpace + 76, '50%', `${maxHeightPercent}%`];
+  }, [screenHeight, insets.top, tabBarSpace]);
   
   // Bottom Sheet 최대 높이 제한 (스와이프로 올릴 때의 최대 높이)
   // 스크롤 테스트를 위해 60% 제한 제거
@@ -595,11 +598,6 @@ const MapScreen = ({ navigation, route }) => {
       // StatusBar 설정 - 테마에 따라 분기 (다크: 흰 아이콘 / 라이트: 검은 아이콘)
       StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
       
-      // 지도탭에서만 bottombar 구분선 추가
-      navigation.setOptions({
-        tabBarStyle: getTabBarInsetsStyle(insets, { withTopBorder: true, colors }),
-      });
-      
       // 화면 포커스 시 모임 데이터 새로고침 (약간의 지연을 두어 Firestore 업데이트 반영)
       setTimeout(() => {
         loadAllEvents();
@@ -689,10 +687,6 @@ const MapScreen = ({ navigation, route }) => {
 
         // 화면을 벗어날 때 테마에 맞는 상태바로 복원
         StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
-        // bottombar 구분선 제거 (원래 스타일로 복원)
-        navigation.setOptions({
-          tabBarStyle: getTabBarInsetsStyle(insets, { withTopBorder: false, colors }),
-        });
       };
     }, [navigation, targetCafeId, targetFoodId, initialToggle, initialSearchQuery, syncUserLocation, insets, colors])
   );
@@ -1555,7 +1549,7 @@ const MapScreen = ({ navigation, route }) => {
         )}
 
         {!isSearchMode && (
-          <TouchableOpacity style={styles.runningStartFab} onPress={handleRunningStart}>
+          <TouchableOpacity style={[styles.runningStartFab, { bottom: tabBarSpace + 110 }]} onPress={handleRunningStart}>
             <Ionicons name="play" size={18} color="#000000" />
             <Text style={styles.runningStartFabText}>러닝 시작</Text>
           </TouchableOpacity>
@@ -1663,7 +1657,7 @@ const MapScreen = ({ navigation, route }) => {
             style={[styles.bottomSheetContent, styles.scrollView]}
             contentContainerStyle={{
               paddingTop: 16,
-              paddingBottom: insets.bottom + 80,
+              paddingBottom: tabBarSpace + 80,
               flexGrow: 1,
             }}
             showsVerticalScrollIndicator={true}

@@ -1,30 +1,24 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  Alert,
-  RefreshControl,
-  Dimensions,
-  Animated,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { getFirestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { getTabBarSpace } from '../constants/layout';
 import { useAuth } from '../contexts/AuthContext';
-import { useNotificationSettings } from '../contexts/NotificationSettingsContext';
 import { useEvents } from '../contexts/EventContext';
 import { useCommunity } from '../contexts/CommunityContext';
-import AppBar from '../components/AppBar';
-import InsightCard from '../components/InsightCard';
-import RecommendationCard from '../components/RecommendationCard';
-import WeatherCard from '../components/WeatherCard';
-import MyDashboard from '../components/MyDashboard';
-import NewCafesList from '../components/NewCafesList';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import storageService from '../services/storageService';
 import { useTheme } from '../contexts/ThemeContext';
+import useHomeWeather from '../hooks/useHomeWeather';
+import useHomeSummary from '../hooks/useHomeSummary';
+import useHomeCafes from '../hooks/useHomeCafes';
+import HomeTopBar from '../components/home/HomeTopBar';
+import HomeShortcuts from '../components/home/HomeShortcuts';
+import UpcomingEventStrip from '../components/home/UpcomingEventStrip';
+import WeatherDetailSheet from '../components/home/WeatherDetailSheet';
+import HomeHeroBanner from '../components/home/HomeHeroBanner';
+import HomeStatTiles from '../components/home/HomeStatTiles';
+import NearbyEventsSection from '../components/home/NearbyEventsSection';
+import CafeFoodSection from '../components/home/CafeFoodSection';
 import AdPopupModal from '../components/AdPopupModal';
 import {
   fetchActiveAdBanners,
@@ -33,121 +27,80 @@ import {
   markAdShownThisSession,
   isAdHiddenToday,
   suppressAdForToday,
+  PLACEMENT_HOME,
 } from '../services/adBannerService';
 
+// 같은 세션에서 홈 진입 시각을 다시 기록하기까지의 최소 간격
+const HOME_ACCESS_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
+ * 홈 화면
+ *
+ * 위→아래: 상단바(지역·검색·알림·날씨 칩) → 배너 → 바로가기 5개 → 다가오는 내 모임
+ *          → 2칸 타일(주간 러닝 / 모임 참여 목표) → 내 주변 모임 → 러닝카페·푸드
+ * 스펙: design/home-redesign/README.md, 구현 결정: IMPLEMENTATION_PLAN.md
+ */
 const HomeScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  // Safe Area insets 가져오기
   const insets = useSafeAreaInsets();
-  
-  // Context 안전장치 추가
-  const authContext = useAuth();
-  const notificationContext = useNotificationSettings();
-  const eventsContext = useEvents();
-  const communityContext = useCommunity();
-  
-  // Context가 완전히 초기화되지 않은 경우 조기 반환
-  if (!authContext || !notificationContext || !eventsContext || !communityContext) {
-    return null;
-  }
-  
-  const { user } = authContext;
-  const { isTabEnabled, isNotificationTypeEnabled } = notificationContext;
-  const { hasMeetingNotification } = eventsContext;
-  const { hasCommunityNotification } = communityContext;
-  const scrollViewRef = useRef(null);
-  const weatherCardRef = useRef(null);
 
-  // 알림 유무만 체크 (빨간색 점 표시용)
-  const unreadCount = useMemo(() => {
-    // 모임 알림이나 커뮤니티 알림이 있으면 1, 없으면 0
-    const hasAnyNotification = hasMeetingNotification || hasCommunityNotification;
-    return hasAnyNotification ? 1 : 0;
-  }, [hasMeetingNotification, hasCommunityNotification]);
-  
-  // 로딩 상태 추가
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
-  
-  // 스크롤 위치 추적
-  const [currentScrollOffset, setCurrentScrollOffset] = useState(0);
-  
-  // 날씨 데이터 상태
-  const [weatherData, setWeatherData] = useState(null);
-  
-  // 새로고침 상태
+  const { user } = useAuth() || {};
+  const { hasMeetingNotification } = useEvents() || {};
+  const { hasCommunityNotification } = useCommunity() || {};
+  const hasUnread = !!(hasMeetingNotification || hasCommunityNotification);
+
+  const weatherState = useHomeWeather();
+  const refreshWeather = weatherState.refresh;
+
+  const summary = useHomeSummary(user);
+  const refreshSummary = summary.refresh;
+  const cafes = useHomeCafes(user);
+  const refreshCafes = cafes.refresh;
+  // 러닝카페 바로가기 'N' 배지: 최근 한 달 안에 새로 입점한 카페가 있을 때
+  const hasNewCafe = cafes.newPlaces.some((place) => place.type === 'cafe');
+
+  // 홈 상단 배너 (대시보드에서 '홈 배너'로 등록한 것)
+  const [heroBanners, setHeroBanners] = useState([]);
+  const [heroRotationMs, setHeroRotationMs] = useState(null);
+
   const [refreshing, setRefreshing] = useState(false);
+  const [weatherSheetVisible, setWeatherSheetVisible] = useState(false);
 
-  // 광고 팝업 상태 (활성 배너 최대 3개 + 자동 전환 주기)
+  // 광고 팝업 상태 (활성 배너 + 자동 전환 주기)
   const [adBanners, setAdBanners] = useState([]);
   const [adRotationMs, setAdRotationMs] = useState(null);
   const [adVisible, setAdVisible] = useState(false);
 
-  // 커뮤니티 활동 데이터 상태
-  const [communityActivity, setCommunityActivity] = useState({
-    totalParticipated: 0,
-    thisMonth: 0,
-    hostedEvents: 0,
-    mannerScore: 5.0,
-  });
+  const lastHomeAccessUpdateRef = useRef(null);
 
-  // 커뮤니티 활동 데이터 가져오기
-  const fetchCommunityActivity = async () => {
+  // 관리자 대시보드 DAU/WAU/MAU 집계용 — 홈 탭 진입 시각 기록
+  const updateLastHomeAccess = useCallback(async () => {
     if (!user) return;
 
-    try {
-
-
-      // 실제 사용자인 경우 Firestore에서 데이터 가져오기
-      const db = getFirestore();
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        const communityStats = userData.communityStats || {};
-        
-        setCommunityActivity({
-          totalParticipated: communityStats.totalParticipated || 0,
-          thisMonth: communityStats.thisMonthParticipated || 0,
-          hostedEvents: communityStats.hostedEvents || 0,
-          mannerScore: communityStats.averageMannerScore || 5.0,
-        });
-      }
-    } catch (error) {
-      console.error('커뮤니티 활동 데이터 가져오기 실패:', error);
+    const now = Date.now();
+    if (
+      lastHomeAccessUpdateRef.current
+      && now - lastHomeAccessUpdateRef.current < HOME_ACCESS_UPDATE_INTERVAL_MS
+    ) {
+      return;
     }
-  };
 
-  // 컴포넌트 마운트 시 데이터 가져오기
-  useEffect(() => {
-    const initializeData = async () => {
-      // 사용자가 없으면 초기화하지 않음
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        setHasError(false);
-        
-        await Promise.all([
-          fetchCommunityActivity(),
-          fetchUserProfile()
-        ]);
-        
-      } catch (error) {
-        console.error('❌ HomeScreen: 데이터 초기화 실패:', error);
-        setHasError(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    initializeData();
+    try {
+      await updateDoc(doc(getFirestore(), 'users', user.uid), {
+        lastHomeAccess: serverTimestamp(),
+      });
+      lastHomeAccessUpdateRef.current = now;
+    } catch (error) {
+      console.error('❌ lastHomeAccess 업데이트 실패:', error);
+    }
   }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      updateLastHomeAccess();
+    }, [updateLastHomeAccess])
+  );
 
   // 홈 진입 시 광고 팝업 노출 판단
   // 순서: 이번 실행에 아직 안 띄웠나? → 오늘 '보지 않기' 안 눌렀나? → 활성 배너 있나?
@@ -177,6 +130,20 @@ const HomeScreen = ({ navigation }) => {
     };
   }, [user]);
 
+  // 홈 상단 배너 불러오기
+  const loadHeroBanners = useCallback(async () => {
+    const [banners, rotationMs] = await Promise.all([
+      fetchActiveAdBanners(PLACEMENT_HOME),
+      fetchAdRotationIntervalMs(),
+    ]);
+    setHeroBanners(banners);
+    setHeroRotationMs(rotationMs);
+  }, []);
+
+  useEffect(() => {
+    if (user) loadHeroBanners();
+  }, [user, loadHeroBanners]);
+
   // 광고 팝업 닫기 (suppressToday: '오늘 하루 보지 않기' 체크 여부)
   const handleCloseAd = useCallback(async (suppressToday) => {
     setAdVisible(false);
@@ -185,276 +152,37 @@ const HomeScreen = ({ navigation }) => {
     }
   }, []);
 
-  // 사용자 프로필 데이터 상태
-  const [userProfile, setUserProfile] = useState(null);
-
-  // 사용자 프로필 데이터 가져오기
-  const fetchUserProfile = async () => {
-    if (!user) return;
-
-    try {
-
-      // 실제 사용자인 경우 Firestore에서 프로필 데이터 가져오기
-      const db = getFirestore();
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        
-        // Firestore Timestamp 객체를 안전하게 처리
-        const processedData = {
-          ...userData,
-          createdAt: userData.createdAt?.toDate?.() || userData.createdAt,
-          onboardingCompletedAt: userData.onboardingCompletedAt?.toDate?.() || userData.onboardingCompletedAt,
-        };
-        
-        
-        // profileImage를 profile 필드에서 가져오기
-        if (processedData.profile?.profileImage) {
-          processedData.profileImage = processedData.profile.profileImage;
-        }
-        
-        // Firestore에 profileImage가 없으면 Storage에서 직접 확인
-        if (!processedData.profileImage) {
-          
-          try {
-            const storageImageUrl = await storageService.getProfileImageURLWithFallback(user.uid);
-            if (storageImageUrl) {
-              processedData.profileImage = storageImageUrl;
-            }
-          } catch (error) {
-          }
-        }
-        
-        setUserProfile(processedData);
-      } else {
-        // 프로필 데이터가 없는 경우 기본 데이터 설정
-        const defaultProfile = {
-          displayName: user.displayName || '사용자',
-          bio: '자기소개를 입력해주세요.',
-          profileImage: null, // 프로필 이미지 없음
-          runningProfile: {
-            level: 'beginner',
-            pace: '6:00',
-            preferredCourses: ['banpo'],
-            preferredTimes: ['morning'],
-            runningStyles: ['steady'],
-            favoriteSeasons: ['spring'],
-            currentGoals: ['habit']
-          }
-        };
-        
-        // Storage에서 프로필 이미지 확인
-        try {
-          const storageImageUrl = await storageService.getProfileImageURLWithFallback(user.uid);
-          if (storageImageUrl) {
-            defaultProfile.profileImage = storageImageUrl;
-          }
-        } catch (error) {
-        }
-        
-        setUserProfile(defaultProfile);
-      }
-    } catch (error) {
-      console.error('사용자 프로필 데이터 가져오기 실패:', error);
-      // 에러 시에도 기본 데이터 설정
-      const errorProfile = {
-        displayName: user.displayName || '사용자',
-        bio: '자기소개를 입력해주세요.',
-        profileImage: null, // 프로필 이미지 없음
-        runningProfile: {
-          level: 'beginner',
-          pace: '6:00',
-          preferredCourses: ['banpo'],
-          preferredTimes: ['morning'],
-          runningStyles: ['steady'],
-          favoriteSeasons: ['spring'],
-          currentGoals: ['habit']
-        }
-      };
-      
-      // Storage에서 프로필 이미지 확인
-      try {
-        const storageImageUrl = await storageService.getProfileImageURLWithFallback(user.uid);
-        if (storageImageUrl) {
-          errorProfile.profileImage = storageImageUrl;
-        }
-      } catch (storageError) {
-      }
-      
-      setUserProfile(errorProfile);
-    }
-  };
-
-  // 사용자 데이터를 카드에서 사용할 수 있는 형태로 변환
-  const getUserDataForCards = () => {
-    const runningProfile = userProfile?.runningProfile || {};
-    
-    return {
-      displayName: userProfile?.displayName || user?.displayName,
-      level: runningProfile.level || 'beginner',
-      goal: runningProfile.currentGoals?.[0] || 'habit',
-      course: runningProfile.preferredCourses?.[0] || 'banpo',
-      preferredCourses: runningProfile.preferredCourses || ['banpo'],
-      time: runningProfile.preferredTimes?.[0] || 'morning',
-      pace: runningProfile.pace || '7:00/km',
-      bio: userProfile?.bio || '',
-      profileImage: userProfile?.profileImage,
-      communityActivity,
-    };
-  };
-
-  // WeatherCard에서 날씨 데이터를 받아오는 함수
-  const handleWeatherDataUpdate = (weather) => {
-    setWeatherData(weather);
-  };
-
-  // 새로고침 함수
-  const onRefresh = async () => {
+  // 당겨서 새로고침 — 모임 데이터는 EventContext가 실시간으로 갱신하므로 나머지만 다시 불러온다
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    
     try {
-      // 새로고침 시 수행할 작업들
-      
-      // 커뮤니티 활동 데이터 새로고침
-      await fetchCommunityActivity();
-      
-      // 사용자 프로필 데이터 새로고침
-      await fetchUserProfile();
-
-      // 날씨 데이터 새로고침 (WeatherCard에서 자동으로 업데이트됨)
-      // 사용자 데이터 새로고침 (AuthContext에서 자동으로 업데이트됨)
-      // 이벤트 데이터 새로고침 (EventContext에서 자동으로 업데이트됨)
-      
-      // 새로고침 완료를 위한 짧은 지연
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-    } catch (error) {
-      console.error('❌ 홈화면 새로고침 실패:', error);
+      await Promise.all([refreshWeather(), refreshSummary(), refreshCafes(), loadHeroBanners()]);
     } finally {
       setRefreshing(false);
     }
-  };
-  
-  // 실제 알림 데이터 (NotificationScreen과 동일)
-  const [notifications] = useState({
-    general: [],
-    meeting: [],
-    chat: []
-  });
-
-  // 설정에 따라 필터링된 알림 가져오기
-  const getFilteredNotifications = (tabType) => {
-    if (!isTabEnabled(tabType)) {
-      return [];
-    }
-    
-    return notifications[tabType].filter(notif => 
-      isNotificationTypeEnabled(notif.type)
-    );
-  };
-
-  // 읽지 않은 알림 카운트 계산 (필터링된 알림 기준)
-  const getUnreadCount = (tabType) => {
-    return getFilteredNotifications(tabType).filter(notif => !notif.isRead).length;
-  };
-
-
-
-
-
-  const handleProfilePress = () => {
-    navigation.navigate('ProfileTab');
-  };
-
-  const handleNotificationPress = () => {
-    navigation.navigate('Notification');
-  };
-
-  const handleSettingsPress = () => {
-    navigation.navigate('Settings');
-  };
-
-  const handleSearchPress = () => {
-    navigation.navigate('Search');
-  };
-
-
-  const handleViewAllEventsPress = () => {
-    Alert.alert('러닝 일정', '전체 일정 보기가 곧 추가됩니다!');
-  };
-
-
-
-  const handleRecommendationPress = () => {
-    Alert.alert('러닝 시작', '러닝 추적 기능이 곧 추가됩니다!');
-  };
-
-  // 로딩 중이거나 에러가 있는 경우 처리
-  if (isLoading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: colors.TEXT, fontSize: 16 }}>홈 화면을 불러오는 중...</Text>
-      </View>
-    );
-  }
-
-  if (hasError) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: colors.ERROR, fontSize: 16 }}>데이터를 불러오는데 실패했습니다.</Text>
-        <TouchableOpacity
-          style={{ marginTop: 20, padding: 10, backgroundColor: colors.PRIMARY, borderRadius: 8 }}
-          onPress={() => {
-            setIsLoading(true);
-            setHasError(false);
-            fetchCommunityActivity();
-            fetchUserProfile();
-          }}
-        >
-          <Text style={{ color: '#FFFFFF' }}>다시 시도</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  }, [refreshWeather, refreshSummary, refreshCafes, loadHeroBanners]);
 
   return (
     <View style={styles.container}>
+      <HomeTopBar
+        weatherState={weatherState}
+        hasUnread={hasUnread}
+        onLocationPress={refreshWeather}
+        onSearchPress={() => navigation.navigate('Search')}
+        onNotificationPress={() => navigation.navigate('Notification')}
+        onWeatherPress={() => setWeatherSheetVisible(true)}
+      />
+
       {/* 데모 모드 인디케이터 */}
-      {user && user.isDemo && (
-        <View style={styles.demoIndicator}>
+      {user?.isDemo && (
+        <View style={[styles.demoIndicator, { top: insets.top + 6 }]}>
           <Text style={styles.demoText}>🎭 데모 모드</Text>
         </View>
       )}
-      
-      {/* AppBar */}
-      <AppBar
-        user={user}
-        profile={userProfile}
-        hideProfile={false}
-        onProfilePress={handleProfilePress}
-        onNotificationPress={handleNotificationPress}
-        onSettingsPress={handleSettingsPress}
-        onSearchPress={handleSearchPress}
-        unreadCount={unreadCount}
-      />
 
-
-      {/* 스크롤 가능한 컨텐츠 */}
-      <ScrollView 
-        ref={scrollViewRef}
-        style={styles.scrollView} 
+      <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 0, paddingHorizontal: 0 }}
-        decelerationRate="normal"
-        bounces={true}
-        alwaysBounceVertical={false}
-        onScroll={(event) => {
-          const offsetY = event.nativeEvent.contentOffset.y;
-          setCurrentScrollOffset(offsetY);
-        }}
-        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -464,36 +192,36 @@ const HomeScreen = ({ navigation }) => {
           />
         }
       >
-        {/* 개인화된 러닝 인사이트 카드 */}
-        <InsightCard
-          user={getUserDataForCards()}
-          weather={weatherData}
+        <HomeHeroBanner banners={heroBanners} rotationIntervalMs={heroRotationMs} />
+
+        <HomeShortcuts navigation={navigation} showCafeBadge={hasNewCafe} />
+
+        <UpcomingEventStrip navigation={navigation} />
+
+        <HomeStatTiles
+          summary={summary}
+          onPressRunning={() => navigation.navigate('RunningStats')}
+          onPressMeeting={() => navigation.navigate('ScheduleTab', { showMyJoined: true })}
         />
 
-        {/* 개인 맞춤 러닝 추천 카드 */}
-        <RecommendationCard
-          user={getUserDataForCards()}
-          weather={weatherData}
+        <NearbyEventsSection navigation={navigation} coords={weatherState.coords} />
+
+        <CafeFoodSection
+          navigation={navigation}
+          newPlaces={cafes.newPlaces}
+          frequentPlaces={cafes.frequentPlaces}
+          loading={cafes.loading}
         />
 
-        {/* 날씨 정보 섹션 */}
-        <View ref={weatherCardRef}>
-          <WeatherCard 
-            onWeatherDataUpdate={handleWeatherDataUpdate} 
-            isRefreshing={refreshing}
-          />
-        </View>
-
-        {/* 마이 대시보드 섹션 */}
-        <MyDashboard navigation={navigation} />
-
-        {/* 신규 입점 카페 섹션 */}
-        <NewCafesList navigation={navigation} />
-
-        {/* 하단 여백 */}
-        <View style={styles.bottomSpacing} />
-
+        {/* 떠 있는 탭바에 마지막 콘텐츠가 가리지 않도록 띄운다 */}
+        <View style={{ height: getTabBarSpace(insets) + 16 }} />
       </ScrollView>
+
+      <WeatherDetailSheet
+        visible={weatherSheetVisible}
+        onClose={() => setWeatherSheetVisible(false)}
+        weatherState={weatherState}
+      />
 
       {/* 파트너 광고 팝업 */}
       <AdPopupModal
@@ -516,9 +244,8 @@ const createStyles = (colors) => StyleSheet.create({
   },
   demoIndicator: {
     position: 'absolute',
-    top: 50,
-    right: 20,
-    backgroundColor: '#FF0073',
+    alignSelf: 'center',
+    backgroundColor: colors.PINK,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -529,61 +256,6 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  scrollContent: {
-    paddingBottom: 100, // BottomTab을 위한 여백
-  },
-  eventsSection: {
-    marginTop: 16,
-  },
-  eventHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.TEXT,
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: colors.PRIMARY,
-    fontWeight: '500',
-  },
-  bottomSpacing: {
-    height: 80, // BottomTab 네비게이션을 위한 여백 (적절한 크기로 조정)
-  },
-  // 개발자 도구 툴바 스타일
-  devToolbar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    gap: 4,
-  },
-  devToolbarButton: {
-    backgroundColor: colors.SURFACE,
-    borderWidth: 1,
-    borderColor: colors.PRIMARY,
-    borderRadius: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    minWidth: 40,
-    alignItems: 'center',
-  },
-  devToolbarButtonDanger: {
-    borderColor: '#FF4444',
-    backgroundColor: 'rgba(255, 68, 68, 0.1)',
-  },
-  devToolbarButtonText: {
-    fontSize: 10,
-    color: colors.PRIMARY,
-    fontWeight: '500',
-  },
 });
 
-export default HomeScreen; 
+export default HomeScreen;

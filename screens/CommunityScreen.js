@@ -12,6 +12,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getTabBarSpace } from '../constants/layout';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useEvents } from '../contexts/EventContext';
@@ -25,6 +26,8 @@ const CommunityScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
+  // 떠 있는 탭바에 마지막 콘텐츠가 가리지 않도록 띄울 높이
+  const tabBarSpace = getTabBarSpace(insets);
   const { user } = useAuth();
   const { allEvents, chatRooms, joinEvent, userJoinedEvents } = useEvents();
   const { hasChatNotification, hasBoardNotification, notifications, markNotificationAsRead, handleChatTabClick, handleChatRoomClick, handleBoardTabClick } = useCommunity();
@@ -490,7 +493,7 @@ const CommunityScreen = ({ navigation, route }) => {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingHorizontal: 0, paddingBottom: Math.max(24, insets.bottom + 20) },
+          { paddingHorizontal: 0, paddingBottom: tabBarSpace + 20 },
         ]}
       >
         {/* 러닝 모임 탭 */}

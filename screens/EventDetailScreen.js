@@ -797,6 +797,19 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
           </View>
         )}
 
+        {/* 모임 사진 — 장소나 어떤 모임인지 알 수 있게 주최자가 넣은 사진 (사진 기능 이전 모임에는 없음) */}
+        {typeof event.imageUrl === 'string' && event.imageUrl.startsWith('http') && (
+          <View style={styles.eventPhotoSection}>
+            <Text style={styles.sectionTitle}>모임 사진</Text>
+            <Image
+              source={{ uri: event.imageUrl }}
+              style={styles.eventPhoto}
+              resizeMode="cover"
+              accessibilityLabel="모임 사진"
+            />
+          </View>
+        )}
+
         {/* 참여자 정보 */}
         <View style={styles.participantsSection}>
           <Text style={styles.sectionTitle}>참여자</Text>
@@ -887,6 +900,20 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
           </View>
         )}
 
+        {/* 모임 사진 — 장소나 어떤 모임인지 알 수 있게 주최자가 넣은 사진 (사진 기능 이전 모임에는 없음) */}
+        {typeof event.imageUrl === 'string' && event.imageUrl.startsWith('http') && (
+          <View style={styles.eventPhotoSection}>
+            <Text style={styles.sectionTitle}>모임 사진</Text>
+            <Image
+              source={{ uri: event.imageUrl }}
+              style={styles.eventPhoto}
+              resizeMode="cover"
+              accessibilityLabel="모임 사진"
+            />
+          </View>
+        )}
+
+        {/* 참여자 정보 */}
         <View style={styles.participantsSection}>
           <Text style={styles.sectionTitle}>참여자</Text>
           <View style={styles.participantsInfo}>
@@ -1015,6 +1042,19 @@ const EventDetailScreen = forwardRef(({ route, navigation, onBottomButtonPropsCh
                     </View>
                   ))}
                 </View>
+              </View>
+            )}
+
+            {/* 모임 사진 — 장소나 어떤 모임인지 알 수 있게 주최자가 넣은 사진 (사진 기능 이전 모임에는 없음) */}
+            {typeof event.imageUrl === 'string' && event.imageUrl.startsWith('http') && (
+              <View style={styles.eventPhotoSection}>
+                <Text style={styles.sectionTitle}>모임 사진</Text>
+                <Image
+                  source={{ uri: event.imageUrl }}
+                  style={styles.eventPhoto}
+                  resizeMode="cover"
+                  accessibilityLabel="모임 사진"
+                />
               </View>
             )}
 
@@ -1411,6 +1451,19 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     color: '#000000',
+  },
+  eventPhotoSection: {
+    backgroundColor: colors.CARD,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    marginHorizontal: 0,
+  },
+  eventPhoto: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: 12,
+    backgroundColor: colors.SURFACE,
   },
   participantsSection: {
     backgroundColor: colors.CARD,

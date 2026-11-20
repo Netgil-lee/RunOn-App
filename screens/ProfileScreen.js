@@ -46,6 +46,7 @@ import {
   getTimeTitle,
   getStyleTitle
 } from '../constants/onboardingOptions';
+import { useTabBarSpace } from '../constants/layout';
 
 
 
@@ -142,6 +143,8 @@ const normalizeInstagramId = (value = '') => {
 const ProfileScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // 떠 있는 탭바에 마지막 콘텐츠가 가리지 않도록 띄울 높이
+  const tabBarSpace = useTabBarSpace();
   const { user, logout, updateUserProfile } = useAuth();
   const { isTabEnabled, isNotificationTypeEnabled } = useNotificationSettings();
   const { hasMeetingNotification } = useEvents();
@@ -806,7 +809,7 @@ const ProfileScreen = ({ navigation }) => {
       <ScrollView 
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 0 }}
+        contentContainerStyle={{ paddingBottom: tabBarSpace + 20, paddingHorizontal: 0 }}
         scrollEventThrottle={100}
       >
         {/* 상단 프로필 카드 */}

@@ -19,9 +19,9 @@ import {
   TouchableOpacity,
   Pressable,
   StyleSheet,
-  Linking,
   Dimensions,
 } from 'react-native';
+import { openAdBannerLink } from '../services/adBannerService';
 import { useTheme } from '../contexts/ThemeContext';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -136,17 +136,7 @@ const AdPopupModal = ({ visible, banners, rotationIntervalMs, onClose }) => {
   };
 
   const handlePressImage = async (banner) => {
-    const url = banner?.linkUrl;
-    if (url) {
-      try {
-        const canOpen = await Linking.canOpenURL(url);
-        if (canOpen) {
-          await Linking.openURL(url);
-        }
-      } catch (error) {
-        console.warn('광고 링크 열기 실패:', error);
-      }
-    }
+    await openAdBannerLink(banner);
     onClose?.(dontShowToday);
   };
 
