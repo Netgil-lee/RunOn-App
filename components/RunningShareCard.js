@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, Platform } from 'react-native';
 import RouteMap from './RouteMap';
 
 const RunningShareCard = forwardRef(({ 
@@ -94,9 +94,10 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 28,
     color: '#ffffff',
-    fontFamily: 'Gold-Bold',
+    fontFamily: 'Gold-Regular', // iOS와 동일하게 Regular 사용 (iOS는 fontWeight bold가 커스텀 폰트에 적용되지 않음)
     textAlign: 'center',
-    lineHeight: 26,
+    // Android는 lineHeight < fontSize면 g/p/y 등 하단(descender)이 잘림
+    lineHeight: Platform.OS === 'android' ? 34 : 26,
   },
   statsSection: {
     justifyContent: 'center',
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 30,
     color: '#ffffff',
-    fontFamily: 'Gold-Bold',
+    fontFamily: 'Gold-Regular', // iOS와 동일하게 Regular 사용
     lineHeight: 28,
   },
   logoSection: {
