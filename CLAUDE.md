@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **RunOn** — iOS 전용 러닝 커뮤니티 앱 (React Native + Expo, Firebase 백엔드)
 - Bundle ID: `com.runon.app`
-- 현재 버전: `1.1.48` (buildNumber: `201`)
+- 현재 버전: `1.1.49` (buildNumber: `202`)
 - Firebase 프로젝트: `runon-production-app`
 - EAS 프로젝트 ID: `b2ec1d33-1054-4404-b072-623c6cd66588`
 
@@ -89,7 +89,7 @@ BottomTab 5개: `홈(HomeTab)` / `모임(ScheduleTab)` / `지도(MapTab)` / `커
 - 날씨: `hooks/useHomeWeather.js`가 위치·날씨·대기질을 한 번 조회 → 상단바 칩과 날씨 상세 시트(`WeatherCard`, 표시 전용)가 함께 사용
 - 2칸 타일: `hooks/useHomeSummary.js` (주간 거리는 러닝 통계 화면과 같은 `utils/runningStats` 집계, 주간 목표는 러닝 레벨별 기본값)
 - 배너: `adBanners` 문서의 `placement`(`popup`/`home`/`both`, 없으면 `popup`)로 팝업과 홈 배너를 구분
-- 모임 `date`/`time`은 문자열(형식 혼재) → `utils/eventDateTime.js`로 파싱. 모임에는 지역·이미지 필드가 없어 지역 칩은 `utils/eventRegion.js`(장소명 + 좌표 근사)로 분류
+- 모임 `date`/`time`은 문자열(형식 혼재) → `utils/eventDateTime.js`로 파싱. 모임 사진은 `imageUrl`(Storage `event-images/events/{eventId}/`), 지역 필드는 없어 지역 칩은 `utils/eventRegion.js`(장소명 + 좌표 근사)로 분류
 
 ### 하단 탭바 (`components/PillTabBar.js`)
 
