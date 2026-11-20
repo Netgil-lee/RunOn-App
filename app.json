@@ -2,7 +2,7 @@
   "expo": {
     "name": "RunOn",
     "slug": "runon",
-    "version": "1.0.16",
+    "version": "1.0.17",
     "orientation": "portrait",
     "icon": "./assets/appicon.png",
     "userInterfaceStyle": "light",
@@ -44,7 +44,7 @@
         "backgroundColor": "#000000"
       },
       "package": "com.runon.app",
-      "versionCode": 30,
+      "versionCode": 32,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyAcY5kF9Lhq1h2grI7rfDcPMBQuwV8B458"
