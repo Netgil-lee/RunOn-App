@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,13 +16,16 @@ const TINT_ALPHA = '29'; // 아이콘 색을 옅게 깐 타일 바탕 (약 16%)
 const toSerializable = (value) =>
   value && typeof value.toISOString === 'function' ? value.toISOString() : value;
 
-// 모임에 대표 이미지가 없어서 시작 시간대에 맞는 아이콘을 쓴다
+// 모임 사진이 없는 모임(사진 기능 이전에 만든 모임)은 시작 시간대에 맞는 아이콘을 쓴다
 const getTimeIcon = (start) => {
   const hour = start.getHours();
   if (hour >= 19 || hour < 5) return 'weather-night';
   if (hour < 10) return 'weather-sunset-up';
   return 'run';
 };
+
+// 주최자가 넣은 모임 사진이 있는지
+const hasPhoto = (event) => typeof event.imageUrl === 'string' && event.imageUrl.startsWith('http');
 
 // 정원이 찼는지 (정원이 없는 모임은 항상 모집 중)
 const isFull = (event) =>
@@ -108,7 +111,11 @@ const NearbyEventsSection = ({ navigation, coords }) => {
                 activeOpacity={0.8}
               >
                 <View style={[styles.thumb, { backgroundColor: `${color}${TINT_ALPHA}` }]}>
-                  <MaterialCommunityIcons name={getTimeIcon(start)} size={30} color={color} />
+                  {hasPhoto(event) ? (
+                    <Image source={{ uri: event.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  ) : (
+                    <MaterialCommunityIcons name={getTimeIcon(start)} size={30} color={color} />
+                  )}
                 </View>
                 <Text style={styles.title} numberOfLines={1}>{event.title}</Text>
                 <Text style={styles.meta} numberOfLines={1}>{formatEventWhen(start)} · {people}</Text>
@@ -135,6 +142,7 @@ const createStyles = (colors) => StyleSheet.create({
   thumb: {
     height: 92,
     borderRadius: 12,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },

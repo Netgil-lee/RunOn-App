@@ -1,12 +1,11 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import ShortcutIcon from './ShortcutIcon';
 import { useTheme } from '../../contexts/ThemeContext';
 
 /**
  * 홈 바로가기 5개 (한 줄)
- * 동그란 바탕에 채운 아이콘, 색은 시안 한 가지.
- * 러닝 시작만 바탕을 시안으로 채워 강조한다.
+ * 바탕 없이 입체풍 컬러 아이콘(ShortcutIcon)을 쓴다.
  */
 const HomeShortcuts = ({ navigation, showCafeBadge = false }) => {
   const { colors } = useTheme();
@@ -16,34 +15,33 @@ const HomeShortcuts = ({ navigation, showCafeBadge = false }) => {
     {
       key: 'run',
       label: '러닝 시작',
-      icon: 'run-fast',
-      primary: true,
+      icon: 'run',
       onPress: () => navigation.navigate('RunningTracker'),
     },
     {
       key: 'find',
       label: '모임 찾기',
-      icon: 'account-search',
+      icon: 'find',
       // 모임 목록은 지도 탭의 모임 토글에 있다 (모임 탭 첫 화면은 메뉴)
       onPress: () => navigation.navigate('MapTab', { activeToggle: 'events' }),
     },
     {
       key: 'create',
       label: '모임 만들기',
-      icon: 'calendar-plus',
+      icon: 'create',
       onPress: () => navigation.navigate('ScheduleTab', { openCreateFlow: true }),
     },
     {
       key: 'cafe',
       label: '러닝카페',
-      icon: 'coffee',
+      icon: 'cafe',
       badge: showCafeBadge,
       onPress: () => navigation.navigate('MapTab', { activeToggle: 'cafes' }),
     },
     {
       key: 'stats',
       label: '내 기록',
-      icon: 'chart-bar',
+      icon: 'stats',
       onPress: () => navigation.navigate('RunningStats'),
     },
   ];
@@ -59,17 +57,8 @@ const HomeShortcuts = ({ navigation, showCafeBadge = false }) => {
           accessibilityRole="button"
           accessibilityLabel={item.label}
         >
-          <View
-            style={[
-              styles.iconBox,
-              item.primary && { backgroundColor: colors.PRIMARY },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name={item.icon}
-              size={28}
-              color={item.primary ? colors.ON_PRIMARY : colors.SHORTCUT_ICON}
-            />
+          <View style={styles.iconBox}>
+            <ShortcutIcon name={item.icon} size={56} />
             {item.badge && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText} allowFontScaling={false}>N</Text>
@@ -96,21 +85,19 @@ const createStyles = (colors) => StyleSheet.create({
   iconBox: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 12,
     fontFamily: 'Pretendard-Medium',
     color: colors.TEXT_SECONDARY_STRONG,
   },
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
+    top: -2,
+    right: -2,
     minWidth: 18,
     height: 18,
     paddingHorizontal: 4,

@@ -64,6 +64,23 @@ class StorageService {
     }
   }
 
+  // 모임 대표 사진 업로드 (기기에서 고른 사진의 로컬 주소를 받아 올린다)
+  // 저장 규칙상 모임 문서가 먼저 있어야 하고, 주최자만 올릴 수 있다.
+  // 파일명에 시각을 붙여 사진을 바꿨을 때 예전 사진이 캐시로 남아 보이지 않게 한다.
+  async uploadEventPhoto(eventId, localUri) {
+    try {
+      const response = await fetch(localUri);
+      const blob = await response.blob();
+      const storageRef = ref(storage, `event-images/events/${eventId}/cover_${Date.now()}.jpg`);
+      const snapshot = await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      return { success: true, url: downloadURL, path: snapshot.ref.fullPath };
+    } catch (error) {
+      console.error('모임 사진 업로드 실패:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // 게시글 이미지 업로드
   async uploadPostImage(postId, imageFile, imageIndex = 0) {
     try {

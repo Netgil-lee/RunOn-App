@@ -36,6 +36,7 @@ import appleFitnessService from '../services/appleFitnessService';
 import runOnRunningService from '../services/runOnRunningService';
 import ENV from '../config/environment';
 import storageService from '../services/storageService';
+import * as ImagePicker from 'expo-image-picker';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import * as Location from 'expo-location';
 import * as Clipboard from 'expo-clipboard';
@@ -609,17 +610,62 @@ const ScheduleScreen = ({ navigation, route }) => {
   };
 
   const handleEventCreated = async (newEvent) => {
+    // localImageUri: 기기에서 새로 고른 모임 사진. 문서에는 넣지 않고, 올린 뒤 주소(imageUrl)만 저장한다.
+    const { localImageUri, ...eventData } = newEvent;
+
+    // 사진을 올리고 주소를 돌려준다. 실패하면 null
+    const uploadPhoto = async (eventId) => {
+      const result = await storageService.uploadEventPhoto(eventId, localImageUri);
+      return result.success ? result.url : null;
+    };
+
     if (editingEvent && editingEvent.id) {
       // 수정 모드
-      updateEvent(editingEvent.id, newEvent);
+      let imageUrl = null;
+      if (localImageUri) {
+        imageUrl = await uploadPhoto(editingEvent.id);
+        if (!imageUrl) {
+          Alert.alert('사진을 올리지 못했어요', '다른 내용은 저장했어요. 잠시 후 모임 수정에서 사진을 다시 넣어주세요.');
+        }
+      }
+      updateEvent(editingEvent.id, imageUrl ? { ...eventData, imageUrl } : eventData);
       setShowCreateFlow(false);
       setEditingEvent(null);
     } else {
       // 새 모임 생성
-      const createdEvent = await addEvent(newEvent);
+      let createdEvent = null;
+      try {
+        createdEvent = await addEvent(eventData);
+      } catch (error) {
+        console.error('모임 생성 실패:', error);
+      }
+      if (!createdEvent?.id) {
+        Alert.alert('모임을 만들지 못했어요', '네트워크 상태를 확인하고 다시 시도해주세요.');
+        return;
+      }
+
+      // 사진은 모임 문서가 생긴 뒤에 올릴 수 있다 (저장 규칙: 주최자만 업로드)
+      let photoFailed = false;
+      if (localImageUri) {
+        const imageUrl = await uploadPhoto(createdEvent.id);
+        if (imageUrl) {
+          await updateEvent(createdEvent.id, { imageUrl });
+        } else {
+          photoFailed = true;
+        }
+      }
+
       setShowCreateFlow(false);
       setEditingEvent(null);
-      
+
+      if (photoFailed) {
+        Alert.alert(
+          '모임은 만들었지만 사진을 올리지 못했어요',
+          `"${newEvent.title}" 모임이 생성되었습니다.\n\n내가 만든 모임에서 수정을 눌러 사진을 다시 넣어주세요.`
+        );
+        return;
+      }
+
       // 새 모임 생성 완료 알림
       Alert.alert(
         '모임 생성 완료! 🎉',
@@ -2261,6 +2307,42 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
   const [eventType, setEventType] = useState(editingEvent?.type || '');
   const [title, setTitle] = useState(editingEvent?.title || '');
   const [description, setDescription] = useState(editingEvent?.description || '');
+  // 모임 사진: 수정 중이면 기존 사진 주소(http), 새로 고르면 기기 안의 주소(file://)
+  const [eventImageUri, setEventImageUri] = useState(editingEvent?.imageUrl || null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const pickEventImage = async (source) => {
+    try {
+      const permission = source === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert(
+          '권한이 필요해요',
+          source === 'camera' ? '설정에서 카메라 접근을 허용해주세요.' : '설정에서 사진 접근을 허용해주세요.'
+        );
+        return;
+      }
+      const options = { mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.5 };
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync(options)
+        : await ImagePicker.launchImageLibraryAsync(options);
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setEventImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('모임 사진 선택 실패:', error);
+      Alert.alert('사진을 불러오지 못했어요', '다시 시도해주세요.');
+    }
+  };
+
+  const handlePickEventImage = () => {
+    Alert.alert('모임 사진', '모임 장소나 모임 분위기를 알 수 있는 사진을 넣어주세요.', [
+      { text: '사진 찍기', onPress: () => pickEventImage('camera') },
+      { text: '앨범에서 고르기', onPress: () => pickEventImage('library') },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
   const [location, setLocation] = useState(editingEvent?.location || '');
   const [date, setDate] = useState(() => {
     if (editingEvent?.date) {
@@ -2722,7 +2804,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
 
   const canProceed = () => {
     switch (currentStep) {
-      case 1: return eventType && title.trim();
+      // 모임 사진은 새로 만들 때 필수. 사진 기능 이전에 만든 모임을 수정할 때는 없어도 넘어간다
+      case 1: return eventType && title.trim() && (eventImageUri || editingEvent);
       case 2: return hasCustomMarker && customLocation.trim() && dateString && timeString;
       case 3: return distance && minPace && maxPace && difficulty;
       case 4: return maxParticipants && parseInt(maxParticipants, 10) >= 2; // 최소 2명(호스트 포함)부터 설정
@@ -2802,7 +2885,18 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
     }
   };
 
+  // 저장하는 동안(사진 업로드 포함) 버튼을 다시 누르지 못하게 막는다
   const handleCreateEvent = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await submitEvent();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitEvent = async () => {
 
     // 현재 사용자의 프로필 정보를 직접 가져오기
     let currentUserProfileData = null;
@@ -2914,6 +3008,8 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       organizer: finalOrganizerName, // 실제 사용자 정보를 호스트로 설정
       organizerImage: finalOrganizerImage, // 생성자 프로필 이미지 추가
       createdBy: user?.uid, // 모임 생성자 UID 추가
+      // 새로 고른 사진만 넘긴다 (기존 사진 주소 그대로면 올릴 것이 없음)
+      localImageUri: eventImageUri && !eventImageUri.startsWith('http') ? eventImageUri : null,
     };
 
     console.log('📤 onEventCreated 호출, location:', newEvent.location);
@@ -2928,7 +3024,7 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
       });
     }
     
-    onEventCreated(newEvent);
+    await onEventCreated(newEvent);
   };
 
   const formatDate = (dateString) => {
@@ -3436,6 +3532,33 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
         />
         <Text style={styles.inputHint}>모임의 목적이나 특징을 자유롭게 작성해주세요</Text>
       </View>
+
+      <View style={[styles.inputGroup, { marginTop: 20 }]}>
+        <Text style={styles.inputLabel}>모임 사진 <Text style={styles.requiredMark}>(필수)</Text></Text>
+        <TouchableOpacity
+          style={styles.eventImagePicker}
+          onPress={handlePickEventImage}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={eventImageUri ? '모임 사진 바꾸기' : '모임 사진 넣기'}
+        >
+          {eventImageUri ? (
+            <>
+              <Image source={{ uri: eventImageUri }} style={styles.eventImagePreview} resizeMode="cover" />
+              <View style={styles.eventImageChangeBadge}>
+                <Ionicons name="camera" size={14} color="#FFFFFF" />
+                <Text style={styles.eventImageChangeText}>사진 바꾸기</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <Ionicons name="camera-outline" size={32} color={colors.TEXT_SECONDARY} />
+              <Text style={styles.eventImagePlaceholderText}>사진 넣기</Text>
+            </>
+          )}
+        </TouchableOpacity>
+        <Text style={styles.inputHint}>모임 장소나 어떤 모임인지 알 수 있는 사진을 넣어주세요</Text>
+      </View>
     </View>
   );
 
@@ -3815,13 +3938,13 @@ const RunningEventCreationFlow = ({ onEventCreated, onClose, editingEvent }) => 
             currentStep === 4 && styles.nextButtonFull,
           ]}
           onPress={handleNext}
-          disabled={!canProceed()}
+          disabled={!canProceed() || isSubmitting}
         >
           <Text style={[
             styles.nextButtonText,
             !canProceed() && styles.nextButtonTextDisabled,
           ]}>
-            {currentStep === 4 ? (editingEvent ? '수정 완료' : '모임 생성') : '다음'}
+            {isSubmitting ? '저장 중...' : currentStep === 4 ? (editingEvent ? '수정 완료' : '모임 생성') : '다음'}
           </Text>
           {currentStep < 4 && (
             <Ionicons name="arrow-forward" size={20} color={canProceed() ? "#000000" : "#666666"} />
@@ -4544,6 +4667,47 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: '#333333',
     minHeight: 48,
     fontSize: 16,
+  },
+  requiredMark: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.TEXT_SECONDARY,
+  },
+  eventImagePicker: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.BORDER,
+    backgroundColor: colors.SURFACE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  eventImagePreview: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  eventImageChangeBadge: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(15, 17, 21, 0.72)',
+  },
+  eventImageChangeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  eventImagePlaceholderText: {
+    marginTop: 6,
+    fontSize: 14,
+    color: colors.TEXT_SECONDARY,
   },
   inputHint: {
     fontSize: 12,

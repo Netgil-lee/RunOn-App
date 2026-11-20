@@ -42,7 +42,9 @@ export const DARK_THEME = {
   // 알약 탭바 — 배경 불투명도 20% (뒤 콘텐츠가 비침, 블러 위에 얹는 색)
   TAB_BAR_BG: 'rgba(32, 36, 43, 0.20)',
   TAB_BAR_BORDER: 'rgba(255, 255, 255, 0.14)',
+  TAB_BAR_SHADOW: 'rgba(0, 0, 0, 0.28)', // 탭바 아래 그림자
   TAB_BAR_ACTIVE_BG: 'rgba(120, 130, 148, 0.38)', // 선택된 탭 뒤 캡슐
+  TAB_BAR_GLASS_BORDER: 'rgba(255, 255, 255, 0.30)', // 유리 캡슐 가장자리 빛
   TAB_BAR_ACTIVE_ICON: '#3AF8FF',
   TAB_BAR_ACTIVE_LABEL: '#ffffff',
   TAB_BAR_INACTIVE: '#D8D8DD',
@@ -51,7 +53,6 @@ export const DARK_THEME = {
   ON_PRIMARY: '#04342C',
 
   // 홈 바로가기 아이콘 (시안 한 가지 색)
-  SHORTCUT_ICON: '#3AF8FF',
 
   // 홈 카드 타일 색 (내 주변 모임·러닝카페 카드의 아이콘과 옅은 바탕)
   SHORTCUT_BLUE: '#85B7EB',
@@ -100,7 +101,9 @@ export const LIGHT_THEME = {
   // 알약 탭바 — 라이트에서는 선택 아이콘에 시안을 쓰지 않는다 (밝은 배경 대비 부족)
   TAB_BAR_BG: 'rgba(255, 255, 255, 0.20)',
   TAB_BAR_BORDER: 'rgba(0, 0, 0, 0.10)',
+  TAB_BAR_SHADOW: 'rgba(0, 0, 0, 0.10)', // 탭바 아래 그림자 (흰 배경에서 윤곽을 살린다)
   TAB_BAR_ACTIVE_BG: 'rgba(60, 60, 67, 0.14)',
+  TAB_BAR_GLASS_BORDER: 'rgba(255, 255, 255, 0.90)',
   TAB_BAR_ACTIVE_ICON: '#1C1C1E',
   TAB_BAR_ACTIVE_LABEL: '#1C1C1E',
   TAB_BAR_INACTIVE: '#1C1C1E',
@@ -109,7 +112,6 @@ export const LIGHT_THEME = {
   ON_PRIMARY: '#04342C',
 
   // 홈 바로가기 아이콘 — 흰 바탕에서는 밝은 시안이 잘 안 보여 진한 청록을 쓴다
-  SHORTCUT_ICON: '#0A8F96',
 
   // 홈 카드 타일 색 — 밝은 배경에서 보이도록 다크보다 진하게
   SHORTCUT_BLUE: '#2F7BD0',
